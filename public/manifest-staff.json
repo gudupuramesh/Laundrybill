@@ -1,0 +1,97 @@
+{
+    "name": "LaundryBill Staff",
+    "short_name": "LB Staff",
+    "description": "Staff app for taking orders and serving customers",
+    "start_url": "/staff",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#3B82F6",
+    "orientation": "portrait-primary",
+    "scope": "/staff",
+    "icons": [
+        {
+            "src": "/icons/Gemini_Generated_Image_o2wsl2o2wsl2o2ws-Photoroom.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-72x72.png",
+            "sizes": "72x72",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-96x96.png",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-128x128.png",
+            "sizes": "128x128",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-144x144.png",
+            "sizes": "144x144",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-152x152.png",
+            "sizes": "152x152",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-384x384.png",
+            "sizes": "384x384",
+            "type": "image/png",
+            "purpose": "maskable any"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable any"
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity"
+    ],
+    "shortcuts": [
+        {
+            "name": "New Order",
+            "short_name": "New Order",
+            "description": "Create a new laundry order",
+            "url": "/staff/orders/new",
+            "icons": [
+                {
+                    "src": "/icons/shortcut-new-order.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "Orders",
+            "short_name": "Orders",
+            "description": "View all orders",
+            "url": "/staff/orders",
+            "icons": [
+                {
+                    "src": "/icons/shortcut-orders.png",
+                    "sizes": "96x96"
+                }
+            ]
+        }
+    ]
+}

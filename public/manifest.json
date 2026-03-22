@@ -1,0 +1,49 @@
+{
+    "name": "LaundryBill",
+    "short_name": "LaundryBill",
+    "description": "Complete laundry management system for local shops",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0D9488",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/icons/Gemini_Generated_Image_o2wsl2o2wsl2o2ws-Photoroom.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity"
+    ],
+    "shortcuts": [
+        {
+            "name": "New Order",
+            "short_name": "New Order",
+            "description": "Create a new laundry order",
+            "url": "/new-order",
+            "icons": [
+                {
+                    "src": "/icons/shortcut-new-order.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "Orders",
+            "short_name": "Orders",
+            "description": "View all orders",
+            "url": "/orders",
+            "icons": [
+                {
+                    "src": "/icons/shortcut-orders.png",
+                    "sizes": "96x96"
+                }
+            ]
+        }
+    ]
+}

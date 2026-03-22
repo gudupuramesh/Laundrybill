@@ -1,0 +1,294 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isShopMember(shopId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId)
+      );
+    }
+    
+    function isShopAdmin(shopId) {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)).data.role == 'admin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId)
+      );
+    }
+    
+    function isShopOwner(shopId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid;
+    }
+    
+    function isPlantOperator(shopId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'plant_operator';
+    }
+
+    // Shops collection
+    match /shops/{shopId} {
+      // Allow public read for shop details (needed for tracking page)
+      allow read: if true;
+      allow create: if isAuthenticated();
+      // Allow staff to update shop (needed for nextOrderNumber generation)
+      allow update: if isShopOwner(shopId) || isShopMember(shopId) || isSuperAdmin();
+      allow delete: if isShopOwner(shopId) || isSuperAdmin();
+      
+      // Staff subcollection (roster for attendance/payroll)
+      match /staff/{staffId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+
+      // Team members (app logins - Staff/Agent/Plant)
+      match /teamMembers/{memberId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+
+      // FCM tokens for push notifications (new online order alerts)
+      match /notificationTokens/{tokenId} {
+        allow read, write: if isShopMember(shopId) || isShopOwner(shopId);
+      }
+
+      // Agent FCM tokens (driver app push – order assigned, ready, out for delivery)
+      // Supports both web token (doc ID = agentId) and Android token (doc ID = agentId_android)
+      match /agentNotificationTokens/{tokenDocId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow create, update: if request.auth != null
+          && (
+            // Web token: doc ID is the agentId itself
+            get(/databases/$(database)/documents/shops/$(shopId)/teamMembers/$(tokenDocId)).data.authUid == request.auth.uid
+            // Android token: doc ID is agentId_android, check request data has matching agentId
+            || (tokenDocId.matches('.*_android') && request.resource.data.agentId is string
+                && get(/databases/$(database)/documents/shops/$(shopId)/teamMembers/$(request.resource.data.agentId)).data.authUid == request.auth.uid)
+          );
+      }
+      
+      // Orders subcollection
+      // Allow public read for tracking purposes (user must know trackingId or publicId)
+      match /orders/{orderId} {
+        allow read: if true;  // Public access for tracking
+        allow create: if isShopMember(shopId) || isShopOwner(shopId);
+        allow update: if isShopMember(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Customers subcollection
+      match /customers/{customerId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) || isSuperAdmin();
+        allow write: if isShopMember(shopId) || isShopOwner(shopId);
+      }
+      
+      // Inventory subcollection (public read when shop has public ordering enabled)
+      match /inventory/{itemId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) ||
+          (get(/databases/$(database)/documents/shops/$(shopId)).data.publicOrdering.enabled == true);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Services subcollection
+      match /services/{serviceId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Categories subcollection (public read when shop has public ordering enabled)
+      match /categories/{categoryId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) ||
+          (get(/databases/$(database)/documents/shops/$(shopId)).data.get('publicOrdering', {}).get('enabled', false) == true);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Attendance subcollection (under staff)
+      match /staff/{staffId}/attendance/{recordId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow create: if isShopMember(shopId) || isShopOwner(shopId);
+        allow update, delete: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Attendance subcollection (flat structure)
+      match /attendance/{recordId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow create: if isShopMember(shopId) || isShopOwner(shopId);
+        allow update, delete: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Payroll subcollection
+      match /payroll/{recordId} {
+        allow read: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+      }
+      
+      // Expenses subcollection
+      match /expenses/{expenseId} {
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if isShopMember(shopId) || isShopOwner(shopId);
+      }
+      
+      // Stock subcollection
+      match /stock/{stockId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopAdmin(shopId);
+      }
+      
+      // Monthly reports subcollection
+      match /monthly_reports/{reportId} {
+        allow read: if isShopAdmin(shopId);
+        allow write: if isShopAdmin(shopId);
+      }
+      
+      // Storage / image activity log (uploads and deletes to R2) – shop writes, Super Admin reads
+      match /storageEvents/{eventId} {
+        allow create: if isShopMember(shopId);
+        allow read: if isSuperAdmin();
+      }
+      // Storage summary (total bytes + image count) – shop writes, Super Admin reads
+      match /storageStats/{docId} {
+        allow read: if isSuperAdmin();
+        allow create, update: if isShopMember(shopId);
+      }
+    }
+    
+    // Collection group query for orders (needed for tracking)
+    match /{path=**}/orders/{orderId} {
+      allow read: if true;  // Allow public read for tracking
+    }
+    
+    // Collection group for teamMembers (needed for app auth by invite code)
+    match /{path=**}/teamMembers/{memberId} {
+      allow read: if true;  // Invite code lookup during signup
+      // Signup: authenticated user sets authUid when invite is pending
+      allow update: if request.auth != null
+                    && resource.data.inviteCode != null
+                    && resource.data.inviteStatus == 'pending'
+                    && request.resource.data.authUid == request.auth.uid;
+      // Agent/Plant: can update isOnline and updatedAt when already accepted (for go online/offline)
+      allow update: if request.auth != null
+                    && resource.data.authUid == request.auth.uid
+                    && resource.data.inviteStatus == 'accepted'
+                    && request.resource.data.authUid == resource.data.authUid
+                    && request.resource.data.inviteStatus == resource.data.inviteStatus;
+    }
+
+    // Collection group query for staff (needed for staff auth - backward compat)
+    match /{path=**}/staff/{staffId} {
+      // Allow read for invite code lookup and auth queries
+      // Note: inviteCode is not sensitive - it's like a one-time password
+      allow read: if true;
+      
+      // Allow signup: authenticated user can update staff doc to set their authUid
+      // Only if: doc has inviteCode, status is pending, and they're setting their own UID
+      allow update: if request.auth != null 
+                    && resource.data.inviteCode != null
+                    && resource.data.inviteStatus == 'pending'
+                    && request.resource.data.authUid == request.auth.uid;
+      // Agent/Plant (legacy): can update isOnline and updatedAt when already accepted
+      allow update: if request.auth != null
+                    && resource.data.authUid == request.auth.uid
+                    && resource.data.inviteStatus == 'accepted'
+                    && request.resource.data.authUid == resource.data.authUid
+                    && request.resource.data.inviteStatus == resource.data.inviteStatus;
+    }
+    
+    // User profiles (for multi-shop users)
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId;
+      allow write: if request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // SUPER ADMIN COLLECTIONS
+    // ============================================
+    
+    // Helper: Check if user is a super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/super_admins/$(request.auth.uid));
+    }
+    
+    // Super admins collection
+    match /super_admins/{adminId} {
+      // User can read their own super admin doc
+      allow read: if request.auth.uid == adminId;
+      // Super admin can read all admins
+      allow read: if isSuperAdmin();
+      // Only allow create/update by self (for first login doc creation)
+      allow create, update: if request.auth.uid == adminId;
+      // Delete only by other super admins
+      allow delete: if isSuperAdmin() && request.auth.uid != adminId;
+    }
+
+    // Super admin FCM tokens (for new-shop push notifications)
+    match /superAdminNotificationTokens/{adminId} {
+      allow create, update: if request.auth != null
+        && request.auth.uid == adminId
+        && exists(/databases/$(database)/documents/super_admins/$(request.auth.uid));
+    }
+    
+    // Plans collection (public read for pricing page)
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+    
+    // Subscriptions collection (Keyed by shopId)
+    match /subscriptions/{shopId} {
+      allow get: if isAuthenticated() && (isShopMember(shopId) || isShopOwner(shopId) || isSuperAdmin());
+      allow list: if isSuperAdmin(); // Standard users shouldn't list the whole collection
+      allow write: if isSuperAdmin();
+      // Subscription payment history (shop owner reads own)
+      match /payments/{paymentId} {
+        allow read: if isAuthenticated() && (isShopMember(shopId) || isShopOwner(shopId) || isSuperAdmin());
+        allow write: if isSuperAdmin();
+      }
+    }
+    
+    // Payments collection
+    match /payments/{paymentId} {
+      // Shop owner can read their own payments
+      allow read: if isAuthenticated() && resource.data.shopId != null && 
+        get(/databases/$(database)/documents/shops/$(resource.data.shopId)).data.ownerId == request.auth.uid;
+      // Super admin can read/write all
+      allow read, write: if isSuperAdmin();
+    }
+    
+    // Activity logs (super admin only)
+    match /activity_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuthenticated(); // Any action can create log
+      allow update, delete: if false; // Immutable
+    }
+    
+    // Platform stats (super admin only)
+    match /platform_stats/{statId} {
+      allow read: if isSuperAdmin();
+      allow write: if false; // Only cloud functions can write
+    }
+    
+    // Platform settings — any logged-in user can READ (branding, support, discounts are not sensitive).
+    // Only super admin can write.
+    match /platformSettings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isSuperAdmin();
+    }
+
+    // Coupons (super admin manage; validateCoupon callable reads via Admin SDK)
+    match /coupons/{code} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

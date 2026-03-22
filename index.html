@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0D9488" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LaundryBill" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="LaundryBill" />
+  <meta name="msapplication-TileColor" content="#0D9488" />
+  <meta name="msapplication-tap-highlight" content="no" />
+
+  <!-- SEO -->
+  <meta name="description"
+    content="Complete laundry management system for local shops. Track orders, manage customers, and grow your business." />
+
+  <!-- Manifest - Dynamically loaded based on path to ensure correct PWA install -->
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var manifestUrl = '/manifest.json'; // Default
+      var themeColor = '#0D9488'; // Default Teal
+      var appTitle = 'LaundryBill';
+      var appName = 'LaundryBill';
+
+      // Determine context based on path
+      if (path.startsWith('/staff')) {
+        manifestUrl = '/manifest-staff.json';
+        themeColor = '#3B82F6';
+        appTitle = 'LB Staff';
+        appName = 'LaundryBill Staff';
+        document.title = 'LaundryBill Staff';
+      } else if (path.startsWith('/agent')) {
+        manifestUrl = '/manifest-agent.json';
+        themeColor = '#22C55E';
+        appTitle = 'LB Agent';
+        appName = 'LaundryBill Agent';
+        document.title = 'LaundryBill Agent';
+      } else if (path.startsWith('/plant')) {
+        manifestUrl = '/manifest-plant.json';
+        themeColor = '#A855F7';
+        appTitle = 'LB Plant';
+        appName = 'LaundryBill Plant';
+        document.title = 'LaundryBill Plant';
+      } else if (path.startsWith('/super-admin')) {
+        manifestUrl = '/manifest-super-admin.json';
+        themeColor = '#DC2626';
+        appTitle = 'LB Super Admin';
+        appName = 'LaundryBill Super Admin';
+        document.title = 'LaundryBill Super Admin';
+      }
+
+      // 1. Create and inject Manifest Link
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestUrl;
+      document.head.appendChild(link);
+
+      // 2. Update/Create Meta Tags
+      function setMeta(name, content) {
+        var meta = document.querySelector('meta[name="' + name + '"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.name = name;
+          document.head.appendChild(meta);
+        }
+        meta.content = content;
+      }
+
+      setMeta('theme-color', themeColor);
+      setMeta('apple-mobile-web-app-title', appTitle);
+      setMeta('application-name', appName);
+    })();
+  </script>
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="/icons/Gemini_Generated_Image_o2wsl2o2wsl2o2ws-Photoroom.svg" />
+  <link rel="apple-touch-icon" href="/icons/Gemini_Generated_Image_o2wsl2o2wsl2o2ws-Photoroom.svg" />
+
+  <!-- Fonts - Primary + Indian Language Support -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Primary fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <!-- Noto Sans for Indian languages: Hindi, Marathi (Devanagari), Telugu, Tamil, Kannada, Bengali, Malayalam -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <title>LaundryBill</title>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <!--
+    Android WebView Bridge: Global functions for native Google Sign-In.
+    These MUST be defined before React mounts so Android's WebView can always find them.
+    Once React's AuthProvider mounts, it replaces these stubs with the real Firebase implementation
+    and processes any token that arrived while React was loading.
+  -->
+  <script>
+    // Queue to hold tokens that arrive before React is ready
+    window.__pendingGoogleIdToken = null;
+    window.__pendingGoogleLoginError = null;
+
+    // Internal handler — React replaces this with real Firebase sign-in when ready
+    window.__handleGoogleToken = function(idToken) {
+      console.log("[Android Bridge] Token received, queuing for React. Length:", idToken ? idToken.length : 0);
+      window.__pendingGoogleIdToken = idToken;
+    };
+
+    // Global function Android calls on successful native Google Sign-In
+    window.onGoogleLoginSuccess = function(idToken) {
+      console.log("[Android Bridge] onGoogleLoginSuccess called, length:", idToken ? idToken.length : 0);
+      window.__handleGoogleToken(idToken);
+    };
+
+    // Global function Android calls if native Google Sign-In fails
+    window.onGoogleLoginFailure = function(error) {
+      console.error("[Android Bridge] onGoogleLoginFailure called:", error);
+      window.__pendingGoogleLoginError = error;
+    };
+
+    // TRAP: Intercept Android setting window.androidGoogleToken at ANY time.
+    // Android's injected JS does: window.androidGoogleToken = token;
+    // This setter fires instantly when that happens, no polling needed.
+    (function() {
+      var _androidToken = window.androidGoogleToken || null;
+
+      // If token was already set before this script, process it
+      if (_androidToken) {
+        console.log("[Android Bridge] Pre-existing androidGoogleToken found, processing");
+        window.__handleGoogleToken(_androidToken);
+      }
+
+      Object.defineProperty(window, 'androidGoogleToken', {
+        get: function() { return _androidToken; },
+        set: function(val) {
+          console.log("[Android Bridge] androidGoogleToken SET by Android, length:", val ? val.length : 0);
+          _androidToken = val;
+          if (val) {
+            window.__handleGoogleToken(val);
+          }
+        },
+        configurable: true,
+        enumerable: true
+      });
+    })();
+
+    // Android FCM Token: inject FCM token from native app for push notifications
+    (function() {
+      var _androidFcmToken = window.androidFcmToken || null;
+
+      if (_androidFcmToken) {
+        console.log("[Android Bridge] Pre-existing androidFcmToken found, dispatching event");
+        window.dispatchEvent(new CustomEvent('android-fcm-token', { detail: { token: _androidFcmToken } }));
+      }
+
+      Object.defineProperty(window, 'androidFcmToken', {
+        get: function() { return _androidFcmToken; },
+        set: function(val) {
+          console.log("[Android Bridge] androidFcmToken SET by Android, length:", val ? val.length : 0);
+          _androidFcmToken = val;
+          if (val) {
+            window.dispatchEvent(new CustomEvent('android-fcm-token', { detail: { token: val } }));
+          }
+        },
+        configurable: true,
+        enumerable: true
+      });
+    })();
+  </script>
+
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

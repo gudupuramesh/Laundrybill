@@ -1,0 +1,611 @@
+const fs = require('fs');
+const path = require('path');
+
+const localesDir = path.join(__dirname, '../src/locales');
+const languages = ['ta', 'ml', 'kn', 'mr', 'bn'];
+
+const translations = {
+    ta: {
+        apps: {
+            title: "பயன்பாடுகள்",
+            subtitle: "இந்த பயன்பாடுகளை உங்கள் குழுவுடன் பகிரவும்",
+            staffApp: "பணியாளர் பயன்பாடு",
+            staffAppDesc: "ஆர்டர்களை எடுக்கவும், வாடிக்கையாளர்களை நிர்வகிக்கவும், பணம் செலுத்தவும்",
+            deliveryAgent: "டெலிவரி ஏஜென்ட்",
+            deliveryAgentDesc: "வாடிக்கையாளர்களுக்கு ஆர்டர்களை எடுத்து வழங்கவும்",
+            plantDashboard: "ஆலை டாஷ்போர்டு",
+            plantDashboardDesc: "துவைத்தல், அயர்னிங் மற்றும் பேக்கிங் ஆகியவற்றைக் கண்காணிக்கவும்",
+            howItWorks: "இது எப்படி வேலை செய்கிறது",
+            step1: "WhatsApp வழியாக இணைப்பைப் பகிரவும்",
+            step2: "தொலைபேசி உலாவியில் திறக்கவும்",
+            step3: "\"முகப்புத் திரையில் சேர்\" என்பதைத் தட்டவும்",
+            step4: "சான்றுகளுடன் உள்நுழையவும்",
+            available: "கிடைக்கிறது",
+            comingSoon: "விரைவில் வருகிறது",
+            share: "பகிர்",
+            shareWhatsApp: "WhatsApp வழியாகப் பகிரவும்",
+            copyLink: "இணைப்பை நகலெடுக்கவும்",
+            copied: "நகலெடுக்கப்பட்டது!",
+            open: "திற",
+            qrHint: "குறிப்பு: எளிதாக நிறுவலை மேற்கொள்ள QR குறியீடுகளை அச்சிடவும்",
+            shareMessage: "தொடங்க {{appName}} ஐப் பதிவிறக்கவும்:"
+        },
+        scanner: {
+            title: "QR குறியீட்டை ஸ்கேன் செய்யவும்",
+            subtitle: "எந்த ஆர்டர் ரசீது அல்லது டேகையும் ஸ்கேன் செய்யவும்",
+            cameraAccess: "கேமரா அனுமதி தேவை",
+            cameraAccessDesc: "QR குறியீடுகளை ஸ்கேன் செய்ய கேமரா அனுமதியை அனுமதிக்கவும்",
+            scanHint: "உங்கள் கேமராவை QR குறியீட்டில் காட்டவும்",
+            processing: "செயலாக்குகிறது...",
+            invalidQR: "தவறான QR குறியீடு",
+            orEnterId: "அல்லது ஆர்டர் ID ஐ கைமுறையாக உள்ளிடவும்",
+            enterIdPlaceholder: "ஆர்டர் ID (எ.கா. ORD-123)",
+            search: "தேடு",
+            camera: "கேமரா",
+            manual: "மேனுவல்"
+        },
+        settings: {
+            title: "அமைப்புகள்",
+            shopSettings: "கடை அமைப்புகள்",
+            shopSettingsDesc: "பெயர், லோகோ மற்றும் தொடர்புத் தகவல்",
+            shopLocation: "இருப்பிடம் & முகவரி",
+            shopLocationDesc: "GPS ஆயத்தொலைவுகள் மற்றும் முகவரி",
+            businessDetails: "வணிக விவரங்கள்",
+            businessDetailsDesc: "GST மற்றும் PAN எண்கள்",
+            bankDetails: "வங்கி விவரங்கள்",
+            bankDetailsDesc: "வங்கி கணக்கு மற்றும் UPI",
+            darkMode: "டார்க் மோட்",
+            notifications: "அறிவிப்புகள்",
+            helpSupport: "உதவி & ஆதரவு",
+            language: "மொழி",
+            selectLanguage: "மொழியைத் தேர்ந்தெடுக்கவும்",
+            deliverySettings: "டெலிவரி & பிக்கப்",
+            shopInfo: "கடை தகவல்",
+            shopInfoDesc: "பெயர், தொடர்பு, இடம்",
+            financials: "நிதி",
+            financialsDesc: "GST, PAN, வங்கி விவரங்கள்",
+            preferences: "விருப்பத்தேர்வுகள்",
+            preferencesDesc: "தீம், அறிவிப்புகள்"
+        },
+        validation: {
+            required: "இந்த புலம் கட்டாயம்",
+            phoneDesc: "தொலைபேசி எண் 6-9 இல் தொடங்கி 10 இலக்கங்களாக இருக்க வேண்டும்",
+            emailDesc: "சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்",
+            panDesc: "PAN 10 எழுத்துக்களாக இருக்க வேண்டும் (எ.கா., ABCDE1234F)",
+            gstDesc: "GST 15 எழுத்துக்களாக இருக்க வேண்டும் (எ.கா., 29ABCDE1234F1Z5)",
+            ifscDesc: "IFSC 11 எழுத்துக்களாக இருக்க வேண்டும் (எ.கா., SBIN0001234)",
+            upiDesc: "UPI ID @ ஐக் கொண்டிருக்க வேண்டும் (எ.கா., name@upi)",
+            accountDesc: "கணக்கு எண் 8-18 இலக்கங்களாக இருக்க வேண்டும்"
+        },
+        expense: {
+            groups: {
+                utilities: "பயன்பாடுகள்",
+                laundrySupplies: "லாண்டரி பொருட்கள்",
+                equipmentMaintenance: "உபகரணங்கள் & பராமரிப்பு",
+                operations: "செயல்பாடுகள்",
+                business: "வணிகம்",
+                other: "மற்றவை"
+            },
+            categories: {
+                rent: "வாடகை",
+                electricity: "மின்சார கட்டணம்",
+                water: "தண்ணீர் கட்டணம்",
+                detergents: "சோப்பு/டிடர்ஜெண்ட்",
+                fabric_softener: "ஃபேப்ரிக் சாஃப்ட்னர்",
+                stain_remover: "கறை நீக்கி",
+                bleach: "பிளீச்",
+                hangers: "ஹேங்கர்கள்",
+                plastic_covers: "பிளாஸ்டிக் கவர்கள்",
+                tags_ribbons: "டேக்ஸ் & ரிப்பன்கள்",
+                iron_spray: "அயர்ன் ஸ்ப்ரே",
+                equipment: "உபகரணங்கள் கொள்முதல்",
+                maintenance: "பராமரிப்பு",
+                washing_machine: "வாஷிங் மெஷின்",
+                dryer: "டிரையர்",
+                pressing_equipment: "பிரஸ்ஸிங் உபகரணங்கள்",
+                transport: "போக்குவரத்து",
+                delivery: "டெலிவரி கட்டணம்",
+                packaging: "பேக்கேஜிங் பொருட்கள்",
+                marketing: "மார்க்கெட்டிங்",
+                advertising: "விளம்பரம்",
+                salary: "சம்பளம்",
+                insurance: "காப்பீடு",
+                licenses: "உரிமங்கள்",
+                other: "மற்றவை"
+            },
+            selectCategory: "செலவு வகையைத் தேர்ந்தெடுக்கவும்",
+            customCategoryName: "தனிப்பயன் வகை பெயர்",
+            customCategoryPlaceholder: "எ.கா. அலுவலக பொருட்கள்"
+        }
+    },
+    ml: {
+        apps: {
+            title: "ആപ്പുകൾ",
+            subtitle: "ഈ ആപ്പുകൾ നിങ്ങളുടെ ടീമുമായി പങ്കിടുക",
+            staffApp: "സ്റ്റാഫ് ആപ്പ്",
+            staffAppDesc: "ഓർഡറുകൾ എടുക്കുക, ഉപഭോക്താക്കളെ നിയന്ത്രിക്കുക, പേയ്മെന്റ്",
+            deliveryAgent: "ഡെലിവറി ഏജന്റ്",
+            deliveryAgentDesc: "ഓർഡറുകൾ പിക്കപ്പ് ചെയ്ത് ഡെലിവറി ചെയ്യുക",
+            plantDashboard: "പ്ലാന്റ് ഡാഷ്ബോർഡ്",
+            plantDashboardDesc: "വാഷിംഗ്, അയേണിംഗ്, പാക്കിംഗ് എന്നിവ ട്രാക്ക് ചെയ്യുക",
+            howItWorks: "ഇതെങ്ങനെയാണ് പ്രവർത്തിക്കുന്നത്",
+            step1: "WhatsApp വഴി ലിങ്ക് പങ്കിടുക",
+            step2: "ഫോൺ ബ്രൗസറിൽ തുറക്കുക",
+            step3: "\"Add to Home Screen\" ടാപ്പ് ചെയ്യുക",
+            step4: "ക്രെഡൻഷ്യലുകൾ ഉപയോഗിച്ച് ലോഗിൻ ചെയ്യുക",
+            available: "ലഭ്യമാണ്",
+            comingSoon: "ഉടൻ വരുന്നു",
+            share: "പങ്കിടുക",
+            shareWhatsApp: "WhatsApp വഴി പങ്കിടുക",
+            copyLink: "ലിങ്ക് പകർത്തുക",
+            copied: "പകർത്തി!",
+            open: "തുറക്കുക",
+            qrHint: "നുറുങ്ങ്: എളുപ്പത്തിൽ ഇൻസ്റ്റാൾ ചെയ്യുന്നതിനായി QR കോഡുകൾ പ്രിന്റ് ചെയ്യുക",
+            shareMessage: "ആരംഭിക്കാൻ {{appName}} ഡൗൺലോഡ് ചെയ്യുക:"
+        },
+        scanner: {
+            title: "QR കോഡ് സ്കാൻ ചെയ്യുക",
+            subtitle: "ഏതെങ്കിലും ഓർഡർ രസീത് അല്ലെങ്കിൽ ടാഗ് സ്കാൻ ചെയ്യുക",
+            cameraAccess: "ക്യാമറ അനുമതി ആവശ്യമാണ്",
+            cameraAccessDesc: "QR കോഡുകൾ സ്കാൻ ചെയ്യാൻ ക്യാമറ അനുവദിക്കുക",
+            scanHint: "നിങ്ങളുടെ ക്യാമറ QR കോഡിലേക്ക് കാണിക്കുക",
+            processing: "പ്രോസസ്സ് ചെയ്യുന്നു...",
+            invalidQR: "അസാധുവായ QR കോഡ്",
+            orEnterId: "അല്ലെങ്കിൽ ഓർഡർ ID സ്വയം നൽകുക",
+            enterIdPlaceholder: "ഓർഡർ ID (ഉദാ. ORD-123)",
+            search: "തിരയുക",
+            camera: "ക്യാമറ",
+            manual: "മാനുവൽ"
+        },
+        settings: {
+            title: "ക്രമീകരണങ്ങൾ",
+            shopSettings: "ഷോപ്പ് ക്രമീകരണങ്ങൾ",
+            shopSettingsDesc: "പേര്, ലോഗോ, കോൺടാക്റ്റ് വിവരങ്ങൾ",
+            shopLocation: "ലൊക്കേഷനും വിലാസവും",
+            shopLocationDesc: "GPS കോർഡിനേറ്റുകളും വിലാസവും",
+            businessDetails: "ബിസിനസ്സ് വിവരങ്ങൾ",
+            businessDetailsDesc: "GST, PAN നമ്പറുകൾ",
+            bankDetails: "ബാങ്ക് വിവരങ്ങൾ",
+            bankDetailsDesc: "ബാങ്ക് അക്കൗണ്ട്, UPI",
+            darkMode: "ഡാർക്ക് മോഡ്",
+            notifications: "അറിയിപ്പുകൾ",
+            helpSupport: "സഹായം & പിന്തുണ",
+            language: "ഭാഷ",
+            selectLanguage: "ഭാഷ തിരഞ്ഞെടുക്കുക",
+            deliverySettings: "ഡെലിവറി & പിക്കപ്പ്",
+            shopInfo: "ഷോപ്പ് വിവരങ്ങൾ",
+            shopInfoDesc: "പേര്, കോൺടാക്റ്റ്, ലൊക്കേഷൻ",
+            financials: "സാമ്പത്തികം",
+            financialsDesc: "GST, PAN, ബാങ്ക് വിവരങ്ങൾ",
+            preferences: "മുൻഗണനകൾ",
+            preferencesDesc: "തീം, അറിയിപ്പുകൾ"
+        },
+        validation: {
+            required: "ഈ ഫീൽഡ് നിർബന്ധമാണ്",
+            phoneDesc: "ഫോൺ നമ്പർ 6-9 ൽ തുടങ്ങി 10 അക്കങ്ങൾ ഉണ്ടായിരിക്കണം",
+            emailDesc: "ശരിയായ ഇമെയിൽ വിലാസം നൽകുക",
+            panDesc: "PAN 10 അക്ഷരങ്ങൾ ഉണ്ടായിരിക്കണം (ഉദാ. ABCDE1234F)",
+            gstDesc: "GST 15 അക്ഷരങ്ങൾ ഉണ്ടായിരിക്കണം (ഉദാ. 29ABCDE1234F1Z5)",
+            ifscDesc: "IFSC 11 അക്ഷരങ്ങൾ ഉണ്ടായിരിക്കണം (ഉദാ. SBIN0001234)",
+            upiDesc: "UPI ID യിൽ @ ഉണ്ടായിരിക്കണം (ഉദാ. name@upi)",
+            accountDesc: "അക്കൗണ്ട് നമ്പർ 8-18 അക്കങ്ങൾ ആയിരിക്കണം"
+        },
+        expense: {
+            groups: {
+                utilities: "യൂട്ടിലിറ്റികൾ",
+                laundrySupplies: "ലോൺട്രി സാമഗ്രികൾ",
+                equipmentMaintenance: "ഉപകരണങ്ങൾ & പരിപാലനം",
+                operations: "ഓപ്പറേഷൻസ്",
+                business: "ബിസിനസ്സ്",
+                other: "മറ്റുള്ളവ"
+            },
+            categories: {
+                rent: "വാടക",
+                electricity: "വൈദ്യുതി ബിൽ",
+                water: "വാട്ടർ ബിൽ",
+                detergents: "ഡിറ്റർജന്റുകൾ",
+                fabric_softener: "ഫാബ്രിക് സോഫ്റ്റ്നർ",
+                stain_remover: "സ്റ്റെയിൻ റിമൂവർ",
+                bleach: "ബ്ലീച്ച്",
+                hangers: "ഹാങ്ങറുകൾ",
+                plastic_covers: "പ്ലാസ്റ്റിക് കവറുകൾ",
+                tags_ribbons: " ടാഗുകളും റിബണുകളും",
+                iron_spray: "അയേൺ സ്പ്രേ",
+                equipment: "ഉപകരണങ്ങൾ വാങ്ങൽ",
+                maintenance: "അറ്റകുറ്റപ്പണികൾ",
+                washing_machine: "വാഷിംഗ് മെഷീൻ",
+                dryer: "ഡ്രയർ",
+                pressing_equipment: "ഇസ്തിരിയിടൽ ഉപകരണങ്ങൾ",
+                transport: "ഗതാഗതം",
+                delivery: "ഡെലിവറി ചാർജുകൾ",
+                packaging: "പാക്കേജിംഗ് മെറ്റീരിയലുകൾ",
+                marketing: "മാർക്കറ്റിംഗ്",
+                advertising: "പരസ്യം",
+                salary: "ശമ്പളം",
+                insurance: "ഇൻഷുറൻസ്",
+                licenses: "ലൈസൻസുകൾ",
+                other: "മറ്റുള്ളവ"
+            },
+            selectCategory: "ചെലവ് വിഭാഗം തിരഞ്ഞെടുക്കുക",
+            customCategoryName: "കസ്റ്റം കാറ്റഗറി പേര്",
+            customCategoryPlaceholder: "ഉദാ. ഓഫീസ് സാമഗ്രികൾ"
+        }
+    },
+    kn: {
+        apps: {
+            title: "ಆಪ್‌ಗಳು",
+            subtitle: "ಈ ಆಪ್‌ಗಳನ್ನು ನಿಮ್ಮ ತಂಡದೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಿ",
+            staffApp: "ಸಿಬ್ಬಂದಿ ಆಪ್",
+            staffAppDesc: "ಆರ್ಡರ್‌ಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಿ, ಗ್ರಾಹಕರನ್ನು ನಿರ್ವಹಿಸಿ, ಪಾವತಿ",
+            deliveryAgent: "ಡೆಲಿವರಿ ಏಜೆಂಟ್",
+            deliveryAgentDesc: "ಗ್ರಾಹಕರಿಗೆ ಆರ್ಡರ್‌ಗಳನ್ನು ತಲುಪಿಸಿ",
+            plantDashboard: "ಪ್ಲಾಂಟ್ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+            plantDashboardDesc: "ವಾಷಿಂಗ್, ಐರನಿಂಗ್ ಮತ್ತು ಪ್ಯಾಕಿಂಗ್ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ",
+            howItWorks: "ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ",
+            step1: "WhatsApp ಮೂಲಕ ಲಿಂಕ್ ಹಂಚಿಕೊಳ್ಳಿ",
+            step2: "ಫೋನ್ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ",
+            step3: "\"Add to Home Screen\" ಟ್ಯಾಪ್ ಮಾಡಿ",
+            step4: "ಲಾಗಿನ್ ಮಾಡಿ",
+            available: "ಲಭ್ಯವಿದೆ",
+            comingSoon: "ಶೀಘ್ರದಲ್ಲೇ ಬರಲಿದೆ",
+            share: "ಹಂಚಿಕೊಳ್ಳಿ",
+            shareWhatsApp: "WhatsApp ಮೂಲಕ ಹಂಚಿಕೊಳ್ಳಿ",
+            copyLink: "ಲಿಂಕ್ ಕಾಪಿ ಮಾಡಿ",
+            copied: "ಕಾಪಿ ಮಾಡಲಾಗಿದೆ!",
+            open: "ತೆರೆಯಿರಿ",
+            qrHint: "ಸಲಹೆ: ಸುಲಭ ಇನ್‌ಸ್ಟಾಲೇಶನ್‌ಗಾಗಿ QR ಕೋಡ್‌ಗಳನ್ನು ಪ್ರಿಂಟ್ ಮಾಡಿ",
+            shareMessage: "ಪ್ರಾರಂಭಿಸಲು {{appName}} ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ:"
+        },
+        scanner: {
+            title: "QR ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
+            subtitle: "ಯಾವುದೇ ಆರ್ಡರ್ ರಶೀದಿ ಅಥವಾ ಟ್ಯಾಗ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
+            cameraAccess: "ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಅಗತ್ಯವಿದೆ",
+            cameraAccessDesc: "QR ಕೋಡ್‌ಗಳನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಲು ಕ್ಯಾಮೆರಾವನ್ನು ಅನುಮತಿಸಿ",
+            scanHint: "ನಿಮ್ಮ ಕ್ಯಾಮೆರಾವನ್ನು QR ಕೋಡ್‌ಗೆ ತೋರಿಸಿ",
+            processing: "ಪ್ರಕ್ರಿಯೆಗೊಳಿಸಲಾಗುತ್ತಿದೆ...",
+            invalidQR: "ಅಮಾನ್ಯ QR ಕೋಡ್",
+            orEnterId: "ಅಥವಾ ಆರ್ಡರ್ ID ಅನ್ನು ಮ್ಯಾನುವಲ್ ಆಗಿ ನಮೂದಿಸಿ",
+            enterIdPlaceholder: "ಆರ್ಡರ್ ID (ಉದಾ. ORD-123)",
+            search: "ಹುಡುಕಿ",
+            camera: "ಕ್ಯಾಮೆರಾ",
+            manual: "ಮ್ಯಾನುವಲ್"
+        },
+        settings: {
+            title: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+            shopSettings: "ಅಂಗಡಿ ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+            shopSettingsDesc: "ಹೆಸರು, ಲೋಗೋ ಮತ್ತು ಸಂಪರ್ಕ ಮಾಹಿತಿ",
+            shopLocation: "ಸ್ಥಳ ಮತ್ತು ವಿಳಾಸ",
+            shopLocationDesc: "GPS ನಿರ್ದೇಶಾಂಕಗಳು ಮತ್ತು ವಿಳಾಸ",
+            businessDetails: "ವ್ಯಾಪಾರ ವಿವರಗಳು",
+            businessDetailsDesc: "GST ಮತ್ತು PAN ಸಂಖ್ಯೆಗಳು",
+            bankDetails: "ಬ್ಯಾಂಕ್ ವಿವರಗಳು",
+            bankDetailsDesc: "ಬ್ಯಾಂಕ್ ಖಾತೆ ಮತ್ತು UPI",
+            darkMode: "ಡಾರ್ಕ್ ಮೋಡ್",
+            notifications: "ನೋಟಿಫಿಕೇಶನ್ಸ್",
+            helpSupport: "ಸಹಾಯ ಮತ್ತು ಬೆಂಬಲ",
+            language: "ಭಾಷೆ",
+            selectLanguage: "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+            deliverySettings: "ಡೆಲಿವರಿ ಮತ್ತು ಪಿಕಪ್",
+            shopInfo: "ಅಂಗಡಿ ಮಾಹಿತಿ",
+            shopInfoDesc: "ಹೆಸರು, ಸಂಪರ್ಕ, ಸ್ಥಳ",
+            financials: "ಹಣಕಾಸು",
+            financialsDesc: "GST, PAN, ಬ್ಯಾಂಕ್ ವಿವರಗಳು",
+            preferences: "ಆದ್ಯತೆಗಳು",
+            preferencesDesc: "ಥೀಮ್, ನೋಟಿಫಿಕೇಶನ್ಸ್"
+        },
+        validation: {
+            required: "ಈ ಕ್ಷೇತ್ರ ಕಡ್ಡಾಯವಾಗಿದೆ",
+            phoneDesc: "ಫೋನ್ ಸಂಖ್ಯೆ 6-9 ರಿಂದ ಪ್ರಾರಂಭವಾಗಿ 10 ಅಂಕೆಗಳನ್ನು ಹೊಂದಿರಬೇಕು",
+            emailDesc: "ದಯವಿಟ್ಟು ಮಾನ್ಯವಾದ ಇಮೇಲ್ ವಿಳಾಸವನ್ನು ನಮೂದಿಸಿ",
+            panDesc: "PAN 10 ಅಕ್ಷರಗಳನ್ನು ಹೊಂದಿರಬೇಕು (ಉದಾ. ABCDE1234F)",
+            gstDesc: "GST 15 ಅಕ್ಷರಗಳನ್ನು ಹೊಂದಿರಬೇಕು (ಉದಾ. 29ABCDE1234F1Z5)",
+            ifscDesc: "IFSC 11 ಅಕ್ಷರಗಳನ್ನು ಹೊಂದಿರಬೇಕು (ಉದಾ. SBIN0001234)",
+            upiDesc: "UPI ID @ ಅನ್ನು ಹೊಂದಿರಬೇಕು (ಉದಾ. name@upi)",
+            accountDesc: "ಖಾತೆ ಸಂಖ್ಯೆ 8-18 ಅಂಕೆಗಳನ್ನು ಹೊಂದಿರಬೇಕು"
+        },
+        expense: {
+            groups: {
+                utilities: "ಉಪಯುಕ್ತತೆಗಳು",
+                laundrySupplies: "ಲಾಂಡ್ರಿ ಸರಕುಗಳು",
+                equipmentMaintenance: "ಉಪಕರಣಗಳು ಮತ್ತು ನಿರ್ವಹಣೆ",
+                operations: "ಕಾರ್ಯಾಚರಣೆಗಳು",
+                business: "ವ್ಯಾಪಾರ",
+                other: "ಇತರೆ"
+            },
+            categories: {
+                rent: "ಬಾಡಿಗೆ",
+                electricity: "ವಿದ್ಯುತ್ ಬಿಲ್",
+                water: "ನೀರಿನ ಬಿಲ್",
+                detergents: "ಡಿಟರ್ಜೆಂಟ್ಸ್",
+                fabric_softener: "ಫ್ಯಾಬ್ರಿಕ್ ಸಾಫ್ಟ್ನರ್",
+                stain_remover: "ಸ್ಟೇನ್ ರಿಮೂವರ್",
+                bleach: "ಬ್ಲೀಚ್",
+                hangers: "ಹ್ಯಾಂಗರ್ಗಳು",
+                plastic_covers: "ಪ್ಲಾಸ್ಟಿಕ್ ಕವರ್ಗಳು",
+                tags_ribbons: "ಟ್ಯಾಗ್ಗಳು ಮತ್ತು ರಿಬ್ಬನ್ಗಳು",
+                iron_spray: "ಐರನ್ ಸ್ಪ್ರೇ",
+                equipment: "ಉಪಕರಣ ಖರೀದಿ",
+                maintenance: "ನಿರ್ವಹಣೆ",
+                washing_machine: "ವಾಷಿಂಗ್ ಮೆಷಿನ್",
+                dryer: "ಡ್ರೈಯರ್",
+                pressing_equipment: "ಒತ್ತುವ ಉಪಕರಣಗಳು",
+                transport: "ಸಾರಿಗೆ",
+                delivery: "ಡೆಲಿವರಿ ಶುಲ್ಕಗಳು",
+                packaging: "ಪ್ಯಾಕೇಜಿಂಗ್ ಸಾಮಗ್ರಿಗಳು",
+                marketing: "ಮಾರ್ಕೆಟಿಂಗ್",
+                advertising: "ಜಾಹೀರಾತು",
+                salary: "ಸಂಬಳ",
+                insurance: "ವಿಮೆ",
+                licenses: "ಪರವಾನಗಿಗಳು",
+                other: "ಇತರೆ (ಕಸ್ಟಮ್)"
+            },
+            selectCategory: "ಖರ್ಚು ವರ್ಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+            customCategoryName: "ಕಸ್ಟಮ್ ವರ್ಗದ ಹೆಸರು",
+            customCategoryPlaceholder: "ಉದಾ. ಕಚೇರಿ ಸರಕುಗಳು"
+        }
+    },
+    mr: {
+        apps: {
+            title: "अ‍ॅप्स",
+            subtitle: "हे अ‍ॅप्स आपल्या टीमसह शेअर करा",
+            staffApp: "स्टाफ अ‍ॅप",
+            staffAppDesc: "ऑर्डर घ्या, ग्राहक व्यवस्थापित करा, पेमेंट प्रोसेस करा",
+            deliveryAgent: "डिलिव्हरी एजंट",
+            deliveryAgentDesc: "ग्राहकांना ऑर्डर पिकअप आणि डिलिव्हर करा",
+            plantDashboard: "प्लांट डॅशबोर्ड",
+            plantDashboardDesc: "वॉशिंग, इस्त्री आणि पॅकिंग ट्रॅक करा",
+            howItWorks: "हे कसे चालते",
+            step1: "WhatsApp द्वारे लिंक शेअर करा",
+            step2: "फोन ब्राउझरमध्ये उघडा",
+            step3: "\"Add to Home Screen\" टॅप करा",
+            step4: "क्रेडेंशियल्ससह लॉगिन करा",
+            available: "उपलब्ध",
+            comingSoon: "लवकरच येत आहे",
+            share: "शेअर करा",
+            shareWhatsApp: "WhatsApp द्वारे शेअर करा",
+            copyLink: "लिंक कॉपी करा",
+            copied: "कॉपी केले!",
+            open: "उघडा",
+            qrHint: "टीप: सुलभ इन्स्टॉलेशनसाठी आपल्या दुकानात QR कोड प्रिंट करा",
+            shareMessage: "सुरू करण्यासाठी {{appName}} डाउनलोड करा:"
+        },
+        scanner: {
+            title: "QR कोड स्कॅन करा",
+            subtitle: "कोणतीही ऑर्डर पावती किंवा टॅग स्कॅन करा",
+            cameraAccess: "कॅमेरा प्रवेश आवश्यक",
+            cameraAccessDesc: "कृपया QR कोड स्कॅन करण्यासाठी कॅमेरा ॲक्सेस द्या",
+            scanHint: "तुमचा कॅमेरा QR कोडकडे दाखवा",
+            processing: "प्रोसेसिंग...",
+            invalidQR: "अवैध QR कोड",
+            orEnterId: "किंवा ऑर्डर ID मॅन्युअलपणे टाका",
+            enterIdPlaceholder: "ऑर्डर ID (उदा. ORD-123)",
+            search: "शोधा",
+            camera: "कॅमेरा",
+            manual: "मॅन्युअल"
+        },
+        settings: {
+            title: "सेटिंग्ज",
+            shopSettings: "दुकान सेटिंग्ज",
+            shopSettingsDesc: "नाव, लोगो आणि संपर्क माहिती",
+            shopLocation: "स्थान आणि पत्ता",
+            shopLocationDesc: "GPS निर्देशांक आणि पत्ता",
+            businessDetails: "व्यवसाय तपशील",
+            businessDetailsDesc: "GST आणि PAN नंबर",
+            bankDetails: "बँक तपशील",
+            bankDetailsDesc: "बँक खाते आणि UPI",
+            darkMode: "डार्क मोड",
+            notifications: "नोटीफिकेशन्स",
+            helpSupport: "मदत आणि समर्थन",
+            language: "भाषा",
+            selectLanguage: "भाषा निवडा",
+            deliverySettings: "डिलिव्हरी आणि पिकअप",
+            shopInfo: "दुकान माहिती",
+            shopInfoDesc: "नाव, संपर्क, स्थान",
+            financials: "आर्थिक",
+            financialsDesc: "GST, PAN, बँक तपशील",
+            preferences: "प्राधान्ये",
+            preferencesDesc: "थीम, नोटीफिकेशन्स"
+        },
+        validation: {
+            required: "हे फील्ड आवश्यक आहे",
+            phoneDesc: "फोन नंबर 6-9 ने सुरू होणारा 10 अंकी असावा",
+            emailDesc: "कृपया वैध ईमेल पत्ता प्रविष्ट करा",
+            panDesc: "PAN 10 अक्षरे असावा (उदा. ABCDE1234F)",
+            gstDesc: "GST 15 अक्षरे असावा (उदा. 29ABCDE1234F1Z5)",
+            ifscDesc: "IFSC 11 अक्षरे असावा (उदा. SBIN0001234)",
+            upiDesc: "UPI ID मध्ये @ असावे (उदा. name@upi)",
+            accountDesc: "खाते क्रमांक 8-18 अंकी असावा"
+        },
+        expense: {
+            groups: {
+                utilities: "युटिलिटीज",
+                laundrySupplies: "लॉन्ड्री साहित्य",
+                equipmentMaintenance: "उपकरणे आणि देखभाल",
+                operations: "ऑपरेशन्स",
+                business: "व्यवसाय",
+                other: "इतर"
+            },
+            categories: {
+                rent: "भाडे",
+                electricity: "वीज बिल",
+                water: "पाणी बिल",
+                detergents: "डिटर्जंट्स",
+                fabric_softener: "फॅब्रिक सॉफ्टनर",
+                stain_remover: "डाग काढणारे",
+                bleach: "ब्लीच",
+                hangers: "हँगर्स",
+                plastic_covers: "प्लास्टिक कव्हर",
+                tags_ribbons: "टॅग आणि रिबन्स",
+                iron_spray: "इस्त्री स्प्रे",
+                equipment: "उपकरण खरेदी",
+                maintenance: "देखभाल",
+                washing_machine: "वॉशिंग मशीन",
+                dryer: "ड्रायर",
+                pressing_equipment: "प्रेसिंग उपकरणे",
+                transport: "वाहतूक",
+                delivery: "डिलिव्हरी चार्जेस",
+                packaging: "पॅकेजिंग साहित्य",
+                marketing: "मार्केटिंग",
+                advertising: "जाहिरात",
+                salary: "पगार",
+                insurance: "विमा",
+                licenses: "परवाने",
+                other: "इतर (कस्टम)"
+            },
+            selectCategory: "खर्च श्रेणी निवडा",
+            customCategoryName: "कस्टम श्रेणी नाव",
+            customCategoryPlaceholder: "उदा. ऑफिस साहित्य"
+        }
+    },
+    bn: {
+        apps: {
+            title: "অ্যাপস",
+            subtitle: "আপনার টিমের সাথে এই অ্যাপগুলি শেয়ার করুন",
+            staffApp: "স্টাফ অ্যাপ",
+            staffAppDesc: "অর্ডার নিন, গ্রাহক পরিচালনা করুন, পেমেন্ট",
+            deliveryAgent: "ডেলিভারি এজেন্ট",
+            deliveryAgentDesc: "গ্রাহকদের অর্ডার পিকআপ এবং ডেলিভারি করুন",
+            plantDashboard: "প্ল্যান্ট ড্যাশবোর্ড",
+            plantDashboardDesc: "ওয়াশিং, আয়রনিং এবং প্যাকিং ট্র্যাক করুন",
+            howItWorks: "কিভাবে কাজ করে",
+            step1: "WhatsApp এর মাধ্যমে লিঙ্ক শেয়ার করুন",
+            step2: "ফোন ব্রাউজারে খুলুন",
+            step3: "\"Add to Home Screen\" ট্যাপ করুন",
+            step4: "লগইন করুন",
+            available: "উপলব্ধ",
+            comingSoon: "শীঘ্রই আসছে",
+            share: "শেয়ার",
+            shareWhatsApp: "WhatsApp এ শেয়ার করুন",
+            copyLink: "লিঙ্ক কপি করুন",
+            copied: "কপি করা হয়েছে!",
+            open: "খুলুন",
+            qrHint: "টিপ: সহজ ইনস্টলেশনের জন্য আপনার দোকানে QR কোড প্রিন্ট করুন",
+            shareMessage: "শুরু করতে {{appName}} ডাউনলোড করুন:"
+        },
+        scanner: {
+            title: "QR কোড স্ক্যান করুন",
+            subtitle: "যেকোনো অর্ডার রসিদ বা ট্যাগ স্ক্যান করুন",
+            cameraAccess: "ক্যামেরা অ্যাক্সেস প্রয়োজন",
+            cameraAccessDesc: "দয়া করে QR কোড স্ক্যান করতে ক্যামেরা অ্যাক্সেস দিন",
+            scanHint: "আপনার ক্যামেরা QR কোডের দিকে ধরুন",
+            processing: "প্রসেসিং...",
+            invalidQR: "অবৈধ QR কোড",
+            orEnterId: "অথবা ম্যানুয়ালি অর্ডার ID লিখুন",
+            enterIdPlaceholder: "অর্ডার ID (যেমন ORD-123)",
+            search: "অনুসন্ধান",
+            camera: "ক্যামেরা",
+            manual: "ম্যানুয়াল"
+        },
+        settings: {
+            title: "সেটিংস",
+            shopSettings: "দোকান সেটিংস",
+            shopSettingsDesc: "নাম, লোগো এবং যোগাযোগ তথ্য",
+            shopLocation: "অবস্থান এবং ঠিকানা",
+            shopLocationDesc: "GPS স্থানাঙ্ক এবং ঠিকানা",
+            businessDetails: "ব্যবসায়িক বিবরণ",
+            businessDetailsDesc: "GST এবং PAN নম্বর",
+            bankDetails: "ব্যাঙ্ক বিবরণ",
+            bankDetailsDesc: "ব্যাঙ্ক অ্যাকাউন্ট এবং UPI",
+            darkMode: "ডার্ক মোড",
+            notifications: "নোটিফিকেশন",
+            helpSupport: "সাহায্য এবং সমর্থন",
+            language: "ভাষা",
+            selectLanguage: "ভাষা নির্বাচন করুন",
+            deliverySettings: "ডেলিভারি এবং পিকআপ",
+            shopInfo: "দোকানের তথ্য",
+            shopInfoDesc: "নাম, যোগাযোগ, অবস্থান",
+            financials: "আর্থিক",
+            financialsDesc: "GST, PAN, ব্যাঙ্ক বিবরণ",
+            preferences: "পছন্দসমূহ",
+            preferencesDesc: "থিম, নোটিফিকেশন"
+        },
+        validation: {
+            required: "এই ক্ষেত্রটি প্রয়োজনীয়",
+            phoneDesc: "ফোন নম্বরটি ১০ ​​সংখ্যার হতে হবে এবং ৬-৯ দিয়ে শুরু হতে হবে",
+            emailDesc: "দয়া করে একটি বৈধ ইমেল ঠিকানা লিখুন",
+            panDesc: "PAN ১০ অক্ষরের হতে হবে (যেমন ABCDE1234F)",
+            gstDesc: "GST ১৫ অক্ষরের হতে হবে (যেমন 29ABCDE1234F1Z5)",
+            ifscDesc: "IFSC ১১ অক্ষরের হতে হবে (যেমন SBIN0001234)",
+            upiDesc: "UPI ID তে @ থাকতে হবে (যেমন name@upi)",
+            accountDesc: "অ্যাকাউন্ট নম্বর ৮-১৮ সংখ্যার হতে হবে"
+        },
+        expense: {
+            groups: {
+                utilities: "ইউলিটিলিটিজ",
+                laundrySupplies: "লন্ড্রি সরঞ্জাম",
+                equipmentMaintenance: "সরঞ্জাম এবং রক্ষণাবেক্ষণ",
+                operations: "অপারেশনস",
+                business: "ব্যবসা",
+                other: "অন্যান্য"
+            },
+            categories: {
+                rent: "ভাড়া",
+                electricity: "বিদ্যুৎ বিল",
+                water: "পানির বিল",
+                detergents: "ডিটারজেন্ট",
+                fabric_softener: "ফ্যাব্রিক সফটনার",
+                stain_remover: "দাগ রিমুভার",
+                bleach: "ব্লিচ",
+                hangers: "হ্যাঙ্গার",
+                plastic_covers: "প্লাস্টিক কভার",
+                tags_ribbons: "ট্যাগ এবং ফিতা",
+                iron_spray: "আয়রন স্প্রে",
+                equipment: "সরঞ্জাম ক্রয়",
+                maintenance: "রক্ষণাবেক্ষণ",
+                washing_machine: "ওয়াশিং মেশিন",
+                dryer: "ড্রায়ার",
+                pressing_equipment: "প্রেসিং সরঞ্জাম",
+                transport: "পরিবহন",
+                delivery: "ডেলিভারি চার্জ",
+                packaging: "প্যাকেজিং উপকরণ",
+                marketing: "মার্কেটিং",
+                advertising: "বিজ্ঞাপন",
+                salary: "বেতন",
+                insurance: "বীমা",
+                licenses: "লাইসেন্স",
+                other: "অন্যান্য (কাস্টম)"
+            },
+            selectCategory: "খরচের বিভাগ নির্বাচন করুন",
+            customCategoryName: "কাস্টম বিভাগের নাম",
+            customCategoryPlaceholder: "যেমন অফিস সরঞ্জাম"
+        }
+    }
+};
+
+languages.forEach(lang => {
+    const filePath = path.join(localesDir, `${lang}.json`);
+    try {
+        if (fs.existsSync(filePath)) {
+            const currentContent = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const updates = translations[lang];
+
+            // Merge updates
+            const newContent = {
+                ...currentContent,
+                apps: updates.apps,
+                scanner: updates.scanner,
+                settings: updates.settings,
+                expense: updates.expense,
+                validation: {
+                    ...currentContent.validation,
+                    ...updates.validation
+                }
+            };
+
+            // Fix improper nesting if present (from previous faulty logic)
+            if (newContent.staff && newContent.staff.apps) {
+                delete newContent.staff.apps;
+            }
+            if (newContent.staff && newContent.staff.scanner) {
+                delete newContent.staff.scanner;
+            }
+
+            fs.writeFileSync(filePath, JSON.stringify(newContent, null, 2));
+            console.log(`Updated ${lang}.json`);
+        } else {
+            console.log(`File ${lang}.json not found`);
+        }
+    } catch (e) {
+        console.error(`Error updating ${lang}.json:`, e);
+    }
+});

@@ -1,0 +1,30 @@
+src/features/auth/ProtectedRoute.tsx(48,9): error TS2367: This comparison appears to be unintentional because the types '"admin" | null' and '"plant_operator"' have no overlap.
+src/features/auth/ProtectedRoute.tsx(53,9): error TS2367: This comparison appears to be unintentional because the types '"admin" | null' and '"agent"' have no overlap.
+src/features/auth/ProtectedRoute.tsx(58,9): error TS2367: This comparison appears to be unintentional because the types '"admin" | null' and '"staff"' have no overlap.
+src/features/dashboard/AdminScanPage.tsx(1,20): error TS6133: 'useEffect' is declared but its value is never read.
+src/features/dashboard/AdminScanPage.tsx(12,11): error TS6133: 't' is declared but its value is never read.
+src/features/dashboard/AdminScanPage.tsx(14,13): error TS6133: 'user' is declared but its value is never read.
+src/features/dashboard/AdminScanPage.tsx(19,12): error TS6133: 'error' is declared but its value is never read.
+src/features/dashboard/AdminScanPage.tsx(20,11): error TS6133: 'inputRef' is declared but its value is never read.
+src/features/driver-app/DriverProtectedRoute.tsx(34,44): error TS2367: This comparison appears to be unintentional because the types '"plant_operator"' and '"admin"' have no overlap.
+src/features/driver-app/pages/DriverScanPage.tsx(8,10): error TS6133: 'ScanLine' is declared but its value is never read.
+src/features/driver-app/pages/DriverScanPage.tsx(8,42): error TS6133: 'User' is declared but its value is never read.
+src/features/driver-app/pages/DriverScanPage.tsx(10,1): error TS6133: 'format' is declared but its value is never read.
+src/features/driver-app/pages/DriverScanPage.tsx(94,51): error TS2367: This comparison appears to be unintentional because the types '"processing" | "ready" | "cancelled" | "ready_for_pickup" | "picked_up" | "out_for_delivery" | "delivered" | "pickup_scheduled" | "pickup_completed"' and '"assigned_pickup"' have no overlap.
+src/features/finance/ReportsPage.tsx(10,5): error TS6133: 'LCard' is declared but its value is never read.
+src/features/finance/ReportsPage.tsx(21,5): error TS6133: 'Calendar' is declared but its value is never read.
+src/features/orders/OrderDetailView.tsx(62,23): error TS6133: 'STATUS_LABELS' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(8,87): error TS6133: 'X' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(8,90): error TS6133: 'Search' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(11,49): error TS6133: 'addDays' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(36,24): error TS6133: 'setSearchTerm' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(390,55): error TS6133: 'val' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(397,51): error TS6133: 'val' is declared but its value is never read.
+src/features/plant-app/pages/PlantCompletedPage.tsx(403,219): error TS2322: Type '{ children: Element[]; xmlns: string; width: string; height: string; viewBox: string; fill: string; stroke: string; strokeWidth: string; strokeLinecap: "round"; strokeLinejoin: "round"; class: string; }' is not assignable to type 'SVGProps<SVGSVGElement>'.
+  Property 'class' does not exist on type 'SVGProps<SVGSVGElement>'. Did you mean 'className'?
+src/features/super-admin/pages/SuperAdminScanPage.tsx(1,20): error TS6133: 'useEffect' is declared but its value is never read.
+src/features/super-admin/pages/SuperAdminScanPage.tsx(1,31): error TS6133: 'useRef' is declared but its value is never read.
+src/features/super-admin/pages/SuperAdminScanPage.tsx(2,1): error TS6133: 'useTranslation' is declared but its value is never read.
+src/features/super-admin/pages/SuperAdminScanPage.tsx(4,1): error TS6192: All imports in import declaration are unused.
+src/features/super-admin/pages/SuperAdminScanPage.tsx(5,1): error TS6133: 'db' is declared but its value is never read.
+src/features/super-admin/pages/SuperAdminScanPage.tsx(7,1): error TS6192: All imports in import declaration are unused.
