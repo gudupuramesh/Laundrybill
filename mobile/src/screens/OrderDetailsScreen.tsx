@@ -1,0 +1,1206 @@
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+  StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator,
+  Linking, Alert, Modal, TextInput, Image, Share, KeyboardAvoidingView, Platform, Pressable,
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { firestore } from '../lib/db';
+import { getShopId } from '../lib/auth';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
+// ─── Constants ────────────────────────────────────────────────────────
+
+const WEB_APP_URL = 'https://app.laundrybill.com';
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  picked_up: 'Picked Up',
+  pickup_scheduled: 'Pickup Scheduled',
+  pickup_completed: 'Picked Up from Customer',
+  processing: 'Processing',
+  ready: 'Ready',
+  ready_for_pickup: 'Ready for Pickup',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  pending: { bg: '#fff3e0', text: '#e65100' },
+  confirmed: { bg: '#e3f2fd', text: '#1565c0' },
+  picked_up: { bg: '#e8f5e9', text: '#2e7d32' },
+  pickup_scheduled: { bg: '#e3f2fd', text: '#1565c0' },
+  pickup_completed: { bg: '#e3f2fd', text: '#1565c0' },
+  processing: { bg: '#fff8e1', text: '#f9a825' },
+  ready: { bg: '#e8f5e9', text: '#2e7d32' },
+  ready_for_pickup: { bg: '#e8f5e9', text: '#2e7d32' },
+  out_for_delivery: { bg: '#e3f2fd', text: '#1565c0' },
+  delivered: { bg: '#e8f5e9', text: '#2e7d32' },
+  cancelled: { bg: '#fce4ec', text: '#c62828' },
+};
+
+const STATUS_FLOW: Record<string, string[]> = {
+  pickup_store: ['pending', 'processing', 'ready', 'picked_up'],
+  delivery_home: ['pending', 'processing', 'ready', 'out_for_delivery', 'delivered'],
+  pickup_home: ['pending', 'pickup_scheduled', 'pickup_completed', 'processing', 'ready', 'out_for_delivery', 'delivered'],
+};
+
+const DELIVERY_LABELS: Record<string, string> = {
+  pickup_store: 'Shop Pickup',
+  delivery_home: 'Home Delivery',
+  pickup_home: 'Pickup from Home',
+};
+
+const PAYMENT_METHODS = [
+  { key: 'cash', label: 'Cash', icon: 'payments' },
+  { key: 'upi', label: 'UPI', icon: 'phone-android' },
+  { key: 'card', label: 'Card', icon: 'credit-card' },
+];
+
+const CANCEL_REASONS = [
+  'Customer requested cancellation',
+  'Items/services unavailable',
+  'Payment issue',
+  'Duplicate order',
+  'Shop closed / Cannot process',
+  'Other',
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+function toDate(val: any): Date | null {
+  if (!val) return null;
+  if (val.toDate) return val.toDate();
+  if (val.seconds) return new Date(val.seconds * 1000);
+  if (val instanceof Date) return val;
+  return new Date(val);
+}
+
+function formatDate(d: Date | null): string {
+  if (!d) return '—';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${h % 12 || 12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function formatDateShort(d: Date | null): string {
+  if (!d) return '—';
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function getTrackingUrl(publicId: string): string {
+  return `${WEB_APP_URL}/track/${publicId}`;
+}
+
+function getReceiptUrl(publicId: string): string {
+  return `${WEB_APP_URL}/receipt/${publicId}`;
+}
+
+function getQRImageUrl(data: string, size: number = 200): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Returns the index of `currentStatus` in the flow (handles cross-flow aliases). */
+function findStatusIndex(currentStatus: string, flow: string[]): number {
+  let idx = flow.indexOf(currentStatus);
+  if (idx !== -1) return idx;
+  const aliases: Record<string, string[]> = {
+    confirmed: ['pending'],
+    ready_for_pickup: ['ready'],
+    picked_up: ['picked_up'], // terminal
+  };
+  for (const eq of (aliases[currentStatus] || [])) {
+    const i = flow.indexOf(eq);
+    if (i !== -1) return i;
+  }
+  return -1;
+}
+
+// ─── Receipt HTML Generator ──────────────────────────────────────────
+
+function generateReceiptHtml(order: any, shopData: any): string {
+  const fin = order.financials || {};
+  const shopName = shopData?.name || 'LaundryBill';
+  const shopPhone = shopData?.phone || '';
+  const shopAddress = shopData?.address || '';
+  const gstNumber = shopData?.gstNumber || '';
+  const publicId = order.publicId || order.orderNumber || '';
+  const createdAt = toDate(order.createdAt);
+  const expectedDelivery = toDate(order.expectedDelivery);
+  const deliveryType = order.deliveryType || 'pickup_store';
+  const deliveryLabel = DELIVERY_LABELS[deliveryType] || 'Pickup';
+  const qrUrl = getQRImageUrl(getTrackingUrl(publicId), 150);
+
+  const itemRows = (order.items || []).map((item: any) => `
+    <tr>
+      <td style="padding:6px 0;font-size:13px;">
+        <strong>${escHtml(item.serviceName)}</strong>${item.express ? ' <span style="color:#e65100;font-size:10px;">EXPRESS</span>' : ''}
+        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity} · ₹${Math.round(item.unitPrice)}/ea</span>
+      </td>
+      <td style="padding:6px 0;text-align:right;font-weight:600;font-size:13px;">₹${Math.round(item.total || 0)}</td>
+    </tr>
+  `).join('');
+
+  const finRows: string[] = [];
+  finRows.push(`<tr><td>Subtotal</td><td style="text-align:right">₹${Math.round(fin.subtotal || 0)}</td></tr>`);
+  if (fin.discountAmount > 0) finRows.push(`<tr><td>Discount</td><td style="text-align:right;color:#006b5f">-₹${Math.round(fin.discountAmount)}</td></tr>`);
+  if (fin.expressCharge > 0) finRows.push(`<tr><td>Express Charge</td><td style="text-align:right">+₹${Math.round(fin.expressCharge)}</td></tr>`);
+  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(fin.taxName || 'Tax')} (${fin.taxRate || 0}%)</td><td style="text-align:right">+₹${Math.round(fin.taxAmount)}</td></tr>`);
+  if (fin.deliveryCharge > 0) finRows.push(`<tr><td>Delivery</td><td style="text-align:right">+₹${Math.round(fin.deliveryCharge)}</td></tr>`);
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; padding:24px 20px; color:#191c1e; max-width:420px; margin:0 auto; }
+  .header { text-align:center; margin-bottom:20px; }
+  .shop-name { font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:1px; }
+  .shop-info { font-size:11px; color:#666; margin-top:4px; }
+  .divider { border:none; border-top:1px solid #eee; margin:14px 0; }
+  .order-id { text-align:center; font-size:18px; font-weight:800; margin:8px 0 4px; }
+  .order-meta { text-align:center; font-size:11px; color:#666; }
+  .section-title { font-size:11px; font-weight:700; color:#434654; text-transform:uppercase; letter-spacing:1px; margin:16px 0 8px; }
+  .customer { font-size:13px; margin:4px 0; }
+  table { width:100%; border-collapse:collapse; }
+  .fin-table td { padding:3px 0; font-size:13px; color:#434654; }
+  .total-row td { font-size:16px; font-weight:800; color:#191c1e; padding:8px 0; border-top:2px solid #191c1e; }
+  .total-row td:last-child { color:#00408f; }
+  .payment-status { text-align:center; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; margin:12px 0; }
+  .paid { background:#e6f7f2; color:#006b5f; }
+  .unpaid { background:#ffdad6; color:#93000a; }
+  .qr-section { text-align:center; margin:20px 0 8px; }
+  .qr-section img { width:120px; height:120px; }
+  .track-link { text-align:center; font-size:11px; color:#00408f; word-break:break-all; }
+  .footer { text-align:center; font-size:10px; color:#999; margin-top:20px; }
+</style></head>
+<body>
+  <div class="header">
+    <div class="shop-name">${escHtml(shopName)}</div>
+    ${shopPhone ? `<div class="shop-info">Tel: ${escHtml(shopPhone)}</div>` : ''}
+    ${shopAddress ? `<div class="shop-info">${escHtml(shopAddress)}</div>` : ''}
+    ${gstNumber ? `<div class="shop-info">GSTIN: ${escHtml(gstNumber)}</div>` : ''}
+  </div>
+
+  <hr class="divider"/>
+  <div class="order-id">ORDER #${escHtml(publicId)}</div>
+  <div class="order-meta">${formatDate(createdAt)}</div>
+  <div class="order-meta" style="margin-top:4px;font-weight:600;">[ ${escHtml(deliveryLabel.toUpperCase())} ]</div>
+  <hr class="divider"/>
+
+  <div class="section-title">Customer</div>
+  <div class="customer"><strong>${escHtml(order.customerName || 'Guest')}</strong></div>
+  <div class="customer">${escHtml(order.customerPhone || '')}</div>
+  ${order.deliveryAddress ? `<div class="customer" style="color:#666">${escHtml(order.deliveryAddress)}</div>` : ''}
+
+  <div class="section-title">Items</div>
+  <table>${itemRows}</table>
+  <hr class="divider"/>
+
+  <table class="fin-table">${finRows.join('')}</table>
+  <table><tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${Math.round(fin.total || 0)}</td></tr></table>
+
+  <table class="fin-table" style="margin-top:8px">
+    <tr><td>Amount Paid</td><td style="text-align:right;font-weight:600">₹${Math.round(fin.amountPaid || 0)}</td></tr>
+    <tr><td>Balance Due</td><td style="text-align:right;font-weight:700;color:${(fin.balance || 0) > 0 ? '#93000a' : '#006b5f'}">₹${Math.round(fin.balance || 0)}</td></tr>
+  </table>
+
+  <div class="payment-status ${(fin.balance || 0) > 0 ? 'unpaid' : 'paid'}">
+    ${(fin.balance || 0) > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : 'Paid in Full'}
+  </div>
+
+  ${expectedDelivery ? `
+    <div style="text-align:center;background:#d8e2ff;border-radius:8px;padding:10px;margin:12px 0;">
+      <div style="font-size:10px;font-weight:700;color:#00408f;letter-spacing:0.5px;">${deliveryType === 'pickup_store' ? 'EXPECTED READY' : 'EXPECTED DELIVERY'}</div>
+      <div style="font-size:14px;font-weight:700;color:#00408f;margin-top:4px;">${formatDateShort(expectedDelivery)}</div>
+    </div>
+  ` : ''}
+
+  <div class="qr-section"><img src="${qrUrl}" alt="QR"/></div>
+  <div class="track-link">${getTrackingUrl(publicId)}</div>
+
+  <hr class="divider"/>
+  <div class="footer">Thank you for your business!<br/>Powered by laundrybill.com</div>
+</body></html>`;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────
+
+export default function OrderDetailsScreen({
+  onBack,
+  orderId,
+  onEditOrder,
+}: {
+  onBack: () => void;
+  orderId: string;
+  onEditOrder?: (order: any) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const shopId = getShopId();
+  const [order, setOrder] = useState<any>(null);
+  const [shopData, setShopData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Modal states
+  const [statusModal, setStatusModal] = useState(false);
+  const [paymentModal, setPaymentModal] = useState(false);
+  const [qrModal, setQrModal] = useState(false);
+  const [cancelModal, setCancelModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+
+  // Status update
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [statusNotes, setStatusNotes] = useState('');
+
+  // Payment
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payRef, setPayRef] = useState('');
+
+  // Cancel
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Edit
+  const [editNotes, setEditNotes] = useState('');
+  const [editDeliveryType, setEditDeliveryType] = useState('');
+
+  // QR tabs
+  const [qrTab, setQrTab] = useState<'order' | 'items'>('order');
+
+  // ─── Data fetching ────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!shopId || !orderId) { setLoading(false); return; }
+    const unsub = firestore()
+      .collection(`shops/${shopId}/orders`).doc(orderId)
+      .onSnapshot(
+        (snap: any) => { if (snap.exists) setOrder({ id: snap.id, ...snap.data() }); setLoading(false); },
+        () => setLoading(false)
+      );
+    const unsubShop = firestore()
+      .collection('shops').doc(shopId)
+      .onSnapshot((snap: any) => { if (snap.exists) setShopData(snap.data()); }, () => {});
+    return () => { unsub(); unsubShop(); };
+  }, [shopId, orderId]);
+
+  // ─── Computed ─────────────────────────────────────────────────────
+
+  const categoryGroups = useMemo(() => {
+    if (!order?.items) return [];
+    const map: Record<string, { name: string; subtotal: number; items: any[] }> = {};
+    order.items.forEach((item: any) => {
+      const key = item.categoryId || 'other';
+      if (!map[key]) map[key] = { name: item.categoryName || 'Other', subtotal: 0, items: [] };
+      map[key].items.push(item);
+      map[key].subtotal += item.total || 0;
+    });
+    return Object.values(map);
+  }, [order]);
+
+  /** Expand items by quantity for individual QR tags */
+  const itemTags = useMemo(() => {
+    if (!order?.items) return [];
+    const tags: { index: number; total: number; serviceName: string; categoryName: string; quantity: number; unitPrice: number; qrData: string }[] = [];
+    let totalQty = 0;
+    (order.items || []).forEach((item: any) => { totalQty += (item.quantity || 1); });
+    let idx = 0;
+    (order.items || []).forEach((item: any) => {
+      for (let q = 0; q < (item.quantity || 1); q++) {
+        idx++;
+        tags.push({
+          index: idx,
+          total: totalQty,
+          serviceName: item.serviceName || '',
+          categoryName: item.categoryName || '',
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          qrData: `${orderId}:${idx}`,
+        });
+      }
+    });
+    return tags;
+  }, [order, orderId]);
+
+  const fin = order?.financials || {};
+  const status = order?.status || 'pending';
+  const statusColor = STATUS_COLORS[status] || STATUS_COLORS.pending;
+  const createdAt = toDate(order?.createdAt);
+  const expectedDelivery = toDate(order?.expectedDelivery);
+  const timeline = order?.timeline || [];
+  const publicId = order?.publicId || order?.orderNumber || '';
+  const trackingUrl = getTrackingUrl(publicId);
+  const isTerminal = ['delivered', 'picked_up', 'cancelled'].includes(status);
+  const deliveryType = order?.deliveryType || 'pickup_store';
+  const flow = STATUS_FLOW[deliveryType] || STATUS_FLOW.pickup_store;
+  const currentFlowIndex = findStatusIndex(status, flow);
+
+  // ─── Actions ──────────────────────────────────────────────────────
+
+  const orderDocRef = useCallback(() => {
+    return firestore().collection(`shops/${shopId}/orders`).doc(orderId);
+  }, [shopId, orderId]);
+
+  const handleUpdateStatus = async () => {
+    if (!selectedStatus || saving) return;
+    setSaving(true);
+    try {
+      const currentTimeline = order?.timeline || [];
+      const newEvent = {
+        id: `t-${Date.now()}`,
+        status: selectedStatus,
+        timestamp: new Date(),
+        staffId: 'mobile',
+        staffName: 'Shop Owner',
+        notes: statusNotes || null,
+        notifiedCustomer: false,
+      };
+      const updateData: any = {
+        status: selectedStatus,
+        updatedAt: new Date(),
+        timeline: [...currentTimeline, newEvent],
+      };
+      if (selectedStatus === 'delivered' || selectedStatus === 'picked_up') {
+        updateData.deliveredAt = new Date();
+      }
+      await orderDocRef().update(updateData);
+      setStatusModal(false);
+      setSelectedStatus('');
+      setStatusNotes('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update status');
+    }
+    setSaving(false);
+  };
+
+  const handleCollectPayment = async () => {
+    const amount = parseFloat(payAmount);
+    if (!amount || amount <= 0 || saving) return;
+    setSaving(true);
+    try {
+      const currentPayments = order?.payments || [];
+      const newPayment = {
+        id: `p-${Date.now()}`,
+        amount,
+        method: payMethod,
+        reference: payRef || null,
+        collectedBy: 'Shop Owner',
+        collectedAt: new Date(),
+      };
+      const newAmountPaid = (fin.amountPaid || 0) + amount;
+      const newBalance = (fin.total || 0) - newAmountPaid;
+      const paymentStatus = newBalance <= 0 ? 'paid' : newAmountPaid > 0 ? 'partial' : 'unpaid';
+      await orderDocRef().update({
+        'financials.amountPaid': newAmountPaid,
+        'financials.balance': Math.max(0, newBalance),
+        paymentStatus,
+        payments: [...currentPayments, newPayment],
+        updatedAt: new Date(),
+      });
+      setPaymentModal(false);
+      setPayAmount('');
+      setPayMethod('cash');
+      setPayRef('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to collect payment');
+    }
+    setSaving(false);
+  };
+
+  const handleCancelOrder = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const currentTimeline = order?.timeline || [];
+      const cancelEvent = {
+        id: `t-${Date.now()}`,
+        status: 'cancelled',
+        timestamp: new Date(),
+        staffId: 'mobile',
+        staffName: 'Shop Owner',
+        notes: cancelReason || 'Cancelled from mobile',
+        notifiedCustomer: false,
+      };
+      await orderDocRef().update({
+        status: 'cancelled',
+        updatedAt: new Date(),
+        timeline: [...currentTimeline, cancelEvent],
+      });
+      setCancelModal(false);
+      setCancelReason('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to cancel order');
+    }
+    setSaving(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const updateData: any = { updatedAt: new Date() };
+      if (editDeliveryType) updateData.deliveryType = editDeliveryType;
+      if (editNotes !== (order?.deliveryNotes || '')) updateData.deliveryNotes = editNotes;
+      await orderDocRef().update(updateData);
+      setEditModal(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update order');
+    }
+    setSaving(false);
+  };
+
+  const handlePrintReceipt = async () => {
+    try {
+      const html = generateReceiptHtml(order, shopData);
+      await Print.printAsync({ html });
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to print receipt');
+    }
+  };
+
+  const handleShareReceiptPdf = async () => {
+    try {
+      const html = generateReceiptHtml(order, shopData);
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Order Receipt #${publicId}`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to share receipt');
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    const phone = (order?.customerPhone || '').replace(/\D/g, '');
+    if (!phone) { Alert.alert('No Phone', 'Customer phone number is required.'); return; }
+    const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
+    const shopName = shopData?.name || 'LaundryBill';
+    const dateLabel = deliveryType === 'pickup_store' ? 'Ready for Pickup' : 'Expected Delivery';
+
+    const lines = [
+      `*${shopName} - Order Update*`,
+      ``,
+      `*Order ID:* #${publicId}`,
+      `*Date:* ${formatDate(createdAt)}`,
+      `*Type:* ${DELIVERY_LABELS[deliveryType] || 'Pickup'}`,
+      `*Status:* ${STATUS_LABELS[status] || status}`,
+      ``,
+      `*Items:*`,
+      ...(order?.items || []).map((i: any) => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
+      ``,
+      `*Payment:*`,
+      `Total: ₹${Math.round(fin.total || 0)}`,
+      fin.balance > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : `Paid in Full`,
+    ];
+    if (expectedDelivery) lines.push(``, `*${dateLabel}:*`, formatDateShort(expectedDelivery));
+    lines.push(``, `*Track Your Order:*`, trackingUrl, ``, `*View Receipt:*`, getReceiptUrl(publicId));
+    Linking.openURL(`https://wa.me/${fullPhone}?text=${encodeURIComponent(lines.join('\n'))}`).catch(() =>
+      Alert.alert('Error', 'Could not open WhatsApp')
+    );
+  };
+
+  const handleShareTrackingLink = async () => {
+    try { await Share.share({ message: `Track your laundry order #${publicId}: ${trackingUrl}` }); } catch (e) {}
+  };
+
+  /** Print QR codes — thermal (2-inch / 48mm) or standard (A4/Letter) */
+  const handlePrintQR = async (mode: 'thermal' | 'standard') => {
+    try {
+      const isThermal = mode === 'thermal';
+      const pageWidth = isThermal ? '48mm' : '210mm';
+      const qrSize = isThermal ? 120 : 200;
+      const fontSize = isThermal ? '10px' : '14px';
+      const smallFont = isThermal ? '8px' : '11px';
+
+      let bodyContent = '';
+
+      if (qrTab === 'order') {
+        const qrUrl = getQRImageUrl(orderId, qrSize);
+        bodyContent = `
+          <div style="text-align:center;padding:${isThermal ? '4mm 2mm' : '20px'};">
+            <img src="${qrUrl}" style="width:${qrSize}px;height:${qrSize}px;" />
+            <div style="font-size:${fontSize};font-weight:800;margin-top:6px;">#${escHtml(publicId)}</div>
+            <div style="font-size:${smallFont};color:#666;margin-top:2px;">${escHtml(order?.customerName || 'Guest')} · ${(order?.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0)} items</div>
+          </div>`;
+      } else {
+        bodyContent = itemTags.map((tag) => `
+          <div style="text-align:center;padding:${isThermal ? '3mm 2mm' : '16px'};${isThermal ? '' : 'display:inline-block;width:48%;margin:1%;'}border:1px dashed #ccc;border-radius:4px;page-break-inside:avoid;margin-bottom:${isThermal ? '2mm' : '8px'};">
+            <img src="${getQRImageUrl(tag.qrData, qrSize)}" style="width:${isThermal ? 100 : 150}px;height:${isThermal ? 100 : 150}px;" />
+            <div style="font-size:${smallFont};font-weight:700;color:#666;margin-top:4px;">Tag ${tag.index}/${tag.total}</div>
+            <div style="font-size:${fontSize};font-weight:700;margin-top:2px;">${escHtml(tag.serviceName)}</div>
+            <div style="font-size:${smallFont};color:#666;">${escHtml(tag.categoryName)} · #${escHtml(publicId)}</div>
+          </div>`).join('');
+      }
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+        <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:sans-serif;width:${pageWidth};${isThermal ? 'margin:0;' : 'margin:0 auto;padding:12px;'}}</style>
+        </head><body>${bodyContent}</body></html>`;
+
+      await Print.printAsync({ html, ...(isThermal ? { width: 48 * 2.835 } : {}) });
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to print QR codes');
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────
+
+  if (loading) {
+    return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#00408f" /></View>;
+  }
+
+  if (!order) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>Order not found</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>Go Back</Text></TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.headerInner}>
+          <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
+            <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>#{publicId}</Text>
+            <View style={[styles.statusBadgeLg, { backgroundColor: statusColor.bg }]}>
+              <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{STATUS_LABELS[status] || status.toUpperCase()}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
+            <MaterialIcons name="edit" size={22} color="#00408f" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+        {/* Date */}
+        <Text style={[styles.dateText, { marginBottom: 4 }]}>{formatDate(createdAt)}</Text>
+
+        {/* ─── Action Buttons ─────────────────────────────────────── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsScroll} contentContainerStyle={styles.actionsContent}>
+          {!isTerminal && (
+            <TouchableOpacity style={styles.actionChip} onPress={() => { setSelectedStatus(''); setStatusModal(true); }}>
+              <MaterialIcons name="sync" size={18} color="#00408f" />
+              <Text style={styles.actionChipText}>Update Status</Text>
+            </TouchableOpacity>
+          )}
+          {fin.balance > 0 && (
+            <TouchableOpacity style={styles.actionChip} onPress={() => { setPayAmount(String(Math.round(fin.balance))); setPaymentModal(true); }}>
+              <MaterialIcons name="payments" size={18} color="#006b5f" />
+              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>Collect ₹{Math.round(fin.balance)}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.actionChip} onPress={handleShareWhatsApp}>
+            <MaterialIcons name="chat" size={18} color="#25D366" />
+            <Text style={[styles.actionChipText, { color: '#25D366' }]}>WhatsApp</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionChip} onPress={() => { setQrTab('order'); setQrModal(true); }}>
+            <MaterialIcons name="qr-code-2" size={18} color="#00408f" />
+            <Text style={styles.actionChipText}>QR Code</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionChip} onPress={handlePrintReceipt}>
+            <MaterialIcons name="print" size={18} color="#5e3c00" />
+            <Text style={[styles.actionChipText, { color: '#5e3c00' }]}>Print</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionChip} onPress={handleShareReceiptPdf}>
+            <MaterialIcons name="picture-as-pdf" size={18} color="#c62828" />
+            <Text style={[styles.actionChipText, { color: '#c62828' }]}>PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionChip} onPress={handleShareTrackingLink}>
+            <MaterialIcons name="share" size={18} color="#00408f" />
+            <Text style={styles.actionChipText}>Share</Text>
+          </TouchableOpacity>
+          {!isTerminal && (
+            <TouchableOpacity style={styles.actionChip} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
+              <MaterialIcons name="edit" size={18} color="#434654" />
+              <Text style={[styles.actionChipText, { color: '#434654' }]}>Edit</Text>
+            </TouchableOpacity>
+          )}
+          {!isTerminal && onEditOrder && (
+            <TouchableOpacity style={[styles.actionChip, { borderColor: '#bbdefb' }]} onPress={() => onEditOrder(order)}>
+              <MaterialIcons name="edit-note" size={18} color="#00408f" />
+              <Text style={[styles.actionChipText, { color: '#00408f' }]}>Edit Items</Text>
+            </TouchableOpacity>
+          )}
+          {!isTerminal && ['pending', 'processing', 'confirmed', 'pickup_scheduled'].includes(status) && (
+            <TouchableOpacity style={[styles.actionChip, { borderColor: '#fce4ec' }]} onPress={() => setCancelModal(true)}>
+              <MaterialIcons name="cancel" size={18} color="#c62828" />
+              <Text style={[styles.actionChipText, { color: '#c62828' }]}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+
+        {/* ─── Customer ───────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <View style={styles.customerRow}>
+            <View style={styles.customerAvatar}><MaterialIcons name="person" size={20} color="#00408f" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.customerName}>{order.customerName || 'Guest'}</Text>
+              <Text style={styles.customerPhone}>{order.customerPhone || 'No phone'}</Text>
+            </View>
+            {order.customerPhone ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={styles.smallCircleBtn} onPress={() => Linking.openURL(`tel:${(order.customerPhone || '').replace(/\D/g, '')}`).catch(() => {})}>
+                  <MaterialIcons name="call" size={16} color="#00408f" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.smallCircleBtn, { backgroundColor: '#e6f7f2' }]} onPress={() => {
+                  const p = (order.customerPhone || '').replace(/\D/g, '');
+                  Linking.openURL(`https://wa.me/${p.startsWith('91') ? p : `91${p}`}`).catch(() => {});
+                }}>
+                  <MaterialIcons name="chat" size={16} color="#25D366" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {/* ─── Expected Delivery ──────────────────────────────────── */}
+        {expectedDelivery ? (
+          <View style={styles.deliveryCard}>
+            <MaterialIcons name="event" size={20} color="#00408f" />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.deliveryLabel}>{deliveryType === 'pickup_store' ? 'EXPECTED READY' : 'EXPECTED DELIVERY'}</Text>
+              <Text style={styles.deliveryDate}>{formatDateShort(expectedDelivery)}</Text>
+            </View>
+            <View style={styles.deliveryTypeBadge}>
+              <Text style={styles.deliveryTypeText}>{DELIVERY_LABELS[deliveryType] || 'Pickup'}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ─── Items ──────────────────────────────────────────────── */}
+        {categoryGroups.map((group, gi) => (
+          <View key={`${group.name}-${gi}`} style={styles.serviceSection}>
+            <View style={styles.serviceHeader}>
+              <View style={styles.serviceHeaderLeft}>
+                <MaterialIcons name="local-laundry-service" size={16} color="#00408f" />
+                <Text style={styles.serviceTitle}>{group.name.toUpperCase()}</Text>
+              </View>
+              <Text style={styles.serviceSub}>₹{Math.round(group.subtotal)}</Text>
+            </View>
+            <View style={styles.serviceItems}>
+              {group.items.map((item: any, idx: number) => (
+                <View key={item.id || idx}>
+                  <View style={styles.serviceItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.itemName}>{item.serviceName}</Text>
+                      <Text style={styles.itemMeta}>x{item.quantity} · ₹{Math.round(item.unitPrice)} ea.{item.express ? ' · Express' : ''}</Text>
+                    </View>
+                    <Text style={styles.itemTotal}>₹{Math.round(item.total)}</Text>
+                  </View>
+                  {idx < group.items.length - 1 ? <View style={styles.separator} /> : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        {/* ─── Financials ─────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Payment Summary</Text>
+          <View style={styles.finRow}><Text style={styles.finLabel}>Subtotal</Text><Text style={styles.finValue}>₹{Math.round(fin.subtotal || 0)}</Text></View>
+          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Discount</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{Math.round(fin.discountAmount)}</Text></View>}
+          {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Express</Text><Text style={styles.finValue}>+₹{Math.round(fin.expressCharge)}</Text></View>}
+          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || 'Tax'} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+₹{Math.round(fin.taxAmount)}</Text></View>}
+          {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Delivery</Text><Text style={styles.finValue}>+₹{Math.round(fin.deliveryCharge)}</Text></View>}
+          <View style={styles.divider} />
+          <View style={styles.finRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>₹{Math.round(fin.total || 0)}</Text></View>
+          <View style={styles.finRow}><Text style={styles.finLabel}>Paid</Text><Text style={styles.finValue}>₹{Math.round(fin.amountPaid || 0)}</Text></View>
+          <View style={[styles.paymentBadge, fin.balance > 0 ? styles.unpaidBg : styles.paidBg]}>
+            <MaterialIcons name={fin.balance > 0 ? 'schedule' : 'check-circle'} size={14} color={fin.balance > 0 ? '#93000a' : '#006b5f'} />
+            <Text style={fin.balance > 0 ? styles.unpaidText : styles.paidText}>
+              {fin.balance > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : 'Paid in Full'}
+            </Text>
+          </View>
+        </View>
+
+        {/* ─── Timeline ───────────────────────────────────────────── */}
+        {timeline.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Timeline</Text>
+            {timeline.slice().reverse().map((entry: any, i: number) => {
+              const entryDate = toDate(entry.timestamp);
+              const ec = STATUS_COLORS[entry.status] || STATUS_COLORS.pending;
+              return (
+                <View key={entry.id || i} style={styles.timelineEntry}>
+                  <View style={[styles.timelineDot, { backgroundColor: i === 0 ? ec.text : '#c3c6d6' }]} />
+                  {i < timeline.length - 1 && <View style={styles.timelineLine} />}
+                  <View style={styles.timelineContent}>
+                    <Text style={[styles.timelineStatus, i === 0 && { color: ec.text, fontWeight: '700' }]}>{STATUS_LABELS[entry.status] || entry.status}</Text>
+                    <Text style={styles.timelineTime}>{formatDate(entryDate)}</Text>
+                    {entry.staffName ? <Text style={styles.timelineStaff}>by {entry.staffName}</Text> : null}
+                    {entry.notes ? <Text style={styles.timelineNotes}>{entry.notes}</Text> : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Notes */}
+        {order.deliveryNotes ? (
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialIcons name="sticky-note-2" size={16} color="#434654" />
+              <Text style={{ fontSize: 13, color: '#434654', flex: 1 }}>{order.deliveryNotes}</Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {/* ═══════════════════════ MODALS ═══════════════════════════════ */}
+
+      {/* ─── STATUS UPDATE — shows ALL statuses ──────────────────── */}
+      <Modal visible={statusModal} transparent animationType="slide" onRequestClose={() => setStatusModal(false)}>
+        <View style={{ flex: 1 }}>
+          <Pressable style={styles.modalDismiss} onPress={() => { setStatusModal(false); setSelectedStatus(''); setStatusNotes(''); }} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Update Order Status</Text>
+            <Text style={styles.modalSubtitle}>{DELIVERY_LABELS[deliveryType] || 'Pickup'} flow</Text>
+
+            <ScrollView style={{ maxHeight: 340, marginTop: 16 }} showsVerticalScrollIndicator={false}>
+              {flow.map((s, i) => {
+                const sc = STATUS_COLORS[s] || STATUS_COLORS.pending;
+                const isCompleted = currentFlowIndex >= 0 && i < currentFlowIndex;
+                const isCurrent = currentFlowIndex >= 0 && i === currentFlowIndex;
+                const isFuture = currentFlowIndex >= 0 && i > currentFlowIndex;
+                const isSelected = selectedStatus === s;
+                const isLast = i === flow.length - 1;
+
+                return (
+                  <View key={s}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statusFlowRow,
+                        isSelected && { backgroundColor: sc.bg, borderColor: sc.text },
+                        isCurrent && !isSelected && { backgroundColor: sc.bg, borderColor: sc.bg },
+                      ]}
+                      onPress={() => isFuture ? setSelectedStatus(s) : null}
+                      disabled={!isFuture}
+                      activeOpacity={isFuture ? 0.7 : 1}
+                    >
+                      {/* Step indicator */}
+                      <View style={[
+                        styles.stepCircle,
+                        isCompleted && { backgroundColor: '#2e7d32', borderColor: '#2e7d32' },
+                        isCurrent && { backgroundColor: sc.text, borderColor: sc.text },
+                        isSelected && { backgroundColor: sc.text, borderColor: sc.text },
+                      ]}>
+                        {isCompleted ? (
+                          <MaterialIcons name="check" size={14} color="#fff" />
+                        ) : isCurrent ? (
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />
+                        ) : isSelected ? (
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />
+                        ) : (
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#737685' }}>{i + 1}</Text>
+                        )}
+                      </View>
+
+                      {/* Connecting line */}
+                      {!isLast && (
+                        <View style={[styles.stepLine, isCompleted && { backgroundColor: '#2e7d32' }]} />
+                      )}
+
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[
+                          styles.statusFlowLabel,
+                          isCompleted && { color: '#2e7d32' },
+                          isCurrent && { color: sc.text, fontWeight: '800' },
+                          isSelected && { color: sc.text, fontWeight: '800' },
+                          !isFuture && !isCurrent && !isCompleted && { color: '#c3c6d6' },
+                        ]}>
+                          {STATUS_LABELS[s] || s}
+                          {isCurrent ? '  (Current)' : ''}
+                        </Text>
+                      </View>
+
+                      {isFuture && (
+                        <View style={[styles.radioOuter, isSelected && { borderColor: sc.text }]}>
+                          {isSelected && <View style={[styles.radioInner, { backgroundColor: sc.text }]} />}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+
+              {/* Cancel option */}
+              {['pending', 'processing', 'confirmed', 'pickup_scheduled', 'pickup_completed'].includes(status) && (
+                <TouchableOpacity
+                  style={[styles.statusFlowRow, { marginTop: 8, borderColor: '#fce4ec' }, selectedStatus === 'cancelled' && { backgroundColor: '#fce4ec', borderColor: '#c62828' }]}
+                  onPress={() => setSelectedStatus('cancelled')}
+                >
+                  <View style={[styles.stepCircle, { borderColor: '#c62828' }, selectedStatus === 'cancelled' && { backgroundColor: '#c62828' }]}>
+                    <MaterialIcons name="close" size={14} color={selectedStatus === 'cancelled' ? '#fff' : '#c62828'} />
+                  </View>
+                  <Text style={[styles.statusFlowLabel, { marginLeft: 12, color: '#c62828' }]}>Cancel Order</Text>
+                  <View style={[styles.radioOuter, { borderColor: '#c62828' }]}>
+                    {selectedStatus === 'cancelled' && <View style={[styles.radioInner, { backgroundColor: '#c62828' }]} />}
+                  </View>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+
+            <TextInput style={styles.modalInput} placeholder="Add notes (optional)" placeholderTextColor="#737685" value={statusNotes} onChangeText={setStatusNotes} multiline />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setStatusModal(false); setSelectedStatus(''); setStatusNotes(''); }}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryBtn, !selectedStatus && { opacity: 0.5 }, selectedStatus === 'cancelled' && { backgroundColor: '#c62828' }]}
+                onPress={handleUpdateStatus}
+                disabled={!selectedStatus || saving}
+              >
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : (
+                  <Text style={styles.primaryBtnText}>{selectedStatus === 'cancelled' ? 'Cancel Order' : 'Update Status'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── PAYMENT ─────────────────────────────────────────────── */}
+      <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={styles.modalDismiss} onPress={() => { setPaymentModal(false); setPayAmount(''); setPayRef(''); }} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Collect Payment</Text>
+            <Text style={styles.modalSubtitle}>Balance: ₹{Math.round(fin.balance || 0)}</Text>
+            <Text style={styles.fieldLabel}>Amount</Text>
+            <TextInput style={styles.modalInputSingle} keyboardType="numeric" value={payAmount} onChangeText={setPayAmount} placeholder="0" placeholderTextColor="#c3c6d6" />
+            <Text style={styles.fieldLabel}>Payment Method</Text>
+            <View style={styles.methodRow}>
+              {PAYMENT_METHODS.map((m) => (
+                <TouchableOpacity key={m.key} style={[styles.methodChip, payMethod === m.key && styles.methodChipActive]} onPress={() => setPayMethod(m.key)}>
+                  <MaterialIcons name={m.icon as any} size={18} color={payMethod === m.key ? '#fff' : '#434654'} />
+                  <Text style={[styles.methodChipText, payMethod === m.key && { color: '#fff' }]}>{m.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {payMethod !== 'cash' && (
+              <>
+                <Text style={styles.fieldLabel}>Reference / Transaction ID</Text>
+                <TextInput style={styles.modalInputSingle} value={payRef} onChangeText={setPayRef} placeholder="Optional" placeholderTextColor="#c3c6d6" />
+              </>
+            )}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setPaymentModal(false); setPayAmount(''); setPayRef(''); }}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: '#006b5f' }, (!payAmount || parseFloat(payAmount) <= 0) && { opacity: 0.5 }]}
+                onPress={handleCollectPayment}
+                disabled={!payAmount || parseFloat(payAmount) <= 0 || saving}
+              >
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Collect ₹{payAmount || '0'}</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ─── QR CODE — Two tabs: Order / Items ───────────────────── */}
+      <Modal visible={qrModal} transparent animationType="fade" onRequestClose={() => setQrModal(false)}>
+        <View style={{ flex: 1 }}>
+          <Pressable style={styles.modalDismiss} onPress={() => setQrModal(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16, maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>QR Codes</Text>
+
+            {/* Tab Switcher */}
+            <View style={styles.qrTabRow}>
+              <TouchableOpacity style={[styles.qrTabBtn, qrTab === 'order' && styles.qrTabBtnActive]} onPress={() => setQrTab('order')}>
+                <MaterialIcons name="shopping-bag" size={16} color={qrTab === 'order' ? '#fff' : '#434654'} />
+                <Text style={[styles.qrTabText, qrTab === 'order' && styles.qrTabTextActive]}>Order / Basket</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.qrTabBtn, qrTab === 'items' && styles.qrTabBtnActive]} onPress={() => setQrTab('items')}>
+                <MaterialIcons name="style" size={16} color={qrTab === 'items' ? '#fff' : '#434654'} />
+                <Text style={[styles.qrTabText, qrTab === 'items' && styles.qrTabTextActive]}>Item Tags ({itemTags.length})</Text>
+              </TouchableOpacity>
+            </View>
+
+            {qrTab === 'order' ? (
+              /* ── Order / Basket QR ──── */
+              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                <View style={styles.qrContainer}>
+                  <Image source={{ uri: getQRImageUrl(orderId, 220) }} style={{ width: 200, height: 200 }} resizeMode="contain" />
+                </View>
+                <Text style={styles.qrOrderId}>#{publicId}</Text>
+                <Text style={styles.qrSubInfo}>{order.customerName || 'Guest'} · {(order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0)} items</Text>
+                <Text style={styles.qrHint}>Scan to identify this order basket</Text>
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16, alignSelf: 'stretch' }]} onPress={handleShareTrackingLink}>
+                  <MaterialIcons name="share" size={18} color="#fff" />
+                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Share Tracking Link</Text>
+                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
+                    <MaterialIcons name="print" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Thermal 2"</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
+                    <MaterialIcons name="print" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Standard</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              /* ── Item Tags QR ──── */
+              <>
+                <ScrollView style={{ maxHeight: 340, marginTop: 12 }} showsVerticalScrollIndicator={false}>
+                  {itemTags.map((tag) => (
+                    <View key={tag.index} style={styles.itemTagCard}>
+                      <Image source={{ uri: getQRImageUrl(tag.qrData, 150) }} style={styles.itemTagQr} resizeMode="contain" />
+                      <View style={styles.itemTagInfo}>
+                        <Text style={styles.itemTagIndex}>Tag {tag.index} of {tag.total}</Text>
+                        <Text style={styles.itemTagName}>{tag.serviceName}</Text>
+                        <Text style={styles.itemTagMeta}>{tag.categoryName}</Text>
+                        <Text style={styles.itemTagMeta}>₹{Math.round(tag.unitPrice)} · Order #{publicId}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
+                    <MaterialIcons name="print" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Print Thermal 2"</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
+                    <MaterialIcons name="print" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Print Standard</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity style={[styles.modalCancelBtn, { marginTop: 12 }]} onPress={() => setQrModal(false)}>
+              <Text style={styles.modalCancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── CANCEL ──────────────────────────────────────────────── */}
+      <Modal visible={cancelModal} transparent animationType="slide" onRequestClose={() => setCancelModal(false)}>
+        <View style={{ flex: 1 }}>
+          <Pressable style={styles.modalDismiss} onPress={() => { setCancelModal(false); setCancelReason(''); }} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={[styles.modalTitle, { color: '#c62828' }]}>Cancel Order</Text>
+            <Text style={styles.modalSubtitle}>This action cannot be undone.</Text>
+            {fin.amountPaid > 0 && (
+              <View style={[styles.paymentBadge, styles.unpaidBg, { marginTop: 12 }]}>
+                <MaterialIcons name="info" size={14} color="#93000a" />
+                <Text style={styles.unpaidText}>₹{Math.round(fin.amountPaid)} paid. Refund may be needed.</Text>
+              </View>
+            )}
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Reason</Text>
+            <View style={{ gap: 6 }}>
+              {CANCEL_REASONS.map((reason) => (
+                <TouchableOpacity key={reason} style={[styles.statusOption, cancelReason === reason && { borderColor: '#c62828', backgroundColor: '#fce4ec' }]} onPress={() => setCancelReason(reason)}>
+                  <View style={[styles.radioOuter, cancelReason === reason && { borderColor: '#c62828' }]}>
+                    {cancelReason === reason && <View style={[styles.radioInner, { backgroundColor: '#c62828' }]} />}
+                  </View>
+                  <Text style={[styles.statusOptionText, cancelReason === reason && { color: '#c62828' }]}>{reason}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setCancelModal(false); setCancelReason(''); }}>
+                <Text style={styles.modalCancelText}>Go Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#c62828' }, !cancelReason && { opacity: 0.5 }]} onPress={handleCancelOrder} disabled={!cancelReason || saving}>
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Cancel Order</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── EDIT ────────────────────────────────────────────────── */}
+      <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={styles.modalDismiss} onPress={() => setEditModal(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Edit Order</Text>
+            <Text style={styles.fieldLabel}>Delivery Type</Text>
+            <View style={styles.methodRow}>
+              {Object.entries(DELIVERY_LABELS).map(([key, label]) => (
+                <TouchableOpacity key={key} style={[styles.methodChip, editDeliveryType === key && styles.methodChipActive]} onPress={() => setEditDeliveryType(key)}>
+                  <Text style={[styles.methodChipText, editDeliveryType === key && { color: '#fff' }]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.fieldLabel}>Notes</Text>
+            <TextInput style={[styles.modalInput, { minHeight: 70 }]} placeholder="Delivery notes..." placeholderTextColor="#737685" value={editNotes} onChangeText={setEditNotes} multiline />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setEditModal(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveEdit} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  header: { backgroundColor: '#f8f9fb', zIndex: 10 },
+  headerInner: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 8, gap: 8 },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: '#00408f' },
+  iconBtn: { padding: 8 },
+  scrollContent: { padding: 16, gap: 12 },
+  statusBadgeLg: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
+  statusTextLg: { fontSize: 13, fontWeight: '700' },
+  dateText: { fontSize: 11, color: '#434654' },
+
+  // Actions
+  actionsScroll: { marginHorizontal: -16, marginBottom: 4 },
+  actionsContent: { paddingHorizontal: 16, gap: 8 },
+  actionChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#ffffff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: '#edeef0',
+  },
+  actionChipText: { fontSize: 12, fontWeight: '600', color: '#00408f' },
+
+  // Card
+  card: {
+    backgroundColor: '#ffffff', borderRadius: 12, padding: 14, gap: 8,
+    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+  },
+  cardTitle: { fontSize: 12, fontWeight: '700', color: '#434654', letterSpacing: 0.5, marginBottom: 2 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  customerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#d8e2ff', alignItems: 'center', justifyContent: 'center' },
+  customerName: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
+  customerPhone: { fontSize: 12, color: '#434654', marginTop: 1 },
+  smallCircleBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#d8e2ff', alignItems: 'center', justifyContent: 'center' },
+  deliveryCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#d8e2ff', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  deliveryLabel: { fontSize: 9, fontWeight: '700', color: '#00408f', letterSpacing: 0.5 },
+  deliveryDate: { fontSize: 14, fontWeight: '700', color: '#00408f', marginTop: 1 },
+  deliveryTypeBadge: { backgroundColor: 'rgba(0,64,143,0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  deliveryTypeText: { fontSize: 10, fontWeight: '700', color: '#00408f' },
+
+  // Items
+  serviceSection: { backgroundColor: '#f3f4f6', borderRadius: 12, overflow: 'hidden' },
+  serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'rgba(0,64,143,0.05)', borderBottomWidth: 1, borderBottomColor: 'rgba(195,198,214,0.1)' },
+  serviceHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  serviceTitle: { fontSize: 10, fontWeight: '700', color: '#00408f', letterSpacing: 1 },
+  serviceSub: { fontSize: 10, fontWeight: '700', color: '#00408f' },
+  serviceItems: { backgroundColor: '#ffffff' },
+  serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
+  separator: { height: 1, backgroundColor: 'rgba(195,198,214,0.1)' },
+  itemName: { fontSize: 13, fontWeight: '600', color: '#191c1e' },
+  itemMeta: { fontSize: 11, color: '#434654', marginTop: 1 },
+  itemTotal: { fontSize: 13, fontWeight: '700', color: '#191c1e' },
+
+  // Financials
+  finRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  finLabel: { fontSize: 13, color: '#434654' },
+  finValue: { fontSize: 13, fontWeight: '600', color: '#191c1e' },
+  totalLabel: { fontSize: 15, fontWeight: '700', color: '#191c1e' },
+  totalValue: { fontSize: 15, fontWeight: '800', color: '#00408f' },
+  divider: { height: 1, backgroundColor: '#edeef0', marginVertical: 4 },
+  paymentBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginTop: 2 },
+  paidBg: { backgroundColor: '#e6f7f2' },
+  unpaidBg: { backgroundColor: '#ffdad6' },
+  paidText: { fontSize: 12, fontWeight: '700', color: '#006b5f' },
+  unpaidText: { fontSize: 12, fontWeight: '700', color: '#93000a' },
+
+  // Timeline
+  timelineEntry: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 3, marginRight: 10 },
+  timelineLine: { position: 'absolute', left: 4, top: 15, width: 2, height: 28, backgroundColor: '#edeef0' },
+  timelineContent: {},
+  timelineStatus: { fontSize: 13, fontWeight: '600', color: '#191c1e' },
+  timelineTime: { fontSize: 10, color: '#434654', marginTop: 1 },
+  timelineStaff: { fontSize: 10, color: '#737685' },
+  timelineNotes: { fontSize: 11, color: '#434654', fontStyle: 'italic', marginTop: 2 },
+
+  // Modal
+  modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: '#434654' },
+  modalInput: { backgroundColor: '#f8f9fb', borderRadius: 10, padding: 12, fontSize: 14, color: '#191c1e', marginTop: 12, borderWidth: 1, borderColor: '#edeef0', textAlignVertical: 'top' },
+  modalInputSingle: { backgroundColor: '#f8f9fb', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, fontWeight: '700', color: '#191c1e', marginTop: 4, borderWidth: 1, borderColor: '#edeef0' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCancelBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#edeef0' },
+  modalCancelText: { fontSize: 14, fontWeight: '600', color: '#434654' },
+
+  // Status flow
+  statusFlowRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#edeef0', marginBottom: 6 },
+  statusFlowLabel: { fontSize: 14, fontWeight: '600', color: '#191c1e', flex: 1 },
+  stepCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#c3c6d6', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  stepLine: { position: 'absolute', left: 25, top: 36, width: 2, height: 18, backgroundColor: '#edeef0', zIndex: -1 },
+
+  // Status option (for cancel modal)
+  statusOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#edeef0' },
+  statusOptionText: { fontSize: 14, fontWeight: '600', color: '#191c1e' },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#c3c6d6', alignItems: 'center', justifyContent: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+
+  // Payment method
+  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#434654', letterSpacing: 0.3, marginTop: 14, marginBottom: 4 },
+  methodRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  methodChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: '#f3f4f6' },
+  methodChipActive: { backgroundColor: '#00408f' },
+  methodChipText: { fontSize: 13, fontWeight: '600', color: '#434654' },
+
+  // QR tabs
+  qrTabRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  qrTabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#f3f4f6' },
+  qrTabBtnActive: { backgroundColor: '#00408f' },
+  qrTabText: { fontSize: 12, fontWeight: '600', color: '#434654' },
+  qrTabTextActive: { color: '#ffffff' },
+  qrContainer: { backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#edeef0' },
+  qrOrderId: { fontSize: 18, fontWeight: '800', color: '#00408f', marginTop: 12 },
+  qrSubInfo: { fontSize: 13, color: '#434654', marginTop: 4 },
+  qrHint: { fontSize: 11, color: '#737685', marginTop: 8, fontStyle: 'italic' },
+
+  // Item tag QR
+  itemTagCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#f8f9fb', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#edeef0' },
+  itemTagQr: { width: 80, height: 80, borderRadius: 8 },
+  itemTagInfo: { flex: 1 },
+  itemTagIndex: { fontSize: 10, fontWeight: '700', color: '#737685', letterSpacing: 0.5 },
+  itemTagName: { fontSize: 14, fontWeight: '700', color: '#191c1e', marginTop: 2 },
+  itemTagMeta: { fontSize: 11, color: '#434654', marginTop: 1 },
+
+  // Print button
+  printBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 40, borderRadius: 10, backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#ffe0b2' },
+  printBtnText: { fontSize: 12, fontWeight: '600', color: '#5e3c00' },
+
+  // Primary button
+  primaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: 12, backgroundColor: '#00408f' },
+  primaryBtnText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+});
