@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LaundryFlow Onboarding - Smart QR Tags</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0052CC",
+                        "on-primary": "#ffffff",
+                        "background": "#F8FAFC",
+                        "surface": "#ffffff",
+                        "on-surface": "#1E293B",
+                        "on-surface-variant": "#64748B",
+                        "outline-variant": "#E2E8F0",
+                        "surface-container": "#F1F5F9",
+                        "primary-container": "#E0E7FF",
+                        "secondary-container": "#DCFCE7",
+                        "on-secondary-container": "#14532D"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .scan-line {
+            animation: scan 2.5s ease-in-out infinite;
+        }
+        @keyframes scan {
+            0%, 100% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col overflow-hidden">
+<!-- Header -->
+<header class="flex justify-end items-center px-6 pt-6">
+<button class="font-label text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors py-2 px-3">
+            Skip
+        </button>
+</header>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col px-6 justify-center items-center">
+<!-- Illustration Container -->
+<div class="relative w-full max-w-[320px] aspect-square mb-10">
+<!-- Decorative Backplane -->
+<div class="absolute inset-0 bg-primary/5 rounded-3xl -rotate-2 scale-105"></div>
+<!-- Main Card -->
+<div class="relative w-full h-full bg-surface rounded-3xl shadow-xl border border-outline-variant overflow-hidden flex flex-col items-center justify-center">
+<!-- Washing Machine Image -->
+<div class="relative w-4/5 h-4/5 flex items-center justify-center">
+<img alt="Smart Washing Machine" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCH0Y4K_K_kY_n_Yk8Nn_L0S6W9y5Y_X_K_L_M_N_O_P_Q_R_S_T_U_V_W_X_Y_Z"/>
+<!-- QR Overlay Layer -->
+<div class="absolute inset-0 flex items-center justify-center">
+<!-- Scanning Frame -->
+<div class="w-48 h-48 border-2 border-primary/20 rounded-2xl relative overflow-hidden backdrop-blur-[1px]">
+<!-- Corners -->
+<div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>
+<div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-lg"></div>
+<div class="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-lg"></div>
+<div class="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-lg"></div>
+<!-- QR Code Icon -->
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-7xl text-primary/80" style="font-variation-settings: 'wght' 300;">qr_code_2</span>
+</div>
+<!-- Animated Scanning Line -->
+<div class="scan-line absolute left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_rgba(0,82,204,0.5)] z-20"></div>
+</div>
+</div>
+</div>
+<!-- Floating Status Pill -->
+<div class="absolute bottom-6 bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full shadow-lg flex items-center gap-2 border border-green-200">
+<span class="material-symbols-outlined text-lg fill-1" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-[11px] font-bold uppercase tracking-wider">Item Tagged</span>
+</div>
+</div>
+<!-- Context Micro-card -->
+<div class="absolute -bottom-4 -right-2 bg-surface p-3 shadow-xl rounded-xl border border-outline-variant flex items-center gap-3 animate-bounce-subtle">
+<div class="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined">local_laundry_service</span>
+</div>
+<div class="pr-2">
+<p class="text-[10px] text-on-surface-variant font-bold leading-none mb-1">UNIT ID</p>
+<p class="text-xs font-bold text-on-surface">WASH-X402</p>
+</div>
+</div>
+</div>
+<!-- Copy Text -->
+<div class="w-full text-center space-y-4">
+<h1 class="font-headline text-3xl font-extrabold text-on-surface tracking-tight leading-tight">
+                Smart QR Tagging
+            </h1>
+<p class="font-body text-on-surface-variant text-[15px] leading-relaxed max-w-[280px] mx-auto">
+                Eliminate order mix-ups with unique QR tags. Scan to update status instantly and maintain perfect inventory precision.
+            </p>
+</div>
+</main>
+<!-- Footer -->
+<footer class="px-6 pb-12 pt-8 flex flex-col items-center gap-8">
+<!-- Pagination -->
+<div class="flex gap-2">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+<div class="w-6 h-2 bg-primary rounded-full"></div>
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<!-- CTA -->
+<div class="w-full max-w-xs">
+<button class="w-full bg-primary text-on-primary py-4 px-6 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-[0.97] transition-all hover:bg-primary/90">
+                Next
+                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</footer>
+<!-- Top Progress Bar -->
+<div class="fixed top-0 left-0 w-full h-1.5 bg-surface-container z-[100]">
+<div class="w-2/3 h-full bg-primary rounded-r-full"></div>
+</div>
+</body></html>

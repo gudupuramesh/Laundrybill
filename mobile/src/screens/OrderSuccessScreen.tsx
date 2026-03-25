@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,12 +21,6 @@ interface PlacedOrder {
   notes: string;
 }
 
-const DELIVERY_LABELS: Record<string, string> = {
-  pickup_store: 'Shop Pickup',
-  delivery_home: 'Home Delivery',
-  pickup_home: 'Pickup from Home',
-};
-
 export default function OrderSuccessScreen({
   order,
   shopName,
@@ -37,57 +32,56 @@ export default function OrderSuccessScreen({
   onViewOrder: () => void;
   onDone: () => void;
 }) {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const formatDate = (d: Date) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  };
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString(i18n.language || 'en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
-  const formatDateTime = (d: Date) => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hh = h % 12 || 12;
-    const mm = m.toString().padStart(2, '0');
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm} ${ampm}`;
-  };
+  const formatDateTime = (d: Date) =>
+    d.toLocaleString(i18n.language || 'en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    });
 
   const handleShareWhatsApp = () => {
     const phone = order.customer.phone.replace(/\D/g, '');
     if (!phone || phone.length < 10) {
-      Alert.alert('No Phone', 'Customer phone number is required for WhatsApp sharing.');
+      Alert.alert(t('mobile.noPhoneTitle'), t('mobile.noPhoneWhatsapp'));
       return;
     }
     const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
-    const deliveryLabel = DELIVERY_LABELS[order.deliveryType] || order.deliveryType;
-    const readyLabel = order.deliveryType === 'pickup_store' ? 'Ready for Pickup' : 'Expected Delivery';
+    const dt = order.deliveryType || 'pickup_store';
+    const deliveryLabel =
+      dt === 'pickup_store' ? t('mobile.delivery_pickup_store')
+        : dt === 'delivery_home' ? t('mobile.delivery_delivery_home')
+          : dt === 'pickup_home' ? t('mobile.delivery_pickup_home')
+            : dt;
+    const readyLabel = order.deliveryType === 'pickup_store' ? t('mobile.readyForPickupLabel') : t('mobile.expectedDeliveryLabel');
 
     const lines = [
-      `*${shopName || 'LaundryBoss'} - Order Confirmed!*`,
+      t('mobile.waOrderConfirmed', { shop: shopName || 'LaundryBoss' }),
       ``,
-      `*Order ID:* #${order.publicId}`,
-      `*Date:* ${formatDateTime(order.createdAt)}`,
-      `*Type:* ${deliveryLabel}`,
+      t('mobile.waOrderId', { id: order.publicId }),
+      t('mobile.waDate', { date: formatDateTime(order.createdAt) }),
+      t('mobile.waType', { type: deliveryLabel }),
       ``,
-      `*Items:*`,
+      t('mobile.waItems'),
       ...order.items.map(i => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
       ``,
-      `*Payment:*`,
-      `Total: ₹${order.financials.total}`,
-      order.paymentStatus === 'paid' ? `Paid in Full` : `Balance Due: ₹${order.financials.balance}`,
+      t('mobile.waPayment'),
+      t('mobile.waTotal', { amount: order.financials.total }),
+      order.paymentStatus === 'paid' ? t('mobile.waPaidFull') : t('mobile.waBalanceDue', { amount: order.financials.balance }),
       ``,
       `*${readyLabel}:*`,
       formatDate(order.expectedDelivery),
       ``,
-      `Any questions? Reply to this message!`,
+      t('mobile.waQuestions'),
     ];
 
     const message = lines.join('\n');
     const url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp'));
+    Linking.openURL(url).catch(() => Alert.alert(t('mobile.errorTitle'), t('mobile.couldNotOpenWhatsapp')));
   };
 
   return (
@@ -100,19 +94,19 @@ export default function OrderSuccessScreen({
         <View style={styles.successIcon}>
           <MaterialIcons name="check" size={48} color="#ffffff" />
         </View>
-        <Text style={styles.successTitle}>Order Placed!</Text>
-        <Text style={styles.successSubtitle}>Order has been created successfully</Text>
+        <Text style={styles.successTitle}>{t('mobile.orderPlacedTitle')}</Text>
+        <Text style={styles.successSubtitle}>{t('mobile.orderCreatedSubtitle')}</Text>
 
         {/* Order ID Card */}
         <View style={styles.orderIdCard}>
-          <Text style={styles.orderIdLabel}>ORDER ID</Text>
+          <Text style={styles.orderIdLabel}>{t('mobile.orderIdLabel')}</Text>
           <Text style={styles.orderIdValue}>#{order.publicId}</Text>
           <Text style={styles.orderIdDate}>{formatDateTime(order.createdAt)}</Text>
         </View>
 
         {/* Summary Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Order Summary</Text>
+          <Text style={styles.cardTitle}>{t('mobile.orderSummaryTitle')}</Text>
 
           {/* Items */}
           {order.items.map((item, i) => (
@@ -129,18 +123,18 @@ export default function OrderSuccessScreen({
 
           {/* Financials */}
           <View style={styles.finRow}>
-            <Text style={styles.finLabel}>Subtotal</Text>
+            <Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text>
             <Text style={styles.finValue}>₹{order.financials.subtotal}</Text>
           </View>
           {order.financials.discountAmount > 0 ? (
             <View style={styles.finRow}>
-              <Text style={styles.finLabel}>Discount</Text>
+              <Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text>
               <Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{order.financials.discountAmount}</Text>
             </View>
           ) : null}
           {order.financials.taxAmount > 0 ? (
             <View style={styles.finRow}>
-              <Text style={styles.finLabel}>{order.financials.taxName || 'Tax'} ({order.financials.taxRate}%)</Text>
+              <Text style={styles.finLabel}>{order.financials.taxName || t('mobile.taxFallback')} ({order.financials.taxRate}%)</Text>
               <Text style={styles.finValue}>+₹{order.financials.taxAmount}</Text>
             </View>
           ) : null}
@@ -148,7 +142,7 @@ export default function OrderSuccessScreen({
           <View style={styles.divider} />
 
           <View style={styles.finRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text>
             <Text style={styles.totalValue}>₹{order.financials.total}</Text>
           </View>
 
@@ -160,7 +154,7 @@ export default function OrderSuccessScreen({
               color={order.paymentStatus === 'paid' ? '#006b5f' : '#93000a'}
             />
             <Text style={order.paymentStatus === 'paid' ? styles.paidText : styles.unpaidText}>
-              {order.paymentStatus === 'paid' ? 'Paid in Full' : `Unpaid · Balance ₹${order.financials.balance}`}
+              {order.paymentStatus === 'paid' ? t('mobile.paidInFull') : t('mobile.unpaidBalance', { amount: order.financials.balance })}
             </Text>
           </View>
         </View>
@@ -170,7 +164,7 @@ export default function OrderSuccessScreen({
           <MaterialIcons name="event" size={22} color="#00408f" />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.deliveryLabel}>
-              {order.deliveryType === 'pickup_store' ? 'EXPECTED READY' : 'EXPECTED DELIVERY'}
+              {order.deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}
             </Text>
             <Text style={styles.deliveryDate}>{formatDate(order.expectedDelivery)}</Text>
           </View>
@@ -181,7 +175,10 @@ export default function OrderSuccessScreen({
               color="#00408f"
             />
             <Text style={styles.deliveryTypeText}>
-              {DELIVERY_LABELS[order.deliveryType] || 'Pickup'}
+              {order.deliveryType === 'pickup_store' ? t('mobile.delivery_pickup_store')
+                : order.deliveryType === 'delivery_home' ? t('mobile.delivery_delivery_home')
+                  : order.deliveryType === 'pickup_home' ? t('mobile.delivery_pickup_home')
+                    : t('mobile.pickupFallback')}
             </Text>
           </View>
         </View>
@@ -190,17 +187,17 @@ export default function OrderSuccessScreen({
         <View style={styles.actionsContainer}>
           <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp}>
             <MaterialIcons name="chat" size={22} color="#ffffff" />
-            <Text style={styles.whatsappBtnText}>Share on WhatsApp</Text>
+            <Text style={styles.whatsappBtnText}>{t('mobile.shareWhatsapp')}</Text>
           </TouchableOpacity>
 
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.actionBtn} onPress={onViewOrder}>
               <MaterialIcons name="receipt-long" size={22} color="#00408f" />
-              <Text style={styles.actionBtnText}>View Order</Text>
+              <Text style={styles.actionBtnText}>{t('mobile.viewOrderBtn')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={onDone}>
               <MaterialIcons name="home" size={22} color="#00408f" />
-              <Text style={styles.actionBtnText}>Go Home</Text>
+              <Text style={styles.actionBtnText}>{t('mobile.goHomeBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>

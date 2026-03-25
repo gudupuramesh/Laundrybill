@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,32 +15,25 @@ function toDate(val: any): Date | null {
   return new Date(val);
 }
 
-function timeAgo(date: Date | null): string {
+function timeAgo(date: Date | null, t: TFunction, locale: string): string {
   if (!date) return '';
   const now = Date.now();
   const diff = now - date.getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('mobile.timeJustNow');
+  if (mins < 60) return t('mobile.timeMinutesAgo', { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return t('mobile.timeHoursAgo', { count: hrs });
   const days = Math.floor(hrs / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
+  if (days === 1) return t('mobile.timeYesterday');
+  if (days < 7) return t('mobile.timeDaysAgo', { count: days });
+  if (days < 30) return t('mobile.weeksAgoShort', { count: Math.floor(days / 7) });
+  return date.toLocaleDateString(locale || 'en-IN', { day: 'numeric', month: 'short' });
 }
 
 function getInitials(name: string): string {
   return name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
-
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'inactive', label: 'Inactive' },
-];
 
 export default function CustomerListScreen({
   onViewCustomer,
@@ -47,8 +42,18 @@ export default function CustomerListScreen({
   onViewCustomer?: (id: string) => void;
   onAddCustomer?: () => void;
 }) {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+
+  const FILTERS = useMemo(
+    () => [
+      { key: 'all', label: t('mobile.customersFilterAll') },
+      { key: 'active', label: t('mobile.customersFilterActive') },
+      { key: 'inactive', label: t('mobile.customersFilterInactive') },
+    ],
+    [t]
+  );
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -103,10 +108,10 @@ export default function CustomerListScreen({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Customers</Text>
+        <Text style={styles.headerTitle}>{t('mobile.customersScreenTitle')}</Text>
         <TouchableOpacity style={styles.headerAddBtn} onPress={onAddCustomer} activeOpacity={0.7}>
           <MaterialIcons name="person-add" size={18} color="#fff" />
-          <Text style={styles.headerAddBtnText}>Add</Text>
+          <Text style={styles.headerAddBtnText}>{t('common.add')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -122,19 +127,19 @@ export default function CustomerListScreen({
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>TOTAL</Text>
+              <Text style={styles.statLabel}>{t('mobile.customersStatTotal')}</Text>
               <Text style={styles.statValue}>{stats.total}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>ACTIVE</Text>
+              <Text style={styles.statLabel}>{t('mobile.customersStatActive')}</Text>
               <Text style={[styles.statValue, { color: '#2e7d32' }]}>{stats.active}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>INACTIVE</Text>
+              <Text style={styles.statLabel}>{t('mobile.customersStatInactive')}</Text>
               <Text style={[styles.statValue, { color: '#e65100' }]}>{stats.total - stats.active}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>AVG VALUE</Text>
+              <Text style={styles.statLabel}>{t('mobile.customersStatAvgValue')}</Text>
               <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>₹{stats.avgValue}</Text>
             </View>
           </View>
@@ -157,7 +162,7 @@ export default function CustomerListScreen({
             <MaterialIcons name="search" size={20} color="#737685" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search name or phone..."
+              placeholder={t('mobile.customersSearchPlaceholder')}
               placeholderTextColor="#737685"
               value={search}
               onChangeText={setSearch}
@@ -181,7 +186,7 @@ export default function CustomerListScreen({
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="people-outline" size={44} color="#c3c6d6" />
-              <Text style={styles.emptyText}>No customers found</Text>
+              <Text style={styles.emptyText}>{t('mobile.customersEmpty')}</Text>
             </View>
           ) : (
             <View style={styles.customerList}>
@@ -200,22 +205,22 @@ export default function CustomerListScreen({
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.nameRow}>
-                        <Text style={styles.customerName} numberOfLines={1}>{customer.name || 'Unknown'}</Text>
+                        <Text style={styles.customerName} numberOfLines={1}>{customer.name || t('mobile.unknownName')}</Text>
                         {!isActive && (
                           <View style={styles.inactiveBadge}>
-                            <Text style={styles.inactiveBadgeText}>INACTIVE</Text>
+                            <Text style={styles.inactiveBadgeText}>{t('mobile.inactiveLabel')}</Text>
                           </View>
                         )}
                       </View>
-                      <Text style={styles.customerPhone}>{customer.phone || 'No phone'}</Text>
+                      <Text style={styles.customerPhone}>{customer.phone || t('mobile.noPhoneLabel')}</Text>
                       <View style={styles.customerMeta}>
-                        <Text style={styles.metaText}>{customer.totalOrders || 0} orders</Text>
+                        <Text style={styles.metaText}>{t('mobile.customerOrdersMeta', { count: customer.totalOrders || 0 })}</Text>
                         <View style={styles.dot} />
                         <Text style={styles.metaText}>₹{Math.round(customer.totalSpent || 0)}</Text>
                         {lastOrder ? (
                           <>
                             <View style={styles.dot} />
-                            <Text style={styles.metaTime}>{timeAgo(lastOrder)}</Text>
+                            <Text style={styles.metaTime}>{timeAgo(lastOrder, t, i18n.language)}</Text>
                           </>
                         ) : null}
                       </View>

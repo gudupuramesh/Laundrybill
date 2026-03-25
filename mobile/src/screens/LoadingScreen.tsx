@@ -1,180 +1,271 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, Image } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const APP_LOGO = require('../../assets/login-logo.png');
+const SPLASH_HERO = require('../../assets/splash-hero.png');
 
+const { height: SCREEN_H } = Dimensions.get('window');
+
+/** Stitch LaundryFlow Dashboard — Initial Splash Screen (Alternative); brand from i18n + app logo */
 export default function LoadingScreen() {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const arrowAnim = useRef(new Animated.Value(0)).current;
+  const { t } = useTranslation();
+  const progressAnim = useRef(new Animated.Value(0.4)).current;
+
+  const brandParts = useMemo(() => {
+    const raw = t('mobile.loadingBrand');
+    const parts = raw.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return { first: parts[0], rest: parts.slice(1).join(' ') };
+    }
+    return { first: raw, rest: '' };
+  }, [t]);
 
   useEffect(() => {
-    const floatLoop = Animated.loop(
+    const progressLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim, {
+        Animated.timing(progressAnim, {
           toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
+          duration: 1600,
+          useNativeDriver: false,
         }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
+        Animated.timing(progressAnim, {
+          toValue: 0.32,
+          duration: 1000,
+          useNativeDriver: false,
         }),
       ])
     );
+    progressLoop.start();
+    return () => progressLoop.stop();
+  }, [progressAnim]);
 
-    const pulseLoop = Animated.loop(
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      })
-    );
-
-    const arrowLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(arrowAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        Animated.timing(arrowAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(arrowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(arrowAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
-      ])
-    );
-
-    floatLoop.start();
-    pulseLoop.start();
-    arrowLoop.start();
-
-    return () => {
-      floatLoop.stop();
-      pulseLoop.stop();
-      arrowLoop.stop();
-    };
-  }, [arrowAnim, floatAnim, pulseAnim]);
-
-  const floatingStyle = {
-    transform: [
-      {
-        translateY: floatAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -10],
-        }),
-      },
-    ],
-  };
-
-  const pulseStyle = {
-    opacity: pulseAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.8, 0],
-    }),
-    transform: [
-      {
-        scale: pulseAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.8, 1.4],
-        }),
-      },
-    ],
-  };
-
-  const arrowStyle = {
-    opacity: arrowAnim.interpolate({
-      inputRange: [0, 0.2, 0.8, 1],
-      outputRange: [0, 0.9, 0.9, 0],
-    }),
-    transform: [
-      {
-        translateX: arrowAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-6, 6],
-        }),
-      },
-    ],
-  };
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['26%', '78%'],
+  });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.loaderContainer}>
-        <Animated.View style={[styles.iconWrapper, floatingStyle]}>
-          <Animated.View style={[styles.pulseRing, pulseStyle]} />
-          <View style={styles.iconCard}>
-            <Image source={APP_LOGO} style={styles.logo} resizeMode="contain" />
+    <View style={styles.root}>
+      <View style={styles.heroWrap}>
+        <ImageBackground source={SPLASH_HERO} style={styles.heroImage} resizeMode="cover">
+          <LinearGradient
+            colors={['rgba(0, 64, 143, 0.12)', 'transparent']}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 0.45 }}
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(248, 249, 251, 0.92)', '#f8f9fb']}
+            style={styles.heroBottomFade}
+            start={{ x: 0.5, y: 0.35 }}
+            end={{ x: 0.5, y: 1 }}
+          />
+          <View style={styles.badge}>
+            <View style={styles.badgeDot} />
+            <Text style={styles.badgeText}>{t('mobile.splashSystemOptimized')}</Text>
           </View>
-          <Animated.View style={[styles.arrowOverlay, arrowStyle]}>
-            <Text style={styles.arrowText}>↗</Text>
-          </Animated.View>
-        </Animated.View>
+        </ImageBackground>
+      </View>
 
-        <Text style={styles.brandName}>Laundry Bill</Text>
-        <Text style={styles.tagline}>OPTIMIZING YOUR BUSINESS</Text>
+      <View style={styles.lower}>
+        <View style={styles.brandBlock}>
+          <View style={styles.brandRow}>
+            <View style={styles.logoShell}>
+              <Image source={APP_LOGO} style={styles.logo} resizeMode="contain" />
+            </View>
+            <View>
+              <Text style={styles.brandTitle}>
+                <Text style={styles.brandLaundry}>{brandParts.first}</Text>
+                {brandParts.rest ? <Text style={styles.brandBill}> {brandParts.rest}</Text> : null}
+              </Text>
+              <Text style={styles.tagline}>{t('mobile.loadingTagline')}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.progressWrap}>
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+          </View>
+          <View style={styles.progressMeta}>
+            <Text style={styles.initLabel}>{t('mobile.splashInitializing')}</Text>
+            <View style={styles.dots}>
+              <View style={[styles.dot, styles.dotA]} />
+              <View style={[styles.dot, styles.dotB]} />
+              <View style={[styles.dot, styles.dotC]} />
+            </View>
+          </View>
+        </View>
       </View>
     </View>
   );
 }
 
+const HERO_H = Math.min(SCREEN_H * 0.46, 420);
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#f8f9fb',
   },
-  loaderContainer: {
-    alignItems: 'center',
+  heroWrap: {
+    height: HERO_H,
+    width: '100%',
+    backgroundColor: '#e8eef5',
   },
-  iconWrapper: {
-    width: 100,
-    height: 100,
-    marginBottom: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  heroImage: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-start',
   },
-  pulseRing: {
+  heroBottomFade: {
     position: 'absolute',
-    width: 100,
-    height: 100,
-    borderWidth: 2,
-    borderColor: '#5eead4',
-    borderRadius: 20,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: HERO_H * 0.55,
   },
-  iconCard: {
-    width: 78,
-    height: 78,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  logo: {
-    width: 54,
-    height: 54,
-    tintColor: '#ffffff',
-  },
-  arrowOverlay: {
+  badge: {
     position: 'absolute',
-    right: -2,
-    top: 2,
+    top: 48,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
   },
-  arrowText: {
-    color: '#5eead4',
-    fontSize: 24,
-    fontWeight: '800',
+  badgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#006b5f',
   },
-  brandName: {
-    color: '#ffffff',
-    fontSize: 24,
+  badgeText: {
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
+    color: '#434654',
     textTransform: 'uppercase',
   },
+  lower: {
+    flex: 1,
+    backgroundColor: '#f8f9fb',
+    paddingHorizontal: 36,
+    paddingTop: 8,
+    paddingBottom: 40,
+    justifyContent: 'center',
+  },
+  brandBlock: {
+    marginBottom: 36,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  /** Match LoginScreen logo tile (blue field + same asset as login) */
+  logoShell: {
+    width: 48,
+    height: 48,
+    marginRight: 12,
+    borderRadius: 12,
+    backgroundColor: '#00408f',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00408f',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  logo: {
+    width: 32,
+    height: 32,
+  },
+  brandTitle: {
+    flexShrink: 1,
+  },
+  brandLaundry: {
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    color: '#00408f',
+  },
+  brandBill: {
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    color: '#191c1e',
+  },
   tagline: {
-    color: '#5eead4',
-    fontSize: 12,
-    marginTop: 8,
-    letterSpacing: 2,
-    opacity: 0.85,
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 2.4,
+    color: '#737685',
+    textTransform: 'uppercase',
+  },
+  progressWrap: {
+    width: '100%',
+    maxWidth: 300,
+    alignSelf: 'center',
+    gap: 14,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e1e2e4',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#00408f',
+  },
+  progressMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  initLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: 'rgba(67, 70, 84, 0.65)',
+    textTransform: 'uppercase',
+  },
+  dots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 6,
+  },
+  dotA: {
+    backgroundColor: 'rgba(0, 64, 143, 0.45)',
+  },
+  dotB: {
+    backgroundColor: 'rgba(0, 64, 143, 0.25)',
+  },
+  dotC: {
+    backgroundColor: 'rgba(0, 64, 143, 0.12)',
   },
 });

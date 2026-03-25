@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import * as Print from 'expo-print';
@@ -14,19 +16,14 @@ import * as Sharing from 'expo-sharing';
 
 const WEB_APP_URL = 'https://app.laundrybill.com';
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  confirmed: 'Confirmed',
-  picked_up: 'Picked Up',
-  pickup_scheduled: 'Pickup Scheduled',
-  pickup_completed: 'Picked Up from Customer',
-  processing: 'Processing',
-  ready: 'Ready',
-  ready_for_pickup: 'Ready for Pickup',
-  out_for_delivery: 'Out for Delivery',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-};
+const CANCEL_REASON_EN = [
+  'Customer requested cancellation',
+  'Items/services unavailable',
+  'Payment issue',
+  'Duplicate order',
+  'Shop closed / Cannot process',
+  'Other',
+] as const;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending: { bg: '#fff3e0', text: '#e65100' },
@@ -48,28 +45,43 @@ const STATUS_FLOW: Record<string, string[]> = {
   pickup_home: ['pending', 'pickup_scheduled', 'pickup_completed', 'processing', 'ready', 'out_for_delivery', 'delivered'],
 };
 
-const DELIVERY_LABELS: Record<string, string> = {
-  pickup_store: 'Shop Pickup',
-  delivery_home: 'Home Delivery',
-  pickup_home: 'Pickup from Home',
-};
-
-const PAYMENT_METHODS = [
-  { key: 'cash', label: 'Cash', icon: 'payments' },
-  { key: 'upi', label: 'UPI', icon: 'phone-android' },
-  { key: 'card', label: 'Card', icon: 'credit-card' },
-];
-
-const CANCEL_REASONS = [
-  'Customer requested cancellation',
-  'Items/services unavailable',
-  'Payment issue',
-  'Duplicate order',
-  'Shop closed / Cannot process',
-  'Other',
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────
+
+function deliveryLabelKey(dt: string): string {
+  if (dt === 'pickup_store') return 'mobile.delivery_pickup_store';
+  if (dt === 'delivery_home') return 'mobile.delivery_delivery_home';
+  if (dt === 'pickup_home') return 'mobile.delivery_pickup_home';
+  return 'mobile.pickupFallback';
+}
+
+function odStatusLabel(status: string, t: TFunction): string {
+  return t(`mobile.odStatus_${status}` as any);
+}
+
+function formatDateLocalized(d: Date | null, locale: string): string {
+  if (!d) return '—';
+  try {
+    return d.toLocaleString(locale || 'en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return formatDate(d);
+  }
+}
+
+function formatDateShortLocalized(d: Date | null, locale: string): string {
+  if (!d) return '—';
+  try {
+    return d.toLocaleDateString(locale || 'en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  } catch {
+    return formatDateShort(d);
+  }
+}
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -129,7 +141,7 @@ function findStatusIndex(currentStatus: string, flow: string[]): number {
 
 // ─── Receipt HTML Generator ──────────────────────────────────────────
 
-function generateReceiptHtml(order: any, shopData: any): string {
+function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: string): string {
   const fin = order.financials || {};
   const shopName = shopData?.name || 'LaundryBill';
   const shopPhone = shopData?.phone || '';
@@ -139,25 +151,26 @@ function generateReceiptHtml(order: any, shopData: any): string {
   const createdAt = toDate(order.createdAt);
   const expectedDelivery = toDate(order.expectedDelivery);
   const deliveryType = order.deliveryType || 'pickup_store';
-  const deliveryLabel = DELIVERY_LABELS[deliveryType] || 'Pickup';
+  const deliveryLabel = t(deliveryLabelKey(deliveryType));
   const qrUrl = getQRImageUrl(getTrackingUrl(publicId), 150);
+  const taxName = fin.taxName || t('mobile.taxFallback');
 
   const itemRows = (order.items || []).map((item: any) => `
     <tr>
       <td style="padding:6px 0;font-size:13px;">
-        <strong>${escHtml(item.serviceName)}</strong>${item.express ? ' <span style="color:#e65100;font-size:10px;">EXPRESS</span>' : ''}
-        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity} · ₹${Math.round(item.unitPrice)}/ea</span>
+        <strong>${escHtml(item.serviceName)}</strong>${item.express ? ` <span style="color:#e65100;font-size:10px;">${escHtml(t('mobile.receiptHtmlExpressBadge'))}</span>` : ''}
+        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity} · ₹${Math.round(item.unitPrice)}${escHtml(t('mobile.receiptHtmlItemEa'))}</span>
       </td>
       <td style="padding:6px 0;text-align:right;font-weight:600;font-size:13px;">₹${Math.round(item.total || 0)}</td>
     </tr>
   `).join('');
 
   const finRows: string[] = [];
-  finRows.push(`<tr><td>Subtotal</td><td style="text-align:right">₹${Math.round(fin.subtotal || 0)}</td></tr>`);
-  if (fin.discountAmount > 0) finRows.push(`<tr><td>Discount</td><td style="text-align:right;color:#006b5f">-₹${Math.round(fin.discountAmount)}</td></tr>`);
-  if (fin.expressCharge > 0) finRows.push(`<tr><td>Express Charge</td><td style="text-align:right">+₹${Math.round(fin.expressCharge)}</td></tr>`);
-  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(fin.taxName || 'Tax')} (${fin.taxRate || 0}%)</td><td style="text-align:right">+₹${Math.round(fin.taxAmount)}</td></tr>`);
-  if (fin.deliveryCharge > 0) finRows.push(`<tr><td>Delivery</td><td style="text-align:right">+₹${Math.round(fin.deliveryCharge)}</td></tr>`);
+  finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlSubtotal'))}</td><td style="text-align:right">₹${Math.round(fin.subtotal || 0)}</td></tr>`);
+  if (fin.discountAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlDiscount'))}</td><td style="text-align:right;color:#006b5f">-₹${Math.round(fin.discountAmount)}</td></tr>`);
+  if (fin.expressCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlExpressCharge'))}</td><td style="text-align:right">+₹${Math.round(fin.expressCharge)}</td></tr>`);
+  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate || 0 }))}</td><td style="text-align:right">+₹${Math.round(fin.taxAmount)}</td></tr>`);
+  if (fin.deliveryCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.deliveryChargeLabel'))}</td><td style="text-align:right">+₹${Math.round(fin.deliveryCharge)}</td></tr>`);
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -187,42 +200,42 @@ function generateReceiptHtml(order: any, shopData: any): string {
 <body>
   <div class="header">
     <div class="shop-name">${escHtml(shopName)}</div>
-    ${shopPhone ? `<div class="shop-info">Tel: ${escHtml(shopPhone)}</div>` : ''}
+    ${shopPhone ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlTel'))} ${escHtml(shopPhone)}</div>` : ''}
     ${shopAddress ? `<div class="shop-info">${escHtml(shopAddress)}</div>` : ''}
-    ${gstNumber ? `<div class="shop-info">GSTIN: ${escHtml(gstNumber)}</div>` : ''}
+    ${gstNumber ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlGstin'))} ${escHtml(gstNumber)}</div>` : ''}
   </div>
 
   <hr class="divider"/>
-  <div class="order-id">ORDER #${escHtml(publicId)}</div>
-  <div class="order-meta">${formatDate(createdAt)}</div>
+  <div class="order-id">${escHtml(t('mobile.receiptHtmlOrder', { id: publicId }))}</div>
+  <div class="order-meta">${escHtml(formatDateLocalized(createdAt, locale))}</div>
   <div class="order-meta" style="margin-top:4px;font-weight:600;">[ ${escHtml(deliveryLabel.toUpperCase())} ]</div>
   <hr class="divider"/>
 
-  <div class="section-title">Customer</div>
-  <div class="customer"><strong>${escHtml(order.customerName || 'Guest')}</strong></div>
+  <div class="section-title">${escHtml(t('mobile.receiptHtmlCustomer'))}</div>
+  <div class="customer"><strong>${escHtml(order.customerName || t('mobile.receiptHtmlGuest'))}</strong></div>
   <div class="customer">${escHtml(order.customerPhone || '')}</div>
   ${order.deliveryAddress ? `<div class="customer" style="color:#666">${escHtml(order.deliveryAddress)}</div>` : ''}
 
-  <div class="section-title">Items</div>
+  <div class="section-title">${escHtml(t('mobile.receiptHtmlItems'))}</div>
   <table>${itemRows}</table>
   <hr class="divider"/>
 
   <table class="fin-table">${finRows.join('')}</table>
-  <table><tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${Math.round(fin.total || 0)}</td></tr></table>
+  <table><tr class="total-row"><td>${escHtml(t('mobile.receiptHtmlTotal'))}</td><td style="text-align:right">₹${Math.round(fin.total || 0)}</td></tr></table>
 
   <table class="fin-table" style="margin-top:8px">
-    <tr><td>Amount Paid</td><td style="text-align:right;font-weight:600">₹${Math.round(fin.amountPaid || 0)}</td></tr>
-    <tr><td>Balance Due</td><td style="text-align:right;font-weight:700;color:${(fin.balance || 0) > 0 ? '#93000a' : '#006b5f'}">₹${Math.round(fin.balance || 0)}</td></tr>
+    <tr><td>${escHtml(t('mobile.receiptHtmlAmountPaid'))}</td><td style="text-align:right;font-weight:600">₹${Math.round(fin.amountPaid || 0)}</td></tr>
+    <tr><td>${escHtml(t('mobile.receiptHtmlBalanceDue'))}</td><td style="text-align:right;font-weight:700;color:${(fin.balance || 0) > 0 ? '#93000a' : '#006b5f'}">₹${Math.round(fin.balance || 0)}</td></tr>
   </table>
 
   <div class="payment-status ${(fin.balance || 0) > 0 ? 'unpaid' : 'paid'}">
-    ${(fin.balance || 0) > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : 'Paid in Full'}
+    ${(fin.balance || 0) > 0 ? escHtml(t('mobile.receiptHtmlBalanceDueBanner', { amount: Math.round(fin.balance) })) : escHtml(t('mobile.receiptHtmlPaidInFull'))}
   </div>
 
   ${expectedDelivery ? `
     <div style="text-align:center;background:#d8e2ff;border-radius:8px;padding:10px;margin:12px 0;">
-      <div style="font-size:10px;font-weight:700;color:#00408f;letter-spacing:0.5px;">${deliveryType === 'pickup_store' ? 'EXPECTED READY' : 'EXPECTED DELIVERY'}</div>
-      <div style="font-size:14px;font-weight:700;color:#00408f;margin-top:4px;">${formatDateShort(expectedDelivery)}</div>
+      <div style="font-size:10px;font-weight:700;color:#00408f;letter-spacing:0.5px;">${escHtml(deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper'))}</div>
+      <div style="font-size:14px;font-weight:700;color:#00408f;margin-top:4px;">${escHtml(formatDateShortLocalized(expectedDelivery, locale))}</div>
     </div>
   ` : ''}
 
@@ -230,7 +243,7 @@ function generateReceiptHtml(order: any, shopData: any): string {
   <div class="track-link">${getTrackingUrl(publicId)}</div>
 
   <hr class="divider"/>
-  <div class="footer">Thank you for your business!<br/>Powered by laundrybill.com</div>
+  <div class="footer">${escHtml(t('mobile.receiptHtmlFooterThanks'))}<br/>${escHtml(t('mobile.receiptHtmlFooterPowered'))}</div>
 </body></html>`;
 }
 
@@ -245,6 +258,7 @@ export default function OrderDetailsScreen({
   orderId: string;
   onEditOrder?: (order: any) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const [order, setOrder] = useState<any>(null);
@@ -301,12 +315,21 @@ export default function OrderDetailsScreen({
     const map: Record<string, { name: string; subtotal: number; items: any[] }> = {};
     order.items.forEach((item: any) => {
       const key = item.categoryId || 'other';
-      if (!map[key]) map[key] = { name: item.categoryName || 'Other', subtotal: 0, items: [] };
+      if (!map[key]) map[key] = { name: item.categoryName || t('mobile.categoryOther'), subtotal: 0, items: [] };
       map[key].items.push(item);
       map[key].subtotal += item.total || 0;
     });
     return Object.values(map);
-  }, [order]);
+  }, [order, t]);
+
+  const paymentMethods = useMemo(
+    () => [
+      { key: 'cash', label: t('mobile.payMethod_cash'), icon: 'payments' },
+      { key: 'upi', label: t('mobile.payMethod_upi'), icon: 'phone-android' },
+      { key: 'card', label: t('mobile.payMethod_card'), icon: 'credit-card' },
+    ],
+    [t],
+  );
 
   /** Expand items by quantity for individual QR tags */
   const itemTags = useMemo(() => {
@@ -378,7 +401,7 @@ export default function OrderDetailsScreen({
       setSelectedStatus('');
       setStatusNotes('');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update status');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateStatus'));
     }
     setSaving(false);
   };
@@ -412,7 +435,7 @@ export default function OrderDetailsScreen({
       setPayMethod('cash');
       setPayRef('');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to collect payment');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedCollectPayment'));
     }
     setSaving(false);
   };
@@ -439,7 +462,7 @@ export default function OrderDetailsScreen({
       setCancelModal(false);
       setCancelReason('');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to cancel order');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedCancelOrder'));
     }
     setSaving(false);
   };
@@ -454,65 +477,70 @@ export default function OrderDetailsScreen({
       await orderDocRef().update(updateData);
       setEditModal(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update order');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateOrder'));
     }
     setSaving(false);
   };
 
   const handlePrintReceipt = async () => {
     try {
-      const html = generateReceiptHtml(order, shopData);
+      const html = generateReceiptHtml(order, shopData, t, i18n.language);
       await Print.printAsync({ html });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to print receipt');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintReceipt'));
     }
   };
 
   const handleShareReceiptPdf = async () => {
     try {
-      const html = generateReceiptHtml(order, shopData);
+      const html = generateReceiptHtml(order, shopData, t, i18n.language);
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle: `Order Receipt #${publicId}`,
+        dialogTitle: t('mobile.receiptShareTitle', { id: publicId }),
         UTI: 'com.adobe.pdf',
       });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to share receipt');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedShareReceipt'));
     }
   };
 
   const handleShareWhatsApp = () => {
     const phone = (order?.customerPhone || '').replace(/\D/g, '');
-    if (!phone) { Alert.alert('No Phone', 'Customer phone number is required.'); return; }
+    if (!phone) {
+      Alert.alert(t('mobile.noPhoneTitle'), t('mobile.noPhoneRequired'));
+      return;
+    }
     const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
     const shopName = shopData?.name || 'LaundryBill';
-    const dateLabel = deliveryType === 'pickup_store' ? 'Ready for Pickup' : 'Expected Delivery';
+    const dateLabel = deliveryType === 'pickup_store' ? t('mobile.readyForPickupLabel') : t('mobile.expectedDeliveryLabel');
 
     const lines = [
-      `*${shopName} - Order Update*`,
+      t('mobile.waOrderUpdate', { shop: shopName }),
       ``,
-      `*Order ID:* #${publicId}`,
-      `*Date:* ${formatDate(createdAt)}`,
-      `*Type:* ${DELIVERY_LABELS[deliveryType] || 'Pickup'}`,
-      `*Status:* ${STATUS_LABELS[status] || status}`,
+      t('mobile.waOrderId', { id: publicId }),
+      t('mobile.waDate', { date: formatDateLocalized(createdAt, i18n.language) }),
+      t('mobile.waType', { type: t(deliveryLabelKey(deliveryType)) }),
+      t('mobile.waOrderStatusLine', { status: odStatusLabel(status, t) }),
       ``,
-      `*Items:*`,
+      t('mobile.waItems'),
       ...(order?.items || []).map((i: any) => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
       ``,
-      `*Payment:*`,
-      `Total: ₹${Math.round(fin.total || 0)}`,
-      fin.balance > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : `Paid in Full`,
+      t('mobile.waPayment'),
+      t('mobile.waTotal', { amount: Math.round(fin.total || 0) }),
+      fin.balance > 0 ? t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) : t('mobile.waPaidFull'),
     ];
-    if (expectedDelivery) lines.push(``, `*${dateLabel}:*`, formatDateShort(expectedDelivery));
-    lines.push(``, `*Track Your Order:*`, trackingUrl, ``, `*View Receipt:*`, getReceiptUrl(publicId));
+    if (expectedDelivery) lines.push(``, `*${dateLabel}:*`, formatDateShortLocalized(expectedDelivery, i18n.language));
+    lines.push(``, t('mobile.waTrackOrder'), trackingUrl, ``, t('mobile.waViewReceipt'), getReceiptUrl(publicId));
     Linking.openURL(`https://wa.me/${fullPhone}?text=${encodeURIComponent(lines.join('\n'))}`).catch(() =>
-      Alert.alert('Error', 'Could not open WhatsApp')
+      Alert.alert(t('mobile.errorTitle'), t('mobile.couldNotOpenWhatsapp'))
     );
   };
 
   const handleShareTrackingLink = async () => {
-    try { await Share.share({ message: `Track your laundry order #${publicId}: ${trackingUrl}` }); } catch (e) {}
+    try {
+      await Share.share({ message: t('mobile.trackOrderShareMsg', { id: publicId, url: trackingUrl }) });
+    } catch (e) {}
   };
 
   /** Print QR codes — thermal (2-inch / 48mm) or standard (A4/Letter) */
@@ -532,13 +560,13 @@ export default function OrderDetailsScreen({
           <div style="text-align:center;padding:${isThermal ? '4mm 2mm' : '20px'};">
             <img src="${qrUrl}" style="width:${qrSize}px;height:${qrSize}px;" />
             <div style="font-size:${fontSize};font-weight:800;margin-top:6px;">#${escHtml(publicId)}</div>
-            <div style="font-size:${smallFont};color:#666;margin-top:2px;">${escHtml(order?.customerName || 'Guest')} · ${(order?.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0)} items</div>
+            <div style="font-size:${smallFont};color:#666;margin-top:2px;">${escHtml(order?.customerName || t('mobile.guestLabel'))} · ${escHtml(t('mobile.itemsCountShort', { count: (order?.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) }))}</div>
           </div>`;
       } else {
         bodyContent = itemTags.map((tag) => `
           <div style="text-align:center;padding:${isThermal ? '3mm 2mm' : '16px'};${isThermal ? '' : 'display:inline-block;width:48%;margin:1%;'}border:1px dashed #ccc;border-radius:4px;page-break-inside:avoid;margin-bottom:${isThermal ? '2mm' : '8px'};">
             <img src="${getQRImageUrl(tag.qrData, qrSize)}" style="width:${isThermal ? 100 : 150}px;height:${isThermal ? 100 : 150}px;" />
-            <div style="font-size:${smallFont};font-weight:700;color:#666;margin-top:4px;">Tag ${tag.index}/${tag.total}</div>
+            <div style="font-size:${smallFont};font-weight:700;color:#666;margin-top:4px;">${escHtml(t('mobile.tagIndex', { index: tag.index, total: tag.total }))}</div>
             <div style="font-size:${fontSize};font-weight:700;margin-top:2px;">${escHtml(tag.serviceName)}</div>
             <div style="font-size:${smallFont};color:#666;">${escHtml(tag.categoryName)} · #${escHtml(publicId)}</div>
           </div>`).join('');
@@ -550,7 +578,7 @@ export default function OrderDetailsScreen({
 
       await Print.printAsync({ html, ...(isThermal ? { width: 48 * 2.835 } : {}) });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to print QR codes');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintQr'));
     }
   };
 
@@ -563,8 +591,8 @@ export default function OrderDetailsScreen({
   if (!order) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>Order not found</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>Go Back</Text></TouchableOpacity>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>{t('mobile.orderNotFound')}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>{t('mobile.goBack')}</Text></TouchableOpacity>
       </View>
     );
   }
@@ -580,7 +608,7 @@ export default function OrderDetailsScreen({
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>#{publicId}</Text>
             <View style={[styles.statusBadgeLg, { backgroundColor: statusColor.bg }]}>
-              <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{STATUS_LABELS[status] || status.toUpperCase()}</Text>
+              <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.iconBtn} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
@@ -591,58 +619,58 @@ export default function OrderDetailsScreen({
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         {/* Date */}
-        <Text style={[styles.dateText, { marginBottom: 4 }]}>{formatDate(createdAt)}</Text>
+        <Text style={[styles.dateText, { marginBottom: 4 }]}>{formatDateLocalized(createdAt, i18n.language)}</Text>
 
         {/* ─── Action Buttons ─────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsScroll} contentContainerStyle={styles.actionsContent}>
           {!isTerminal && (
             <TouchableOpacity style={styles.actionChip} onPress={() => { setSelectedStatus(''); setStatusModal(true); }}>
               <MaterialIcons name="sync" size={18} color="#00408f" />
-              <Text style={styles.actionChipText}>Update Status</Text>
+              <Text style={styles.actionChipText}>{t('mobile.updateStatusChip')}</Text>
             </TouchableOpacity>
           )}
           {fin.balance > 0 && (
             <TouchableOpacity style={styles.actionChip} onPress={() => { setPayAmount(String(Math.round(fin.balance))); setPaymentModal(true); }}>
               <MaterialIcons name="payments" size={18} color="#006b5f" />
-              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>Collect ₹{Math.round(fin.balance)}</Text>
+              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>{t('mobile.collectAmount', { amount: Math.round(fin.balance) })}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.actionChip} onPress={handleShareWhatsApp}>
             <MaterialIcons name="chat" size={18} color="#25D366" />
-            <Text style={[styles.actionChipText, { color: '#25D366' }]}>WhatsApp</Text>
+            <Text style={[styles.actionChipText, { color: '#25D366' }]}>{t('mobile.whatsappChip')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={() => { setQrTab('order'); setQrModal(true); }}>
             <MaterialIcons name="qr-code-2" size={18} color="#00408f" />
-            <Text style={styles.actionChipText}>QR Code</Text>
+            <Text style={styles.actionChipText}>{t('mobile.qrCodeChip')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={handlePrintReceipt}>
             <MaterialIcons name="print" size={18} color="#5e3c00" />
-            <Text style={[styles.actionChipText, { color: '#5e3c00' }]}>Print</Text>
+            <Text style={[styles.actionChipText, { color: '#5e3c00' }]}>{t('mobile.printChip')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={handleShareReceiptPdf}>
             <MaterialIcons name="picture-as-pdf" size={18} color="#c62828" />
-            <Text style={[styles.actionChipText, { color: '#c62828' }]}>PDF</Text>
+            <Text style={[styles.actionChipText, { color: '#c62828' }]}>{t('mobile.pdfChip')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={handleShareTrackingLink}>
             <MaterialIcons name="share" size={18} color="#00408f" />
-            <Text style={styles.actionChipText}>Share</Text>
+            <Text style={styles.actionChipText}>{t('mobile.shareChip')}</Text>
           </TouchableOpacity>
           {!isTerminal && (
             <TouchableOpacity style={styles.actionChip} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
               <MaterialIcons name="edit" size={18} color="#434654" />
-              <Text style={[styles.actionChipText, { color: '#434654' }]}>Edit</Text>
+              <Text style={[styles.actionChipText, { color: '#434654' }]}>{t('mobile.editChip')}</Text>
             </TouchableOpacity>
           )}
           {!isTerminal && onEditOrder && (
             <TouchableOpacity style={[styles.actionChip, { borderColor: '#bbdefb' }]} onPress={() => onEditOrder(order)}>
               <MaterialIcons name="edit-note" size={18} color="#00408f" />
-              <Text style={[styles.actionChipText, { color: '#00408f' }]}>Edit Items</Text>
+              <Text style={[styles.actionChipText, { color: '#00408f' }]}>{t('mobile.editItemsChip')}</Text>
             </TouchableOpacity>
           )}
           {!isTerminal && ['pending', 'processing', 'confirmed', 'pickup_scheduled'].includes(status) && (
             <TouchableOpacity style={[styles.actionChip, { borderColor: '#fce4ec' }]} onPress={() => setCancelModal(true)}>
               <MaterialIcons name="cancel" size={18} color="#c62828" />
-              <Text style={[styles.actionChipText, { color: '#c62828' }]}>Cancel</Text>
+              <Text style={[styles.actionChipText, { color: '#c62828' }]}>{t('mobile.cancelOrderChip')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -652,8 +680,8 @@ export default function OrderDetailsScreen({
           <View style={styles.customerRow}>
             <View style={styles.customerAvatar}><MaterialIcons name="person" size={20} color="#00408f" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.customerName}>{order.customerName || 'Guest'}</Text>
-              <Text style={styles.customerPhone}>{order.customerPhone || 'No phone'}</Text>
+              <Text style={styles.customerName}>{order.customerName || t('mobile.guestLabel')}</Text>
+              <Text style={styles.customerPhone}>{order.customerPhone || t('mobile.noPhoneLabel')}</Text>
             </View>
             {order.customerPhone ? (
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -676,11 +704,11 @@ export default function OrderDetailsScreen({
           <View style={styles.deliveryCard}>
             <MaterialIcons name="event" size={20} color="#00408f" />
             <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.deliveryLabel}>{deliveryType === 'pickup_store' ? 'EXPECTED READY' : 'EXPECTED DELIVERY'}</Text>
-              <Text style={styles.deliveryDate}>{formatDateShort(expectedDelivery)}</Text>
+              <Text style={styles.deliveryLabel}>{deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}</Text>
+              <Text style={styles.deliveryDate}>{formatDateShortLocalized(expectedDelivery, i18n.language)}</Text>
             </View>
             <View style={styles.deliveryTypeBadge}>
-              <Text style={styles.deliveryTypeText}>{DELIVERY_LABELS[deliveryType] || 'Pickup'}</Text>
+              <Text style={styles.deliveryTypeText}>{t(deliveryLabelKey(deliveryType))}</Text>
             </View>
           </View>
         ) : null}
@@ -701,7 +729,7 @@ export default function OrderDetailsScreen({
                   <View style={styles.serviceItem}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemName}>{item.serviceName}</Text>
-                      <Text style={styles.itemMeta}>x{item.quantity} · ₹{Math.round(item.unitPrice)} ea.{item.express ? ' · Express' : ''}</Text>
+                      <Text style={styles.itemMeta}>x{item.quantity} · ₹{Math.round(item.unitPrice)} ea.{item.express ? t('mobile.expressSuffixShort') : ''}</Text>
                     </View>
                     <Text style={styles.itemTotal}>₹{Math.round(item.total)}</Text>
                   </View>
@@ -714,19 +742,19 @@ export default function OrderDetailsScreen({
 
         {/* ─── Financials ─────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Payment Summary</Text>
-          <View style={styles.finRow}><Text style={styles.finLabel}>Subtotal</Text><Text style={styles.finValue}>₹{Math.round(fin.subtotal || 0)}</Text></View>
-          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Discount</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{Math.round(fin.discountAmount)}</Text></View>}
-          {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Express</Text><Text style={styles.finValue}>+₹{Math.round(fin.expressCharge)}</Text></View>}
-          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || 'Tax'} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+₹{Math.round(fin.taxAmount)}</Text></View>}
-          {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>Delivery</Text><Text style={styles.finValue}>+₹{Math.round(fin.deliveryCharge)}</Text></View>}
+          <Text style={styles.cardTitle}>{t('mobile.paymentSummaryTitle')}</Text>
+          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text><Text style={styles.finValue}>₹{Math.round(fin.subtotal || 0)}</Text></View>
+          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{Math.round(fin.discountAmount)}</Text></View>}
+          {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.expressChargeLabel')}</Text><Text style={styles.finValue}>+₹{Math.round(fin.expressCharge)}</Text></View>}
+          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+₹{Math.round(fin.taxAmount)}</Text></View>}
+          {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.deliveryChargeLabel')}</Text><Text style={styles.finValue}>+₹{Math.round(fin.deliveryCharge)}</Text></View>}
           <View style={styles.divider} />
-          <View style={styles.finRow}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>₹{Math.round(fin.total || 0)}</Text></View>
-          <View style={styles.finRow}><Text style={styles.finLabel}>Paid</Text><Text style={styles.finValue}>₹{Math.round(fin.amountPaid || 0)}</Text></View>
+          <View style={styles.finRow}><Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text><Text style={styles.totalValue}>₹{Math.round(fin.total || 0)}</Text></View>
+          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.paidLabelFin')}</Text><Text style={styles.finValue}>₹{Math.round(fin.amountPaid || 0)}</Text></View>
           <View style={[styles.paymentBadge, fin.balance > 0 ? styles.unpaidBg : styles.paidBg]}>
             <MaterialIcons name={fin.balance > 0 ? 'schedule' : 'check-circle'} size={14} color={fin.balance > 0 ? '#93000a' : '#006b5f'} />
             <Text style={fin.balance > 0 ? styles.unpaidText : styles.paidText}>
-              {fin.balance > 0 ? `Balance Due: ₹${Math.round(fin.balance)}` : 'Paid in Full'}
+              {fin.balance > 0 ? t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) : t('mobile.paidInFull')}
             </Text>
           </View>
         </View>
@@ -734,7 +762,7 @@ export default function OrderDetailsScreen({
         {/* ─── Timeline ───────────────────────────────────────────── */}
         {timeline.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Timeline</Text>
+            <Text style={styles.cardTitle}>{t('mobile.timelineTitle')}</Text>
             {timeline.slice().reverse().map((entry: any, i: number) => {
               const entryDate = toDate(entry.timestamp);
               const ec = STATUS_COLORS[entry.status] || STATUS_COLORS.pending;
@@ -743,9 +771,9 @@ export default function OrderDetailsScreen({
                   <View style={[styles.timelineDot, { backgroundColor: i === 0 ? ec.text : '#c3c6d6' }]} />
                   {i < timeline.length - 1 && <View style={styles.timelineLine} />}
                   <View style={styles.timelineContent}>
-                    <Text style={[styles.timelineStatus, i === 0 && { color: ec.text, fontWeight: '700' }]}>{STATUS_LABELS[entry.status] || entry.status}</Text>
-                    <Text style={styles.timelineTime}>{formatDate(entryDate)}</Text>
-                    {entry.staffName ? <Text style={styles.timelineStaff}>by {entry.staffName}</Text> : null}
+                    <Text style={[styles.timelineStatus, i === 0 && { color: ec.text, fontWeight: '700' }]}>{odStatusLabel(entry.status, t)}</Text>
+                    <Text style={styles.timelineTime}>{formatDateLocalized(entryDate, i18n.language)}</Text>
+                    {entry.staffName ? <Text style={styles.timelineStaff}>{t('mobile.timelineBy', { name: entry.staffName })}</Text> : null}
                     {entry.notes ? <Text style={styles.timelineNotes}>{entry.notes}</Text> : null}
                   </View>
                 </View>
@@ -773,8 +801,8 @@ export default function OrderDetailsScreen({
           <Pressable style={styles.modalDismiss} onPress={() => { setStatusModal(false); setSelectedStatus(''); setStatusNotes(''); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Update Order Status</Text>
-            <Text style={styles.modalSubtitle}>{DELIVERY_LABELS[deliveryType] || 'Pickup'} flow</Text>
+            <Text style={styles.modalTitle}>{t('mobile.updateStatusModalTitle')}</Text>
+            <Text style={styles.modalSubtitle}>{t('mobile.deliveryFlowSubtitle', { type: t(deliveryLabelKey(deliveryType)) })}</Text>
 
             <ScrollView style={{ maxHeight: 340, marginTop: 16 }} showsVerticalScrollIndicator={false}>
               {flow.map((s, i) => {
@@ -828,8 +856,8 @@ export default function OrderDetailsScreen({
                           isSelected && { color: sc.text, fontWeight: '800' },
                           !isFuture && !isCurrent && !isCompleted && { color: '#c3c6d6' },
                         ]}>
-                          {STATUS_LABELS[s] || s}
-                          {isCurrent ? '  (Current)' : ''}
+                          {odStatusLabel(s, t)}
+                          {isCurrent ? t('mobile.statusCurrentSuffix') : ''}
                         </Text>
                       </View>
 
@@ -852,7 +880,7 @@ export default function OrderDetailsScreen({
                   <View style={[styles.stepCircle, { borderColor: '#c62828' }, selectedStatus === 'cancelled' && { backgroundColor: '#c62828' }]}>
                     <MaterialIcons name="close" size={14} color={selectedStatus === 'cancelled' ? '#fff' : '#c62828'} />
                   </View>
-                  <Text style={[styles.statusFlowLabel, { marginLeft: 12, color: '#c62828' }]}>Cancel Order</Text>
+                  <Text style={[styles.statusFlowLabel, { marginLeft: 12, color: '#c62828' }]}>{t('mobile.cancelOrderStatusOption')}</Text>
                   <View style={[styles.radioOuter, { borderColor: '#c62828' }]}>
                     {selectedStatus === 'cancelled' && <View style={[styles.radioInner, { backgroundColor: '#c62828' }]} />}
                   </View>
@@ -860,11 +888,11 @@ export default function OrderDetailsScreen({
               )}
             </ScrollView>
 
-            <TextInput style={styles.modalInput} placeholder="Add notes (optional)" placeholderTextColor="#737685" value={statusNotes} onChangeText={setStatusNotes} multiline />
+            <TextInput style={styles.modalInput} placeholder={t('mobile.statusNotesPlaceholder')} placeholderTextColor="#737685" value={statusNotes} onChangeText={setStatusNotes} multiline />
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setStatusModal(false); setSelectedStatus(''); setStatusNotes(''); }}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, !selectedStatus && { opacity: 0.5 }, selectedStatus === 'cancelled' && { backgroundColor: '#c62828' }]}
@@ -872,7 +900,7 @@ export default function OrderDetailsScreen({
                 disabled={!selectedStatus || saving}
               >
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <Text style={styles.primaryBtnText}>{selectedStatus === 'cancelled' ? 'Cancel Order' : 'Update Status'}</Text>
+                  <Text style={styles.primaryBtnText}>{selectedStatus === 'cancelled' ? t('mobile.cancelOrderModalTitle') : t('mobile.updateStatusPrimaryBtn')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -886,13 +914,13 @@ export default function OrderDetailsScreen({
           <Pressable style={styles.modalDismiss} onPress={() => { setPaymentModal(false); setPayAmount(''); setPayRef(''); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Collect Payment</Text>
-            <Text style={styles.modalSubtitle}>Balance: ₹{Math.round(fin.balance || 0)}</Text>
-            <Text style={styles.fieldLabel}>Amount</Text>
+            <Text style={styles.modalTitle}>{t('mobile.collectPaymentTitle')}</Text>
+            <Text style={styles.modalSubtitle}>{t('mobile.balanceSubtitle', { amount: Math.round(fin.balance || 0) })}</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.amountField')}</Text>
             <TextInput style={styles.modalInputSingle} keyboardType="numeric" value={payAmount} onChangeText={setPayAmount} placeholder="0" placeholderTextColor="#c3c6d6" />
-            <Text style={styles.fieldLabel}>Payment Method</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.paymentMethodField')}</Text>
             <View style={styles.methodRow}>
-              {PAYMENT_METHODS.map((m) => (
+              {paymentMethods.map((m) => (
                 <TouchableOpacity key={m.key} style={[styles.methodChip, payMethod === m.key && styles.methodChipActive]} onPress={() => setPayMethod(m.key)}>
                   <MaterialIcons name={m.icon as any} size={18} color={payMethod === m.key ? '#fff' : '#434654'} />
                   <Text style={[styles.methodChipText, payMethod === m.key && { color: '#fff' }]}>{m.label}</Text>
@@ -901,20 +929,20 @@ export default function OrderDetailsScreen({
             </View>
             {payMethod !== 'cash' && (
               <>
-                <Text style={styles.fieldLabel}>Reference / Transaction ID</Text>
-                <TextInput style={styles.modalInputSingle} value={payRef} onChangeText={setPayRef} placeholder="Optional" placeholderTextColor="#c3c6d6" />
+                <Text style={styles.fieldLabel}>{t('mobile.referencePlaceholder')}</Text>
+                <TextInput style={styles.modalInputSingle} value={payRef} onChangeText={setPayRef} placeholder={t('mobile.phOptional')} placeholderTextColor="#c3c6d6" />
               </>
             )}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setPaymentModal(false); setPayAmount(''); setPayRef(''); }}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, { backgroundColor: '#006b5f' }, (!payAmount || parseFloat(payAmount) <= 0) && { opacity: 0.5 }]}
                 onPress={handleCollectPayment}
                 disabled={!payAmount || parseFloat(payAmount) <= 0 || saving}
               >
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Collect ₹{payAmount || '0'}</Text>}
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{t('mobile.collectBtn', { amount: payAmount || '0' })}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -927,17 +955,17 @@ export default function OrderDetailsScreen({
           <Pressable style={styles.modalDismiss} onPress={() => setQrModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16, maxHeight: '90%' }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>QR Codes</Text>
+            <Text style={styles.modalTitle}>{t('mobile.qrCodeModalTitle')}</Text>
 
             {/* Tab Switcher */}
             <View style={styles.qrTabRow}>
               <TouchableOpacity style={[styles.qrTabBtn, qrTab === 'order' && styles.qrTabBtnActive]} onPress={() => setQrTab('order')}>
                 <MaterialIcons name="shopping-bag" size={16} color={qrTab === 'order' ? '#fff' : '#434654'} />
-                <Text style={[styles.qrTabText, qrTab === 'order' && styles.qrTabTextActive]}>Order / Basket</Text>
+                <Text style={[styles.qrTabText, qrTab === 'order' && styles.qrTabTextActive]}>{t('mobile.qrTabOrder')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.qrTabBtn, qrTab === 'items' && styles.qrTabBtnActive]} onPress={() => setQrTab('items')}>
                 <MaterialIcons name="style" size={16} color={qrTab === 'items' ? '#fff' : '#434654'} />
-                <Text style={[styles.qrTabText, qrTab === 'items' && styles.qrTabTextActive]}>Item Tags ({itemTags.length})</Text>
+                <Text style={[styles.qrTabText, qrTab === 'items' && styles.qrTabTextActive]}>{t('mobile.qrTabItems', { count: itemTags.length })}</Text>
               </TouchableOpacity>
             </View>
 
@@ -948,20 +976,20 @@ export default function OrderDetailsScreen({
                   <Image source={{ uri: getQRImageUrl(orderId, 220) }} style={{ width: 200, height: 200 }} resizeMode="contain" />
                 </View>
                 <Text style={styles.qrOrderId}>#{publicId}</Text>
-                <Text style={styles.qrSubInfo}>{order.customerName || 'Guest'} · {(order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0)} items</Text>
-                <Text style={styles.qrHint}>Scan to identify this order basket</Text>
+                <Text style={styles.qrSubInfo}>{order.customerName || t('mobile.guestLabel')} · {t('mobile.itemsCountShort', { count: (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) })}</Text>
+                <Text style={styles.qrHint}>{t('mobile.qrScanHint')}</Text>
                 <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16, alignSelf: 'stretch' }]} onPress={handleShareTrackingLink}>
                   <MaterialIcons name="share" size={18} color="#fff" />
-                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Share Tracking Link</Text>
+                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>{t('mobile.shareTrackingLink')}</Text>
                 </TouchableOpacity>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>Thermal 2"</Text>
+                    <Text style={styles.printBtnText}>{t('mobile.thermal2')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>Standard</Text>
+                    <Text style={styles.printBtnText}>{t('mobile.printStandard')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -973,7 +1001,7 @@ export default function OrderDetailsScreen({
                     <View key={tag.index} style={styles.itemTagCard}>
                       <Image source={{ uri: getQRImageUrl(tag.qrData, 150) }} style={styles.itemTagQr} resizeMode="contain" />
                       <View style={styles.itemTagInfo}>
-                        <Text style={styles.itemTagIndex}>Tag {tag.index} of {tag.total}</Text>
+                        <Text style={styles.itemTagIndex}>{t('mobile.tagIndex', { index: tag.index, total: tag.total })}</Text>
                         <Text style={styles.itemTagName}>{tag.serviceName}</Text>
                         <Text style={styles.itemTagMeta}>{tag.categoryName}</Text>
                         <Text style={styles.itemTagMeta}>₹{Math.round(tag.unitPrice)} · Order #{publicId}</Text>
@@ -984,18 +1012,18 @@ export default function OrderDetailsScreen({
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>Print Thermal 2"</Text>
+                    <Text style={styles.printBtnText}>{t('mobile.printThermal2Long')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>Print Standard</Text>
+                    <Text style={styles.printBtnText}>{t('mobile.printStandard')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             )}
 
             <TouchableOpacity style={[styles.modalCancelBtn, { marginTop: 12 }]} onPress={() => setQrModal(false)}>
-              <Text style={styles.modalCancelText}>Close</Text>
+              <Text style={styles.modalCancelText}>{t('mobile.closeBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1007,31 +1035,31 @@ export default function OrderDetailsScreen({
           <Pressable style={styles.modalDismiss} onPress={() => { setCancelModal(false); setCancelReason(''); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: '#c62828' }]}>Cancel Order</Text>
-            <Text style={styles.modalSubtitle}>This action cannot be undone.</Text>
+            <Text style={[styles.modalTitle, { color: '#c62828' }]}>{t('mobile.cancelOrderModalTitle')}</Text>
+            <Text style={styles.modalSubtitle}>{t('mobile.cannotUndo')}</Text>
             {fin.amountPaid > 0 && (
               <View style={[styles.paymentBadge, styles.unpaidBg, { marginTop: 12 }]}>
                 <MaterialIcons name="info" size={14} color="#93000a" />
-                <Text style={styles.unpaidText}>₹{Math.round(fin.amountPaid)} paid. Refund may be needed.</Text>
+                <Text style={styles.unpaidText}>{t('mobile.paidRefundHint', { amount: Math.round(fin.amountPaid) })}</Text>
               </View>
             )}
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Reason</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t('mobile.reasonLabel')}</Text>
             <View style={{ gap: 6 }}>
-              {CANCEL_REASONS.map((reason) => (
+              {CANCEL_REASON_EN.map((reason, ri) => (
                 <TouchableOpacity key={reason} style={[styles.statusOption, cancelReason === reason && { borderColor: '#c62828', backgroundColor: '#fce4ec' }]} onPress={() => setCancelReason(reason)}>
                   <View style={[styles.radioOuter, cancelReason === reason && { borderColor: '#c62828' }]}>
                     {cancelReason === reason && <View style={[styles.radioInner, { backgroundColor: '#c62828' }]} />}
                   </View>
-                  <Text style={[styles.statusOptionText, cancelReason === reason && { color: '#c62828' }]}>{reason}</Text>
+                  <Text style={[styles.statusOptionText, cancelReason === reason && { color: '#c62828' }]}>{t(`mobile.cancelReason_${ri + 1}` as any)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setCancelModal(false); setCancelReason(''); }}>
-                <Text style={styles.modalCancelText}>Go Back</Text>
+                <Text style={styles.modalCancelText}>{t('mobile.goBack')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#c62828' }, !cancelReason && { opacity: 0.5 }]} onPress={handleCancelOrder} disabled={!cancelReason || saving}>
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Cancel Order</Text>}
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{t('mobile.cancelOrderModalTitle')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1044,23 +1072,23 @@ export default function OrderDetailsScreen({
           <Pressable style={styles.modalDismiss} onPress={() => setEditModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Edit Order</Text>
-            <Text style={styles.fieldLabel}>Delivery Type</Text>
+            <Text style={styles.modalTitle}>{t('mobile.editOrderModalTitle')}</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.deliveryTypeField')}</Text>
             <View style={styles.methodRow}>
-              {Object.entries(DELIVERY_LABELS).map(([key, label]) => (
+              {(['pickup_store', 'delivery_home', 'pickup_home'] as const).map((key) => (
                 <TouchableOpacity key={key} style={[styles.methodChip, editDeliveryType === key && styles.methodChipActive]} onPress={() => setEditDeliveryType(key)}>
-                  <Text style={[styles.methodChipText, editDeliveryType === key && { color: '#fff' }]}>{label}</Text>
+                  <Text style={[styles.methodChipText, editDeliveryType === key && { color: '#fff' }]}>{t(deliveryLabelKey(key))}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={styles.fieldLabel}>Notes</Text>
-            <TextInput style={[styles.modalInput, { minHeight: 70 }]} placeholder="Delivery notes..." placeholderTextColor="#737685" value={editNotes} onChangeText={setEditNotes} multiline />
+            <Text style={styles.fieldLabel}>{t('mobile.fieldNotes')}</Text>
+            <TextInput style={[styles.modalInput, { minHeight: 70 }]} placeholder={t('mobile.deliveryNotesPlaceholder')} placeholderTextColor="#737685" value={editNotes} onChangeText={setEditNotes} multiline />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setEditModal(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveEdit} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>Save</Text>}
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Switch, ActivityIndicator, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ export default function AddServiceScreen({
   onSave?: () => void,
   onViewItems?: (categoryId: string, categoryName: string) => void,
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -92,7 +94,7 @@ export default function AddServiceScreen({
 
   const handleSave = async () => {
     if (!serviceName.trim()) {
-      alert('Please enter a service name.');
+      Alert.alert(t('mobile.errorTitle'), t('mobile.serviceNameRequired'));
       return;
     }
     setSaving(true);
@@ -129,7 +131,7 @@ export default function AddServiceScreen({
       resetForm();
     } catch (e: any) {
       console.error('Save category error:', e);
-      alert(e.message || 'Failed to save service.');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedSaveService'));
     } finally {
       setSaving(false);
     }
@@ -137,12 +139,12 @@ export default function AddServiceScreen({
 
   const handleDelete = (cat: Category) => {
     Alert.alert(
-      'Delete Service',
-      `Are you sure you want to delete "${cat.name}"? This will hide it from your inventory.`,
+      t('mobile.deleteServiceTitle'),
+      t('mobile.deleteServiceConfirm', { name: cat.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -151,7 +153,7 @@ export default function AddServiceScreen({
                 .doc(cat.id)
                 .update({ isActive: false, updatedAt: new Date() });
             } catch (e: any) {
-              alert(e.message || 'Failed to delete service.');
+              Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedDeleteService'));
             }
           },
         },
@@ -166,7 +168,7 @@ export default function AddServiceScreen({
         .doc(cat.id)
         .update({ isActive: !cat.isActive, updatedAt: new Date() });
     } catch (e: any) {
-      alert(e.message || 'Failed to update status.');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateStatusService'));
     }
   };
 
@@ -200,7 +202,7 @@ export default function AddServiceScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#00408f" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Manage Services</Text>
+            <Text style={styles.headerTitle}>{t('mobile.manageServicesTitle')}</Text>
           </View>
           <TouchableOpacity onPress={() => { resetForm(); setShowForm(true); }}>
             <MaterialIcons name="add-circle" size={28} color="#00408f" />
@@ -216,22 +218,22 @@ export default function AddServiceScreen({
         {showForm && (
           <View style={styles.formCard}>
             <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>{editingId ? 'Edit Service' : 'New Service'}</Text>
+              <Text style={styles.formTitle}>{editingId ? t('mobile.editServiceTitle') : t('mobile.newServiceTitle')}</Text>
               <TouchableOpacity onPress={resetForm}>
                 <MaterialIcons name="close" size={22} color="#737685" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>SERVICE NAME</Text>
+            <Text style={styles.label}>{t('mobile.serviceNameLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Dry Clean"
+              placeholder={t('mobile.phServiceName')}
               placeholderTextColor="#737685"
               value={serviceName}
               onChangeText={setServiceName}
             />
 
-            <Text style={styles.label}>SERVICE ICON</Text>
+            <Text style={styles.label}>{t('mobile.serviceIconLabel')}</Text>
             <View style={styles.iconRow}>
               {ICONS.map((icon) => (
                 <TouchableOpacity
@@ -251,7 +253,7 @@ export default function AddServiceScreen({
               ))}
             </View>
 
-            <Text style={styles.label}>ACCENT COLOR</Text>
+            <Text style={styles.label}>{t('mobile.accentColorLabel')}</Text>
             <View style={styles.colorRow}>
               {COLORS.map((color) => (
                 <TouchableOpacity
@@ -272,7 +274,7 @@ export default function AddServiceScreen({
 
             <View style={styles.formRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>TURNAROUND (DAYS)</Text>
+                <Text style={styles.label}>{t('mobile.turnaroundDaysField')}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="2"
@@ -282,7 +284,7 @@ export default function AddServiceScreen({
                 />
               </View>
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={styles.label}>ACTIVE</Text>
+                <Text style={styles.label}>{t('mobile.activeLabel')}</Text>
                 <Switch
                   value={isActive}
                   onValueChange={setIsActive}
@@ -300,7 +302,7 @@ export default function AddServiceScreen({
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.saveBtnText}>{editingId ? 'Update Service' : 'Add Service'}</Text>
+                <Text style={styles.saveBtnText}>{editingId ? t('mobile.updateServiceBtn') : t('mobile.addServiceBtn')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -308,15 +310,15 @@ export default function AddServiceScreen({
 
         {/* Category Cards */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Services ({categories.filter(c => c.isActive).length})</Text>
-          <Text style={styles.sectionSubtitle}>Tap a service to manage its items</Text>
+          <Text style={styles.sectionTitle}>{t('mobile.yourServicesSection', { count: categories.filter(c => c.isActive).length })}</Text>
+          <Text style={styles.sectionSubtitle}>{t('mobile.tapServiceHint')}</Text>
         </View>
 
         {categories.filter(c => c.isActive).length === 0 && (
           <View style={styles.emptyState}>
             <MaterialIcons name="local-laundry-service" size={48} color="#c3c6d6" />
-            <Text style={styles.emptyText}>No services yet</Text>
-            <Text style={styles.emptySubtext}>Tap + to add your first service category</Text>
+            <Text style={styles.emptyText}>{t('mobile.noServicesYet')}</Text>
+            <Text style={styles.emptySubtext}>{t('mobile.noServicesHint')}</Text>
           </View>
         )}
 
@@ -338,7 +340,7 @@ export default function AddServiceScreen({
               <View style={{ flex: 1 }}>
                 <Text style={styles.serviceName}>{cat.name}</Text>
                 <Text style={styles.serviceMeta}>
-                  {cat.turnaroundDays || 2} day{(cat.turnaroundDays || 2) > 1 ? 's' : ''} turnaround
+                  {t('mobile.turnaroundDays', { count: cat.turnaroundDays || 2 })}
                 </Text>
               </View>
             </View>
@@ -358,7 +360,7 @@ export default function AddServiceScreen({
         {categories.filter(c => !c.isActive).length > 0 && (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>
-              INACTIVE ({categories.filter(c => !c.isActive).length})
+              {t('mobile.inactiveSection', { count: categories.filter(c => !c.isActive).length })}
             </Text>
             {categories.filter(c => !c.isActive).map((cat) => (
               <View key={cat.id} style={[styles.serviceCard, { opacity: 0.5, borderLeftColor: '#94a3b8' }]}>
@@ -372,7 +374,7 @@ export default function AddServiceScreen({
                   style={styles.restoreBtn}
                   onPress={() => toggleActive(cat)}
                 >
-                  <Text style={styles.restoreBtnText}>Restore</Text>
+                  <Text style={styles.restoreBtnText}>{t('mobile.restoreBtn')}</Text>
                 </TouchableOpacity>
               </View>
             ))}

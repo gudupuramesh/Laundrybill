@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Modal, Pressable, KeyboardAvoidingView, Platform,
@@ -12,37 +14,31 @@ import * as Sharing from 'expo-sharing';
 
 // ─── Constants ────────────────────────────────────────────────────────
 
-const EXPENSE_CATEGORIES: { key: string; label: string; icon: string; group: string }[] = [
-  // Utilities
-  { key: 'rent', label: 'Rent', icon: 'home', group: 'Utilities' },
-  { key: 'electricity', label: 'Electricity', icon: 'bolt', group: 'Utilities' },
-  { key: 'water', label: 'Water', icon: 'water-drop', group: 'Utilities' },
-  // Laundry Supplies
-  { key: 'detergents', label: 'Detergents', icon: 'local-laundry-service', group: 'Supplies' },
-  { key: 'fabric_softener', label: 'Fabric Softener', icon: 'spa', group: 'Supplies' },
-  { key: 'stain_remover', label: 'Stain Remover', icon: 'cleaning-services', group: 'Supplies' },
-  { key: 'hangers', label: 'Hangers', icon: 'checkroom', group: 'Supplies' },
-  { key: 'plastic_covers', label: 'Plastic Covers', icon: 'inventory-2', group: 'Supplies' },
-  { key: 'tags_ribbons', label: 'Tags & Ribbons', icon: 'label', group: 'Supplies' },
-  // Equipment
-  { key: 'equipment', label: 'Equipment', icon: 'precision-manufacturing', group: 'Equipment' },
-  { key: 'maintenance', label: 'Maintenance', icon: 'build', group: 'Equipment' },
-  { key: 'washing_machine', label: 'Washing Machine', icon: 'local-laundry-service', group: 'Equipment' },
-  // Operations
-  { key: 'transport', label: 'Transport', icon: 'local-shipping', group: 'Operations' },
-  { key: 'delivery', label: 'Delivery', icon: 'delivery-dining', group: 'Operations' },
-  { key: 'packaging', label: 'Packaging', icon: 'inventory', group: 'Operations' },
-  // Business
-  { key: 'salary', label: 'Salary', icon: 'people', group: 'Business' },
-  { key: 'marketing', label: 'Marketing', icon: 'campaign', group: 'Business' },
-  { key: 'insurance', label: 'Insurance', icon: 'health-and-safety', group: 'Business' },
-  { key: 'licenses', label: 'Licenses', icon: 'description', group: 'Business' },
-  // Other
-  { key: 'miscellaneous', label: 'Other', icon: 'more-horiz', group: 'Other' },
+const EXPENSE_CATEGORY_DEFS: { key: string; labelEn: string; icon: string; group: string }[] = [
+  { key: 'rent', labelEn: 'Rent', icon: 'home', group: 'Utilities' },
+  { key: 'electricity', labelEn: 'Electricity', icon: 'bolt', group: 'Utilities' },
+  { key: 'water', labelEn: 'Water', icon: 'water-drop', group: 'Utilities' },
+  { key: 'detergents', labelEn: 'Detergents', icon: 'local-laundry-service', group: 'Supplies' },
+  { key: 'fabric_softener', labelEn: 'Fabric Softener', icon: 'spa', group: 'Supplies' },
+  { key: 'stain_remover', labelEn: 'Stain Remover', icon: 'cleaning-services', group: 'Supplies' },
+  { key: 'hangers', labelEn: 'Hangers', icon: 'checkroom', group: 'Supplies' },
+  { key: 'plastic_covers', labelEn: 'Plastic Covers', icon: 'inventory-2', group: 'Supplies' },
+  { key: 'tags_ribbons', labelEn: 'Tags & Ribbons', icon: 'label', group: 'Supplies' },
+  { key: 'equipment', labelEn: 'Equipment', icon: 'precision-manufacturing', group: 'Equipment' },
+  { key: 'maintenance', labelEn: 'Maintenance', icon: 'build', group: 'Equipment' },
+  { key: 'washing_machine', labelEn: 'Washing Machine', icon: 'local-laundry-service', group: 'Equipment' },
+  { key: 'transport', labelEn: 'Transport', icon: 'local-shipping', group: 'Operations' },
+  { key: 'delivery', labelEn: 'Delivery', icon: 'delivery-dining', group: 'Operations' },
+  { key: 'packaging', labelEn: 'Packaging', icon: 'inventory', group: 'Operations' },
+  { key: 'salary', labelEn: 'Salary', icon: 'people', group: 'Business' },
+  { key: 'marketing', labelEn: 'Marketing', icon: 'campaign', group: 'Business' },
+  { key: 'insurance', labelEn: 'Insurance', icon: 'health-and-safety', group: 'Business' },
+  { key: 'licenses', labelEn: 'Licenses', icon: 'description', group: 'Business' },
+  { key: 'miscellaneous', labelEn: 'Other', icon: 'more-horiz', group: 'Other' },
 ];
 
-const CATEGORY_MAP: Record<string, { label: string; icon: string; group: string }> = {};
-EXPENSE_CATEGORIES.forEach((c) => { CATEGORY_MAP[c.key] = c; });
+const CAT_DEF_MAP: Record<string, { labelEn: string; icon: string; group: string }> = {};
+EXPENSE_CATEGORY_DEFS.forEach((c) => { CAT_DEF_MAP[c.key] = { labelEn: c.labelEn, icon: c.icon, group: c.group }; });
 
 const CATEGORY_COLORS: Record<string, string> = {
   Utilities: '#e65100',
@@ -52,9 +48,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   Business: '#7b1fa2',
   Other: '#434654',
 };
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 type TimePeriod = 'day' | 'week' | 'month' | 'year' | 'custom';
 
@@ -68,34 +61,72 @@ function toDate(val: any): Date | null {
   return new Date(val);
 }
 
-function formatDate(d: Date | null): string {
+function escHtml(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function catLabelT(catKey: string, t: TFunction): string {
+  const k = `mobile.expCat_${catKey}`;
+  const tr = t(k as any);
+  return tr === k ? catKey : tr;
+}
+
+function groupLabelT(group: string, t: TFunction): string {
+  const map: Record<string, string> = {
+    Utilities: 'mobile.expGroupUtilities',
+    Supplies: 'mobile.expGroupSupplies',
+    Equipment: 'mobile.expGroupEquipment',
+    Operations: 'mobile.expGroupOperations',
+    Business: 'mobile.expGroupBusiness',
+    Other: 'mobile.expGroupOther',
+  };
+  const m = map[group];
+  return m ? t(m as any) : group;
+}
+
+function deliveryTypeLabelT(type: string, t: TFunction): string {
+  const k = `mobile.expDType_${type}`;
+  const tr = t(k as any);
+  return tr === k ? type : tr;
+}
+
+function formatDateLocale(d: Date | null, locale: string): string {
   if (!d) return '—';
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return d.toLocaleDateString(locale || 'en-IN', { day: 'numeric', month: 'short' });
 }
 
-function formatFullDate(d: Date): string {
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+function formatFullDateLocale(d: Date, locale: string): string {
+  return d.toLocaleDateString(locale || 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function getDateRange(period: TimePeriod, refDate: Date, customStart?: Date, customEnd?: Date): { start: Date; end: Date; label: string } {
+function getDateRangeLocalized(
+  period: TimePeriod,
+  refDate: Date,
+  customStart: Date | undefined,
+  customEnd: Date | undefined,
+  locale: string,
+): { start: Date; end: Date; label: string } {
   const now = refDate;
+  const loc = locale || 'en-IN';
+  const fmtD = (d: Date) => formatFullDateLocale(d, loc);
+  const fmtShort = (d: Date) => d.toLocaleDateString(loc, { day: 'numeric', month: 'short' });
   switch (period) {
     case 'day': {
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return { start, end, label: formatFullDate(now) };
+      return { start, end, label: fmtD(now) };
     }
     case 'week': {
       const dayOfWeek = now.getDay();
       const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset, 0, 0, 0, 0);
       const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
-      return { start, end, label: `${formatDate(start)} – ${formatDate(end)}` };
+      return { start, end, label: `${fmtShort(start)} – ${fmtShort(end)}` };
     }
     case 'month': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      return { start, end, label: `${MONTHS[now.getMonth()]} ${now.getFullYear()}` };
+      return { start, end, label: now.toLocaleDateString(loc, { month: 'short', year: 'numeric' }) };
     }
     case 'year': {
       const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
@@ -107,7 +138,7 @@ function getDateRange(period: TimePeriod, refDate: Date, customStart?: Date, cus
       const e = customEnd || now;
       const start = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0);
       const end = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
-      return { start, end, label: `${formatFullDate(start)} – ${formatFullDate(end)}` };
+      return { start, end, label: `${fmtD(start)} – ${fmtD(end)}` };
     }
   }
 }
@@ -124,9 +155,169 @@ function navigateDate(period: TimePeriod, refDate: Date, direction: number): Dat
   return d;
 }
 
+function buildFinancialReportHtml(
+  f: {
+    totalRevenue: number;
+    totalExpenses: number;
+    pending: number;
+    netProfit: number;
+    revenueByType: Record<string, number>;
+    expByCategory: Record<string, number>;
+  },
+  expenses: any[],
+  orders: any[],
+  periodLabel: string,
+  t: TFunction,
+  locale: string,
+): string {
+  const guest = t('mobile.guestLabel');
+  const dash = '—';
+
+  const expenseRows = Object.entries(f.expByCategory)
+    .sort(([, a], [, b]) => b - a)
+    .map(([cat, amt]) => {
+      const catInfo = CAT_DEF_MAP[cat] || { labelEn: cat, group: 'Other' };
+      const cLab = escHtml(catLabelT(cat, t));
+      const gLab = escHtml(groupLabelT(catInfo.group, t));
+      return `<tr><td>${cLab}</td><td>${gLab}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString(locale)}</td></tr>`;
+    }).join('');
+
+  const revenueRows = Object.entries(f.revenueByType)
+    .filter(([, v]) => v > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([type, amt]) => {
+      const pct = f.totalRevenue > 0 ? Math.round((amt / f.totalRevenue) * 100) : 0;
+      const lab = escHtml(deliveryTypeLabelT(type, t));
+      return `<tr><td>${lab}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString(locale)}</td><td style="text-align:right">${pct}%</td></tr>`;
+    }).join('');
+
+  const expenseDetailRows = expenses
+    .sort((a, b) => {
+      const da = toDate(a.date);
+      const db = toDate(b.date);
+      return (db?.getTime() || 0) - (da?.getTime() || 0);
+    })
+    .map((exp) => {
+      const created = toDate(exp.date);
+      const cLab = escHtml(catLabelT(exp.category || 'miscellaneous', t));
+      const desc = escHtml(exp.description || dash);
+      const vend = escHtml(exp.vendor || dash);
+      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>${cLab}</td><td>${desc}</td><td>${vend}</td><td style="text-align:right">₹${Math.round(exp.amount).toLocaleString(locale)}</td></tr>`;
+    }).join('');
+
+  const orderDetailRows = orders
+    .filter((o) => o.status !== 'cancelled')
+    .map((order) => {
+      const total = Math.round(order.financials?.total || 0);
+      const paid = Math.round(order.financials?.amountPaid || 0);
+      const balance = Math.round(order.financials?.balance || 0);
+      const created = toDate(order.createdAt);
+      const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
+      const name = escHtml(order.customerName || guest);
+      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>#${escHtml(publicId)}</td><td>${name}</td><td style="text-align:right">₹${total.toLocaleString(locale)}</td><td style="text-align:right">₹${paid.toLocaleString(locale)}</td><td style="text-align:right;color:${balance > 0 ? '#c62828' : '#2e7d32'}">₹${balance.toLocaleString(locale)}</td></tr>`;
+    }).join('');
+
+  const genDate = formatFullDateLocale(new Date(), locale);
+  const ordCount = orders.filter((o) => o.status !== 'cancelled').length;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #191c1e; font-size: 12px; }
+    .report-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #00408f; padding-bottom: 16px; }
+    .report-header h1 { font-size: 22px; color: #00408f; margin-bottom: 4px; }
+    .report-header .period { font-size: 14px; color: #434654; }
+    .report-header .generated { font-size: 10px; color: #737685; margin-top: 4px; }
+    .summary-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+    .summary-box { flex: 1; min-width: 120px; border-radius: 8px; padding: 12px; }
+    .summary-box .label { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: #434654; text-transform: uppercase; }
+    .summary-box .value { font-size: 20px; font-weight: 800; margin-top: 2px; }
+    .green { background: #e8f5e9; } .green .value { color: #2e7d32; }
+    .red { background: #fce4ec; } .red .value { color: #c62828; }
+    .orange { background: #fff3e0; } .orange .value { color: #e65100; }
+    .blue { background: #e3f2fd; } .blue .value { color: #00408f; }
+    .loss { background: #ffdad6; } .loss .value { color: #93000a; }
+    .section { margin-bottom: 20px; }
+    .section h2 { font-size: 14px; font-weight: 700; color: #00408f; margin-bottom: 8px; border-bottom: 1px solid #edeef0; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+    th { font-size: 10px; font-weight: 700; color: #434654; text-transform: uppercase; letter-spacing: 0.3px; background: #f8f9fb; }
+    tr:last-child td { border-bottom: none; }
+    .total-row td { font-weight: 800; border-top: 2px solid #00408f; background: #f8f9fb; }
+    .profit-section { text-align: center; padding: 16px; border-radius: 10px; margin-top: 16px; }
+    .profit-section .label { font-size: 11px; font-weight: 700; color: #434654; }
+    .profit-section .value { font-size: 28px; font-weight: 800; }
+    .footer { text-align: center; margin-top: 24px; padding-top: 12px; border-top: 1px solid #edeef0; font-size: 10px; color: #737685; }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1>${escHtml(t('mobile.finReportHeading'))}</h1>
+    <div class="period">${escHtml(periodLabel)}</div>
+    <div class="generated">${escHtml(t('mobile.finReportGeneratedOn', { date: genDate }))}</div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-box green"><div class="label">${escHtml(t('mobile.finRepTotalIncome'))}</div><div class="value">₹${Math.round(f.totalRevenue).toLocaleString(locale)}</div></div>
+    <div class="summary-box red"><div class="label">${escHtml(t('mobile.finRepTotalExpenses'))}</div><div class="value">₹${Math.round(f.totalExpenses).toLocaleString(locale)}</div></div>
+    <div class="summary-box orange"><div class="label">${escHtml(t('mobile.finRepPendingDues'))}</div><div class="value">₹${Math.round(f.pending).toLocaleString(locale)}</div></div>
+    <div class="summary-box ${f.netProfit >= 0 ? 'blue' : 'loss'}"><div class="label">${escHtml(t('mobile.finRepNetProfit'))}</div><div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString(locale)}</div></div>
+  </div>
+
+  <div class="section">
+    <h2>${escHtml(t('mobile.finRepSectionRevByType'))}</h2>
+    <table>
+      <tr><th>${escHtml(t('mobile.finRepColType'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColAmount'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColPercent'))}</th></tr>
+      ${revenueRows || `<tr><td colspan="3" style="text-align:center;color:#737685">${escHtml(t('mobile.finRepNoRevenue'))}</td></tr>`}
+      <tr class="total-row"><td>${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">₹${Math.round(f.totalRevenue).toLocaleString(locale)}</td><td></td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>${escHtml(t('mobile.finRepExpenseSummary'))}</h2>
+    <table>
+      <tr><th>${escHtml(t('mobile.finRepColCategory'))}</th><th>${escHtml(t('mobile.finRepColGroup'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColAmount'))}</th></tr>
+      ${expenseRows || `<tr><td colspan="3" style="text-align:center;color:#737685">${escHtml(t('mobile.finRepNoExpenses'))}</td></tr>`}
+      <tr class="total-row"><td colspan="2">${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">₹${Math.round(f.totalExpenses).toLocaleString(locale)}</td></tr>
+    </table>
+  </div>
+
+  ${orderDetailRows ? `<div class="section">
+    <h2>${escHtml(t('mobile.finRepOrderDetails', { count: ordCount }))}</h2>
+    <table>
+      <tr><th>${escHtml(t('mobile.finRepColDate'))}</th><th>${escHtml(t('mobile.finRepColOrder'))}</th><th>${escHtml(t('mobile.finRepColCustomer'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColTotal'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColPaid'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColDue'))}</th></tr>
+      ${orderDetailRows}
+    </table>
+  </div>` : ''}
+
+  ${expenseDetailRows ? `<div class="section">
+    <h2>${escHtml(t('mobile.finRepExpenseDetails', { count: expenses.length }))}</h2>
+    <table>
+      <tr><th>${escHtml(t('mobile.finRepColDate'))}</th><th>${escHtml(t('mobile.finRepColCategory'))}</th><th>${escHtml(t('mobile.finRepColDescription'))}</th><th>${escHtml(t('mobile.finRepColVendor'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColAmount'))}</th></tr>
+      ${expenseDetailRows}
+    </table>
+  </div>` : ''}
+
+  <div class="profit-section ${f.netProfit >= 0 ? 'blue' : 'loss'}">
+    <div class="label">${escHtml(t('mobile.finRepNetProfitLoss'))}</div>
+    <div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString(locale)}</div>
+  </div>
+
+  <div class="footer">
+    ${escHtml(t('mobile.finRepFooter', { period: periodLabel }))}
+  </div>
+</body>
+</html>`;
+}
+
 // ─── Component ────────────────────────────────────────────────────────
 
 export default function ExpensesScreen() {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
@@ -157,7 +348,10 @@ export default function ExpensesScreen() {
   // Report generation
   const [generatingReport, setGeneratingReport] = useState(false);
 
-  const { start, end, label: periodLabel } = getDateRange(timePeriod, refDate, customStartDate, customEndDate);
+  const { start, end, label: periodLabel } = useMemo(
+    () => getDateRangeLocalized(timePeriod, refDate, customStartDate, customEndDate, i18n.language),
+    [timePeriod, refDate, customStartDate, customEndDate, i18n.language],
+  );
 
   // ─── Data fetching ──────────────────────────────────────────────────
 
@@ -231,7 +425,7 @@ export default function ExpensesScreen() {
       totalExpenses += amt;
       const cat = e.category || 'miscellaneous';
       expByCategory[cat] = (expByCategory[cat] || 0) + amt;
-      const group = CATEGORY_MAP[cat]?.group || 'Other';
+      const group = CAT_DEF_MAP[cat]?.group || 'Other';
       expByGroup[group] = (expByGroup[group] || 0) + amt;
     });
 
@@ -244,8 +438,8 @@ export default function ExpensesScreen() {
 
   const handleAddExpense = async () => {
     const amount = parseFloat(expAmount);
-    if (!amount || amount <= 0) { Alert.alert('Invalid Amount', 'Enter a valid amount.'); return; }
-    if (!expCategory) { Alert.alert('Select Category', 'Please select a category.'); return; }
+    if (!amount || amount <= 0) { Alert.alert(t('mobile.invalidAmountTitle'), t('mobile.invalidAmountMsg')); return; }
+    if (!expCategory) { Alert.alert(t('mobile.selectCategoryTitle'), t('mobile.selectCategoryMsg')); return; }
     if (!shopId || saving) return;
 
     setSaving(true);
@@ -254,7 +448,7 @@ export default function ExpensesScreen() {
       const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       await firestore().collection(`shops/${shopId}/expenses`).add({
         category: expCategory,
-        description: expDescription.trim() || CATEGORY_MAP[expCategory]?.label || '',
+        description: expDescription.trim() || CAT_DEF_MAP[expCategory]?.labelEn || '',
         amount,
         date: now,
         month: monthStr,
@@ -266,7 +460,7 @@ export default function ExpensesScreen() {
       setAddModal(false);
       resetForm();
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to add expense');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedAddExpense'));
     }
     setSaving(false);
   };
@@ -279,14 +473,14 @@ export default function ExpensesScreen() {
   };
 
   const handleDeleteExpense = (expenseId: string) => {
-    Alert.alert('Delete Expense', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('mobile.deleteExpenseTitle'), t('mobile.deleteExpenseConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive', onPress: async () => {
+        text: t('common.delete'), style: 'destructive', onPress: async () => {
           try {
             await firestore().collection(`shops/${shopId}/expenses`).doc(expenseId).delete();
           } catch (e: any) {
-            Alert.alert('Error', e.message || 'Failed to delete');
+            Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedDeleteExpense'));
           }
         },
       },
@@ -310,11 +504,11 @@ export default function ExpensesScreen() {
     const s = parseCustomDate(customStartText);
     const e = parseCustomDate(customEndText);
     if (!s || !e) {
-      Alert.alert('Invalid Date', 'Enter dates in DD/MM/YYYY format.');
+      Alert.alert(t('mobile.invalidDateTitle'), t('mobile.invalidDateMsg'));
       return;
     }
     if (e < s) {
-      Alert.alert('Invalid Range', 'End date must be after start date.');
+      Alert.alert(t('mobile.invalidRangeTitle'), t('mobile.invalidRangeMsg'));
       return;
     }
     setCustomStartDate(s);
@@ -328,167 +522,33 @@ export default function ExpensesScreen() {
   const generateReport = useCallback(async () => {
     setGeneratingReport(true);
     try {
-      const f = financials;
-      const typeLabels: Record<string, string> = { pickup_store: 'Shop Pickup', delivery_home: 'Home Delivery', pickup_home: 'Pickup from Home' };
-
-      // Build expense rows
-      const expenseRows = Object.entries(f.expByCategory)
-        .sort(([, a], [, b]) => b - a)
-        .map(([cat, amt]) => {
-          const catInfo = CATEGORY_MAP[cat] || { label: cat, group: 'Other' };
-          return `<tr><td>${catInfo.label}</td><td>${catInfo.group}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString()}</td></tr>`;
-        }).join('');
-
-      // Build revenue rows
-      const revenueRows = Object.entries(f.revenueByType)
-        .filter(([, v]) => v > 0)
-        .sort(([, a], [, b]) => b - a)
-        .map(([type, amt]) => {
-          const pct = f.totalRevenue > 0 ? Math.round((amt / f.totalRevenue) * 100) : 0;
-          return `<tr><td>${typeLabels[type] || type}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString()}</td><td style="text-align:right">${pct}%</td></tr>`;
-        }).join('');
-
-      // Individual expense details
-      const expenseDetailRows = expenses
-        .sort((a, b) => {
-          const da = toDate(a.date);
-          const db = toDate(b.date);
-          return (db?.getTime() || 0) - (da?.getTime() || 0);
-        })
-        .map((exp) => {
-          const cat = CATEGORY_MAP[exp.category] || { label: exp.category || 'Other', group: 'Other' };
-          const created = toDate(exp.date);
-          return `<tr><td>${formatFullDate(created || new Date())}</td><td>${cat.label}</td><td>${exp.description || '—'}</td><td>${exp.vendor || '—'}</td><td style="text-align:right">₹${Math.round(exp.amount).toLocaleString()}</td></tr>`;
-        }).join('');
-
-      // Individual order details
-      const orderDetailRows = orders
-        .filter(o => o.status !== 'cancelled')
-        .map((order) => {
-          const total = Math.round(order.financials?.total || 0);
-          const paid = Math.round(order.financials?.amountPaid || 0);
-          const balance = Math.round(order.financials?.balance || 0);
-          const created = toDate(order.createdAt);
-          const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
-          return `<tr><td>${formatFullDate(created || new Date())}</td><td>#${publicId}</td><td>${order.customerName || 'Guest'}</td><td style="text-align:right">₹${total.toLocaleString()}</td><td style="text-align:right">₹${paid.toLocaleString()}</td><td style="text-align:right;color:${balance > 0 ? '#c62828' : '#2e7d32'}">₹${balance.toLocaleString()}</td></tr>`;
-        }).join('');
-
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #191c1e; font-size: 12px; }
-    .report-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #00408f; padding-bottom: 16px; }
-    .report-header h1 { font-size: 22px; color: #00408f; margin-bottom: 4px; }
-    .report-header .period { font-size: 14px; color: #434654; }
-    .report-header .generated { font-size: 10px; color: #737685; margin-top: 4px; }
-    .summary-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
-    .summary-box { flex: 1; min-width: 120px; border-radius: 8px; padding: 12px; }
-    .summary-box .label { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: #434654; text-transform: uppercase; }
-    .summary-box .value { font-size: 20px; font-weight: 800; margin-top: 2px; }
-    .green { background: #e8f5e9; } .green .value { color: #2e7d32; }
-    .red { background: #fce4ec; } .red .value { color: #c62828; }
-    .orange { background: #fff3e0; } .orange .value { color: #e65100; }
-    .blue { background: #e3f2fd; } .blue .value { color: #00408f; }
-    .loss { background: #ffdad6; } .loss .value { color: #93000a; }
-    .section { margin-bottom: 20px; }
-    .section h2 { font-size: 14px; font-weight: 700; color: #00408f; margin-bottom: 8px; border-bottom: 1px solid #edeef0; padding-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #f3f4f6; }
-    th { font-size: 10px; font-weight: 700; color: #434654; text-transform: uppercase; letter-spacing: 0.3px; background: #f8f9fb; }
-    tr:last-child td { border-bottom: none; }
-    .total-row td { font-weight: 800; border-top: 2px solid #00408f; background: #f8f9fb; }
-    .profit-section { text-align: center; padding: 16px; border-radius: 10px; margin-top: 16px; }
-    .profit-section .label { font-size: 11px; font-weight: 700; color: #434654; }
-    .profit-section .value { font-size: 28px; font-weight: 800; }
-    .footer { text-align: center; margin-top: 24px; padding-top: 12px; border-top: 1px solid #edeef0; font-size: 10px; color: #737685; }
-  </style>
-</head>
-<body>
-  <div class="report-header">
-    <h1>Financial Report</h1>
-    <div class="period">${periodLabel}</div>
-    <div class="generated">Generated on ${formatFullDate(new Date())}</div>
-  </div>
-
-  <div class="summary-grid">
-    <div class="summary-box green"><div class="label">Total Income</div><div class="value">₹${Math.round(f.totalRevenue).toLocaleString()}</div></div>
-    <div class="summary-box red"><div class="label">Total Expenses</div><div class="value">₹${Math.round(f.totalExpenses).toLocaleString()}</div></div>
-    <div class="summary-box orange"><div class="label">Pending Dues</div><div class="value">₹${Math.round(f.pending).toLocaleString()}</div></div>
-    <div class="summary-box ${f.netProfit >= 0 ? 'blue' : 'loss'}"><div class="label">Net Profit</div><div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString()}</div></div>
-  </div>
-
-  <div class="section">
-    <h2>Revenue by Order Type</h2>
-    <table>
-      <tr><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">%</th></tr>
-      ${revenueRows || '<tr><td colspan="3" style="text-align:center;color:#737685">No revenue</td></tr>'}
-      <tr class="total-row"><td>Total</td><td style="text-align:right">₹${Math.round(f.totalRevenue).toLocaleString()}</td><td></td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <h2>Expense Summary</h2>
-    <table>
-      <tr><th>Category</th><th>Group</th><th style="text-align:right">Amount</th></tr>
-      ${expenseRows || '<tr><td colspan="3" style="text-align:center;color:#737685">No expenses</td></tr>'}
-      <tr class="total-row"><td colspan="2">Total</td><td style="text-align:right">₹${Math.round(f.totalExpenses).toLocaleString()}</td></tr>
-    </table>
-  </div>
-
-  ${orderDetailRows ? `<div class="section">
-    <h2>Order Details (${orders.filter(o => o.status !== 'cancelled').length} orders)</h2>
-    <table>
-      <tr><th>Date</th><th>Order</th><th>Customer</th><th style="text-align:right">Total</th><th style="text-align:right">Paid</th><th style="text-align:right">Due</th></tr>
-      ${orderDetailRows}
-    </table>
-  </div>` : ''}
-
-  ${expenseDetailRows ? `<div class="section">
-    <h2>Expense Details (${expenses.length} entries)</h2>
-    <table>
-      <tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th style="text-align:right">Amount</th></tr>
-      ${expenseDetailRows}
-    </table>
-  </div>` : ''}
-
-  <div class="profit-section ${f.netProfit >= 0 ? 'blue' : 'loss'}">
-    <div class="label">NET PROFIT / LOSS</div>
-    <div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString()}</div>
-  </div>
-
-  <div class="footer">
-    Laundrybill &middot; Financial Report &middot; ${periodLabel}
-  </div>
-</body>
-</html>`;
-
+      const html = buildFinancialReportHtml(financials, expenses, orders, periodLabel, t, i18n.language);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Financial Report' });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: t('mobile.finShareReportTitle') });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to generate report');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedReport'));
     }
     setGeneratingReport(false);
-  }, [financials, expenses, orders, periodLabel]);
+  }, [financials, expenses, orders, periodLabel, t, i18n.language]);
+
+  const PERIOD_OPTIONS = useMemo(
+    () => [
+      { key: 'day' as const, label: t('mobile.periodToday'), icon: 'today' },
+      { key: 'week' as const, label: t('mobile.periodThisWeek'), icon: 'date-range' },
+      { key: 'month' as const, label: t('mobile.periodThisMonth'), icon: 'calendar-month' },
+      { key: 'year' as const, label: t('mobile.periodThisYear'), icon: 'calendar-today' },
+      { key: 'custom' as const, label: t('mobile.periodCustomRange'), icon: 'tune' },
+    ],
+    [t],
+  );
 
   // ─── Render ─────────────────────────────────────────────────────────
-
-  const PERIOD_OPTIONS: { key: TimePeriod; label: string; icon: string }[] = [
-    { key: 'day', label: 'Today', icon: 'today' },
-    { key: 'week', label: 'This Week', icon: 'date-range' },
-    { key: 'month', label: 'This Month', icon: 'calendar-month' },
-    { key: 'year', label: 'This Year', icon: 'calendar-today' },
-    { key: 'custom', label: 'Custom Range', icon: 'tune' },
-  ];
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Finance</Text>
+        <Text style={styles.headerTitle}>{t('mobile.tabFinance')}</Text>
       </View>
 
       {loading ? (
@@ -513,7 +573,7 @@ export default function ExpensesScreen() {
               ) : (
                 <>
                   <MaterialIcons name="description" size={14} color="#00408f" />
-                  <Text style={styles.toolbarReportText}>Report</Text>
+                  <Text style={styles.toolbarReportText}>{t('mobile.financeToolbarReport')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -529,7 +589,7 @@ export default function ExpensesScreen() {
                 color="#00408f"
               />
               <Text style={styles.toolbarPeriodText} numberOfLines={1}>
-                {PERIOD_OPTIONS.find((p) => p.key === timePeriod)?.label || 'Month'}
+                {PERIOD_OPTIONS.find((p) => p.key === timePeriod)?.label || t('mobile.periodMonthFallback')}
               </Text>
               <MaterialIcons name="expand-more" size={16} color="#00408f" />
             </TouchableOpacity>
@@ -575,19 +635,19 @@ export default function ExpensesScreen() {
           {/* ─── Summary Cards ──────────────────────────────────── */}
           <View style={styles.summaryGrid}>
             <View style={[styles.summaryCard, { backgroundColor: '#e8f5e9' }]}>
-              <Text style={styles.summaryLabel}>INCOME</Text>
+              <Text style={styles.summaryLabel}>{t('mobile.finSummaryIncome')}</Text>
               <Text style={[styles.summaryValue, { color: '#2e7d32' }]}>₹{Math.round(financials.totalRevenue).toLocaleString()}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: '#fce4ec' }]}>
-              <Text style={styles.summaryLabel}>EXPENSES</Text>
+              <Text style={styles.summaryLabel}>{t('mobile.finSummaryExpenses')}</Text>
               <Text style={[styles.summaryValue, { color: '#c62828' }]}>₹{Math.round(financials.totalExpenses).toLocaleString()}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: '#fff3e0' }]}>
-              <Text style={styles.summaryLabel}>PENDING</Text>
+              <Text style={styles.summaryLabel}>{t('mobile.finSummaryPending')}</Text>
               <Text style={[styles.summaryValue, { color: '#e65100' }]}>₹{Math.round(financials.pending).toLocaleString()}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: financials.netProfit >= 0 ? '#e3f2fd' : '#ffdad6' }]}>
-              <Text style={styles.summaryLabel}>NET PROFIT</Text>
+              <Text style={styles.summaryLabel}>{t('mobile.finSummaryNetProfit')}</Text>
               <Text style={[styles.summaryValue, { color: financials.netProfit >= 0 ? '#00408f' : '#93000a' }]}>
                 {financials.netProfit < 0 ? '-' : ''}₹{Math.abs(Math.round(financials.netProfit)).toLocaleString()}
               </Text>
@@ -603,7 +663,7 @@ export default function ExpensesScreen() {
                 onPress={() => setViewMode(mode)}
               >
                 <Text style={[styles.tabText, viewMode === mode && styles.tabTextActive]}>
-                  {mode === 'overview' ? 'Overview' : mode === 'revenue' ? 'Revenue' : 'Expenses'}
+                  {mode === 'overview' ? t('mobile.finTabOverview') : mode === 'revenue' ? t('mobile.finTabRevenue') : t('mobile.finTabExpenses')}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -614,17 +674,16 @@ export default function ExpensesScreen() {
             <>
               {/* Revenue by Order Type */}
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Revenue by Order Type</Text>
+                <Text style={styles.cardTitle}>{t('mobile.finCardRevenueByType')}</Text>
                 {Object.entries(financials.revenueByType)
                   .filter(([, v]) => v > 0)
                   .sort(([, a], [, b]) => b - a)
                   .map(([type, amount]) => {
-                    const labels: Record<string, string> = { pickup_store: 'Shop Pickup', delivery_home: 'Home Delivery', pickup_home: 'Pickup from Home' };
                     const pct = financials.totalRevenue > 0 ? Math.round((amount / financials.totalRevenue) * 100) : 0;
                     return (
                       <View key={type} style={styles.breakdownRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.breakdownLabel}>{labels[type] || type}</Text>
+                          <Text style={styles.breakdownLabel}>{deliveryTypeLabelT(type, t)}</Text>
                           <View style={styles.barBg}>
                             <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: '#00408f' }]} />
                           </View>
@@ -634,12 +693,12 @@ export default function ExpensesScreen() {
                       </View>
                     );
                   })}
-                {financials.totalRevenue === 0 && <Text style={styles.emptySmall}>No revenue in this period</Text>}
+                {financials.totalRevenue === 0 && <Text style={styles.emptySmall}>{t('mobile.finNoRevenuePeriod')}</Text>}
               </View>
 
               {/* Expenses by Group */}
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Expenses by Category</Text>
+                <Text style={styles.cardTitle}>{t('mobile.finCardExpensesByCategory')}</Text>
                 {Object.entries(financials.expByGroup)
                   .sort(([, a], [, b]) => b - a)
                   .map(([group, amount]) => {
@@ -648,7 +707,7 @@ export default function ExpensesScreen() {
                     return (
                       <View key={group} style={styles.breakdownRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.breakdownLabel}>{group}</Text>
+                          <Text style={styles.breakdownLabel}>{groupLabelT(group, t)}</Text>
                           <View style={styles.barBg}>
                             <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
                           </View>
@@ -658,25 +717,25 @@ export default function ExpensesScreen() {
                       </View>
                     );
                   })}
-                {financials.totalExpenses === 0 && <Text style={styles.emptySmall}>No expenses in this period</Text>}
+                {financials.totalExpenses === 0 && <Text style={styles.emptySmall}>{t('mobile.finNoExpensesPeriod')}</Text>}
               </View>
 
               {/* Collection Status */}
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Collection Status</Text>
+                <Text style={styles.cardTitle}>{t('mobile.finCollectionStatus')}</Text>
                 <View style={styles.collectionRow}>
                   <View style={styles.collectionItem}>
-                    <Text style={styles.collectionLabel}>Collected</Text>
+                    <Text style={styles.collectionLabel}>{t('mobile.finCollected')}</Text>
                     <Text style={[styles.collectionValue, { color: '#2e7d32' }]}>₹{Math.round(financials.collected).toLocaleString()}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
-                    <Text style={styles.collectionLabel}>Pending</Text>
+                    <Text style={styles.collectionLabel}>{t('mobile.finPending')}</Text>
                     <Text style={[styles.collectionValue, { color: '#e65100' }]}>₹{Math.round(financials.pending).toLocaleString()}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
-                    <Text style={styles.collectionLabel}>Orders</Text>
+                    <Text style={styles.collectionLabel}>{t('mobile.finOrdersCount')}</Text>
                     <Text style={styles.collectionValue}>{orders.length}</Text>
                   </View>
                 </View>
@@ -690,7 +749,7 @@ export default function ExpensesScreen() {
               {orders.length === 0 ? (
                 <View style={styles.emptyState}>
                   <MaterialIcons name="receipt-long" size={44} color="#c3c6d6" />
-                  <Text style={styles.emptyText}>No orders in this period</Text>
+                  <Text style={styles.emptyText}>{t('mobile.finNoOrdersPeriod')}</Text>
                 </View>
               ) : (
                 <View style={styles.listGap}>
@@ -701,21 +760,20 @@ export default function ExpensesScreen() {
                     const created = toDate(order.createdAt);
                     const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
                     const dType = order.deliveryType || 'pickup_store';
-                    const typeLabels: Record<string, string> = { pickup_store: 'Pickup', delivery_home: 'Delivery', pickup_home: 'Home Pickup' };
                     return (
                       <View key={order.id} style={styles.revenueCard}>
                         <View style={{ flex: 1 }}>
                           <View style={styles.revenueTopRow}>
                             <Text style={styles.revenueOrderId}>#{publicId}</Text>
-                            <Text style={styles.revenueDate}>{formatDate(created)}</Text>
+                            <Text style={styles.revenueDate}>{formatDateLocale(created, i18n.language)}</Text>
                           </View>
-                          <Text style={styles.revenueName}>{order.customerName || 'Guest'}</Text>
+                          <Text style={styles.revenueName}>{order.customerName || t('mobile.guestLabel')}</Text>
                           <View style={styles.revenueMeta}>
-                            <Text style={styles.revenueType}>{typeLabels[dType] || dType}</Text>
+                            <Text style={styles.revenueType}>{deliveryTypeLabelT(dType, t)}</Text>
                             {balance > 0 ? (
-                              <Text style={styles.revenueDue}>Due ₹{balance}</Text>
+                              <Text style={styles.revenueDue}>{t('mobile.orderDueLabel', { amount: balance })}</Text>
                             ) : (
-                              <Text style={styles.revenuePaid}>Paid</Text>
+                              <Text style={styles.revenuePaid}>{t('mobile.paidLabel')}</Text>
                             )}
                           </View>
                         </View>
@@ -734,16 +792,16 @@ export default function ExpensesScreen() {
               {expenses.length === 0 ? (
                 <View style={styles.emptyState}>
                   <MaterialIcons name="account-balance-wallet" size={44} color="#c3c6d6" />
-                  <Text style={styles.emptyText}>No expenses recorded in this period</Text>
+                  <Text style={styles.emptyText}>{t('mobile.finNoExpensesEmpty')}</Text>
                   <TouchableOpacity style={styles.addBtnInline} onPress={() => setAddModal(true)}>
                     <MaterialIcons name="add" size={18} color="#fff" />
-                    <Text style={styles.addBtnInlineText}>Add Expense</Text>
+                    <Text style={styles.addBtnInlineText}>{t('mobile.finAddExpense')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.listGap}>
                   {expenses.map((exp) => {
-                    const cat = CATEGORY_MAP[exp.category] || { label: exp.category || 'Other', icon: 'more-horiz', group: 'Other' };
+                    const cat = CAT_DEF_MAP[exp.category] || { labelEn: exp.category || 'Other', icon: 'more-horiz', group: 'Other' };
                     const color = CATEGORY_COLORS[cat.group] || '#434654';
                     const created = toDate(exp.date);
                     return (
@@ -752,11 +810,11 @@ export default function ExpensesScreen() {
                           <MaterialIcons name={cat.icon as any} size={18} color={color} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.expenseName}>{exp.description || cat.label}</Text>
+                          <Text style={styles.expenseName}>{exp.description || catLabelT(exp.category || 'miscellaneous', t)}</Text>
                           <View style={styles.expenseMeta}>
-                            <Text style={styles.expenseMetaText}>{cat.label}</Text>
+                            <Text style={styles.expenseMetaText}>{catLabelT(exp.category || 'miscellaneous', t)}</Text>
                             <View style={styles.dot} />
-                            <Text style={styles.expenseMetaText}>{formatDate(created)}</Text>
+                            <Text style={styles.expenseMetaText}>{formatDateLocale(created, i18n.language)}</Text>
                             {exp.vendor ? (
                               <>
                                 <View style={styles.dot} />
@@ -793,7 +851,7 @@ export default function ExpensesScreen() {
         <Pressable style={styles.modalDismiss} onPress={() => setShowPeriodPicker(false)} />
         <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Select Time Period</Text>
+          <Text style={styles.modalTitle}>{t('mobile.finSelectTimePeriod')}</Text>
           <View style={{ gap: 4, marginTop: 8 }}>
             {PERIOD_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -828,32 +886,32 @@ export default function ExpensesScreen() {
           <Pressable style={styles.modalDismiss} onPress={() => setShowCustomDateModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Custom Date Range</Text>
-            <Text style={styles.fieldLabel}>Start Date (DD/MM/YYYY)</Text>
+            <Text style={styles.modalTitle}>{t('mobile.finCustomRangeTitle')}</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finStartDateLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={customStartText}
               onChangeText={setCustomStartText}
-              placeholder="01/01/2026"
+              placeholder={t('mobile.finPlaceholderStart')}
               placeholderTextColor="#c3c6d6"
               keyboardType="numbers-and-punctuation"
               autoFocus
             />
-            <Text style={styles.fieldLabel}>End Date (DD/MM/YYYY)</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finEndDateLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={customEndText}
               onChangeText={setCustomEndText}
-              placeholder="31/01/2026"
+              placeholder={t('mobile.finPlaceholderEnd')}
               placeholderTextColor="#c3c6d6"
               keyboardType="numbers-and-punctuation"
             />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowCustomDateModal(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.primaryBtn} onPress={applyCustomDates}>
-                <Text style={styles.primaryBtnText}>Apply</Text>
+                <Text style={styles.primaryBtnText}>{t('mobile.finApply')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -866,10 +924,10 @@ export default function ExpensesScreen() {
           <Pressable style={styles.modalDismiss} onPress={() => setAddModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Add Expense</Text>
+            <Text style={styles.modalTitle}>{t('mobile.finAddExpenseTitle')}</Text>
 
             {/* Amount */}
-            <Text style={styles.fieldLabel}>Amount <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finAmountLabel')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.amountRow}>
               <Text style={styles.currencySign}>₹</Text>
               <TextInput
@@ -884,9 +942,9 @@ export default function ExpensesScreen() {
             </View>
 
             {/* Category */}
-            <Text style={styles.fieldLabel}>Category <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finCategoryLabel')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
-              {EXPENSE_CATEGORIES.map((cat) => {
+              {EXPENSE_CATEGORY_DEFS.map((cat) => {
                 const isSelected = expCategory === cat.key;
                 const color = CATEGORY_COLORS[cat.group] || '#434654';
                 return (
@@ -896,36 +954,36 @@ export default function ExpensesScreen() {
                     onPress={() => setExpCategory(cat.key)}
                   >
                     <MaterialIcons name={cat.icon as any} size={14} color={isSelected ? '#fff' : color} />
-                    <Text style={[styles.catChipText, isSelected && { color: '#fff' }]}>{cat.label}</Text>
+                    <Text style={[styles.catChipText, isSelected && { color: '#fff' }]}>{catLabelT(cat.key, t)}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
             {/* Description */}
-            <Text style={styles.fieldLabel}>Description</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finDescriptionLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={expDescription}
               onChangeText={setExpDescription}
-              placeholder="What was this expense for?"
+              placeholder={t('mobile.expenseWhatPlaceholder')}
               placeholderTextColor="#c3c6d6"
             />
 
             {/* Vendor */}
-            <Text style={styles.fieldLabel}>Vendor / Shop</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finVendorLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={expVendor}
               onChangeText={setExpVendor}
-              placeholder="Optional"
+              placeholder={t('mobile.phOptional')}
               placeholderTextColor="#c3c6d6"
             />
 
             {/* Actions */}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setAddModal(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.primaryBtn, (!expAmount || !expCategory) && { opacity: 0.5 }]}
@@ -933,7 +991,7 @@ export default function ExpensesScreen() {
                 disabled={saving || !expAmount || !expCategory}
               >
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <Text style={styles.primaryBtnText}>Add Expense</Text>
+                  <Text style={styles.primaryBtnText}>{t('mobile.finAddExpense')}</Text>
                 )}
               </TouchableOpacity>
             </View>

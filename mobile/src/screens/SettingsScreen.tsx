@@ -6,9 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { auth, getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
-import { setAppLanguageFromDisplayName } from '../lib/i18n';
-
-const LANGUAGES = ['English', 'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam'];
+import {
+  LANGUAGE_OPTIONS,
+  nativeLabelForCode,
+  resolveLanguageToCode,
+  setAppLanguageCode,
+} from '../lib/i18n';
 
 export default function SettingsScreen({
   onManageServices,
@@ -32,7 +35,7 @@ export default function SettingsScreen({
 
   // Settings state
   const [darkMode, setDarkMode] = useState(false);
-  const [language, setLanguage] = useState('English');
+  const [languageCode, setLanguageCode] = useState('en');
   const [showLangPicker, setShowLangPicker] = useState(false);
 
   const ordersUsed = useMergedOrdersUsed(subscriptionData, shopId);
@@ -55,7 +58,7 @@ export default function SettingsScreen({
               if (data) {
                 setShopData(data);
                 setDarkMode(data.settings?.darkMode ?? false);
-                setLanguage(data.settings?.language || 'English');
+                setLanguageCode(resolveLanguageToCode(data.settings?.language));
               }
             }
             setLoading(false);
@@ -115,12 +118,12 @@ export default function SettingsScreen({
 
   const handleLogout = () => {
     Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
+      t('mobile.logoutConfirmTitle'),
+      t('mobile.logoutConfirmMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Log Out',
+          text: t('common.logout'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -141,7 +144,7 @@ export default function SettingsScreen({
   };
 
   // Display values
-  const shopName = shopData?.name || 'My Shop';
+  const shopName = shopData?.name || t('mobile.myShopDefault');
   const shopPhone = shopData?.phone || auth().currentUser?.phoneNumber || '';
   const shopEmail = shopData?.email || '';
   const ownerDisplay = [shopEmail, shopPhone].filter(Boolean).join(' \u2022 ');
@@ -168,12 +171,12 @@ export default function SettingsScreen({
   const totalCustomers = subscriptionData?.usage?.totalCustomers || 0;
   const totalStaff = subscriptionData?.usage?.totalStaff || 0;
 
-  const statusLabel = planStatus === 'trial' ? 'TRIAL' :
-    planStatus === 'active' ? 'ACTIVE' :
-    planStatus === 'grace_period' ? 'GRACE' :
-    planStatus === 'expired' ? 'EXPIRED' :
-    planStatus === 'cancelled' ? 'CANCELLED' :
-    planStatus === 'free' ? 'FREE' :
+  const statusLabel = planStatus === 'trial' ? t('mobile.planStatusTrial') :
+    planStatus === 'active' ? t('mobile.planStatusActive') :
+    planStatus === 'grace_period' ? t('mobile.planStatusGrace') :
+    planStatus === 'expired' ? t('mobile.planStatusExpired') :
+    planStatus === 'cancelled' ? t('mobile.planStatusCancelled') :
+    planStatus === 'free' ? t('mobile.planStatusFree') :
     planStatus.toUpperCase();
 
   const statusBadgeStyle = ['active', 'trial'].includes(planStatus)
@@ -212,7 +215,7 @@ export default function SettingsScreen({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.storeName} numberOfLines={1}>{shopName}</Text>
-              <Text style={styles.ownerInfo} numberOfLines={1}>{ownerDisplay || 'No contact info'}</Text>
+              <Text style={styles.ownerInfo} numberOfLines={1}>{ownerDisplay || t('mobile.noContactInfo')}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.editProfileBtn} onPress={onEditProfile}>
@@ -327,7 +330,7 @@ export default function SettingsScreen({
             <TouchableOpacity style={styles.listItemNoBorder} onPress={() => setShowLangPicker(true)}>
               <View style={styles.listItemLeft}>
                 <MaterialIcons name="translate" size={20} color="#00408f" />
-                <Text style={styles.listItemText}>{language}</Text>
+                <Text style={styles.listItemText}>{nativeLabelForCode(languageCode)}</Text>
               </View>
               <View style={styles.listItemRight}>
                 <MaterialIcons name="expand-more" size={20} color="#737685" />
@@ -368,19 +371,21 @@ export default function SettingsScreen({
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>{t('mobile.selectLanguage')}</Text>
           <View style={{ gap: 2, marginTop: 8 }}>
-            {LANGUAGES.map((lang) => (
+            {LANGUAGE_OPTIONS.map((opt) => (
               <TouchableOpacity
-                key={lang}
-                style={[styles.langOption, language === lang && styles.langOptionActive]}
+                key={opt.code}
+                style={[styles.langOption, languageCode === opt.code && styles.langOptionActive]}
                 onPress={() => {
-                  setLanguage(lang);
-                  saveSetting('language', lang);
-                  void setAppLanguageFromDisplayName(lang);
+                  setLanguageCode(opt.code);
+                  saveSetting('language', opt.code);
+                  void setAppLanguageCode(opt.code);
                   setShowLangPicker(false);
                 }}
               >
-                <Text style={[styles.langOptionText, language === lang && styles.langOptionTextActive]}>{lang}</Text>
-                {language === lang && <MaterialIcons name="check" size={20} color="#00408f" />}
+                <Text style={[styles.langOptionText, languageCode === opt.code && styles.langOptionTextActive]}>
+                  {opt.native}
+                </Text>
+                {languageCode === opt.code && <MaterialIcons name="check" size={20} color="#00408f" />}
               </TouchableOpacity>
             ))}
           </View>

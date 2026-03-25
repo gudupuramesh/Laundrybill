@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Linking, Alert, KeyboardAvoidingView, Platform, Modal, Pressable,
@@ -27,29 +29,35 @@ function formatDate(d: Date | null): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${h % 12 || 12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function timeAgo(date: Date | null): string {
-  if (!date) return '';
-  const diff = Date.now() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
+function formatDateLocalized(d: Date | null, locale: string): string {
+  if (!d) return '—';
+  try {
+    return d.toLocaleString(locale || 'en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return formatDate(d);
+  }
+}
+
+function memberSinceText(d: Date | null, locale: string, t: TFunction): string {
+  if (!d) return '';
+  const month = d.toLocaleString(locale || 'en-IN', { month: 'long' });
+  return t('mobile.memberSince', { month, year: d.getFullYear() });
+}
+
+function cdOrderStatus(status: string, t: TFunction): string {
+  const tr = t(`mobile.odStatus_${status}` as any);
+  return tr || status;
 }
 
 function getInitials(name: string): string {
   return name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
-}
-
-function memberSinceLabel(d: Date | null): string {
-  if (!d) return '';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `Member since ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -63,17 +71,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   cancelled: { bg: '#fce4ec', text: '#c62828' },
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  confirmed: 'Confirmed',
-  processing: 'In Progress',
-  ready: 'Ready',
-  out_for_delivery: 'Out for Delivery',
-  delivered: 'Delivered',
-  picked_up: 'Picked Up',
-  cancelled: 'Cancelled',
-};
-
 // ─── Component ────────────────────────────────────────────────────────
 
 export default function CustomerDetailScreen({
@@ -85,6 +82,7 @@ export default function CustomerDetailScreen({
   customerId: string;
   onViewOrder?: (id: string) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const [customer, setCustomer] = useState<any>(null);
@@ -171,7 +169,7 @@ export default function CustomerDetailScreen({
         .collection(`shops/${shopId}/customers`).doc(customerId)
         .update({ notes: notesText, updatedAt: new Date() });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save notes');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedSaveNotes'));
     }
     setSavingNotes(false);
   };
@@ -199,9 +197,9 @@ export default function CustomerDetailScreen({
   const handleUpdateCustomer = async () => {
     const trimmedName = editName.trim();
     const phoneDigits = editPhone.replace(/\D/g, '').slice(-10);
-    if (!trimmedName) { Alert.alert('Name Required', 'Please enter the customer name.'); return; }
+    if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
     if (phoneDigits.length !== 10 || !/^[6-9]/.test(phoneDigits)) {
-      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+      Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg'));
       return;
     }
     if (!shopId || editSaving) return;
@@ -218,7 +216,7 @@ export default function CustomerDetailScreen({
         });
       setEditModal(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update customer');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateCustomer'));
     }
     setEditSaving(false);
   };
@@ -232,8 +230,8 @@ export default function CustomerDetailScreen({
   if (!customer) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>Customer not found</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>Go Back</Text></TouchableOpacity>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>{t('mobile.customerNotFoundTitle')}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>{t('mobile.goBack')}</Text></TouchableOpacity>
       </View>
     );
   }
@@ -246,7 +244,7 @@ export default function CustomerDetailScreen({
           <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
             <MaterialIcons name="arrow-back" size={24} color="#00408f" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{customer.name || 'Customer'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{customer.name || t('mobile.customerDefaultTitle')}</Text>
           <TouchableOpacity style={styles.iconBtn} onPress={openEditModal}>
             <MaterialIcons name="edit" size={22} color="#00408f" />
           </TouchableOpacity>
@@ -268,14 +266,14 @@ export default function CustomerDetailScreen({
                 <Text style={styles.profileName} numberOfLines={1}>{customer.name}</Text>
                 {!isActive && (
                   <View style={styles.inactiveBadge}>
-                    <Text style={styles.inactiveBadgeText}>INACTIVE</Text>
+                    <Text style={styles.inactiveBadgeText}>{t('mobile.inactiveLabel')}</Text>
                   </View>
                 )}
               </View>
               {createdAt && (
                 <View style={styles.memberRow}>
                   <MaterialIcons name="calendar-today" size={12} color="#737685" />
-                  <Text style={styles.memberText}>{memberSinceLabel(createdAt)}</Text>
+                  <Text style={styles.memberText}>{memberSinceText(createdAt, i18n.language, t)}</Text>
                 </View>
               )}
               {/* Contact buttons */}
@@ -320,11 +318,11 @@ export default function CustomerDetailScreen({
         {/* ─── Stats Grid ───────────────────────────────────────── */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>TOTAL ORDERS</Text>
+            <Text style={styles.statLabel}>{t('mobile.statTotalOrders')}</Text>
             <Text style={[styles.statValue, { color: '#00408f' }]}>{stats.totalOrders}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>TOTAL SPENT</Text>
+            <Text style={styles.statLabel}>{t('mobile.statTotalSpent')}</Text>
             <Text style={styles.statValue}>₹{stats.totalSpent}</Text>
           </View>
           <View style={styles.statCard}>
@@ -332,7 +330,7 @@ export default function CustomerDetailScreen({
             <Text style={styles.statValue}>₹{stats.avgValue}</Text>
           </View>
           <View style={[styles.statCard, stats.unpaid > 0 && { backgroundColor: '#ffdad6' }]}>
-            <Text style={[styles.statLabel, stats.unpaid > 0 && { color: '#93000a' }]}>UNPAID</Text>
+            <Text style={[styles.statLabel, stats.unpaid > 0 && { color: '#93000a' }]}>{t('mobile.statUnpaidLabel')}</Text>
             <Text style={[styles.statValue, { color: stats.unpaid > 0 ? '#93000a' : '#2e7d32' }]}>
               ₹{stats.unpaid}
             </Text>
@@ -341,20 +339,20 @@ export default function CustomerDetailScreen({
 
         {/* ─── Order History ─────────────────────────────────────── */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Order History</Text>
-          <Text style={styles.orderCount}>{orders.length} orders</Text>
+          <Text style={styles.sectionTitle}>{t('mobile.orderHistoryTitle')}</Text>
+          <Text style={styles.orderCount}>{t('mobile.ordersCountTitle', { count: orders.length })}</Text>
         </View>
 
         {orders.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="receipt-long" size={40} color="#c3c6d6" />
-            <Text style={styles.emptyText}>No orders yet</Text>
+            <Text style={styles.emptyText}>{t('mobile.noOrdersYet')}</Text>
           </View>
         ) : (
           <View style={styles.orderList}>
             {orders.map((order) => {
               const cfg = STATUS_COLORS[order.status] || STATUS_COLORS.pending;
-              const label = STATUS_LABELS[order.status] || order.status || 'Unknown';
+              const label = order.status ? cdOrderStatus(order.status, t) : t('mobile.unknownStatus');
               const created = toDate(order.createdAt);
               const itemCount = (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0);
               const total = Math.round(order.financials?.total || 0);
@@ -378,20 +376,20 @@ export default function CustomerDetailScreen({
                         <Text style={[styles.statusText, { color: cfg.text }]}>{label}</Text>
                       </View>
                     </View>
-                    <Text style={styles.orderDate}>{formatDate(created)}</Text>
+                    <Text style={styles.orderDate}>{formatDateLocalized(created, i18n.language)}</Text>
                     <View style={styles.orderMeta}>
-                      <Text style={styles.orderMetaText}>{itemCount} items</Text>
+                      <Text style={styles.orderMetaText}>{t('mobile.itemsMetaCount', { count: itemCount })}</Text>
                       <View style={styles.dot} />
                       <Text style={styles.orderAmount}>₹{total}</Text>
                       {balance > 0 ? (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.unpaidLabel}>Due ₹{balance}</Text>
+                          <Text style={styles.unpaidLabel}>{t('mobile.orderDueLabel', { amount: balance })}</Text>
                         </>
                       ) : (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.paidLabel}>Paid</Text>
+                          <Text style={styles.paidLabel}>{t('mobile.paidLabel')}</Text>
                         </>
                       )}
                     </View>
@@ -414,13 +412,13 @@ export default function CustomerDetailScreen({
         {/* ─── Financial Summary ─────────────────────────────────── */}
         {orders.length > 0 && (
           <View style={styles.finCard}>
-            <Text style={styles.finTitle}>FINANCIAL SUMMARY</Text>
+            <Text style={styles.finTitle}>{t('mobile.finSummaryTitle')}</Text>
             <View style={styles.finRow}>
-              <Text style={styles.finLabel}>Total Spent</Text>
+              <Text style={styles.finLabel}>{t('mobile.totalSpentLabel')}</Text>
               <Text style={styles.finValueGreen}>₹{stats.totalSpent}</Text>
             </View>
             <View style={styles.finRow}>
-              <Text style={styles.finLabel}>Outstanding Balance</Text>
+              <Text style={styles.finLabel}>{t('mobile.outstandingBalanceLabel')}</Text>
               <Text style={stats.unpaid > 0 ? styles.finValueRed : styles.finValueGreen}>
                 ₹{stats.unpaid}
               </Text>
@@ -431,17 +429,17 @@ export default function CustomerDetailScreen({
         {/* ─── Notes ──────────────────────────────────────────────── */}
         <View style={styles.notesSection}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Customer Notes</Text>
+            <Text style={styles.sectionTitle}>{t('mobile.customerNotesTitle')}</Text>
             {notesText !== (customer.notes || '') && (
               <TouchableOpacity onPress={handleSaveNotes} disabled={savingNotes}>
-                <Text style={styles.saveBtn}>{savingNotes ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveBtn}>{savingNotes ? t('mobile.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             )}
           </View>
           <TextInput
             style={styles.notesInput}
             multiline
-            placeholder="Add notes about this customer..."
+            placeholder={t('mobile.notesPlaceholderCustomer')}
             placeholderTextColor="#737685"
             value={notesText}
             onChangeText={setNotesText}
@@ -456,49 +454,49 @@ export default function CustomerDetailScreen({
           <Pressable style={styles.modalDismiss} onPress={() => setEditModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Edit Customer</Text>
+            <Text style={styles.modalTitle}>{t('mobile.editCustomerModalTitle')}</Text>
 
-            <Text style={styles.fieldLabel}>Name <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldName')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <TextInput
               style={styles.modalInput}
               value={editName}
               onChangeText={setEditName}
-              placeholder="Customer name"
+              placeholder={t('mobile.phCustomerName')}
               placeholderTextColor="#c3c6d6"
               autoCapitalize="words"
             />
 
-            <Text style={styles.fieldLabel}>Phone <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.editPhoneRow}>
               <View style={styles.editPhonePrefix}><Text style={styles.editPhonePrefixText}>+91</Text></View>
               <TextInput
                 style={[styles.modalInput, { flex: 1 }]}
                 value={editPhone}
                 onChangeText={(t) => setEditPhone(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit phone"
+                placeholder={t('mobile.phPhone10Digit')}
                 placeholderTextColor="#c3c6d6"
                 keyboardType="phone-pad"
                 maxLength={10}
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Email</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldEmail')}</Text>
             <TextInput
               style={styles.modalInput}
               value={editEmail}
               onChangeText={setEditEmail}
-              placeholder="Optional"
+              placeholder={t('mobile.phOptional')}
               placeholderTextColor="#c3c6d6"
               keyboardType="email-address"
               autoCapitalize="none"
             />
 
-            <Text style={styles.fieldLabel}>Address</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldAddress')}</Text>
             <TextInput
               style={[styles.modalInput, { minHeight: 60 }]}
               value={editAddress}
               onChangeText={setEditAddress}
-              placeholder="Optional"
+              placeholder={t('mobile.phOptional')}
               placeholderTextColor="#c3c6d6"
               multiline
               textAlignVertical="top"
@@ -506,7 +504,7 @@ export default function CustomerDetailScreen({
 
             <View style={styles.editActions}>
               <TouchableOpacity style={styles.editCancelBtn} onPress={() => setEditModal(false)}>
-                <Text style={styles.editCancelText}>Cancel</Text>
+                <Text style={styles.editCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.editSaveBtn, (!editName.trim() || !editPhone.trim()) && { opacity: 0.5 }]}
@@ -514,7 +512,7 @@ export default function CustomerDetailScreen({
                 disabled={editSaving || !editName.trim() || !editPhone.trim()}
               >
                 {editSaving ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <Text style={styles.editSaveBtnText}>Update</Text>
+                  <Text style={styles.editSaveBtnText}>{t('mobile.updateCustomerBtn')}</Text>
                 )}
               </TouchableOpacity>
             </View>

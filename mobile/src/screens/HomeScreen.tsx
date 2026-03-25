@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,32 +8,32 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 
-function formatTimeAgo(date: any): string {
+function formatTimeAgo(date: any, t: TFunction, locale: string): string {
   if (!date) return '';
   const now = new Date();
   const d = date.toDate ? date.toDate() : new Date(date);
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1) return t('mobile.timeJustNow');
+  if (diffMins < 60) return t('mobile.timeMinutesAgo', { count: diffMins });
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) return t('mobile.timeHoursAgo', { count: diffHours });
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return d.toLocaleDateString('en-IN');
+  if (diffDays < 7) return t('mobile.timeDaysAgo', { count: diffDays });
+  return d.toLocaleDateString(locale || 'en-IN', { day: 'numeric', month: 'short' });
 }
 
-function getStatusConfig(status: string) {
+function getStatusConfig(status: string, t: TFunction) {
   switch (status) {
-    case 'pending': return { label: 'Pending', color: '#e65100', bg: '#fff3e0' };
+    case 'pending': return { label: t('mobile.orderStatusPending'), color: '#e65100', bg: '#fff3e0' };
     case 'processing': case 'washing': case 'drying': case 'ironing': case 'folding':
-      return { label: 'In Progress', color: '#f9a825', bg: '#fff8e1' };
+      return { label: t('mobile.orderStatusInProgress'), color: '#f9a825', bg: '#fff8e1' };
     case 'ready': case 'ready_for_pickup': case 'ready_for_delivery':
-      return { label: 'Ready', color: '#2e7d32', bg: '#e8f5e9' };
-    case 'out_for_delivery': return { label: 'Delivery', color: '#1565c0', bg: '#e3f2fd' };
-    case 'delivered': case 'picked_up': return { label: 'Completed', color: '#2e7d32', bg: '#e8f5e9' };
-    case 'cancelled': return { label: 'Cancelled', color: '#c62828', bg: '#fce4ec' };
-    default: return { label: status || 'Unknown', color: '#434654', bg: '#f3f4f6' };
+      return { label: t('mobile.orderStatusReady'), color: '#2e7d32', bg: '#e8f5e9' };
+    case 'out_for_delivery': return { label: t('mobile.orderStatusDelivery'), color: '#1565c0', bg: '#e3f2fd' };
+    case 'delivered': case 'picked_up': return { label: t('mobile.orderStatusCompleted'), color: '#2e7d32', bg: '#e8f5e9' };
+    case 'cancelled': return { label: t('mobile.orderStatusCancelled'), color: '#c62828', bg: '#fce4ec' };
+    default: return { label: status || t('mobile.orderStatusUnknown'), color: '#434654', bg: '#f3f4f6' };
   }
 }
 
@@ -53,7 +54,7 @@ export default function HomeScreen({
   onViewOrder?: (id: string) => void;
   onOpenSubscription?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const [shopData, setShopData] = useState<any>(null);
@@ -107,7 +108,7 @@ export default function HomeScreen({
     return () => { unsubShop?.(); unsubOrders?.(); unsubSub?.(); };
   }, []);
 
-  const shopName = shopData?.name || 'My Shop';
+  const shopName = shopData?.name || t('mobile.myShopDefault');
   const planKey = (subscriptionData?.planId || subscriptionData?.planName || shopData?.plan || 'free').toString().toLowerCase();
   const subStatus = (subscriptionData?.status || 'trial').toLowerCase();
   const orderLimit = subscriptionData?.limits?.maxOrders ?? 30;
@@ -117,9 +118,9 @@ export default function HomeScreen({
     planKey !== 'trial';
   const atFreeLimit = orderLimit > 0 && ordersUsed >= orderLimit && !isPaidPlan;
   const freeTierLabel =
-    subStatus === 'trial' ? 'TRIAL' :
-    subStatus === 'free' || planKey === 'free' ? 'FREE' :
-    'FREE';
+    subStatus === 'trial' ? t('mobile.planStatusTrial') :
+    subStatus === 'free' || planKey === 'free' ? t('mobile.planStatusFree') :
+    t('mobile.planStatusFree');
   const paidPlanShort = (subscriptionData?.planName || planKey || 'plan')
     .replace(/_/g, ' ')
     .split(' ')
@@ -129,7 +130,7 @@ export default function HomeScreen({
 
   const SubBadgeWrap = onOpenSubscription ? TouchableOpacity : View;
   const subBadgeWrapProps = onOpenSubscription
-    ? { onPress: onOpenSubscription, activeOpacity: 0.75, accessibilityRole: 'button' as const, accessibilityLabel: 'Subscription and usage' }
+    ? { onPress: onOpenSubscription, activeOpacity: 0.75, accessibilityRole: 'button' as const, accessibilityLabel: t('mobile.subscriptionAccessibilityLabel') }
     : {};
 
   return (
@@ -250,7 +251,7 @@ export default function HomeScreen({
         ) : (
           <View style={styles.orderList}>
             {recentOrders.map((order: any) => {
-              const cfg = getStatusConfig(order.status);
+              const cfg = getStatusConfig(order.status, t);
               const orderId = order.publicId || `#${order.id?.slice(-4) || '??'}`;
               const itemCount = (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0);
               const balance = Math.round(order.financials?.balance || 0);
@@ -268,11 +269,11 @@ export default function HomeScreen({
                         <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
                       </View>
                     </View>
-                    <Text style={styles.orderName} numberOfLines={1}>{order.customerName || 'Guest'}</Text>
+                    <Text style={styles.orderName} numberOfLines={1}>{order.customerName || t('mobile.guestCustomer')}</Text>
                     <View style={styles.orderMeta}>
-                      <Text style={styles.orderMetaText}>{itemCount} items</Text>
+                      <Text style={styles.orderMetaText}>{t('mobile.orderItemsCount', { count: itemCount })}</Text>
                       <View style={styles.dot} />
-                      <Text style={styles.orderMetaText}>{formatTimeAgo(order.createdAt)}</Text>
+                      <Text style={styles.orderMetaText}>{formatTimeAgo(order.createdAt, t, i18n.language)}</Text>
                       {order.financials?.total ? (
                         <>
                           <View style={styles.dot} />
@@ -282,7 +283,7 @@ export default function HomeScreen({
                       {balance > 0 ? (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.dueBadgeText}>Due ₹{balance}</Text>
+                          <Text style={styles.dueBadgeText}>{t('mobile.orderDueShort', { amount: balance.toLocaleString() })}</Text>
                         </>
                       ) : null}
                     </View>

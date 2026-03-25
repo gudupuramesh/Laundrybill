@@ -1,7 +1,8 @@
-import './src/lib/i18n';
 import React, { useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SplashScreen from 'expo-splash-screen';
+import { I18nextProvider, useTranslation } from 'react-i18next';
+import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
 import { StyleSheet, Text, View, TouchableOpacity, StatusBar } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,21 +23,29 @@ import RegisterShopScreen from './src/screens/RegisterShopScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import AddCustomerScreen from './src/screens/AddCustomerScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
-import LoadingScreen from './src/screens/LoadingScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 
+const ONBOARDING_DONE_KEY = 'onboarding_completed_v1';
+
+/** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
+const MIN_SPLASH_MS = 720;
+
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <MainLayout />
-    </SafeAreaProvider>
+    <I18nextProvider i18n={i18n}>
+      <SafeAreaProvider>
+        <MainLayout />
+      </SafeAreaProvider>
+    </I18nextProvider>
   );
 }
 
 function MainLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const launchStartedAt = useRef(Date.now());
   const [activeTab, setActiveTab] = useState('HOME');
   const [activeScreen, setActiveScreen] = useState<string | null>('LOGIN'); // Start with auth flow
   const [orderDraft, setOrderDraft] = useState<DraftOrderPayload | null>(null);
@@ -50,6 +59,7 @@ function MainLayout() {
   // Firebase Auth State
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<any>(null); // from @react-native-firebase/auth
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   // Keep a ref so the auth handler can access the latest phone entered
   const userPhoneRef = React.useRef(userPhone);
@@ -58,6 +68,21 @@ function MainLayout() {
   React.useEffect(() => {
     void initStoredLanguage();
   }, []);
+
+  const refreshOnboardingFromStorage = React.useCallback(() => {
+    void AsyncStorage.getItem(ONBOARDING_DONE_KEY)
+      .then((v) => setOnboardingDone(v === '1'))
+      .catch(() => setOnboardingDone(true));
+  }, []);
+
+  React.useEffect(() => {
+    refreshOnboardingFromStorage();
+  }, [refreshOnboardingFromStorage]);
+
+  /** After logout, re-read storage so we never treat "unknown" as first-launch onboarding. */
+  React.useEffect(() => {
+    if (!user) refreshOnboardingFromStorage();
+  }, [user, refreshOnboardingFromStorage]);
 
   React.useEffect(() => {
     if (!user) return;
@@ -170,7 +195,20 @@ function MainLayout() {
     }
   }, []);
 
-  if (initializing) return <LoadingScreen />;
+  const bootstrapReady = !initializing && onboardingDone !== null;
+
+  React.useEffect(() => {
+    if (!bootstrapReady) return;
+    const elapsed = Date.now() - launchStartedAt.current;
+    const waitMs = Math.max(0, MIN_SPLASH_MS - elapsed);
+    const id = setTimeout(() => {
+      void SplashScreen.hideAsync();
+    }, waitMs);
+    return () => clearTimeout(id);
+  }, [bootstrapReady]);
+
+  /** Native splash stays up until bootstrapReady; avoid painting login/dashboard underneath early */
+  if (!bootstrapReady) return null;
 
   const openCreateOrder = () => {
     setEditingOrder(null);
@@ -229,6 +267,21 @@ function MainLayout() {
     }
   };
 
+  if (!user && onboardingDone === false) {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <OnboardingScreen
+          onDone={async () => {
+            await AsyncStorage.setItem(ONBOARDING_DONE_KEY, '1');
+            setOnboardingDone(true);
+            setActiveScreen('LOGIN');
+          }}
+        />
+      </View>
+    );
+  }
+
   if (activeScreen === 'LOGIN') {
     return (
       <View style={styles.safeArea}>
@@ -242,7 +295,7 @@ function MainLayout() {
               setActiveScreen('OTP_VERIFICATION');
             } catch (error) {
               console.error(error);
-              alert("Failed to send MSG91 OTP.");
+              alert(t('mobile.failedToSendOtp'));
             }
           }} 
         />
@@ -264,7 +317,7 @@ function MainLayout() {
               // onAuthStateChanged in the useEffect handles the redirect automatically
             } catch (error: any) {
               console.error('Invalid OTP', error);
-              alert(error.message || 'Invalid OTP code.');
+              alert(error.message || t('mobile.invalidOtpMsg'));
             }
           }} 
         />

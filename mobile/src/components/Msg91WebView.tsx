@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View, Modal, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -12,8 +13,11 @@ interface Msg91WebViewProps {
 }
 
 export default function Msg91WebView({ visible, phoneNumber, onSuccess, onFailure, onClose }: Msg91WebViewProps) {
+  const { t } = useTranslation();
   // Strip +91 for the identifier if needed, though the web widget generally supports it.
   const cleanPhone = phoneNumber.startsWith('+91') ? phoneNumber.substring(3) : phoneNumber;
+
+  const loaderText = t('mobile.msg91SecureLoading').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -27,7 +31,7 @@ export default function Msg91WebView({ visible, phoneNumber, onSuccess, onFailur
   </style>
 </head>
 <body>
-  <div class="loader" id="loader">Secure connection loading...</div>
+  <div class="loader" id="loader">${loaderText}</div>
   <script>
     var loaded = false;
     var attempts = 0;
@@ -96,7 +100,7 @@ export default function Msg91WebView({ visible, phoneNumber, onSuccess, onFailur
                     onFailure(payload.error);
                   }
                 } catch (e) {
-                  onFailure("Invalid message from WebView");
+                  onFailure(t('mobile.msg91InvalidWebViewMessage'));
                 }
               }}
               startInLoadingState={true}

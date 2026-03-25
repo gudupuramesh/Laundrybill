@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ export default function RegisterShopScreen({
   initialPhone?: string,
   isEditMode?: boolean
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   
@@ -196,11 +198,11 @@ export default function RegisterShopScreen({
 
   const handleCreateShop = async () => {
     if (!formData.name || !formData.street || !formData.city || !formData.pincode) {
-      alert("Please fill in all required shop and location details.");
+      alert(t('mobile.fillRequiredShop'));
       return;
     }
     if (!formData.terms) {
-      alert("Please agree to the Terms of Service.");
+      alert(t('mobile.agreeTermsFirst'));
       return;
     }
 
@@ -216,7 +218,7 @@ export default function RegisterShopScreen({
         const otherShopWithEmail = emailSnap.docs?.find((d: any) => d.id !== currentShopId);
         if (otherShopWithEmail) {
           setLoading(false);
-          alert("This email address is already used by another shop. Please use a different email.");
+          alert(t('mobile.emailInUseOtherShop'));
           return;
         }
       }
@@ -230,7 +232,7 @@ export default function RegisterShopScreen({
           const otherShopWithPhone = phoneSnap.docs?.find((d: any) => d.id !== currentShopId);
           if (otherShopWithPhone) {
             setLoading(false);
-            alert("This phone number is already used by another shop. Please use a different number.");
+            alert(t('mobile.phoneInUseOtherShop'));
             return;
           }
         }
@@ -306,7 +308,7 @@ export default function RegisterShopScreen({
 
     } catch (e: any) {
       console.error('Failed to create shop:', e);
-      alert(e.message || 'Failed to register shop');
+      alert(e.message || t('mobile.failedRegisterShop'));
     } finally {
       setLoading(false);
     }
@@ -329,7 +331,7 @@ export default function RegisterShopScreen({
                 <MaterialIcons name="arrow-back" size={24} color="#191c1e" />
               </TouchableOpacity>
             )}
-            <Text style={styles.headerTitle}>{isEditMode ? "Edit Shop Profile" : "Register Shop"}</Text>
+            <Text style={styles.headerTitle}>{isEditMode ? t('mobile.editShopProfile') : t('mobile.registerShop')}</Text>
           </View>
           <MaterialIcons name="more-vert" size={24} color="#64748b" />
         </View>
@@ -349,26 +351,26 @@ export default function RegisterShopScreen({
                 <MaterialIcons name="photo-camera" size={16} color="#ffffff" />
               </View>
             </TouchableOpacity>
-            <Text style={styles.logoText}>UPLOAD SHOP LOGO</Text>
+            <Text style={styles.logoText}>{t('mobile.uploadShopLogo')}</Text>
           </View>
 
           {/* Section 1: Shop Details */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>SHOP DETAILS</Text>
+            <Text style={styles.sectionTitle}>{t('mobile.shopDetailsSection')}</Text>
             
-            <Text style={styles.label}>Shop Name</Text>
-            <TextInput style={styles.input} placeholder="e.g. LaundryFlow Express" value={formData.name} onChangeText={(t) => handleChange('name', t)} />
+            <Text style={styles.label}>{t('mobile.shopNameLabel')}</Text>
+            <TextInput style={styles.input} placeholder={t('mobile.phShopName')} value={formData.name} onChangeText={(t) => handleChange('name', t)} />
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>Email Address</Text>
-                <TextInput style={styles.input} placeholder="contact@shop.com" keyboardType="email-address" value={formData.email} onChangeText={(t) => handleChange('email', t)} />
+                <Text style={styles.label}>{t('mobile.emailAddressLabel')}</Text>
+                <TextInput style={styles.input} placeholder={t('mobile.phEmail')} keyboardType="email-address" value={formData.email} onChangeText={(t) => handleChange('email', t)} />
               </View>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>Mobile Number</Text>
+                <Text style={styles.label}>{t('mobile.mobileNumberLabel')}</Text>
                 <View style={styles.phoneInputContainer}>
                   <Text style={styles.phonePrefix}>+91</Text>
-                  <TextInput style={styles.phoneInput} placeholder="9876543210" keyboardType="phone-pad" value={formData.phone.replace('+91', '')} onChangeText={(t) => handleChange('phone', '+91' + t)} />
+                  <TextInput style={styles.phoneInput} placeholder={t('mobile.phPhone10')} keyboardType="phone-pad" value={formData.phone.replace('+91', '')} onChangeText={(t) => handleChange('phone', '+91' + t)} />
                 </View>
               </View>
             </View>
@@ -376,46 +378,46 @@ export default function RegisterShopScreen({
 
           {/* Section 2: Location */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>LOCATION</Text>
+            <Text style={styles.sectionTitle}>{t('mobile.locationSection')}</Text>
             
-            <Text style={styles.label}>Street Address</Text>
-            <TextInput style={styles.input} placeholder="Building No, Street Name" value={formData.street} onChangeText={(t) => handleChange('street', t)} />
+            <Text style={styles.label}>{t('mobile.streetAddressLabel')}</Text>
+            <TextInput style={styles.input} placeholder={t('mobile.phStreet')} value={formData.street} onChangeText={(t) => handleChange('street', t)} />
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>Area / Locality</Text>
-                <TextInput style={styles.input} placeholder="e.g. Indiranagar" value={formData.area} onChangeText={(t) => handleChange('area', t)} />
+                <Text style={styles.label}>{t('mobile.areaLocalityLabel')}</Text>
+                <TextInput style={styles.input} placeholder={t('mobile.phArea')} value={formData.area} onChangeText={(t) => handleChange('area', t)} />
               </View>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>City</Text>
-                <TextInput style={styles.input} placeholder="e.g. Bengaluru" value={formData.city} onChangeText={(t) => handleChange('city', t)} />
+                <Text style={styles.label}>{t('mobile.cityLabel')}</Text>
+                <TextInput style={styles.input} placeholder={t('mobile.phCity')} value={formData.city} onChangeText={(t) => handleChange('city', t)} />
               </View>
             </View>
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>State</Text>
-                <TextInput style={styles.input} placeholder="e.g. Karnataka" value={formData.state} onChangeText={(t) => handleChange('state', t)} />
+                <Text style={styles.label}>{t('mobile.stateLabel')}</Text>
+                <TextInput style={styles.input} placeholder={t('mobile.phState')} value={formData.state} onChangeText={(t) => handleChange('state', t)} />
               </View>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>PIN Code</Text>
-                <TextInput style={styles.input} placeholder="560038" keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
+                <Text style={styles.label}>{t('mobile.pinCodeLabel')}</Text>
+                <TextInput style={styles.input} placeholder={t('mobile.phPin')} keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
               </View>
             </View>
           </View>
 
           {/* Section 3: Business Info */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>BUSINESS INFO</Text>
+            <Text style={styles.sectionTitle}>{t('mobile.businessInfoSection')}</Text>
 
-            <Text style={styles.label}>GST Number (Optional)</Text>
-            <TextInput style={styles.input} placeholder="22AAAAA0000A1Z5" autoCapitalize="characters" value={formData.gstNumber} onChangeText={(t) => handleChange('gstNumber', t)} />
+            <Text style={styles.label}>{t('mobile.gstOptionalLabel')}</Text>
+            <TextInput style={styles.input} placeholder={t('mobile.phGst')} autoCapitalize="characters" value={formData.gstNumber} onChangeText={(t) => handleChange('gstNumber', t)} />
 
-            <Text style={styles.label}>Operating Hours</Text>
+            <Text style={styles.label}>{t('mobile.operatingHours')}</Text>
             <View style={styles.hoursRow}>
-              <TextInput style={styles.timeInput} placeholder="09:00" value={formData.openTime} onChangeText={(t) => handleChange('openTime', t)} />
-              <Text style={styles.timeSpan}>TO</Text>
-              <TextInput style={styles.timeInput} placeholder="21:00" value={formData.closeTime} onChangeText={(t) => handleChange('closeTime', t)} />
+              <TextInput style={styles.timeInput} placeholder={t('mobile.phTimeOpen')} value={formData.openTime} onChangeText={(t) => handleChange('openTime', t)} />
+              <Text style={styles.timeSpan}>{t('mobile.timeTo')}</Text>
+              <TextInput style={styles.timeInput} placeholder={t('mobile.phTimeClose')} value={formData.closeTime} onChangeText={(t) => handleChange('closeTime', t)} />
             </View>
           </View>
 
@@ -424,9 +426,7 @@ export default function RegisterShopScreen({
             <TouchableOpacity onPress={() => handleChange('terms', !formData.terms)} style={styles.checkboxTouch}>
               <MaterialIcons name={formData.terms ? "check-box" : "check-box-outline-blank"} size={22} color={formData.terms ? "#00408f" : "#737685"} />
             </TouchableOpacity>
-            <Text style={styles.legalText}>
-              I agree to the <Text style={styles.linkText}>Terms of Service</Text> and <Text style={styles.linkText}>Privacy Policy</Text>. I confirm that all the information provided above is accurate.
-            </Text>
+            <Text style={styles.legalText}>{t('mobile.agreeTermsRegister')}</Text>
           </View>
 
         </ScrollView>
@@ -437,7 +437,7 @@ export default function RegisterShopScreen({
         <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateShop} disabled={loading}>
           {loading ? <ActivityIndicator color="#ffffff" /> : (
             <View style={styles.btnContent}>
-              <Text style={styles.primaryBtnText}>{isEditMode ? "Save Changes" : "Create Shop"}</Text>
+              <Text style={styles.primaryBtnText}>{isEditMode ? t('mobile.saveShopChanges') : t('mobile.createShopBtn')}</Text>
               <MaterialIcons name={isEditMode ? "save" : "arrow-forward"} size={20} color="#ffffff" />
             </View>
           )}

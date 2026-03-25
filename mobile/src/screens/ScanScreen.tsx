@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -11,6 +12,7 @@ export default function ScanScreen({
   onBack: () => void;
   onScanOrder: (orderId: string) => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -48,8 +50,8 @@ export default function ScanScreen({
     if (orderId) {
       onScanOrder(orderId);
     } else {
-      Alert.alert('Invalid QR', 'This QR code is not a valid order code.', [
-        { text: 'Scan Again', onPress: () => setScanned(false) },
+      Alert.alert(t('mobile.invalidQrTitle'), t('mobile.invalidQrMsg'), [
+        { text: t('mobile.scanAgainButton'), onPress: () => setScanned(false) },
       ]);
     }
   };
@@ -68,7 +70,7 @@ export default function ScanScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#00408f" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Scan QR</Text>
+            <Text style={styles.headerTitle}>{t('mobile.scanTitleShort')}</Text>
             <View style={{ width: 40 }} />
           </View>
         </View>
@@ -76,15 +78,15 @@ export default function ScanScreen({
           <View style={styles.permIconBg}>
             <MaterialIcons name="qr-code-scanner" size={36} color="#00408f" />
           </View>
-          <Text style={styles.permissionTitle}>Scan to view order details</Text>
+          <Text style={styles.permissionTitle}>{t('mobile.scanPermissionTitle')}</Text>
           <Text style={styles.permissionSubtitle}>
-            Laundrybill needs camera access to scan QR codes on order bags and item tags so you can instantly pull up order details, track status, and manage pickups.
+            {t('mobile.scanPermissionBody')}
           </Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
-            <Text style={styles.primaryBtnText}>Allow Camera Access</Text>
+            <Text style={styles.primaryBtnText}>{t('mobile.allowCameraAccess')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryBtn} onPress={onBack}>
-            <Text style={styles.secondaryBtnText}>Not Now</Text>
+            <Text style={styles.secondaryBtnText}>{t('mobile.notNow')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -109,7 +111,7 @@ export default function ScanScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: '#fff' }]}>Scan QR Code</Text>
+            <Text style={[styles.headerTitle, { color: '#fff' }]}>{t('mobile.scanQrCodeTitle')}</Text>
             <View style={{ width: 40 }} />
           </View>
         </View>
@@ -130,12 +132,12 @@ export default function ScanScreen({
           </View>
           <View style={styles.bottomOverlay}>
             <Text style={styles.instruction}>
-              Point camera at an order or item tag QR code
+              {t('mobile.scanPointCamera')}
             </Text>
             {scanned && (
               <TouchableOpacity style={styles.rescanBtn} onPress={() => { setScanned(false); lastScanRef.current = ''; }}>
                 <MaterialIcons name="refresh" size={20} color="#fff" />
-                <Text style={styles.rescanText}>Scan Again</Text>
+                <Text style={styles.rescanText}>{t('mobile.scanAgainButton')}</Text>
               </TouchableOpacity>
             )}
           </View>

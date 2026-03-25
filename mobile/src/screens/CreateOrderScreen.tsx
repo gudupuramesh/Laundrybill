@@ -1,10 +1,12 @@
 import React, { useEffect, useImperativeHandle, useMemo, useState, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import i18n from '../lib/i18n';
 import { DraftOrderPayload } from '../types/orderDraft';
 
 interface Customer {
@@ -73,7 +75,7 @@ async function uploadImageToR2(shopId: string, uri: string, fileName: string): P
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to get upload URL');
+    throw new Error(err.error || i18n.t('mobile.failedUploadUrl'));
   }
   const data = await res.json();
   return { key: data.key, publicUrl: data.publicUrl };
@@ -87,6 +89,13 @@ async function deleteImageFromR2(key: string) {
   });
 }
 
+const PRICING_UNIT_TKEY = {
+  piece: 'mobile.pricingUnitPiece',
+  kg: 'mobile.pricingUnitKg',
+  sqft: 'mobile.pricingUnitSqft',
+  set: 'mobile.pricingUnitSet',
+} as const;
+
 export interface CreateOrderScreenRef {
   goToCustomerStep: () => void;
 }
@@ -98,6 +107,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   onAddCustomer?: () => void,
   onEditCustomerDetail?: (customerId: string) => void,
 }>(({ onBack, onReviewOrder, editOrder, onAddCustomer, onEditCustomerDetail }, ref) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
@@ -350,8 +360,8 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
     if (!editItem) return;
     const trimmedName = editNameValue.trim();
     const numeric = parseFloat(editPriceValue);
-    if (!trimmedName) return alert('Enter item name');
-    if (Number.isNaN(numeric) || numeric < 0) return alert('Enter a valid price');
+    if (!trimmedName) return alert(t('mobile.enterItemName'));
+    if (Number.isNaN(numeric) || numeric < 0) return alert(t('mobile.enterValidPrice'));
     setEditSaving(true);
     try {
       const updateData: Record<string, any> = {
@@ -393,7 +403,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
       setShowEditItemModal(false);
       setEditItem(null);
     } catch (e: any) {
-      alert(e.message || 'Failed to update item');
+      alert(e.message || t('mobile.failedUpdateItem'));
     } finally {
       setEditSaving(false);
     }
@@ -407,11 +417,11 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
 
   const handleAddCustomItem = async () => {
     const chosenCategoryId = customCategoryId || selectedCategoryId;
-    if (!chosenCategoryId) return alert('Please select a service category first');
+    if (!chosenCategoryId) return alert(t('mobile.selectCategoryFirst'));
     const name = customName.trim();
     const price = parseFloat(customPrice);
-    if (!name) return alert('Item name is required');
-    if (Number.isNaN(price) || price < 0) return alert('Enter a valid item price');
+    if (!name) return alert(t('mobile.itemNameRequired'));
+    if (Number.isNaN(price) || price < 0) return alert(t('mobile.enterValidItemPrice'));
     setCustomSaving(true);
     try {
       const category = categories.find((c) => c.id === chosenCategoryId);
@@ -424,7 +434,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         expressMultiplier: parseFloat(customExpressMultiplier) || 1.5,
         turnaroundDays: 2,
         categoryId: chosenCategoryId,
-        categoryName: category?.name || 'Custom',
+        categoryName: category?.name || t('mobile.customCategoryFallback'),
         isActive: true,
         order: maxOrder + 1,
         createdAt: new Date(),
@@ -450,7 +460,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
       setCustomCategoryId(selectedCategoryId);
       setShowCustomCategoryList(false);
     } catch (e: any) {
-      alert(e.message || 'Failed to add custom item');
+      alert(e.message || t('mobile.failedAddCustomItem'));
     } finally {
       setCustomSaving(false);
     }
@@ -458,7 +468,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
 
   const handleReviewOrder = () => {
     if (!selectedCustomer) {
-      alert('Please select or create a customer');
+      alert(t('mobile.selectOrCreateCustomer'));
       return;
     }
     const selectedItems = Object.entries(cart)
@@ -487,7 +497,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
       .filter(Boolean) as DraftOrderPayload['items'];
 
     if (selectedItems.length === 0) {
-      alert('Please add at least one item');
+      alert(t('mobile.addAtLeastOneItem'));
       return;
     }
 
@@ -541,7 +551,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name={step === 'customer' ? 'close' : 'arrow-back'} size={24} color="#434654" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{editOrder ? 'Edit Order' : 'New Order'}</Text>
+            <Text style={styles.headerTitle}>{editOrder ? t('mobile.editOrderTitle') : t('mobile.newOrderTitle')}</Text>
           </View>
           <View style={styles.headerRight}>
             {step === 'items' && Object.keys(cart).length > 0 ? (
@@ -564,21 +574,21 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
           {/* Add New Customer button */}
           <TouchableOpacity style={styles.addNewCustomerBtn} onPress={onAddCustomer} activeOpacity={0.7}>
             <MaterialIcons name="person-add" size={20} color="#00408f" />
-            <Text style={styles.addNewCustomerBtnText}>Add New Customer</Text>
+            <Text style={styles.addNewCustomerBtnText}>{t('mobile.addNewCustomer')}</Text>
           </TouchableOpacity>
 
           <View style={styles.searchContainer}>
             <MaterialIcons name="search" size={20} color="#737685" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search name / phone / email / address"
+              placeholder={t('mobile.searchCustomerPlaceholder')}
               value={customerModalSearch}
               onChangeText={setCustomerModalSearch}
             />
           </View>
           <ScrollView style={{ marginTop: 10 }}>
             {filteredCustomers.length === 0 ? (
-              <View style={styles.searchResultItem}><Text style={styles.resultPhone}>No customers found</Text></View>
+              <View style={styles.searchResultItem}><Text style={styles.resultPhone}>{t('mobile.noCustomersFound')}</Text></View>
             ) : (
               filteredCustomers.map((c) => (
                 <TouchableOpacity
@@ -619,26 +629,26 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               <MaterialIcons name="person" size={18} color="#ffffff" />
             </View>
             <View>
-              <Text style={styles.selectedCustomerName}>{selectedCustomer?.name || 'No customer selected'}</Text>
+              <Text style={styles.selectedCustomerName}>{selectedCustomer?.name || t('mobile.noCustomerSelected')}</Text>
               <Text style={styles.selectedCustomerPhone}>{selectedCustomer?.phone || ''}</Text>
             </View>
           </View>
           {!editOrder && (
             <TouchableOpacity onPress={() => setStep('customer')}>
-              <Text style={styles.selectedCustomerEditBtn}>EDIT</Text>
+              <Text style={styles.selectedCustomerEditBtn}>{t('mobile.editCaps')}</Text>
             </TouchableOpacity>
           )}
           {editOrder && (
             <View style={{ backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-              <Text style={{ fontSize: 9, fontWeight: '700', color: '#737685' }}>LOCKED</Text>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#737685' }}>{t('mobile.locked')}</Text>
             </View>
           )}
         </View>
         {/* Customer Toggle & Input */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>MOST USED ITEMS</Text>
+          <Text style={styles.sectionTitle}>{t('mobile.mostUsedItems')}</Text>
           <TouchableOpacity onPress={() => {}}>
-            <Text style={styles.seeAllText}>See All</Text>
+            <Text style={styles.seeAllText}>{t('mobile.seeAll')}</Text>
           </TouchableOpacity>
         </View>
         
@@ -702,7 +712,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                         thumbColor={state.express ? '#00408f' : '#f8f9fb'}
                         style={{ transform: [{ scaleX: 0.7 }, { scaleY: 0.7 }] }}
                       />
-                      <Text style={{ fontSize: 10, color: '#434654' }}>Express</Text>
+                      <Text style={{ fontSize: 10, color: '#434654' }}>{t('mobile.expressLabel')}</Text>
                     </View>
                   </View>
                 </View>
@@ -712,7 +722,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                       <TextInput
                         style={styles.weightInput}
                         keyboardType="decimal-pad"
-                        placeholder={item.pricingType === 'kg' ? '0.0 kg' : '0.0 sqft'}
+                        placeholder={item.pricingType === 'kg' ? t('mobile.placeholderKg') : t('mobile.placeholderSqft')}
                         value={weightText[item.id] !== undefined ? weightText[item.id] : (state.quantity > 0 ? String(state.quantity) : '')}
                         onChangeText={(val) => setQtyFromText(item.id, val)}
                       />
@@ -746,7 +756,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             }}
           >
             <MaterialIcons name="add-box" size={20} color="#00408f" />
-            <Text style={styles.addCustomText}>Add Custom Item</Text>
+            <Text style={styles.addCustomText}>{t('mobile.addCustomItem')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -757,11 +767,11 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
       <View style={[styles.bottomSummary, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.summaryCard}>
           <View style={styles.summaryTotal}>
-            <Text style={styles.summaryCount}>{totals.itemCount} ITEMS</Text>
+            <Text style={styles.summaryCount}>{t('mobile.itemsCount', { count: totals.itemCount })}</Text>
             <Text style={styles.summaryPrice}>₹{totals.total}</Text>
           </View>
           <TouchableOpacity style={styles.reviewBtn} onPress={handleReviewOrder}>
-            <Text style={styles.reviewBtnText}>Review Order</Text>
+            <Text style={styles.reviewBtnText}>{t('mobile.reviewOrder')}</Text>
             <MaterialIcons name="arrow-forward" size={20} color="#00408f" />
           </TouchableOpacity>
         </View>
@@ -771,7 +781,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.modalBackdrop}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit Item</Text>
+            <Text style={styles.modalTitle}>{t('mobile.editItem')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickEditImage}>
               {editImageUri ? (
                 <View style={styles.editImageWrap}>
@@ -790,16 +800,16 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               style={styles.modalInput}
               value={editNameValue}
               onChangeText={setEditNameValue}
-              placeholder="Item name"
+              placeholder={t('mobile.placeholderItemName')}
             />
             <TextInput
               style={styles.modalInput}
               keyboardType="numeric"
               value={editPriceValue}
               onChangeText={setEditPriceValue}
-              placeholder="Price"
+              placeholder={t('mobile.placeholderPrice')}
             />
-            <Text style={styles.modalLabel}>PRICING TYPE</Text>
+            <Text style={styles.modalLabel}>{t('mobile.pricingTypeLabel')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {(['piece', 'kg', 'sqft', 'set'] as const).map((u) => (
                 <TouchableOpacity
@@ -807,43 +817,43 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                   onPress={() => setEditUnitValue(u)}
                   style={editUnitValue === u ? styles.categoryTabActive : styles.categoryTab}
                 >
-                  <Text style={editUnitValue === u ? styles.categoryTabTextActive : styles.categoryTabText}>{u}</Text>
+                  <Text style={editUnitValue === u ? styles.categoryTabTextActive : styles.categoryTabText}>{t(PRICING_UNIT_TKEY[u])}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
             <View style={styles.modalTwoCols}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>EXPRESS MULTIPLIER</Text>
+                <Text style={styles.modalLabel}>{t('mobile.expressMultiplierLabel')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   keyboardType="decimal-pad"
                   value={editExpressMultiplierValue}
                   onChangeText={setEditExpressMultiplierValue}
-                  placeholder="1.5"
+                  placeholder={t('mobile.placeholderMult')}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>TURNAROUND (DAYS)</Text>
+                <Text style={styles.modalLabel}>{t('mobile.turnaroundDaysLabel')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   keyboardType="numeric"
                   value={editTurnaroundDaysValue}
                   onChangeText={setEditTurnaroundDaysValue}
-                  placeholder="2"
+                  placeholder={t('mobile.placeholderDays')}
                 />
               </View>
             </View>
-            <Text style={styles.modalLabel}>SUB-CATEGORY</Text>
+            <Text style={styles.modalLabel}>{t('mobile.subCategoryLabel')}</Text>
             <TextInput
               style={styles.modalInput}
               value={editSubCategoryValue}
               onChangeText={setEditSubCategoryValue}
-              placeholder="e.g. Men's Wear"
+              placeholder={t('mobile.placeholderMensWear')}
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setShowEditItemModal(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowEditItemModal(false)}><Text style={styles.modalCancel}>{t('common.cancel')}</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveEditItem} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>Save</Text>}
+                {editSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -855,7 +865,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.modalBackdrop}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Custom Item</Text>
+            <Text style={styles.modalTitle}>{t('mobile.addCustomItemTitle')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickCustomImage}>
               {customImageUri ? (
                 <View style={styles.editImageWrap}>
@@ -870,23 +880,23 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 </View>
               )}
             </TouchableOpacity>
-            <TextInput style={styles.modalInput} placeholder="Item name" value={customName} onChangeText={setCustomName} />
-            <TextInput style={styles.modalInput} placeholder="Price" keyboardType="numeric" value={customPrice} onChangeText={setCustomPrice} />
+            <TextInput style={styles.modalInput} placeholder={t('mobile.placeholderItemName')} value={customName} onChangeText={setCustomName} />
+            <TextInput style={styles.modalInput} placeholder={t('mobile.placeholderPrice')} keyboardType="numeric" value={customPrice} onChangeText={setCustomPrice} />
             <TextInput
               style={styles.modalInput}
-              placeholder="Express Multiplier (e.g. 1.5)"
+              placeholder={t('mobile.placeholderExpressMult')}
               keyboardType="decimal-pad"
               value={customExpressMultiplier}
               onChangeText={setCustomExpressMultiplier}
             />
-            <Text style={styles.sectionTitle}>CATEGORY</Text>
+            <Text style={styles.sectionTitle}>{t('mobile.categorySection')}</Text>
             <TouchableOpacity
               style={styles.searchContainer}
               onPress={() => setShowCustomCategoryList((p) => !p)}
               activeOpacity={0.8}
             >
               <Text style={styles.searchInput}>
-                {categories.find((c) => c.id === customCategoryId)?.name || 'Select Category'}
+                {categories.find((c) => c.id === customCategoryId)?.name || t('mobile.selectCategory')}
               </Text>
               <MaterialIcons name={showCustomCategoryList ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={20} color="#737685" />
             </TouchableOpacity>
@@ -914,14 +924,14 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                   onPress={() => setCustomUnit(u)}
                   style={customUnit === u ? styles.categoryTabActive : styles.categoryTab}
                 >
-                  <Text style={customUnit === u ? styles.categoryTabTextActive : styles.categoryTabText}>{u}</Text>
+                  <Text style={customUnit === u ? styles.categoryTabTextActive : styles.categoryTabText}>{t(PRICING_UNIT_TKEY[u])}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setShowCustomModal(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowCustomModal(false)}><Text style={styles.modalCancel}>{t('common.cancel')}</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleAddCustomItem} disabled={customSaving}>
-                {customSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>Add</Text>}
+                {customSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>{t('common.add')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

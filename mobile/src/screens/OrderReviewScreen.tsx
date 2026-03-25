@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +48,7 @@ export default function OrderReviewScreen({
   draftOrder: DraftOrderPayload | null,
   editOrderId?: string | null
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
@@ -92,12 +94,12 @@ export default function OrderReviewScreen({
     const map: Record<string, { name: string; subtotal: number; items: DraftOrderPayload['items'] }> = {};
     (draftOrder?.items || []).forEach((item) => {
       const key = item.categoryId || 'other';
-      if (!map[key]) map[key] = { name: item.categoryName || 'Other', subtotal: 0, items: [] };
+      if (!map[key]) map[key] = { name: item.categoryName || t('mobile.categoryOther'), subtotal: 0, items: [] };
       map[key].items.push(item);
       map[key].subtotal += item.total;
     });
     return Object.values(map);
-  }, [draftOrder]);
+  }, [draftOrder, t]);
 
   // Calculate financials with discount and tax
   const computed = useMemo(() => {
@@ -135,7 +137,7 @@ export default function OrderReviewScreen({
 
   const handlePlaceOrder = async () => {
     if (!draftOrder || !shopId) {
-      Alert.alert('Error', 'Missing order data or shop information');
+      Alert.alert(t('mobile.errorTitle'), t('mobile.missingOrderData'));
       return;
     }
     setPlacing(true);
@@ -314,7 +316,7 @@ export default function OrderReviewScreen({
       }
     } catch (e: any) {
       console.error('Place order error:', e);
-      Alert.alert('Error', e.message || 'Failed to place order');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPlaceOrder'));
     } finally {
       setPlacing(false);
     }
@@ -323,9 +325,9 @@ export default function OrderReviewScreen({
   if (!draftOrder) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>No draft order found</Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>{t('mobile.noDraftOrder')}</Text>
         <TouchableOpacity style={styles.placeOrderBtn} onPress={onBack}>
-          <Text style={styles.placeOrderText}>Back to Create Order</Text>
+          <Text style={styles.placeOrderText}>{t('mobile.backToCreateOrder')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -346,7 +348,7 @@ export default function OrderReviewScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#00408f" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{editOrderId ? 'Update Order' : 'Order Review'}</Text>
+            <Text style={styles.headerTitle}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.orderReviewTitle')}</Text>
           </View>
           <TouchableOpacity style={styles.iconBtn}>
             <MaterialIcons name="more-vert" size={24} color="#00408f" />
@@ -373,7 +375,7 @@ export default function OrderReviewScreen({
           </View>
           {!editOrderId && (
             <TouchableOpacity onPress={onEditCustomer}>
-              <Text style={styles.editBtnText}>EDIT</Text>
+              <Text style={styles.editBtnText}>{t('mobile.editCaps')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -394,7 +396,7 @@ export default function OrderReviewScreen({
                   </Text>
                 </View>
                 <Text style={groupIndex % 2 === 0 ? styles.serviceSubtotalWash : styles.serviceSubtotalIron}>
-                  SUBTOTAL: ₹{Math.round(group.subtotal)}
+                  {t('mobile.subtotalLine', { amount: Math.round(group.subtotal) })}
                 </Text>
               </View>
               <View style={styles.serviceItems}>
@@ -404,7 +406,8 @@ export default function OrderReviewScreen({
                       <View>
                         <Text style={styles.itemName}>{item.serviceName}</Text>
                         <Text style={styles.itemMeta}>
-                          x{item.quantity} · ₹{Math.round(item.unitPrice)} ea.{item.express ? ' · Express' : ''}
+                          {`x${item.quantity} · ₹${Math.round(item.unitPrice)} ea.`}
+                          {item.express ? t('mobile.expressSuffixShort') : ''}
                         </Text>
                       </View>
                       <Text style={styles.itemTotal}>₹{Math.round(item.total)}</Text>
@@ -421,7 +424,7 @@ export default function OrderReviewScreen({
         <View style={styles.summaryCard}>
           {/* Subtotal */}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
+            <Text style={styles.summaryLabel}>{t('mobile.subtotalLabel')}</Text>
             <Text style={styles.summaryValue}>₹{computed.subtotal}</Text>
           </View>
 
@@ -429,11 +432,11 @@ export default function OrderReviewScreen({
           <View style={styles.summaryRow}>
             <View style={styles.summaryRowLabel}>
               <MaterialIcons name="local-offer" size={18} color="#006b5f" />
-              <Text style={styles.discountLabel}>Discount</Text>
+              <Text style={styles.discountLabel}>{t('mobile.discountLabel')}</Text>
             </View>
             <TextInput
               style={styles.discountInput}
-              placeholder="e.g. 50 or 10%"
+              placeholder={t('mobile.discountPlaceholder')}
               placeholderTextColor="#c3c6d6"
               textAlign="right"
               value={discountText}
@@ -443,7 +446,7 @@ export default function OrderReviewScreen({
           </View>
           {computed.discountAmount > 0 ? (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabelSmall}>Discount Applied</Text>
+              <Text style={styles.summaryLabelSmall}>{t('mobile.discountApplied')}</Text>
               <Text style={styles.discountApplied}>-₹{computed.discountAmount}</Text>
             </View>
           ) : null}
@@ -464,7 +467,7 @@ export default function OrderReviewScreen({
             <MaterialIcons name="sticky-note-2" size={20} color="#434654" />
             <TextInput
               style={styles.notesInput}
-              placeholder="Add a note..."
+              placeholder={t('mobile.addNotePlaceholder')}
               placeholderTextColor="rgba(67, 70, 84, 0.5)"
               value={notes}
               onChangeText={setNotes}
@@ -475,16 +478,16 @@ export default function OrderReviewScreen({
         {/* Grand Total */}
         <View style={styles.finalTotalContainer}>
           <View>
-            <Text style={styles.grandTotalLabel}>GRAND TOTAL</Text>
+            <Text style={styles.grandTotalLabel}>{t('mobile.grandTotalLabel')}</Text>
             <View style={styles.grandTotalRow}>
               <Text style={styles.grandTotalValue}>₹{computed.total}</Text>
-              {taxEnabled ? <Text style={styles.taxLabel}>Incl. {taxName}</Text> : null}
+              {taxEnabled ? <Text style={styles.taxLabel}>{t('mobile.inclTax', { tax: taxName })}</Text> : null}
             </View>
           </View>
           {computed.expressCharge > 0 ? (
             <View style={styles.expressBadge}>
               <MaterialIcons name="bolt" size={14} color="#006f63" />
-              <Text style={styles.expressText}>EXPRESS</Text>
+              <Text style={styles.expressText}>{t('mobile.expressLabel')}</Text>
             </View>
           ) : null}
         </View>
@@ -493,7 +496,7 @@ export default function OrderReviewScreen({
         <View style={styles.deliveryDateCard}>
           <MaterialIcons name="event" size={20} color="#00408f" />
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={styles.deliveryDateLabel}>EXPECTED {deliveryType === 'pickup_store' ? 'READY' : 'DELIVERY'}</Text>
+            <Text style={styles.deliveryDateLabel}>{deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}</Text>
             <Text style={styles.deliveryDateValue}>{formatDate(expectedDelivery)}</Text>
           </View>
           <View style={styles.dateAdjustRow}>
@@ -524,37 +527,37 @@ export default function OrderReviewScreen({
         {/* Delivery & Payment */}
         <View style={styles.summaryCard}>
           <View style={styles.toggleGroup}>
-            <Text style={styles.toggleLabel}>DELIVERY TYPE</Text>
+            <Text style={styles.toggleLabel}>{t('mobile.deliveryTypeLabel')}</Text>
             <View style={styles.segmentControl}>
               <TouchableOpacity
                 style={deliveryType === 'pickup_store' ? styles.segmentActive : styles.segmentInactive}
                 onPress={() => setDeliveryType('pickup_store')}
               >
-                <Text style={deliveryType === 'pickup_store' ? styles.segmentTextActive : styles.segmentTextInactive}>Shop Pickup</Text>
+                <Text style={deliveryType === 'pickup_store' ? styles.segmentTextActive : styles.segmentTextInactive}>{t('mobile.delivery_pickup_store')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={deliveryType === 'delivery_home' ? styles.segmentActive : styles.segmentInactive}
                 onPress={() => setDeliveryType('delivery_home')}
               >
-                <Text style={deliveryType === 'delivery_home' ? styles.segmentTextActive : styles.segmentTextInactive}>Home Delivery</Text>
+                <Text style={deliveryType === 'delivery_home' ? styles.segmentTextActive : styles.segmentTextInactive}>{t('mobile.delivery_delivery_home')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.toggleGroup}>
-            <Text style={styles.toggleLabel}>PAYMENT STATUS</Text>
+            <Text style={styles.toggleLabel}>{t('mobile.paymentStatusLabel')}</Text>
             <View style={styles.segmentControl}>
               <TouchableOpacity
                 style={paymentStatus === 'unpaid' ? styles.segmentError : styles.segmentInactive}
                 onPress={() => setPaymentStatus('unpaid')}
               >
-                <Text style={paymentStatus === 'unpaid' ? styles.segmentTextError : styles.segmentTextInactive}>Unpaid</Text>
+                <Text style={paymentStatus === 'unpaid' ? styles.segmentTextError : styles.segmentTextInactive}>{t('mobile.unpaidLabel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={paymentStatus === 'paid' ? styles.segmentActive : styles.segmentInactive}
                 onPress={() => setPaymentStatus('paid')}
               >
-                <Text style={paymentStatus === 'paid' ? styles.segmentTextActive : styles.segmentTextInactive}>Paid</Text>
+                <Text style={paymentStatus === 'paid' ? styles.segmentTextActive : styles.segmentTextInactive}>{t('mobile.paidLabel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -574,7 +577,7 @@ export default function OrderReviewScreen({
             <ActivityIndicator color="#ffffff" />
           ) : (
             <>
-              <Text style={styles.placeOrderText}>{editOrderId ? 'Update Order' : 'Place Order'}</Text>
+              <Text style={styles.placeOrderText}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.placeOrderBtn')}</Text>
               <MaterialIcons name="chevron-right" size={24} color="#ffffff" />
             </>
           )}

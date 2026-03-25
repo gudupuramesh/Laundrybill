@@ -5,7 +5,9 @@
   "scripts": {
     "sync-locales": "cp ../src/locales/*.json ./src/locales/",
     "postinstall": "patch-package",
-    "start": "expo start",
+    "start": "env -u CI expo start",
+    "start:dev": "env -u CI expo start --dev-client",
+    "start:dev:clear": "env -u CI expo start --dev-client -c",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web"
@@ -24,14 +26,16 @@
     "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.20",
     "expo-image-picker": "~17.0.10",
+    "expo-linear-gradient": "~15.0.8",
     "expo-print": "~15.0.8",
     "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",
     "firebase": "^12.11.0",
     "i18next": "^23.16.8",
-    "react-i18next": "^15.1.2",
     "react": "19.1.0",
+    "react-i18next": "^15.1.2",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-webview": "13.15.0"

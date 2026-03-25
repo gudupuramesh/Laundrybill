@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, Pressable,
@@ -25,6 +26,7 @@ export default function AddCustomerScreen({
   onBack: () => void;
   onCreated?: (customerId: string) => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
@@ -102,8 +104,8 @@ export default function AddCustomerScreen({
     const trimmedName = name.trim();
     const trimmedPhone = normalizePhone(phone);
 
-    if (!trimmedName) { Alert.alert('Name Required', 'Please enter the customer name.'); return; }
-    if (!isValidIndianPhone(trimmedPhone)) { Alert.alert('Invalid Phone', 'Please enter a valid 10-digit Indian phone number.'); return; }
+    if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
+    if (!isValidIndianPhone(trimmedPhone)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneIndiaMsg')); return; }
 
     if (!shopId || saving) return;
     setSaving(true);
@@ -157,7 +159,7 @@ export default function AddCustomerScreen({
       onCreated?.(docRef.id);
       onBack();
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to create customer');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedCreateCustomer'));
     }
     setSaving(false);
   };
@@ -172,7 +174,7 @@ export default function AddCustomerScreen({
           <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
             <MaterialIcons name="arrow-back" size={24} color="#00408f" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Add Customer</Text>
+          <Text style={styles.headerTitle}>{t('mobile.addCustomerTitle')}</Text>
           <View style={{ width: 40 }} />
         </View>
       </View>
@@ -189,8 +191,8 @@ export default function AddCustomerScreen({
               <MaterialIcons name="contacts" size={22} color="#00408f" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.contactBtnTitle}>Import from Contacts</Text>
-              <Text style={styles.contactBtnSubtitle}>Pick from your phone contacts</Text>
+              <Text style={styles.contactBtnTitle}>{t('mobile.importFromContacts')}</Text>
+              <Text style={styles.contactBtnSubtitle}>{t('mobile.importFromContactsSubtitle')}</Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#c3c6d6" />
           </TouchableOpacity>
@@ -198,30 +200,30 @@ export default function AddCustomerScreen({
           {/* Divider */}
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or enter manually</Text>
+            <Text style={styles.dividerText}>{t('mobile.orEnterManually')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           {/* Form Fields */}
           <View style={styles.formCard}>
-            <Text style={styles.fieldLabel}>Name <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldName')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="Customer name"
+              placeholder={t('mobile.phCustomerName')}
               placeholderTextColor="#c3c6d6"
               autoCapitalize="words"
             />
 
-            <Text style={styles.fieldLabel}>Phone <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.phoneRow}>
               <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>+91</Text></View>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 value={phone}
                 onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit phone number"
+                placeholder={t('mobile.phPhone10Digit')}
                 placeholderTextColor="#c3c6d6"
                 keyboardType="phone-pad"
                 maxLength={10}
@@ -239,23 +241,23 @@ export default function AddCustomerScreen({
               autoCapitalize="none"
             />
 
-            <Text style={styles.fieldLabel}>Address</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldAddress')}</Text>
             <TextInput
               style={[styles.input, { minHeight: 60 }]}
               value={address}
               onChangeText={setAddress}
-              placeholder="Optional"
+              placeholder={t('mobile.phOptional')}
               placeholderTextColor="#c3c6d6"
               multiline
               textAlignVertical="top"
             />
 
-            <Text style={styles.fieldLabel}>Notes</Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldNotes')}</Text>
             <TextInput
               style={[styles.input, { minHeight: 60 }]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="e.g. Allergic to detergent, prefers extra starch..."
+              placeholder={t('mobile.phCustomerNotes')}
               placeholderTextColor="#c3c6d6"
               multiline
               textAlignVertical="top"
@@ -294,14 +296,14 @@ export default function AddCustomerScreen({
                 <View style={styles.permIconBg}>
                   <MaterialIcons name="contacts" size={32} color="#00408f" />
                 </View>
-                <Text style={styles.permTitle}>Access your contacts</Text>
+                <Text style={styles.permTitle}>{t('mobile.permAccessContactsTitle')}</Text>
                 <Text style={styles.permBody}>
-                  Laundrybill needs access to your contacts so you can quickly add customers by selecting them from your phone book instead of typing their details manually.
+                  {t('mobile.permAccessContactsBody')}
                 </Text>
                 <View style={styles.permPrivacy}>
                   <MaterialIcons name="shield" size={18} color="#006b5f" />
                   <Text style={styles.permPrivacyText}>
-                    Your contacts stay on your device. We never upload, store, or share your contact list with any third party. Only the contact you select is used to fill in the customer form.
+                    {t('mobile.permPrivacyContacts')}
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.permBtn} onPress={async () => {
@@ -310,21 +312,21 @@ export default function AddCustomerScreen({
                   setContactPermission(granted);
                   if (granted) loadContacts();
                 }}>
-                  <Text style={styles.permBtnText}>Allow Contact Access</Text>
+                  <Text style={styles.permBtnText}>{t('mobile.allowContactAccess')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ paddingVertical: 10 }} onPress={() => setContactModal(false)}>
-                  <Text style={styles.permNotNow}>Enter Manually Instead</Text>
+                  <Text style={styles.permNotNow}>{t('mobile.enterManuallyInstead')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               /* Contact list */
               <>
-                <Text style={styles.modalTitle}>Select Contact</Text>
+                <Text style={styles.modalTitle}>{t('mobile.selectContact')}</Text>
                 <View style={styles.contactSearchRow}>
                   <MaterialIcons name="search" size={20} color="#737685" />
                   <TextInput
                     style={styles.contactSearchInput}
-                    placeholder="Search contacts..."
+                    placeholder={t('mobile.searchContactsPlaceholder')}
                     placeholderTextColor="#737685"
                     value={contactSearch}
                     onChangeText={setContactSearch}
@@ -344,7 +346,7 @@ export default function AddCustomerScreen({
                 ) : filteredContacts.length === 0 ? (
                   <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                     <MaterialIcons name="person-off" size={40} color="#c3c6d6" />
-                    <Text style={{ fontSize: 13, color: '#737685', marginTop: 8 }}>No contacts found</Text>
+                    <Text style={{ fontSize: 13, color: '#737685', marginTop: 8 }}>{t('mobile.noContactsFound')}</Text>
                   </View>
                 ) : (
                   <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

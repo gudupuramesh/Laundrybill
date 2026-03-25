@@ -1,54 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  pending:          { label: 'Pending',          bg: '#fff3e0', color: '#e65100' },
-  confirmed:        { label: 'Confirmed',        bg: '#e3f2fd', color: '#1565c0' },
-  picked_up:        { label: 'Picked Up',        bg: '#e3f2fd', color: '#1565c0' },
-  processing:       { label: 'In Progress',      bg: '#fff8e1', color: '#f9a825' },
-  ready:            { label: 'Ready',             bg: '#e8f5e9', color: '#2e7d32' },
-  out_for_delivery: { label: 'Out for Delivery',  bg: '#e3f2fd', color: '#1565c0' },
-  delivered:        { label: 'Completed',         bg: '#e8f5e9', color: '#2e7d32' },
-  cancelled:        { label: 'Cancelled',         bg: '#fce4ec', color: '#c62828' },
-};
-
-const STATUS_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'processing', label: 'In Progress' },
-  { key: 'ready', label: 'Ready' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'due', label: 'Due' },
-];
-
-const TIME_FILTERS = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: '3months', label: '3 Months' },
-  { key: 'year', label: 'This Year' },
-  { key: 'all_time', label: 'All' },
-];
-
-function timeAgo(date: Date | null): string {
-  if (!date) return '';
-  const now = Date.now();
-  const diff = now - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days}d ago`;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
-}
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -92,8 +48,60 @@ export default function OrdersScreen({
   onViewOrder?: (id: string) => void;
   initialFilter?: string;
 }) {
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+
+  const STATUS_CONFIG = useMemo((): Record<string, { label: string; bg: string; color: string }> => ({
+    pending: { label: t('mobile.orderStatusPending'), bg: '#fff3e0', color: '#e65100' },
+    confirmed: { label: t('mobile.orderStatusConfirmed'), bg: '#e3f2fd', color: '#1565c0' },
+    picked_up: { label: t('mobile.orderStatusPickedUp'), bg: '#e3f2fd', color: '#1565c0' },
+    processing: { label: t('mobile.orderStatusInProgress'), bg: '#fff8e1', color: '#f9a825' },
+    ready: { label: t('mobile.orderStatusReady'), bg: '#e8f5e9', color: '#2e7d32' },
+    out_for_delivery: { label: t('mobile.orderStatusOutForDelivery'), bg: '#e3f2fd', color: '#1565c0' },
+    delivered: { label: t('mobile.orderStatusCompleted'), bg: '#e8f5e9', color: '#2e7d32' },
+    cancelled: { label: t('mobile.orderStatusCancelled'), bg: '#fce4ec', color: '#c62828' },
+  }), [t]);
+
+  const STATUS_FILTERS = useMemo(
+    () => [
+      { key: 'all', label: t('mobile.ordersFilterAll') },
+      { key: 'pending', label: t('mobile.ordersFilterPending') },
+      { key: 'processing', label: t('mobile.ordersFilterProcessing') },
+      { key: 'ready', label: t('mobile.ordersFilterReady') },
+      { key: 'completed', label: t('mobile.ordersFilterCompleted') },
+      { key: 'due', label: t('mobile.ordersFilterDue') },
+    ],
+    [t]
+  );
+
+  const TIME_FILTERS = useMemo(
+    () => [
+      { key: 'today', label: t('mobile.timeFilterToday') },
+      { key: 'week', label: t('mobile.timeFilterWeek') },
+      { key: 'month', label: t('mobile.timeFilterMonth') },
+      { key: '3months', label: t('mobile.timeFilter3Months') },
+      { key: 'year', label: t('mobile.timeFilterYear') },
+      { key: 'all_time', label: t('mobile.timeFilterAll') },
+    ],
+    [t]
+  );
+
+  const timeAgo = (date: Date | null): string => {
+    if (!date) return '';
+    const now = Date.now();
+    const diff = now - date.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return t('mobile.timeJustNowLower');
+    if (mins < 60) return t('mobile.timeMinutesAgoShort', { count: mins });
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return t('mobile.timeHoursAgoShort', { count: hrs });
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return t('mobile.timeYesterday');
+    if (days < 7) return t('mobile.timeDaysAgoShort', { count: days });
+    return date.toLocaleDateString(i18n.language || 'en-IN', { day: 'numeric', month: 'short' });
+  };
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(initialFilter || 'all');
@@ -185,9 +193,9 @@ export default function OrdersScreen({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Orders</Text>
+        <Text style={styles.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
         <TouchableOpacity style={styles.timePicker} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
-          <Text style={styles.timePickerText}>{TIME_FILTERS.find(t => t.key === timePeriod)?.label || 'All'}</Text>
+          <Text style={styles.timePickerText}>{TIME_FILTERS.find((tf) => tf.key === timePeriod)?.label || t('mobile.timeFilterAll')}</Text>
           <MaterialIcons name="expand-more" size={18} color="#00408f" />
         </TouchableOpacity>
       </View>
@@ -204,21 +212,21 @@ export default function OrdersScreen({
           {/* Compact Stats Row */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>ACTIVE</Text>
+              <Text style={styles.statLabel}>{t('mobile.ordersStatActive')}</Text>
               <Text style={styles.statValue}>{stats.active}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>PENDING</Text>
+              <Text style={styles.statLabel}>{t('mobile.ordersStatPending')}</Text>
               <Text style={[styles.statValue, { color: '#e65100' }]}>{stats.pending}</Text>
             </View>
             <TouchableOpacity style={[styles.statCard, stats.dueCount > 0 && { backgroundColor: '#ffdad6' }]} onPress={() => setFilter(filter === 'due' ? 'all' : 'due')}>
-              <Text style={[styles.statLabel, stats.dueCount > 0 && { color: '#93000a' }]}>DUE</Text>
+              <Text style={[styles.statLabel, stats.dueCount > 0 && { color: '#93000a' }]}>{t('mobile.ordersStatDue')}</Text>
               <Text style={[styles.statValue, { color: stats.dueCount > 0 ? '#93000a' : '#00408f', fontSize: 14 }]}>
                 {stats.dueCount > 0 ? `₹${stats.dueAmount}` : '0'}
               </Text>
             </TouchableOpacity>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>TODAY</Text>
+              <Text style={styles.statLabel}>{t('mobile.ordersStatToday')}</Text>
               <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>₹{stats.todayCollected}</Text>
             </View>
           </View>
@@ -241,7 +249,7 @@ export default function OrdersScreen({
             <MaterialIcons name="search" size={20} color="#737685" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search orders..."
+              placeholder={t('mobile.ordersSearchPlaceholder')}
               placeholderTextColor="#737685"
               value={search}
               onChangeText={setSearch}
@@ -256,21 +264,25 @@ export default function OrdersScreen({
           {/* Section Header */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {filter === 'all' ? 'ALL ORDERS' : STATUS_FILTERS.find((f) => f.key === filter)?.label.toUpperCase() || 'ORDERS'}
+              {filter === 'all' ? t('mobile.ordersSectionAll') : STATUS_FILTERS.find((f) => f.key === filter)?.label || t('mobile.ordersSectionFallback')}
             </Text>
-            <Text style={styles.resultCount}>{filteredOrders.length} orders</Text>
+            <Text style={styles.resultCount}>{t('mobile.ordersCountLabel', { count: filteredOrders.length })}</Text>
           </View>
 
           {/* Orders List */}
           {filteredOrders.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="inbox" size={44} color="#c3c6d6" />
-              <Text style={styles.emptyText}>No orders found</Text>
+              <Text style={styles.emptyText}>{t('mobile.ordersEmpty')}</Text>
             </View>
           ) : (
             <View style={styles.orderStack}>
               {filteredOrders.map((order) => {
-                const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+                const cfg = STATUS_CONFIG[order.status] || {
+                  label: t('mobile.orderStatusUnknown'),
+                  bg: '#f3f4f6',
+                  color: '#434654',
+                };
                 const created = toDate(order.createdAt);
                 const itemCount = (order.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
                 const total = Math.round(order.financials?.total || 0);
@@ -289,7 +301,7 @@ export default function OrdersScreen({
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           {balance > 0 && (
                             <View style={styles.dueBadge}>
-                              <Text style={styles.dueBadgeText}>DUE ₹{balance}</Text>
+                              <Text style={styles.dueBadgeText}>{t('mobile.orderDueShort', { amount: balance.toLocaleString() })}</Text>
                             </View>
                           )}
                           <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
@@ -298,10 +310,10 @@ export default function OrdersScreen({
                         </View>
                       </View>
                       <Text style={styles.orderCustomer} numberOfLines={1}>
-                        {order.customerName || 'Guest'}
+                        {order.customerName || t('mobile.guestCustomer')}
                       </Text>
                       <View style={styles.orderMeta}>
-                        <Text style={styles.orderMetaText}>{itemCount} items</Text>
+                        <Text style={styles.orderMetaText}>{t('mobile.orderItemsCount', { count: itemCount })}</Text>
                         <View style={styles.dot} />
                         <Text style={styles.orderAmount}>₹{total}</Text>
                         <View style={styles.dot} />
@@ -326,14 +338,14 @@ export default function OrdersScreen({
       <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
         <Pressable style={styles.dropdownOverlay} onPress={() => setShowTimePicker(false)}>
           <View style={styles.dropdownMenu}>
-            {TIME_FILTERS.map((t) => (
+            {TIME_FILTERS.map((row) => (
               <TouchableOpacity
-                key={t.key}
-                style={[styles.dropdownItem, timePeriod === t.key && styles.dropdownItemActive]}
-                onPress={() => { setTimePeriod(t.key); setShowTimePicker(false); }}
+                key={row.key}
+                style={[styles.dropdownItem, timePeriod === row.key && styles.dropdownItemActive]}
+                onPress={() => { setTimePeriod(row.key); setShowTimePicker(false); }}
               >
-                <Text style={[styles.dropdownItemText, timePeriod === t.key && styles.dropdownItemTextActive]}>{t.label}</Text>
-                {timePeriod === t.key && <MaterialIcons name="check" size={16} color="#00408f" />}
+                <Text style={[styles.dropdownItemText, timePeriod === row.key && styles.dropdownItemTextActive]}>{row.label}</Text>
+                {timePeriod === row.key && <MaterialIcons name="check" size={16} color="#00408f" />}
               </TouchableOpacity>
             ))}
           </View>

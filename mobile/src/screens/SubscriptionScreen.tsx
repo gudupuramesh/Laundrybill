@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,8 +22,8 @@ type PlanDoc = {
   };
 };
 
-function formatLimit(v?: number) {
-  if (v === -1) return 'Unlimited';
+function formatLimit(v: number | undefined, t: (k: string) => string) {
+  if (v === -1) return t('mobile.unlimited');
   return String(v ?? 0);
 }
 
@@ -31,6 +32,7 @@ export default function SubscriptionScreen({
 }: {
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const [plans, setPlans] = useState<PlanDoc[]>([]);
@@ -181,7 +183,7 @@ export default function SubscriptionScreen({
 </html>`;
       setCheckoutHtml(html);
     } catch (e: any) {
-      Alert.alert('Payment Error', e?.message || 'Could not start payment.');
+      Alert.alert(t('mobile.paymentErrorTitle'), e?.message || t('mobile.couldNotStartPayment'));
     } finally {
       setPayLoadingPlanId(null);
     }
@@ -203,7 +205,7 @@ export default function SubscriptionScreen({
         <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
           <MaterialIcons name="arrow-back" size={24} color="#00408f" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Subscription Plans</Text>
+        <Text style={styles.headerTitle}>{t('mobile.subscriptionPlansTitle')}</Text>
         <View style={styles.iconBtn} />
       </View>
 
@@ -212,13 +214,13 @@ export default function SubscriptionScreen({
           style={[styles.cycleBtn, cycle === 'monthly' && styles.cycleBtnActive]}
           onPress={() => setCycle('monthly')}
         >
-          <Text style={[styles.cycleText, cycle === 'monthly' && styles.cycleTextActive]}>Monthly</Text>
+          <Text style={[styles.cycleText, cycle === 'monthly' && styles.cycleTextActive]}>{t('mobile.billingMonthly')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.cycleBtn, cycle === 'yearly' && styles.cycleBtnActive]}
           onPress={() => setCycle('yearly')}
         >
-          <Text style={[styles.cycleText, cycle === 'yearly' && styles.cycleTextActive]}>Yearly</Text>
+          <Text style={[styles.cycleText, cycle === 'yearly' && styles.cycleTextActive]}>{t('mobile.billingYearly')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -226,7 +228,7 @@ export default function SubscriptionScreen({
         {plans.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="subscriptions" size={42} color="#c3c6d6" />
-            <Text style={styles.emptyText}>No plans configured by admin yet</Text>
+            <Text style={styles.emptyText}>{t('mobile.noPlansAdmin')}</Text>
           </View>
         ) : (
           plans.map((plan) => {
@@ -240,24 +242,24 @@ export default function SubscriptionScreen({
                       <Text style={styles.planName}>{plan.name || plan.id}</Text>
                       {plan.badge ? <View style={styles.badge}><Text style={styles.badgeText}>{plan.badge}</Text></View> : null}
                     </View>
-                    <Text style={styles.planDesc}>{plan.description || 'Subscription plan'}</Text>
+                    <Text style={styles.planDesc}>{plan.description || t('mobile.subscriptionPlanDefault')}</Text>
                   </View>
                   {isCurrent ? (
                     <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>Current</Text>
+                      <Text style={styles.currentBadgeText}>{t('mobile.currentPlanBadge')}</Text>
                     </View>
                   ) : null}
                 </View>
 
                 <Text style={styles.price}>
-                  {price === 0 ? 'Free' : `₹${Math.round(price).toLocaleString()}`}
-                  {price === 0 ? '' : <Text style={styles.priceUnit}>/{cycle === 'yearly' ? 'yr' : 'mo'}</Text>}
+                  {price === 0 ? t('mobile.planFree') : `₹${Math.round(price).toLocaleString()}`}
+                  {price === 0 ? '' : <Text style={styles.priceUnit}>{cycle === 'yearly' ? t('mobile.pricePerYr') : t('mobile.pricePerMo')}</Text>}
                 </Text>
 
                 <View style={styles.limitsRow}>
-                  <Text style={styles.limitItem}>Orders: {formatLimit(plan.limits?.maxOrders)}</Text>
-                  <Text style={styles.limitItem}>Customers: {formatLimit(plan.limits?.maxCustomers)}</Text>
-                  <Text style={styles.limitItem}>Staff: {formatLimit(plan.limits?.maxStaff)}</Text>
+                  <Text style={styles.limitItem}>{t('mobile.limitOrders', { value: formatLimit(plan.limits?.maxOrders, t) })}</Text>
+                  <Text style={styles.limitItem}>{t('mobile.limitCustomers', { value: formatLimit(plan.limits?.maxCustomers, t) })}</Text>
+                  <Text style={styles.limitItem}>{t('mobile.limitStaff', { value: formatLimit(plan.limits?.maxStaff, t) })}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -269,7 +271,7 @@ export default function SubscriptionScreen({
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
                   <Text style={[styles.chooseBtnText, isCurrent && styles.chooseBtnTextDisabled]}>
-                    {isCurrent ? 'Current Plan' : 'Request Upgrade'}
+                    {isCurrent ? t('mobile.currentPlanBtn') : t('mobile.requestUpgrade')}
                   </Text>
                   )}
                 </TouchableOpacity>
@@ -284,7 +286,7 @@ export default function SubscriptionScreen({
           <TouchableOpacity onPress={closeCheckout} style={styles.iconBtn}>
             <MaterialIcons name="close" size={24} color="#191c1e" />
           </TouchableOpacity>
-          <Text style={styles.checkoutTitle}>Secure Checkout</Text>
+          <Text style={styles.checkoutTitle}>{t('mobile.secureCheckout')}</Text>
           <View style={styles.iconBtn} />
         </View>
         {checkoutHtml ? (
@@ -297,15 +299,15 @@ export default function SubscriptionScreen({
                 const type = msg?.type;
                 if (type === 'success') {
                   closeCheckout();
-                  Alert.alert('Payment Successful', 'Your payment was completed. Subscription will refresh shortly.');
+                  Alert.alert(t('mobile.paymentSuccessTitle'), t('mobile.paymentSuccessMsg'));
                 } else if (type === 'failed') {
                   closeCheckout();
-                  Alert.alert('Payment Failed', msg?.payload?.description || 'Payment failed. Please try again.');
+                  Alert.alert(t('mobile.paymentFailedTitle'), msg?.payload?.description || t('mobile.paymentFailedMsg'));
                 } else if (type === 'dismiss') {
                   closeCheckout();
                 } else if (type === 'error') {
                   closeCheckout();
-                  Alert.alert('Payment Error', msg?.payload?.message || 'Checkout error.');
+                  Alert.alert(t('mobile.paymentErrorTitle'), msg?.payload?.message || t('mobile.paymentCheckoutError'));
                 }
               } catch (_) {
                 closeCheckout();

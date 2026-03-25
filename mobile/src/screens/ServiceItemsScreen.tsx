@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
   Switch, ActivityIndicator, Alert, Image, Modal, Platform,
@@ -11,12 +13,12 @@ import { auth, getShopId } from '../lib/auth';
 
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 
-const PRICING_TYPES = [
-  { value: 'piece', label: 'Per Piece' },
-  { value: 'kg', label: 'Per Kg' },
-  { value: 'sqft', label: 'Per Sqft' },
-  { value: 'set', label: 'Per Set' },
-];
+function unitSuffix(pricingType: string, t: TFunction): string {
+  if (pricingType === 'kg') return t('mobile.unitKg');
+  if (pricingType === 'sqft') return t('mobile.unitSqft');
+  if (pricingType === 'set') return t('mobile.unitSet');
+  return t('mobile.unitPc');
+}
 
 interface Item {
   id: string;
@@ -70,7 +72,18 @@ export default function ServiceItemsScreen({
   categoryId: string;
   categoryName: string;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+
+  const pricingTypes = useMemo(
+    () => [
+      { value: 'piece', label: t('mobile.pricingPerPiece') },
+      { value: 'kg', label: t('mobile.pricingPerKg') },
+      { value: 'sqft', label: t('mobile.pricingPerSqft') },
+      { value: 'set', label: t('mobile.pricingPerSet') },
+    ],
+    [t],
+  );
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Item[]>([]);
 
@@ -145,7 +158,7 @@ export default function ServiceItemsScreen({
       }
       setBulkText('');
     } catch (e: any) {
-      alert(e.message || 'Failed to bulk add');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedBulkAdd'));
     } finally {
       setBulkAdding(false);
     }
@@ -159,16 +172,16 @@ export default function ServiceItemsScreen({
         .doc(item.id)
         .update({ isActive: !item.isActive, updatedAt: new Date() });
     } catch (e: any) {
-      alert(e.message || 'Failed to update');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateStatusService'));
     }
   };
 
   // Delete item (soft delete)
   const handleDeleteItem = (item: Item) => {
-    Alert.alert('Delete Item', `Delete "${item.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('mobile.deleteItemTitle'), t('mobile.deleteItemConfirm', { name: item.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('common.delete'), style: 'destructive',
         onPress: async () => {
           try {
             await firestore()
@@ -176,7 +189,7 @@ export default function ServiceItemsScreen({
               .doc(item.id)
               .update({ isActive: false, updatedAt: new Date() });
           } catch (e: any) {
-            alert(e.message || 'Failed to delete');
+            Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedDeleteItem'));
           }
         },
       },
@@ -273,7 +286,7 @@ export default function ServiceItemsScreen({
       setEditItem(null);
     } catch (e: any) {
       console.error('Save edit error:', e);
-      alert(e.message || 'Failed to save changes');
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedSaveItem'));
     } finally {
       setEditSaving(false);
     }
@@ -299,7 +312,7 @@ export default function ServiceItemsScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#00408f" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{categoryName} — Items</Text>
+            <Text style={styles.headerTitle}>{t('mobile.serviceItemsTitle', { category: categoryName })}</Text>
           </View>
         </View>
       </View>
@@ -311,18 +324,18 @@ export default function ServiceItemsScreen({
         {/* Inventory List */}
         <View style={styles.listSection}>
           <View style={styles.listHeader}>
-            <Text style={styles.sectionLabel}>CURRENT INVENTORY ({activeItems.length} ITEMS)</Text>
+            <Text style={styles.sectionLabel}>{t('mobile.inventoryCurrentSection', { count: activeItems.length })}</Text>
             <TouchableOpacity style={styles.addItemBtn} onPress={openAdd}>
               <MaterialIcons name="add" size={16} color="#ffffff" />
-              <Text style={styles.addItemBtnText}>Add Item</Text>
+              <Text style={styles.addItemBtnText}>{t('mobile.addItemBtn')}</Text>
             </TouchableOpacity>
           </View>
 
           {activeItems.length === 0 && (
             <View style={styles.emptyState}>
               <MaterialIcons name="inventory-2" size={40} color="#c3c6d6" />
-              <Text style={styles.emptyText}>No items yet</Text>
-              <Text style={styles.emptySubtext}>Tap Add Item or use Bulk Add to create items</Text>
+              <Text style={styles.emptyText}>{t('mobile.noItemsYet')}</Text>
+              <Text style={styles.emptySubtext}>{t('mobile.noItemsHint')}</Text>
             </View>
           )}
 
@@ -353,13 +366,13 @@ export default function ServiceItemsScreen({
                       ) : null}
                       <View style={styles.unitBadge}>
                         <Text style={styles.unitBadgeText}>
-                          {item.pricingType === 'kg' ? '/kg' : item.pricingType === 'sqft' ? '/sqft' : item.pricingType === 'set' ? '/set' : '/pc'}
+                          {unitSuffix(item.pricingType || 'piece', t)}
                         </Text>
                       </View>
                       {item.expressMultiplier > 1 && (
                         <View style={[styles.unitBadge, { backgroundColor: '#fff3e0' }]}>
                           <Text style={[styles.unitBadgeText, { color: '#e65100' }]}>
-                            Express {item.expressMultiplier}x
+                            {t('mobile.expressBadgeX', { multiplier: item.expressMultiplier })}
                           </Text>
                         </View>
                       )}
@@ -391,7 +404,7 @@ export default function ServiceItemsScreen({
         {/* Inactive items */}
         {inactiveItems.length > 0 && (
           <View style={styles.listSection}>
-            <Text style={styles.sectionLabel}>INACTIVE ({inactiveItems.length})</Text>
+            <Text style={styles.sectionLabel}>{t('mobile.inactiveSection', { count: inactiveItems.length })}</Text>
             <View style={[styles.listContainer, { opacity: 0.5 }]}>
               {inactiveItems.map((item, index) => (
                 <View
@@ -413,7 +426,7 @@ export default function ServiceItemsScreen({
                     style={styles.restoreBtn}
                     onPress={() => toggleItemActive(item)}
                   >
-                    <Text style={styles.restoreBtnText}>Restore</Text>
+                    <Text style={styles.restoreBtnText}>{t('mobile.restoreBtn')}</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -425,11 +438,11 @@ export default function ServiceItemsScreen({
         <View style={styles.bulkAddCard}>
           <View style={styles.bulkHeaderRow}>
             <MaterialIcons name="layers" size={20} color="#00408f" />
-            <Text style={styles.bulkTitle}>Bulk Add Items</Text>
+            <Text style={styles.bulkTitle}>{t('mobile.bulkAddTitle')}</Text>
           </View>
           <TextInput
             style={styles.bulkTextArea}
-            placeholder={"Enter items one per line:\nShirt, 30\nTrousers, 45\nSaree, 80"}
+            placeholder={t('mobile.bulkAddPlaceholder')}
             placeholderTextColor="#737685"
             multiline
             numberOfLines={4}
@@ -446,7 +459,7 @@ export default function ServiceItemsScreen({
               {bulkAdding ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.parseBtnText}>PARSE AND ADD</Text>
+                <Text style={styles.parseBtnText}>{t('mobile.parseAndAdd')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -458,7 +471,7 @@ export default function ServiceItemsScreen({
         <View style={styles.modalOverlay}>
           <ScrollView style={[styles.modalContent, { paddingBottom: insets.bottom + 16 }]} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editItem ? 'Edit Item' : 'Add Item'}</Text>
+              <Text style={styles.modalTitle}>{editItem ? t('mobile.editItemModalTitle') : t('mobile.addItemModalTitle')}</Text>
               <TouchableOpacity onPress={() => setIsItemFormOpen(false)}>
                 <MaterialIcons name="close" size={24} color="#434654" />
               </TouchableOpacity>
@@ -471,29 +484,29 @@ export default function ServiceItemsScreen({
               ) : (
                 <View style={styles.imagePlaceholder}>
                   <MaterialIcons name="add-photo-alternate" size={32} color="#737685" />
-                  <Text style={styles.imagePickerText}>Add Image</Text>
+                  <Text style={styles.imagePickerText}>{t('mobile.addImageBtn')}</Text>
                 </View>
               )}
             </TouchableOpacity>
 
-            <Text style={styles.modalLabel}>ITEM NAME</Text>
+            <Text style={styles.modalLabel}>{t('mobile.itemNameField')}</Text>
             <TextInput
               style={styles.modalInput}
               value={editName}
               onChangeText={setEditName}
-              placeholder="Item name"
+              placeholder={t('mobile.phItemName')}
             />
 
-            <Text style={styles.modalLabel}>PRICING TYPE</Text>
+            <Text style={styles.modalLabel}>{t('mobile.pricingTypeField')}</Text>
             <View style={styles.pricingRow}>
-              {PRICING_TYPES.map(t => (
+              {pricingTypes.map((pt) => (
                 <TouchableOpacity
-                  key={t.value}
-                  style={[styles.pricingChip, editPricingType === t.value && styles.pricingChipActive]}
-                  onPress={() => setEditPricingType(t.value)}
+                  key={pt.value}
+                  style={[styles.pricingChip, editPricingType === pt.value && styles.pricingChipActive]}
+                  onPress={() => setEditPricingType(pt.value)}
                 >
-                  <Text style={[styles.pricingChipText, editPricingType === t.value && styles.pricingChipTextActive]}>
-                    {t.label}
+                  <Text style={[styles.pricingChipText, editPricingType === pt.value && styles.pricingChipTextActive]}>
+                    {pt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -501,7 +514,7 @@ export default function ServiceItemsScreen({
 
             <View style={styles.modalRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>BASE PRICE (₹)</Text>
+                <Text style={styles.modalLabel}>{t('mobile.basePriceField')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editPrice}
@@ -511,7 +524,7 @@ export default function ServiceItemsScreen({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>EXPRESS MULTIPLIER</Text>
+                <Text style={styles.modalLabel}>{t('mobile.expressMultField')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editExpressMultiplier}
@@ -520,23 +533,23 @@ export default function ServiceItemsScreen({
                   placeholder="1.5"
                 />
                 <Text style={styles.expressHint}>
-                  Express: ₹{Math.round((parseFloat(editPrice) || 0) * (parseFloat(editExpressMultiplier) || 1.5))}
+                  {t('mobile.expressPricePreview', { amount: Math.round((parseFloat(editPrice) || 0) * (parseFloat(editExpressMultiplier) || 1.5)) })}
                 </Text>
               </View>
             </View>
 
             <View style={styles.modalRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>SUB-CATEGORY</Text>
+                <Text style={styles.modalLabel}>{t('mobile.subCategoryField')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editSubCategory}
                   onChangeText={setEditSubCategory}
-                  placeholder="e.g. Men's Wear"
+                  placeholder={t('mobile.phSubCategory')}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>TURNAROUND (DAYS)</Text>
+                <Text style={styles.modalLabel}>{t('mobile.turnaroundDaysField')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editTurnaroundDays}
@@ -555,7 +568,7 @@ export default function ServiceItemsScreen({
               {editSaving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.modalSaveBtnText}>{editItem ? 'Save Changes' : 'Add Item'}</Text>
+                <Text style={styles.modalSaveBtnText}>{editItem ? t('mobile.saveItemChanges') : t('mobile.addItemModalTitle')}</Text>
               )}
             </TouchableOpacity>
           </ScrollView>

@@ -14,18 +14,44 @@ import mr from '../locales/mr.json';
 import kn from '../locales/kn.json';
 import bn from '../locales/bn.json';
 import ml from '../locales/ml.json';
+import gu from '../locales/gu.json';
 
-export const MOBILE_LANG_CODES = ['en', 'hi', 'te', 'ta', 'mr', 'kn', 'bn', 'ml'] as const;
+export const MOBILE_LANG_CODES = ['en', 'hi', 'te', 'ta', 'mr', 'kn', 'bn', 'ml', 'gu'] as const;
 
-/** Matches SettingsScreen LANGUAGES and Super Admin language list */
-export const LANGUAGE_DISPLAY_TO_CODE: Record<string, string> = {
-  English: 'en',
-  Telugu: 'te',
-  Hindi: 'hi',
-  Tamil: 'ta',
-  Kannada: 'kn',
-  Malayalam: 'ml',
-};
+/** UI order: native script in the picker; legacy = old English label saved in Firestore */
+export const LANGUAGE_OPTIONS = [
+  { code: 'en', native: 'English', legacy: 'English' },
+  { code: 'te', native: 'తెలుగు', legacy: 'Telugu' },
+  { code: 'hi', native: 'हिंदी', legacy: 'Hindi' },
+  { code: 'ta', native: 'தமிழ்', legacy: 'Tamil' },
+  { code: 'mr', native: 'मराठी', legacy: 'Marathi' },
+  { code: 'kn', native: 'ಕನ್ನಡ', legacy: 'Kannada' },
+  { code: 'ml', native: 'മലയാളം', legacy: 'Malayalam' },
+  { code: 'bn', native: 'বাংলা', legacy: 'Bengali' },
+  { code: 'gu', native: 'ગુજરાતી', legacy: 'Gujarati' },
+] as const;
+
+/** Maps native label, legacy English name, or ISO code → i18n code */
+export const LANGUAGE_DISPLAY_TO_CODE: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  for (const o of LANGUAGE_OPTIONS) {
+    m[o.native] = o.code;
+    m[o.legacy] = o.code;
+    m[o.code] = o.code;
+  }
+  return m;
+})();
+
+export function resolveLanguageToCode(saved: string | undefined): string {
+  if (!saved) return 'en';
+  if ((MOBILE_LANG_CODES as readonly string[]).includes(saved)) return saved;
+  return LANGUAGE_DISPLAY_TO_CODE[saved] ?? 'en';
+}
+
+export function nativeLabelForCode(code: string): string {
+  const o = LANGUAGE_OPTIONS.find((x) => x.code === code);
+  return o?.native ?? 'English';
+}
 
 const STORAGE_KEY = 'mobile_i18n_language';
 
@@ -38,13 +64,16 @@ const resources = {
   kn: { translation: kn },
   bn: { translation: bn },
   ml: { translation: ml },
+  gu: { translation: gu },
 };
 
 i18n.use(initReactI18next).init({
   resources,
   lng: 'en',
   fallbackLng: 'en',
-  compatibilityJSON: 'v4',
+  // v4 needs Intl.PluralRules; RN/Hermes often lacks it and logs a red-box error.
+  // Our bundles use v3-style keys (e.g. turnaroundDays / turnaroundDays_plural).
+  compatibilityJSON: 'v3',
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
 });
@@ -65,8 +94,9 @@ export async function setAppLanguageCode(code: string): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, code);
 }
 
+/** Accepts native name, legacy English name, or ISO code (from Firestore / picker). */
 export async function setAppLanguageFromDisplayName(name: string): Promise<void> {
-  const code = LANGUAGE_DISPLAY_TO_CODE[name] || 'en';
+  const code = resolveLanguageToCode(name);
   await setAppLanguageCode(code);
 }
 

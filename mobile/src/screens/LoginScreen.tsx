@@ -1,10 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated, Easing } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+  Linking,
+} from 'react-native';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import { signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
 import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -12,44 +24,50 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '28
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
 const APP_LOGO = require('../../assets/login-logo.png');
 
+/** Login UI is fixed English regardless of app language (product requirement). */
+const L = {
+  brandName: 'LaundryBill',
+  headline: 'Empowering your laundry business',
+  subheadline: 'Sign in to orchestrate your operations.',
+  mobileLabel: 'MOBILE NUMBER',
+  placeholder: '00000 00000',
+  getOtp: 'Get OTP',
+  orContinue: 'OR CONTINUE WITH',
+  continueGoogle: 'Continue with Google',
+  continueApple: 'Continue with Apple',
+  trustedTitle: 'TRUSTED BY 2,400+ SHOPS',
+  trustedSubtitle: 'Processing 50k+ orders daily.',
+  trustedPlus: '+2k',
+  terms: 'TERMS OF SERVICE',
+  privacy: 'PRIVACY POLICY',
+  copyright: '© 2024 LaundryBill Technologies. All rights reserved.',
+  version: 'High-Density Operational Interface v2.4.0',
+  invalidPhone: 'Please enter a valid 10-digit mobile number.',
+  googleFailed: 'Google sign-in failed. Please try again.',
+  appleSoon: 'Apple sign-in is coming soon.',
+  appleFailed: 'Apple sign-in failed. Please try again.',
+} as const;
+
+/** Each link opens only its document (not the homepage). Override via env if your site uses different paths. */
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://laundrybill.com/terms';
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? 'https://laundrybill.com/privacy-policy';
+
+/** Georgia reads reliably on iOS; Android `serif` can be missing on some OEM builds and break Text layout. */
+const labelSerif = Platform.OS === 'ios' ? { fontFamily: 'Georgia' as const } : {};
+
 export default function LoginScreen({
-  onGetOtp
+  onGetOtp,
 }: {
-  onGetOtp: (phone: string) => Promise<void> | void
+  onGetOtp: (phone: string) => Promise<void> | void;
 }) {
   const insets = useSafeAreaInsets();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const logoFloat = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoFloat, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoFloat, {
-          toValue: 0,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [logoFloat]);
-
-  // Expo Go Google Sign-In via expo-auth-session
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  const [googleAuthRequest, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
-    // Android client ID (from google-services.json type 1)
     androidClientId: GOOGLE_WEB_CLIENT_ID,
-    // iOS is required by expo-auth-session on iOS
     iosClientId: GOOGLE_IOS_CLIENT_ID,
   });
 
@@ -61,7 +79,7 @@ export default function LoginScreen({
         signInWithGoogleIdToken(idToken)
           .catch((e) => {
             console.error('Google credential sign-in error:', e);
-            alert('Failed to sign in with Google');
+            alert(L.googleFailed);
           })
           .finally(() => setLoading(false));
       }
@@ -74,13 +92,16 @@ export default function LoginScreen({
       await signInWithGoogle();
     } catch (e: any) {
       if (e?.message === 'EXPO_GO_GOOGLE_SIGNIN') {
-        // Fallback: use expo-auth-session hook
         setLoading(false);
-        promptAsync();
+        if (!googleAuthRequest) {
+          alert('Google sign-in is still loading. Please try again in a moment.');
+          return;
+        }
+        void promptAsync();
         return;
       }
       console.error(e);
-      alert('Failed to sign in with Google');
+      alert(L.googleFailed);
     } finally {
       setLoading(false);
     }
@@ -89,140 +110,130 @@ export default function LoginScreen({
   const handleAppleLogin = async () => {
     try {
       setLoading(true);
-      // Apple sign-in logic will go here
-      alert('Apple Sign-In coming soon!');
+      alert(L.appleSoon);
     } catch (e) {
       console.error(e);
-      alert('Failed to sign in with Apple');
+      alert(L.appleFailed);
     } finally {
       setLoading(false);
     }
   };
 
   const handlePhoneLogin = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) return alert('Enter a valid 10-digit number');
+    const digits = phoneNumber.replace(/\D/g, '');
+    if (!digits || digits.length < 10) {
+      alert(L.invalidPhone);
+      return;
+    }
     setLoading(true);
-    await onGetOtp(phoneNumber);
+    await onGetOtp(digits);
     setLoading(false);
   };
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Decorative Background Blobs - Spread out for full width */}
-      <View style={styles.bgBlobTopRight} />
-      <View style={styles.bgBlobBottomLeft} />
+  const openLegal = async (url: string) => {
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch {
+      void Linking.openURL(url);
+    }
+  };
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          <View style={styles.innerContainer}>
-            {/* Top Visual Section */}
-            <View style={styles.headerSection}>
-              <Animated.View
-                style={[
-                  styles.logoWrapper,
-                  {
-                    transform: [
-                      {
-                        translateY: logoFloat.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, -6],
-                        }),
-                      },
-                      {
-                        rotate: logoFloat.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '1.5deg'],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.logoContainer}>
-                  {!logoError ? (
-                    <Image
-                      source={APP_LOGO}
-                      style={styles.logoImage}
-                      resizeMode="contain"
-                      onError={() => setLogoError(true)}
-                    />
-                  ) : (
-                    <MaterialIcons name="local-laundry-service" size={34} color="#ffffff" />
-                  )}
-                </View>
-                {/* Decorative rings around logo */}
-                <View style={styles.logoRing1} />
-                <View style={styles.logoRing2} />
-              </Animated.View>
-              <Text style={styles.title}>Laundrybill</Text>
-              <Text style={styles.subtitle}>Smart operations made simple</Text>
+  return (
+    <View style={[styles.screenRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={styles.gradientTopWash} pointerEvents="none" />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex1}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.pad}>
+            <View style={styles.brandRow}>
+              <View style={styles.logoContainer}>
+                {!logoError ? (
+                  <Image source={APP_LOGO} style={styles.logoImage} resizeMode="contain" onError={() => setLogoError(true)} />
+                ) : (
+                  <MaterialIcons name="local-laundry-service" size={30} color="#ffffff" />
+                )}
+              </View>
+              <Text style={[styles.brandName, styles.brandNameSpaced]}>{L.brandName}</Text>
             </View>
 
-            {/* Form Section */}
-            <View style={styles.formSection}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>MOBILE NUMBER</Text>
-                <View style={styles.inputContainer}>
-                  <View style={styles.countryCode}>
-                    <Text style={styles.countryCodeText}>+91</Text>
-                  </View>
-                  <TextInput 
-                    style={styles.input}
-                    placeholder="10-digit number"
-                    placeholderTextColor="rgba(67, 70, 84, 0.5)"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                  />
+            <Text style={styles.headline}>{L.headline}</Text>
+            <Text style={styles.subheadline}>{L.subheadline}</Text>
+
+            <View style={styles.formBlock}>
+              <Text style={[labelSerif, styles.inputLabel]}>{L.mobileLabel}</Text>
+              <View style={styles.inputContainer}>
+                <View style={styles.countryCode}>
+                  <Text style={styles.countryCodeText}>+91</Text>
                 </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder={L.placeholder}
+                  placeholderTextColor="rgba(67, 70, 84, 0.38)"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phoneNumber}
+                  onChangeText={(t) => setPhoneNumber(t.replace(/\D/g, ''))}
+                />
               </View>
 
-              <TouchableOpacity 
-                style={styles.primaryBtn}
-                onPress={handlePhoneLogin}
-                disabled={loading}
-              >
-                {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryBtnText}>Get OTP</Text>}
+              <TouchableOpacity style={styles.primaryBtn} onPress={handlePhoneLogin} disabled={loading} activeOpacity={0.9}>
+                {loading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <View style={styles.primaryBtnInner}>
+                    <Text style={styles.primaryBtnText}>{L.getOtp}</Text>
+                    <MaterialIcons name="arrow-forward" size={20} color="#ffffff" />
+                  </View>
+                )}
               </TouchableOpacity>
 
-              {/* Divider */}
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR</Text>
+                <Text style={[labelSerif, styles.dividerText]}>{L.orContinue}</Text>
                 <View style={styles.dividerLine} />
               </View>
 
-              {/* Social Login */}
-              <TouchableOpacity style={styles.socialBtn} onPress={handleGoogleLogin} disabled={loading}>
-                <Image 
-                  source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA8vu4Be9KgVGkh6tONtT79olHMwLVauHnCicaG5VoD8PZc1R1px38GE5az31uJ_Vt_6pdDNooMg0QTplxF753G1E9BzVbQOXptRaT6KLu8KbqxJDHApj1rpDh3o-co7xtb2Y68iCcMCYGt_AXjSjfykF8SGZ_7wuhbYz3ayC-fb349iG-DXVF46CmZSyHYJEnhL4J5AjBN1AJzssK90D9plpW9ptCwPTCN_b7e52tsAT-zhYXoxF-OdZmo19xh-RTJWFbqWqv1DtQ' }} 
-                  style={styles.socialIcon}
-                />
-                <Text style={styles.socialBtnText}>Continue with Google</Text>
+              <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} onPress={handleGoogleLogin} disabled={loading} activeOpacity={0.92}>
+                <Ionicons name="logo-google" size={22} color="#4285F4" style={styles.socialIconPad} />
+                <Text style={[labelSerif, styles.socialBtnText]}>{L.continueGoogle}</Text>
               </TouchableOpacity>
 
-              {/* Apple Login (iOS Only) */}
               {Platform.OS === 'ios' && (
-                <TouchableOpacity style={styles.socialBtn} onPress={handleAppleLogin} disabled={loading}>
-                  <MaterialIcons name="apple" size={24} color="#000000" />
-                  <Text style={styles.socialBtnText}>Continue with Apple</Text>
+                <TouchableOpacity style={styles.socialBtn} onPress={handleAppleLogin} disabled={loading} activeOpacity={0.92}>
+                  <MaterialIcons name="apple" size={24} color="#000000" style={styles.socialIconPad} />
+                  <Text style={[labelSerif, styles.socialBtnText]}>{L.continueApple}</Text>
                 </TouchableOpacity>
               )}
             </View>
-          </View>
 
-          {/* Legal Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              By continuing, you agree to our <Text style={styles.footerLink}>Terms</Text> and <Text style={styles.footerLink}>Privacy Policy</Text>
-            </Text>
-          </View>
+            <View style={styles.trustBanner}>
+              <View style={styles.avatarRow}>
+                {['#f59e0b', '#3b82f6', '#a855f7'].map((bg, i) => (
+                  <View key={bg} style={[styles.avatar, { backgroundColor: bg, marginLeft: i === 0 ? 0 : -10 }]} />
+                ))}
+                <View style={[styles.avatar, styles.plusAvatar, { marginLeft: -10 }]}>
+                  <Text style={styles.plusAvatarText}>{L.trustedPlus}</Text>
+                </View>
+              </View>
+              <View style={styles.trustCopy}>
+                <Text style={styles.trustTitle}>{L.trustedTitle}</Text>
+                <Text style={styles.trustSub}>{L.trustedSubtitle}</Text>
+              </View>
+            </View>
 
+            <View style={styles.footer}>
+              <View style={styles.footerLinks}>
+                <TouchableOpacity onPress={() => openLegal(TERMS_URL)} hitSlop={8}>
+                  <Text style={[labelSerif, styles.footerLink]}>{L.terms}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.footerDot, styles.footerDotPad]}>·</Text>
+                <TouchableOpacity onPress={() => openLegal(PRIVACY_URL)} hitSlop={8}>
+                  <Text style={[labelSerif, styles.footerLink]}>{L.privacy}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.footerMeta}>{L.copyright}</Text>
+              <Text style={styles.footerVersion}>{L.version}</Text>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -230,127 +241,103 @@ export default function LoginScreen({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screenRoot: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8faff',
+    overflow: 'hidden',
   },
-  bgBlobTopRight: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(0, 86, 189, 0.04)', // primary-container dim
+  flex1: {
+    flex: 1,
   },
-  bgBlobBottomLeft: {
-    position: 'absolute',
-    bottom: -150,
-    left: -150,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: 'rgba(118, 244, 224, 0.08)', // secondary-container dim
+  gradientTopWash: {
+    ...StyleSheet.absoluteFillObject,
+    height: '55%',
+    backgroundColor: '#dbe8ff',
+    opacity: 0.55,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'space-between',
+    paddingBottom: 24,
   },
-  innerContainer: {
-    flex: 1,
+  pad: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
-  headerSection: {
-    paddingTop: 24,
-    paddingBottom: 8,
+  brandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 10,
-  },
-  logoWrapper: {
-    position: 'relative',
-    width: 96,
-    height: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  logoRing1: {
-    position: 'absolute',
-    width: 82,
-    height: 82,
-    borderRadius: 50,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 64, 143, 0.1)',
-  },
-  logoRing2: {
-    position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 60,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 64, 143, 0.05)',
+    marginBottom: 20,
   },
   logoContainer: {
-    width: 68,
-    height: 68,
+    width: 48,
+    height: 48,
     backgroundColor: '#00408f',
-    borderRadius: 18,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#00408f',
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-    zIndex: 2,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   logoImage: {
-    width: 46,
-    height: 46,
+    width: 32,
+    height: 32,
   },
-  title: {
-    fontSize: 28,
+  brandName: {
+    fontSize: 22,
     fontWeight: '800',
     color: '#00408f',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 4,
+  brandNameSpaced: {
+    marginLeft: 12,
   },
-  formSection: {
-    paddingHorizontal: 24,
-    paddingBottom: 28,
-    gap: 16,
+  headline: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#191c1e',
+    letterSpacing: -0.6,
+    lineHeight: 32,
+    marginBottom: 8,
   },
-  inputGroup: {
-    gap: 8,
+  subheadline: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#434654',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  formBlock: {
+    marginTop: 0,
   },
   inputLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#191c1e',
+    fontWeight: '600',
+    color: '#737685',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginLeft: 4,
+    marginLeft: 2,
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
-    height: 52,
-    backgroundColor: '#f8f9fb',
-    borderRadius: 12,
+    height: 54,
+    marginBottom: 14,
+    backgroundColor: 'rgba(241, 245, 249, 0.95)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(195, 198, 214, 0.4)',
+    borderColor: 'rgba(195, 198, 214, 0.45)',
     overflow: 'hidden',
   },
   countryCode: {
-    paddingHorizontal: 16,
-    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 14,
+    backgroundColor: '#eef2f6',
     justifyContent: 'center',
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(195, 198, 214, 0.3)',
+    borderRightColor: 'rgba(195, 198, 214, 0.4)',
   },
   countryCodeText: {
     fontSize: 16,
@@ -359,85 +346,168 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#191c1e',
-    paddingHorizontal: 16,
-    letterSpacing: 1,
+    paddingHorizontal: 14,
+    letterSpacing: 0.5,
   },
   primaryBtn: {
-    height: 50,
+    height: 52,
+    marginBottom: 14,
     backgroundColor: '#00408f',
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#00408f',
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
+  primaryBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   primaryBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    marginRight: 10,
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    marginTop: 4,
+    marginBottom: 14,
   },
   dividerLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(195, 198, 214, 0.4)',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(148, 163, 184, 0.55)',
   },
   dividerText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#737685',
-    letterSpacing: 1,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    paddingHorizontal: 12,
   },
   socialBtn: {
-    height: 50,
+    minHeight: 52,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(195, 198, 214, 0.5)',
-    borderRadius: 12,
+    borderColor: 'rgba(195, 198, 214, 0.55)',
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
-  socialIcon: {
-    width: 24,
-    height: 24,
+  socialBtnGap: {
+    marginBottom: 14,
+  },
+  socialIconPad: {
+    marginRight: 12,
   },
   socialBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#191c1e',
   },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 14,
+  trustBanner: {
+    marginTop: 28,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(241, 245, 249, 0.9)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
   },
-  footerText: {
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  plusAvatar: {
+    backgroundColor: '#14532d',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusAvatarText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  trustCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trustTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#191c1e',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  trustSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 4,
+  },
+  footer: {
+    marginTop: 28,
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  footerLink: {
     fontSize: 10,
+    fontWeight: '600',
     color: '#737685',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  footerDot: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  footerDotPad: {
+    marginHorizontal: 8,
+  },
+  footerMeta: {
+    fontSize: 11,
+    color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 16,
   },
-  footerLink: {
-    fontWeight: '700',
-    color: '#00408f',
+  footerVersion: {
+    fontSize: 10,
+    color: '#cbd5e1',
+    marginTop: 6,
+    textAlign: 'center',
   },
 });

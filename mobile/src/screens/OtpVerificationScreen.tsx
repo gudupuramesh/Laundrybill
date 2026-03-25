@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable, Keyboard } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const APP_LOGO = require('../../assets/login-logo.png');
 
 export default function OtpVerificationScreen({
   onVerify,
@@ -12,10 +15,12 @@ export default function OtpVerificationScreen({
   onBack: () => void,
   phoneNumber?: string
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [otpCode, setOtpCode] = useState('');
   const [timeLeft, setTimeLeft] = useState(45);
   const [loading, setLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const otpInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -27,7 +32,7 @@ export default function OtpVerificationScreen({
   }, [timeLeft]);
 
   const handleVerify = async () => {
-    if (otpCode.length < 4) return alert('Please enter all 4 digits');
+    if (otpCode.length < 4) return alert(t('mobile.otpEnterFourDigits'));
     setLoading(true);
     await onVerify(otpCode);
     setLoading(false);
@@ -60,18 +65,22 @@ export default function OtpVerificationScreen({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* Logo */}
+        {/* Logo — matches login screen */}
         <View style={styles.logoContainer}>
           <View style={styles.logoIconBg}>
-            <MaterialIcons name="local-laundry-service" size={32} color="#ffffff" />
+            {!logoError ? (
+              <Image source={APP_LOGO} style={styles.logoImage} resizeMode="contain" onError={() => setLogoError(true)} />
+            ) : (
+              <MaterialIcons name="local-laundry-service" size={32} color="#ffffff" />
+            )}
           </View>
-          <Text style={styles.appName}>Laundrybill</Text>
+          <Text style={styles.appName}>{t('common.appName')}</Text>
         </View>
 
         {/* Instructions */}
-        <Text style={styles.headline}>Verify OTP</Text>
+        <Text style={styles.headline}>{t('auth.verifyOtp')}</Text>
         <Text style={styles.instructionText}>
-          Enter the 4-digit code sent to{'\n'}<Text style={styles.instructionPhone}>+91 {phoneNumber}</Text>
+          {t('mobile.otpEnterFourDigitCode')}{'\n'}<Text style={styles.instructionPhone}>+91 {phoneNumber}</Text>
         </Text>
 
         {/* OTP Input Grid */}
@@ -113,7 +122,7 @@ export default function OtpVerificationScreen({
         <View style={styles.timerRow}>
           <MaterialIcons name="schedule" size={14} color="#434654" />
           <Text style={styles.timerText}>
-            Resend code in 0:{timeLeft < 10 ? `0${timeLeft}` : timeLeft}
+            {t('mobile.resendCodeIn', { time: `0:${timeLeft < 10 ? `0${timeLeft}` : timeLeft}` })}
           </Text>
         </View>
 
@@ -123,14 +132,14 @@ export default function OtpVerificationScreen({
           onPress={handleVerify}
           disabled={loading || otpCode.length < 4}
         >
-          {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryBtnText}>Verify & Proceed</Text>}
+          {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryBtnText}>{t('mobile.verifyProceed')}</Text>}
         </TouchableOpacity>
 
         {/* Resend */}
         <View style={styles.resendRow}>
-          <Text style={styles.resendLabel}>Didn't receive the code?</Text>
+          <Text style={styles.resendLabel}>{t('mobile.didntReceiveCode')}</Text>
           <TouchableOpacity disabled={timeLeft > 0}>
-            <Text style={[styles.resendBtn, timeLeft > 0 && { opacity: 0.4 }]}>Resend</Text>
+            <Text style={[styles.resendBtn, timeLeft > 0 && { opacity: 0.4 }]}>{t('mobile.resend')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -149,8 +158,14 @@ const styles = StyleSheet.create({
   logoIconBg: {
     width: 56, height: 56, backgroundColor: '#00408f', borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    shadowColor: '#00408f',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  appName: { fontSize: 18, fontWeight: '700', color: '#0056bd' },
+  logoImage: { width: 36, height: 36 },
+  appName: { fontSize: 18, fontWeight: '800', color: '#00408f', letterSpacing: -0.2 },
   headline: { fontSize: 22, fontWeight: '700', color: '#191c1e', marginBottom: 8 },
   instructionText: { fontSize: 14, fontWeight: '500', color: '#434654', textAlign: 'center', marginBottom: 28, lineHeight: 20 },
   instructionPhone: { fontWeight: '700', color: '#191c1e' },
