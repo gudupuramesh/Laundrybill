@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import functions from '@react-native-firebase/functions';
-import { WebView } from 'react-native-webview';
+import { endAppleIap, getAppleSubscriptionDisplayPrice, getIosProductId, initAppleIap, isAppleIapAvailable, normalizeReceipt, requestAppleSubscription, restoreAppleSubscriptions } from '../lib/billing/appleIap';
+import { endGoogleIap, finishGoogleTransaction, getAndroidProductId, getGoogleSubscriptionDisplayPrice, initGoogleIap, isGoogleIapAvailable, normalizeGooglePurchase, requestGoogleSubscription, restoreGoogleSubscriptions } from '../lib/billing/googleIap';
 
 type PlanDoc = {
   id: string;
@@ -21,6 +22,8 @@ type PlanDoc = {
     maxStaff?: number;
   };
 };
+
+const PRIMARY_PAID_PLAN_ID = (process.env.EXPO_PUBLIC_PRIMARY_PLAN_ID || 'pro').toLowerCase();
 
 function formatLimit(v: number | undefined, t: (k: string) => string) {
   if (v === -1) return t('mobile.unlimited');
@@ -39,9 +42,12 @@ export default function SubscriptionScreen({
   const [sub, setSub] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const [shopData, setShopData] = useState<any>(null);
+  const [storePricesByPlanId, setStorePricesByPlanId] = useState<Record<string, string>>({});
+  const [loadingStorePrices, setLoadingStorePrices] = useState(false);
   const [payLoadingPlanId, setPayLoadingPlanId] = useState<string | null>(null);
-  const [checkoutHtml, setCheckoutHtml] = useState<string | null>(null);
+  const [purchaseState, setPurchaseState] = useState<'idle' | 'initiated' | 'pending_verify' | 'active' | 'failed' | 'cancelled'>('idle');
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     let unsubPlans: (() => void) | undefined;
@@ -54,7 +60,8 @@ export default function SubscriptionScreen({
             const list: PlanDoc[] = snap.docs
               .map((d: any) => ({ id: d.id, ...d.data() }))
               .filter((p: PlanDoc) => p.isActive !== false)
-              .sort((a: PlanDoc, b: PlanDoc) => (a.prices?.monthly || 0) - (b.prices?.monthly || 0));
+              .filter((p: PlanDoc) => p.id.toLowerCase() === PRIMARY_PAID_PLAN_ID)
+              .sort((a: PlanDoc, b: PlanDoc) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
             setPlans(list);
             setLoading(false);
           },
@@ -62,10 +69,6 @@ export default function SubscriptionScreen({
         );
 
       if (shopId) {
-        firestore().collection('shops').doc(shopId).get().then((d: any) => {
-          if (d.exists) setShopData(d.data());
-        }).catch(() => {});
-
         unsubSub = firestore()
           .collection('subscriptions')
           .doc(shopId)
@@ -79,6 +82,8 @@ export default function SubscriptionScreen({
     return () => {
       unsubPlans?.();
       unsubSub?.();
+      endAppleIap().catch(() => {});
+      endGoogleIap().catch(() => {});
     };
   }, [shopId]);
 
@@ -86,110 +91,259 @@ export default function SubscriptionScreen({
     return (sub?.planId || sub?.planName || 'free')?.toLowerCase();
   }, [sub]);
 
-  const startCheckout = async (plan: PlanDoc) => {
-    if (!shopId) return;
-    if (payLoadingPlanId) return;
-    try {
-      setPayLoadingPlanId(plan.id);
-      const createOrder = functions().httpsCallable('createRazorpayOrder');
-      const result: any = await createOrder({
-        planId: plan.id,
-        billingCycle: cycle,
-        shopId,
-      });
+  useEffect(() => {
+    let cancelled = false;
 
-      const orderId = result?.data?.orderId;
-      const key = result?.data?.key || process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID;
-      const amount = result?.data?.amount || 0;
-
-      if (!orderId || !key) {
-        throw new Error('Unable to initialize payment.');
+    const loadStorePrices = async () => {
+      if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+        if (!cancelled) setStorePricesByPlanId({});
+        return;
       }
 
-      const prefillName = shopData?.name || 'LaundryBill';
-      const prefillEmail = shopData?.email || '';
-      const prefillPhone = String(shopData?.phone || '').replace(/\D/g, '');
-      const notes = {
-        shopId,
+      if (!Array.isArray(plans) || plans.length === 0) {
+        if (!cancelled) setStorePricesByPlanId({});
+        return;
+      }
+
+      try {
+        setLoadingStorePrices(true);
+        const entries = await Promise.all(
+          plans.map(async (plan) => {
+            try {
+              if (Platform.OS === 'android') {
+                if (!isGoogleIapAvailable()) return [plan.id, null] as const;
+                await initGoogleIap();
+                const productId = getAndroidProductId(plan.id, cycle);
+                const price = await getGoogleSubscriptionDisplayPrice(productId);
+                return [plan.id, price] as const;
+              }
+
+              if (!isAppleIapAvailable()) return [plan.id, null] as const;
+              await initAppleIap();
+              const productId = getIosProductId(plan.id, cycle);
+              const price = await getAppleSubscriptionDisplayPrice(productId);
+              return [plan.id, price] as const;
+            } catch (_) {
+              return [plan.id, null] as const;
+            }
+          })
+        );
+
+        if (cancelled) return;
+        const next: Record<string, string> = {};
+        for (const [planId, price] of entries) {
+          if (typeof price === 'string' && price.length > 0) {
+            next[planId] = price;
+          }
+        }
+        setStorePricesByPlanId(next);
+      } finally {
+        if (!cancelled) setLoadingStorePrices(false);
+      }
+    };
+
+    loadStorePrices();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plans, cycle]);
+
+  const startAndroidPurchase = async (plan: PlanDoc) => {
+    if (!shopId) return;
+    if (Platform.OS !== 'android') return;
+    if (payLoadingPlanId) return;
+    if (!isGoogleIapAvailable()) {
+      Alert.alert('Google Play Billing unavailable', 'Install native billing dependency and test on Android device.');
+      return;
+    }
+    try {
+      setPurchaseError(null);
+      setPurchaseState('initiated');
+      setPayLoadingPlanId(plan.id);
+      await initGoogleIap();
+      const productId = getAndroidProductId(plan.id, cycle);
+      const purchase = await requestGoogleSubscription(productId);
+      const normalized = normalizeGooglePurchase(purchase);
+      if (!normalized.purchaseToken) {
+        throw new Error('Missing Google purchase token');
+      }
+      setPurchaseState('pending_verify');
+      const verifyGooglePurchase = functions().httpsCallable('verifyGooglePurchase');
+      await verifyGooglePurchase({
         planId: plan.id,
         billingCycle: cycle,
-      };
-
-      const html = `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <style>
-      html, body { margin:0; padding:0; background:#0f172a; color:#fff; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; }
-      .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; }
-      .card { text-align:center; padding:24px; }
-      .title { font-size:16px; opacity:.85; margin-bottom:8px; }
-      .amount { font-size:28px; font-weight:700; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <div class="title">Opening secure payment</div>
-        <div class="amount">${amount ? `INR ${Math.round(Number(amount) / 100)}` : ''}</div>
-      </div>
-    </div>
-    <script>
-      (function () {
-        var sent = false;
-        function send(type, payload) {
-          if (sent && (type === 'dismiss')) return;
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, payload: payload || {} }));
-          }
-          if (type !== 'error') sent = true;
-        }
-        var options = {
-          key: ${JSON.stringify(key)},
-          order_id: ${JSON.stringify(orderId)},
-          amount: ${JSON.stringify(amount)},
-          currency: 'INR',
-          name: 'LaundryBill',
-          description: ${JSON.stringify(`${plan.name || plan.id} (${cycle})`)},
-          prefill: {
-            name: ${JSON.stringify(prefillName)},
-            email: ${JSON.stringify(prefillEmail)},
-            contact: ${JSON.stringify(prefillPhone)}
-          },
-          notes: ${JSON.stringify(notes)},
-          theme: { color: '#00408f' },
-          handler: function (response) {
-            send('success', response || {});
-          },
-          modal: {
-            ondismiss: function () {
-              send('dismiss', {});
-            }
-          }
-        };
-        try {
-          var rz = new Razorpay(options);
-          rz.on('payment.failed', function (resp) {
-            send('failed', resp && resp.error ? resp.error : {});
-          });
-          rz.open();
-        } catch (e) {
-          send('error', { message: e && e.message ? e.message : 'Checkout initialization failed' });
-        }
-      })();
-    </script>
-  </body>
-</html>`;
-      setCheckoutHtml(html);
+        shopId,
+        purchaseToken: normalized.purchaseToken,
+        transactionId: normalized.transactionId,
+        productId: normalized.productId,
+        rawData: normalized.rawData,
+        signature: normalized.signature,
+      });
+      const verified = await waitForSubscriptionActivation(plan.id);
+      if (verified) {
+        await finishGoogleTransaction(purchase as any).catch(() => {});
+        Alert.alert(t('mobile.paymentSuccessTitle'), 'Subscription activated successfully.');
+      } else {
+        Alert.alert(t('mobile.paymentSuccessTitle'), 'Purchase submitted. Verification in progress.');
+      }
     } catch (e: any) {
+      setPurchaseState('failed');
+      setPurchaseError(e?.message || t('mobile.couldNotStartPayment'));
       Alert.alert(t('mobile.paymentErrorTitle'), e?.message || t('mobile.couldNotStartPayment'));
     } finally {
       setPayLoadingPlanId(null);
     }
   };
 
-  const closeCheckout = () => setCheckoutHtml(null);
+  const startIosPurchase = async (plan: PlanDoc) => {
+    if (!shopId) return;
+    if (payLoadingPlanId) return;
+    if (!isAppleIapAvailable()) {
+      Alert.alert('Apple IAP unavailable', 'Install native billing dependency and test on iOS device.');
+      return;
+    }
+    try {
+      setPayLoadingPlanId(plan.id);
+      setPurchaseState('initiated');
+      setPurchaseError(null);
+      await initAppleIap();
+      const productId = getIosProductId(plan.id, cycle);
+      const purchase = await requestAppleSubscription(productId);
+      const normalized = normalizeReceipt(purchase);
+      if (!normalized.receiptData) throw new Error('Missing purchase receipt');
+
+      setPurchaseState('pending_verify');
+      const verifyApplePurchase = functions().httpsCallable('verifyApplePurchase');
+      await verifyApplePurchase({
+        shopId,
+        planId: plan.id,
+        billingCycle: cycle,
+        receiptData: normalized.receiptData,
+        transactionId: normalized.transactionId,
+        originalTransactionId: normalized.originalTransactionId,
+        productId: normalized.productId,
+      });
+      const verified = await waitForSubscriptionActivation(plan.id);
+      if (verified) {
+        Alert.alert(t('mobile.paymentSuccessTitle'), 'Subscription activated successfully.');
+      } else {
+        Alert.alert(t('mobile.paymentSuccessTitle'), 'Purchase submitted. Verification in progress.');
+      }
+    } catch (e: any) {
+      setPurchaseState('failed');
+      setPurchaseError(e?.message || 'Unable to complete purchase.');
+      Alert.alert(t('mobile.paymentErrorTitle'), e?.message || 'Unable to complete purchase.');
+    } finally {
+      setPayLoadingPlanId(null);
+    }
+  };
+
+  const restorePurchases = async () => {
+    if (!shopId) return;
+    if (Platform.OS === 'ios' && !isAppleIapAvailable()) {
+      Alert.alert('Apple IAP unavailable', 'Restore requires iOS native IAP support.');
+      return;
+    }
+    if (Platform.OS === 'android' && !isGoogleIapAvailable()) {
+      Alert.alert('Google Play Billing unavailable', 'Restore requires Android native billing support.');
+      return;
+    }
+    try {
+      setRestoring(true);
+      const purchases = Platform.OS === 'ios'
+        ? await (async () => { await initAppleIap(); return restoreAppleSubscriptions(); })()
+        : await (async () => { await initGoogleIap(); return restoreGoogleSubscriptions(); })();
+      if (!Array.isArray(purchases) || purchases.length === 0) {
+        Alert.alert('Restore Purchases', 'No previous purchases found.');
+        return;
+      }
+      const latest = purchases[purchases.length - 1] as any;
+
+      if (Platform.OS === 'ios') {
+        const normalized = normalizeReceipt(latest);
+        const restorePlanId = plans.find((p) => normalized.productId?.includes(p.id))?.id || sub?.planId || "pro";
+        const restoreCycle: "monthly" | "yearly" = normalized.productId?.includes("yearly") ? "yearly" : "monthly";
+        if (!normalized.receiptData) {
+          Alert.alert('Restore Purchases', 'Could not read receipt from restored purchase.');
+          return;
+        }
+        const verifyApplePurchase = functions().httpsCallable('verifyApplePurchase');
+        await verifyApplePurchase({
+          shopId,
+          planId: restorePlanId,
+          billingCycle: restoreCycle,
+          receiptData: normalized.receiptData,
+          transactionId: normalized.transactionId,
+          originalTransactionId: normalized.originalTransactionId,
+          productId: normalized.productId,
+          isRestore: true,
+        });
+        setPurchaseState('pending_verify');
+        const verified = await waitForSubscriptionActivation(restorePlanId);
+        if (verified) {
+          Alert.alert('Restore Purchases', 'Your subscription has been restored.');
+        } else {
+          Alert.alert('Restore Purchases', 'Restore submitted. Verification in progress.');
+        }
+      } else {
+        const normalized = normalizeGooglePurchase(latest);
+        const restorePlanId = plans.find((p) => normalized.productId?.includes(p.id))?.id || sub?.planId || "pro";
+        const restoreCycle: "monthly" | "yearly" = normalized.productId?.includes("yearly") ? "yearly" : "monthly";
+        if (!normalized.purchaseToken) {
+          Alert.alert('Restore Purchases', 'Could not read purchase token from restored purchase.');
+          return;
+        }
+        const verifyGooglePurchase = functions().httpsCallable('verifyGooglePurchase');
+        await verifyGooglePurchase({
+          shopId,
+          planId: restorePlanId,
+          billingCycle: restoreCycle,
+          purchaseToken: normalized.purchaseToken,
+          transactionId: normalized.transactionId,
+          productId: normalized.productId,
+          rawData: normalized.rawData,
+          signature: normalized.signature,
+          isRestore: true,
+        });
+        setPurchaseState('pending_verify');
+        const verified = await waitForSubscriptionActivation(restorePlanId);
+        if (verified) {
+          Alert.alert('Restore Purchases', 'Your subscription has been restored.');
+        } else {
+          Alert.alert('Restore Purchases', 'Restore submitted. Verification in progress.');
+        }
+      }
+    } catch (e: any) {
+      setPurchaseState('failed');
+      setPurchaseError(e?.message || 'Unable to restore purchases.');
+      Alert.alert('Restore Purchases', e?.message || 'Unable to restore purchases.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const waitForSubscriptionActivation = async (planId: string) => {
+    if (!shopId) return false;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        const snap = await firestore().collection('subscriptions').doc(shopId).get();
+        const data = snap.data() as any;
+        if (
+          data?.status === 'active' &&
+          String(data?.planId || '').toLowerCase() === String(planId).toLowerCase()
+        ) {
+          setPurchaseState('active');
+          return true;
+        }
+      } catch (_) {
+        // ignore and retry
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    setPurchaseState('pending_verify');
+    return false;
+  };
 
   if (loading) {
     return (
@@ -223,8 +377,26 @@ export default function SubscriptionScreen({
           <Text style={[styles.cycleText, cycle === 'yearly' && styles.cycleTextActive]}>{t('mobile.billingYearly')}</Text>
         </TouchableOpacity>
       </View>
+      {Platform.OS === 'ios' || Platform.OS === 'android' ? (
+        <View style={styles.restoreRow}>
+          <TouchableOpacity style={styles.restoreBtn} onPress={restorePurchases} disabled={restoring}>
+            {restoring ? <ActivityIndicator size="small" color="#00408f" /> : <Text style={styles.restoreBtnText}>Restore Purchases</Text>}
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
+        {purchaseState === 'pending_verify' ? (
+          <View style={styles.pendingBanner}>
+            <Text style={styles.pendingBannerText}>{t('mobile.paymentSuccessMsg')}</Text>
+            <Text style={styles.pendingBannerSubText}>Waiting for secure payment verification...</Text>
+          </View>
+        ) : null}
+        {purchaseState === 'failed' && purchaseError ? (
+          <View style={styles.failedBanner}>
+            <Text style={styles.failedBannerText}>{purchaseError}</Text>
+          </View>
+        ) : null}
         {plans.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="subscriptions" size={42} color="#c3c6d6" />
@@ -232,8 +404,9 @@ export default function SubscriptionScreen({
           </View>
         ) : (
           plans.map((plan) => {
-            const price = cycle === 'yearly' ? (plan.prices?.yearly ?? 0) : (plan.prices?.monthly ?? 0);
             const isCurrent = currentPlanId === plan.id.toLowerCase();
+            const storePrice = storePricesByPlanId[plan.id] || '';
+            const canPurchase = storePrice.length > 0;
             return (
               <View key={plan.id} style={[styles.planCard, isCurrent && styles.currentCard]}>
                 <View style={styles.planTop}>
@@ -252,8 +425,8 @@ export default function SubscriptionScreen({
                 </View>
 
                 <Text style={styles.price}>
-                  {price === 0 ? t('mobile.planFree') : `₹${Math.round(price).toLocaleString()}`}
-                  {price === 0 ? '' : <Text style={styles.priceUnit}>{cycle === 'yearly' ? t('mobile.pricePerYr') : t('mobile.pricePerMo')}</Text>}
+                  {storePrice || (loadingStorePrices ? 'Loading store price...' : 'Price unavailable')}
+                  {storePrice ? <Text style={styles.priceUnit}>{cycle === 'yearly' ? t('mobile.pricePerYr') : t('mobile.pricePerMo')}</Text> : null}
                 </Text>
 
                 <View style={styles.limitsRow}>
@@ -263,15 +436,23 @@ export default function SubscriptionScreen({
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.chooseBtn, isCurrent && styles.chooseBtnDisabled]}
-                  disabled={isCurrent || payLoadingPlanId === plan.id}
-                  onPress={() => startCheckout(plan)}
+                  style={[styles.chooseBtn, (isCurrent || !canPurchase) && styles.chooseBtnDisabled]}
+                  disabled={isCurrent || !canPurchase || payLoadingPlanId === plan.id || purchaseState === 'pending_verify'}
+                  onPress={() => (Platform.OS === 'ios' ? startIosPurchase(plan) : startAndroidPurchase(plan))}
                 >
                   {payLoadingPlanId === plan.id ? (
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
-                  <Text style={[styles.chooseBtnText, isCurrent && styles.chooseBtnTextDisabled]}>
-                    {isCurrent ? t('mobile.currentPlanBtn') : t('mobile.requestUpgrade')}
+                  <Text style={[styles.chooseBtnText, (isCurrent || !canPurchase) && styles.chooseBtnTextDisabled]}>
+                    {isCurrent
+                      ? t('mobile.currentPlanBtn')
+                      : !canPurchase
+                        ? 'Store price unavailable'
+                      : purchaseState === 'pending_verify'
+                        ? 'Verifying payment...'
+                        : Platform.OS === 'android'
+                          ? t('mobile.requestUpgrade')
+                          : 'Subscribe with Apple'}
                   </Text>
                   )}
                 </TouchableOpacity>
@@ -281,41 +462,6 @@ export default function SubscriptionScreen({
         )}
       </ScrollView>
 
-      <Modal visible={!!checkoutHtml} animationType="slide" onRequestClose={closeCheckout}>
-        <View style={styles.checkoutHeader}>
-          <TouchableOpacity onPress={closeCheckout} style={styles.iconBtn}>
-            <MaterialIcons name="close" size={24} color="#191c1e" />
-          </TouchableOpacity>
-          <Text style={styles.checkoutTitle}>{t('mobile.secureCheckout')}</Text>
-          <View style={styles.iconBtn} />
-        </View>
-        {checkoutHtml ? (
-          <WebView
-            originWhitelist={['*']}
-            source={{ html: checkoutHtml }}
-            onMessage={(event) => {
-              try {
-                const msg = JSON.parse(event.nativeEvent.data || '{}');
-                const type = msg?.type;
-                if (type === 'success') {
-                  closeCheckout();
-                  Alert.alert(t('mobile.paymentSuccessTitle'), t('mobile.paymentSuccessMsg'));
-                } else if (type === 'failed') {
-                  closeCheckout();
-                  Alert.alert(t('mobile.paymentFailedTitle'), msg?.payload?.description || t('mobile.paymentFailedMsg'));
-                } else if (type === 'dismiss') {
-                  closeCheckout();
-                } else if (type === 'error') {
-                  closeCheckout();
-                  Alert.alert(t('mobile.paymentErrorTitle'), msg?.payload?.message || t('mobile.paymentCheckoutError'));
-                }
-              } catch (_) {
-                closeCheckout();
-              }
-            }}
-          />
-        ) : null}
-      </Modal>
     </View>
   );
 }
@@ -345,6 +491,19 @@ const styles = StyleSheet.create({
   cycleBtnActive: { backgroundColor: '#ffffff' },
   cycleText: { fontSize: 13, fontWeight: '700', color: '#737685' },
   cycleTextActive: { color: '#00408f' },
+  restoreRow: { paddingHorizontal: 16, marginTop: -6, marginBottom: 10 },
+  restoreBtn: {
+    alignSelf: 'flex-end',
+    borderWidth: 1,
+    borderColor: '#bed4ff',
+    backgroundColor: '#edf4ff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  restoreBtnText: { color: '#00408f', fontSize: 12, fontWeight: '700' },
   scrollContent: { paddingHorizontal: 16, gap: 10 },
   planCard: {
     backgroundColor: '#ffffff',
@@ -378,16 +537,24 @@ const styles = StyleSheet.create({
   chooseBtnDisabled: { backgroundColor: '#e7e8ea' },
   chooseBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
   chooseBtnTextDisabled: { color: '#434654' },
-  checkoutHeader: {
-    height: 54,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(195,198,214,0.25)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  checkoutTitle: { fontSize: 16, fontWeight: '700', color: '#191c1e' },
   emptyState: { alignItems: 'center', paddingTop: 48, gap: 8 },
   emptyText: { fontSize: 13, color: '#737685' },
+  pendingBanner: {
+    backgroundColor: '#e8f0ff',
+    borderWidth: 1,
+    borderColor: '#bed4ff',
+    borderRadius: 10,
+    padding: 10,
+    gap: 3,
+  },
+  pendingBannerText: { color: '#00408f', fontSize: 13, fontWeight: '700' },
+  pendingBannerSubText: { color: '#3567ad', fontSize: 12 },
+  failedBanner: {
+    backgroundColor: '#ffecec',
+    borderWidth: 1,
+    borderColor: '#ffcbcb',
+    borderRadius: 10,
+    padding: 10,
+  },
+  failedBannerText: { color: '#aa2222', fontSize: 12, fontWeight: '600' },
 });

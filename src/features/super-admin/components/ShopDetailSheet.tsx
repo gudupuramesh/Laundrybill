@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useOverridePlan, useCreateSubscription } from "../hooks/use-subscriptions";
+import { useOverridePlan, useCreateSubscription, useMoveSubscriptionToFree } from "../hooks/use-subscriptions";
 import { usePayments } from "../hooks/use-payments";
 import { useShopStorageEvents } from "../hooks/use-shop-storage-events";
 import { useShopStorageStats, formatStorageBytes } from "../hooks/use-shop-storage-stats";
@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import type { Shop } from "@/types/shop";
 import type { Subscription } from "@/types/super-admin";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 import { PLANS } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { formatCurrencyValue } from "@/hooks/use-currency";
@@ -53,9 +54,12 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
     const [newPlan, setNewPlan] = useState<PlanType>("pro");
     const [newEndDate, setNewEndDate] = useState("");
     const [overrideReason, setOverrideReason] = useState("");
+    const [showMoveToFree, setShowMoveToFree] = useState(false);
+    const [moveToFreeReason, setMoveToFreeReason] = useState("");
 
     const { overridePlan, loading: overriding } = useOverridePlan();
     const { createSubscription, loading: creating } = useCreateSubscription();
+    const { moveToFree, loading: movingToFree } = useMoveSubscriptionToFree();
     const { payments } = usePayments({ shopId: shopId || undefined });
     const { events: storageEvents, loading: storageLoading } = useShopStorageEvents(shopId);
     const { stats: storageStats, loading: storageStatsLoading } = useShopStorageStats(shopId);
@@ -80,7 +84,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                     if (endDate) {
                         setNewEndDate(format(endDate, "yyyy-MM-dd"));
                     }
-                    setNewPlan(subDoc.data().planId || "pro");
+                    setNewPlan(normalizePlanId(subDoc.data().planId) as PlanType);
                 } else {
                     setSubscription(null);
                 }
@@ -94,6 +98,8 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
         if (open && shopId) {
             fetchData();
             setShowOverride(false);
+            setShowMoveToFree(false);
+            setMoveToFreeReason("");
         }
     }, [shopId, open]);
 
@@ -140,6 +146,31 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
         }
     };
 
+    const handleMoveToFree = async () => {
+        if (!subscription || !superAdmin || !shopId) return;
+        const trimmed = moveToFreeReason.trim();
+        if (!trimmed) {
+            alert("Please enter a short reason (for the audit log).");
+            return;
+        }
+        const result = await moveToFree(subscription.id, shopId, trimmed, superAdmin.id);
+        if (result?.success) {
+            alert(`Shop moved to Free plan.\nShop ID: ${result.shopId}`);
+            setShowMoveToFree(false);
+            setMoveToFreeReason("");
+            onUpdate?.();
+            onClose();
+        }
+    };
+
+    const subscriptionCanonicalPlan = subscription
+        ? normalizePlanId(String(subscription.planId))
+        : "free";
+    const isAlreadyFreeTier =
+        subscription &&
+        subscriptionCanonicalPlan === "free" &&
+        subscription.status === "free";
+
     return (<LResponsiveDialog open={open} onClose={onClose} title="Shop Details">
         {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -181,11 +212,18 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
 
                     {subscription ? (
                         <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Plan</span>
-                                <span className="font-medium capitalize">
-                                    {subscription.planId.replace("_", " ")}
-                                </span>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-muted-foreground shrink-0">Plan</span>
+                                <div className="text-right min-w-0">
+                                    <span className="font-medium">
+                                        {PLANS[subscriptionCanonicalPlan]?.name ?? subscriptionCanonicalPlan}
+                                    </span>
+                                    {String(subscription.planId) !== subscriptionCanonicalPlan && (
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                                            Stored id: {String(subscription.planId)} (treated as {PLANS[subscriptionCanonicalPlan]?.name ?? subscriptionCanonicalPlan})
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Status</span>
@@ -221,13 +259,77 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                 </div>
                             )}
 
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Old plan names (e.g. Business) in the database are treated like <strong>Pro</strong> in the app until you move the shop to Free or they subscribe.
+                                Trials still end on schedule unless you end them early with the button below.
+                            </p>
+
+                            {!isAlreadyFreeTier && !showOverride && !showMoveToFree && (
+                                <LButton
+                                    variant="outline"
+                                    size="sm"
+                                    fullWidth
+                                    className="border-amber-500/50 text-amber-800 dark:text-amber-200"
+                                    onClick={() => {
+                                        setShowMoveToFree(true);
+                                        setShowOverride(false);
+                                    }}
+                                >
+                                    Move to Free plan
+                                </LButton>
+                            )}
+
+                            {showMoveToFree && (
+                                <div className="pt-3 border-t border-border space-y-3">
+                                    <p className="text-sm text-foreground">
+                                        Sets <strong>planId</strong> to <code className="text-xs bg-muted px-1 rounded">free</code>, status to <strong>free</strong>, clears trial / pending downgrade fields, and syncs the shop document. Use to clean legacy preview trials.
+                                    </p>
+                                    <div>
+                                        <label className="text-sm font-medium mb-1 block">Reason (required)</label>
+                                        <input
+                                            type="text"
+                                            value={moveToFreeReason}
+                                            onChange={(e) => setMoveToFreeReason(e.target.value)}
+                                            placeholder="e.g. Preview cleanup, customer request"
+                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <LButton
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setShowMoveToFree(false);
+                                                setMoveToFreeReason("");
+                                            }}
+                                            leftIcon={<X className="h-4 w-4" />}
+                                        >
+                                            Cancel
+                                        </LButton>
+                                        <LButton
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={handleMoveToFree}
+                                            loading={movingToFree}
+                                            disabled={!moveToFreeReason.trim()}
+                                            leftIcon={<Check className="h-4 w-4" />}
+                                        >
+                                            Confirm Free plan
+                                        </LButton>
+                                    </div>
+                                </div>
+                            )}
+
                             {!showOverride ? (
                                 <LButton
                                     variant="outline"
                                     size="sm"
                                     fullWidth
                                     leftIcon={<Settings className="h-4 w-4" />}
-                                    onClick={() => setShowOverride(true)}
+                                    onClick={() => {
+                                        setShowOverride(true);
+                                        setShowMoveToFree(false);
+                                    }}
                                 >
                                     Override Plan
                                 </LButton>

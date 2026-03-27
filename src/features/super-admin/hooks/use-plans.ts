@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
-import { collection, doc, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, deleteDoc, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { PLANS } from "@/config/plans";
-import type { Plan } from "@/types/plans";
+import type { Plan, PlanType } from "@/types/plans";
+
+/** Plans offered for new upgrades (Super Admin can hide tiers without deleting history). */
+export function filterActivePlans(plans: Plan[]): Plan[] {
+    return plans.filter((p) => p.isActive !== false);
+}
 
 export function usePlans() {
     const [plans, setPlans] = useState<Plan[]>([]);
@@ -17,9 +22,12 @@ export function usePlans() {
             if (querySnapshot.empty) {
                 // Determine if we should seed default plans locally or just return empty
                 // For now, let's return defaults from config if DB is empty
-                setPlans(Object.values(PLANS));
+                setPlans(Object.values(PLANS).map((p) => ({ ...p, isActive: p.isActive !== false })));
             } else {
-                const fetchedPlans = querySnapshot.docs.map(doc => doc.data() as Plan);
+                const fetchedPlans = querySnapshot.docs.map((d) => {
+                    const data = d.data() as Plan;
+                    return { ...data, isActive: data.isActive !== false };
+                });
                 // Sort by price roughly to keep order: Free -> Pro -> Business
                 fetchedPlans.sort((a, b) => a.prices.monthly - b.prices.monthly);
                 setPlans(fetchedPlans);
@@ -53,21 +61,12 @@ export function usePlans() {
         }
     };
 
-    const resetPlans = async () => {
-        try {
-            const batchPromises = Object.values(PLANS).map(plan =>
-                setDoc(doc(db, "plans", plan.id), {
-                    ...plan,
-                    updatedAt: serverTimestamp(),
-                    createdAt: serverTimestamp()
-                })
-            );
-            await Promise.all(batchPromises);
-            await fetchPlans();
-        } catch (err) {
-            console.error("Error resetting plans:", err);
-            throw err;
+    const deletePlan = async (planId: PlanType) => {
+        if (planId === "free") {
+            throw new Error("The Free plan cannot be deleted.");
         }
+        await deleteDoc(doc(db, "plans", planId));
+        await fetchPlans();
     };
 
     return {
@@ -75,7 +74,7 @@ export function usePlans() {
         loading,
         error,
         updatePlan,
-        resetPlans,
+        deletePlan,
         refetch: fetchPlans
     };
 }

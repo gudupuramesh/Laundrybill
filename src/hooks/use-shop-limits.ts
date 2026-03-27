@@ -1,6 +1,7 @@
 import { usePlans } from "@/features/super-admin/hooks/use-plans";
 import type { PlanType, PlanFeatures } from "@/types/plans";
-import { PLANS } from "@/config/plans";
+import { normalizePlanId } from "@/types/plans";
+import { PLANS, getPlan } from "@/config/plans";
 
 import { useShop } from "@/hooks/use-shop";
 import { useShopSubscription } from "@/hooks/use-shop-subscription";
@@ -13,8 +14,10 @@ export function useShopLimits() {
     // Strategy: Prefer Shop Document Plan (synced by Cloud Function) if available,
     // otherwise fallback to Subscription Document Plan,
     // otherwise Free.
-    const shopPlanId = (shop?.subscription?.planId || shop?.plan) as PlanType;
-    const subPlanId = subscription?.planId as PlanType;
+    const shopPlanId = normalizePlanId(
+        String(shop?.subscription?.planId || shop?.plan || "")
+    );
+    const subPlanId = normalizePlanId(String(subscription?.planId || ""));
 
     // ============================================
     // CRITICAL: Check if subscription is ACTIVE
@@ -39,40 +42,28 @@ export function useShopLimits() {
         subscriptionStatus === "grace_period" ||
         isCancelledButActive;
 
-    // If subscription is expired/cancelled, force to free plan
     if (!isActiveSubscription && subscriptionStatus !== "free") {
         console.log(`Subscription status is "${subscriptionStatus}" - downgrading to free plan features`);
     }
 
-    // Choose the best plan (If shop says Pro, trust it, because Cloud Function forced it)
-    // BUT only if subscription is still ACTIVE
     let currentPlanId: PlanType = "free";
 
     if (isActiveSubscription) {
-        // Only grant paid plan features if subscription is active
         if (shopPlanId && shopPlanId !== "free") {
             currentPlanId = shopPlanId;
-        } else if (subPlanId) {
+        } else if (subPlanId && subPlanId !== "free") {
             currentPlanId = subPlanId;
         }
     } else {
-        // Subscription is expired/cancelled - force free plan
         currentPlanId = "free";
     }
 
-    // Safety check just in case
-    // Cast to string to avoid overlap errors if types don't match exactly
-    if ((currentPlanId as string) !== "free" &&
-        (currentPlanId as string) !== "basic" &&
-        (currentPlanId as string) !== "pro" &&
-        (currentPlanId as string) !== "pro_plus") {
-        // Check if valid plan key
-        if (!PLANS[currentPlanId]) currentPlanId = "free";
-    }
+    currentPlanId = normalizePlanId(currentPlanId);
+    if (!PLANS[currentPlanId]) currentPlanId = "free";
 
     // Find plan definition: Prefer Firestore (Super Admin edits) over config defaults
-    const planFromFirestore = plans.find((p) => p.id === currentPlanId);
-    const configPlan = PLANS[currentPlanId] || PLANS.free;
+    const planFromFirestore = plans.find((p) => normalizePlanId(p.id) === currentPlanId);
+    const configPlan = getPlan(currentPlanId);
     // Merge features: Firestore overrides config only when value is explicitly set.
     // This fixes trial/legacy plans where Firestore may lack new feature keys (e.g. publicOrderingPage).
     const mergeFeatures = () => {
@@ -124,7 +115,8 @@ export function useShopLimits() {
         hasFeature,
         checkLimit,
         isPro: currentPlanId !== "free",
-        isBusiness: currentPlanId === "business",
+        /** @deprecated Same as paid tier (single Pro plan). Use isPro. */
+        isBusiness: currentPlanId !== "free",
         loading: loading || shopLoading
     };
 }

@@ -23,28 +23,23 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 import { cn } from "@/lib/utils";
 
 const PLAN_COLORS: Record<PlanType, string> = {
     free: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     pro: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    pro_plus: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-    business: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
 };
 
 const PLAN_LABELS: Record<PlanType, string> = {
     free: "Free",
     pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
 };
 
 const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [
     { value: "all", label: "All Plans" },
     { value: "free", label: "Free" },
     { value: "pro", label: "Pro" },
-    { value: "pro_plus", label: "Pro Plus" },
-    { value: "business", label: "Business" },
 ];
 
 export function ShopsPage() {
@@ -155,6 +150,7 @@ export function ShopsPage() {
             {shops.length > 0 && (
                 <div className="grid gap-3 md:gap-4">
                     {shops.map((shop) => {
+                        const planKey = normalizePlanId(shop.subscription?.planId);
                         const storageBytes = shop.storageStats?.totalBytes ?? 0;
                         const imageCount = shop.storageStats?.imageCount ?? 0;
                         const storageLabel =
@@ -182,10 +178,10 @@ export function ShopsPage() {
                                                 <span
                                                     className={cn(
                                                         "px-2 py-0.5 rounded-full text-xs font-medium shrink-0",
-                                                        PLAN_COLORS[shop.subscription?.planId || "free"]
+                                                        PLAN_COLORS[planKey]
                                                     )}
                                                 >
-                                                    {PLAN_LABELS[shop.subscription?.planId || "free"]}
+                                                    {PLAN_LABELS[planKey]}
                                                 </span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-muted-foreground">

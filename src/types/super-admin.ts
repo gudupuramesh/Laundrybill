@@ -37,6 +37,7 @@ export interface SuperAdmin {
 
 export type BillingCycle = "monthly" | "yearly";
 export type SubscriptionStatus = "active" | "expired" | "cancelled" | "grace_period" | "trial" | "free";
+export type SubscriptionProvider = "razorpay" | "apple_iap" | "google_play" | "manual" | "free";
 
 export interface Subscription {
     id: string; // Same as shopId
@@ -49,12 +50,18 @@ export interface Subscription {
     planId: PlanType;
     billingCycle: BillingCycle;
     status: SubscriptionStatus;
+    provider?: SubscriptionProvider;
+    providerRef?: string;
+    providerOrderId?: string;
+    isAutoRenew?: boolean;
 
     // Dates
     startDate: Timestamp;
     endDate: Timestamp;
     trialEndDate?: Timestamp;
     cancelledAt?: Timestamp;
+    currentPeriodStart?: Timestamp;
+    currentPeriodEnd?: Timestamp;
 
     // Billing
     amount: number;
@@ -90,7 +97,7 @@ export interface Subscription {
 // ============== PAYMENT ==============
 
 export type PaymentStatus = "pending" | "success" | "failed" | "refunded";
-export type PaymentMethod = "razorpay" | "manual" | "bank_transfer" | "free";
+export type PaymentMethod = "razorpay" | "apple_iap" | "google_play" | "manual" | "bank_transfer" | "free";
 
 export interface Payment {
     id: string;
@@ -191,7 +198,5 @@ export interface PlatformStats {
     planDistribution: {
         free: number;
         pro: number;
-        pro_plus: number;
-        business: number;
     };
 }

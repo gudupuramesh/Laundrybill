@@ -9,6 +9,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { formatCurrency } from '../lib/currency-format';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -85,6 +88,9 @@ export default function CustomerDetailScreen({
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
+  const phoneDigitsLimit = Math.max(6, countrySettings.phoneDigits || 10);
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,13 +188,14 @@ export default function CustomerDetailScreen({
   const handleWhatsApp = () => {
     if (!phone) return;
     const p = phone.replace(/\D/g, '');
-    Linking.openURL(`https://wa.me/${p.startsWith('91') ? p : `91${p}`}`).catch(() => {});
+    const wa = toE164(normalizePhoneForCountry(p, countrySettings), countrySettings).replace(/\D/g, '');
+    Linking.openURL(`https://wa.me/${wa}`).catch(() => {});
   };
 
   const openEditModal = () => {
     if (!customer) return;
     setEditName(customer.name || '');
-    setEditPhone((customer.phone || '').replace(/\D/g, '').slice(-10));
+    setEditPhone(normalizePhoneForCountry(customer.phone || '', countrySettings));
     setEditEmail(customer.email || '');
     setEditAddress(customer.address || customer.addresses?.[0]?.address || '');
     setEditModal(true);
@@ -196,9 +203,9 @@ export default function CustomerDetailScreen({
 
   const handleUpdateCustomer = async () => {
     const trimmedName = editName.trim();
-    const phoneDigits = editPhone.replace(/\D/g, '').slice(-10);
+    const phoneDigits = normalizePhoneForCountry(editPhone, countrySettings);
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
-    if (phoneDigits.length !== 10 || !/^[6-9]/.test(phoneDigits)) {
+    if (phoneDigits.length !== phoneDigitsLimit) {
       Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg'));
       return;
     }
@@ -209,7 +216,7 @@ export default function CustomerDetailScreen({
         .collection(`shops/${shopId}/customers`).doc(customerId)
         .update({
           name: trimmedName,
-          phone: `+91${phoneDigits}`,
+          phone: toE164(phoneDigits, countrySettings),
           email: editEmail.trim() || null,
           address: editAddress.trim() || null,
           updatedAt: new Date(),
@@ -323,16 +330,16 @@ export default function CustomerDetailScreen({
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>{t('mobile.statTotalSpent')}</Text>
-            <Text style={styles.statValue}>₹{stats.totalSpent}</Text>
+            <Text style={styles.statValue}>{formatCurrency(stats.totalSpent, countrySettings)}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>AVG ORDER</Text>
-            <Text style={styles.statValue}>₹{stats.avgValue}</Text>
+            <Text style={styles.statValue}>{formatCurrency(stats.avgValue, countrySettings)}</Text>
           </View>
           <View style={[styles.statCard, stats.unpaid > 0 && { backgroundColor: '#ffdad6' }]}>
             <Text style={[styles.statLabel, stats.unpaid > 0 && { color: '#93000a' }]}>{t('mobile.statUnpaidLabel')}</Text>
             <Text style={[styles.statValue, { color: stats.unpaid > 0 ? '#93000a' : '#2e7d32' }]}>
-              ₹{stats.unpaid}
+              {formatCurrency(stats.unpaid, countrySettings)}
             </Text>
           </View>
         </View>
@@ -380,11 +387,11 @@ export default function CustomerDetailScreen({
                     <View style={styles.orderMeta}>
                       <Text style={styles.orderMetaText}>{t('mobile.itemsMetaCount', { count: itemCount })}</Text>
                       <View style={styles.dot} />
-                      <Text style={styles.orderAmount}>₹{total}</Text>
+                      <Text style={styles.orderAmount}>{formatCurrency(total, countrySettings)}</Text>
                       {balance > 0 ? (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.unpaidLabel}>{t('mobile.orderDueLabel', { amount: balance })}</Text>
+                          <Text style={styles.unpaidLabel}>{withCurrencySymbol(t('mobile.orderDueLabel', { amount: balance }) as string)}</Text>
                         </>
                       ) : (
                         <>
@@ -415,12 +422,12 @@ export default function CustomerDetailScreen({
             <Text style={styles.finTitle}>{t('mobile.finSummaryTitle')}</Text>
             <View style={styles.finRow}>
               <Text style={styles.finLabel}>{t('mobile.totalSpentLabel')}</Text>
-              <Text style={styles.finValueGreen}>₹{stats.totalSpent}</Text>
+              <Text style={styles.finValueGreen}>{formatCurrency(stats.totalSpent, countrySettings)}</Text>
             </View>
             <View style={styles.finRow}>
               <Text style={styles.finLabel}>{t('mobile.outstandingBalanceLabel')}</Text>
               <Text style={stats.unpaid > 0 ? styles.finValueRed : styles.finValueGreen}>
-                ₹{stats.unpaid}
+                {formatCurrency(stats.unpaid, countrySettings)}
               </Text>
             </View>
           </View>
@@ -468,15 +475,15 @@ export default function CustomerDetailScreen({
 
             <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.editPhoneRow}>
-              <View style={styles.editPhonePrefix}><Text style={styles.editPhonePrefixText}>+91</Text></View>
+              <View style={styles.editPhonePrefix}><Text style={styles.editPhonePrefixText}>{countrySettings.phoneCountryCode || '+91'}</Text></View>
               <TextInput
                 style={[styles.modalInput, { flex: 1 }]}
                 value={editPhone}
-                onChangeText={(t) => setEditPhone(t.replace(/\D/g, '').slice(0, 10))}
+                onChangeText={(t) => setEditPhone(t.replace(/\D/g, '').slice(0, phoneDigitsLimit))}
                 placeholder={t('mobile.phPhone10Digit')}
                 placeholderTextColor="#c3c6d6"
                 keyboardType="phone-pad"
-                maxLength={10}
+                maxLength={phoneDigitsLimit}
               />
             </View>
 

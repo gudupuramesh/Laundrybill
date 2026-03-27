@@ -26,9 +26,25 @@ service cloud.firestore {
       );
     }
     
+    // Shop doc must exist before reading fields — avoids rule errors and false denials.
+    function shopExists(shopId) {
+      return exists(/databases/$(database)/documents/shops/$(shopId));
+    }
+
+    function shopData(shopId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
     function isShopOwner(shopId) {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid;
+      return isAuthenticated() &&
+        shopExists(shopId) &&
+        shopData(shopId).get('ownerId', '') == request.auth.uid;
+    }
+
+    // Safe read for optional nested map (publicOrdering.enabled)
+    function shopPublicOrderingEnabled(shopId) {
+      return shopExists(shopId) &&
+        shopData(shopId).get('publicOrdering', {}).get('enabled', false) == true;
     }
     
     function isPlantOperator(shopId) {
@@ -95,8 +111,7 @@ service cloud.firestore {
       
       // Inventory subcollection (public read when shop has public ordering enabled)
       match /inventory/{itemId} {
-        allow read: if isShopMember(shopId) || isShopOwner(shopId) ||
-          (get(/databases/$(database)/documents/shops/$(shopId)).data.publicOrdering.enabled == true);
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) || shopPublicOrderingEnabled(shopId);
         allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
@@ -108,8 +123,7 @@ service cloud.firestore {
       
       // Categories subcollection (public read when shop has public ordering enabled)
       match /categories/{categoryId} {
-        allow read: if isShopMember(shopId) || isShopOwner(shopId) ||
-          (get(/databases/$(database)/documents/shops/$(shopId)).data.get('publicOrdering', {}).get('enabled', false) == true);
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) || shopPublicOrderingEnabled(shopId);
         allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
@@ -260,8 +274,9 @@ service cloud.firestore {
     // Payments collection
     match /payments/{paymentId} {
       // Shop owner can read their own payments
-      allow read: if isAuthenticated() && resource.data.shopId != null && 
-        get(/databases/$(database)/documents/shops/$(resource.data.shopId)).data.ownerId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.shopId != null &&
+        shopExists(resource.data.shopId) &&
+        shopData(resource.data.shopId).get('ownerId', '') == request.auth.uid;
       // Super admin can read/write all
       allow read, write: if isSuperAdmin();
     }

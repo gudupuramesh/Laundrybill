@@ -2,7 +2,6 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten, onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
-import { cancelSubscription } from "./services/razorpay";
 import { sendEmail } from "./services/zeptomail";
 import { getPlatformSettings } from "./services/platform-settings";
 import { getTrialEndedTemplate } from "./services/email-trial";
@@ -10,6 +9,7 @@ import { getTrialReminderTemplate } from "./services/email-trial-reminder";
 import { getGraceEndedTemplate } from "./services/email-grace";
 import { getGraceReminderTemplate } from "./services/email-grace-reminder";
 import { getSubscriptionEndedTemplate } from "./services/email-cancelled";
+import { normalizePlanId, planDisplayName } from "./lib/plan-normalize";
 
 dotenv.config();
 
@@ -359,7 +359,6 @@ export const checkGracePeriodExpiry = onSchedule("every day 00:10", async (event
             for (const doc of chunk) {
                 const subData = doc.data();
                 const shopId = subData.shopId;
-                const razorpaySubId = subData.razorpaySubscriptionId;
 
                 console.log(`Grace period ended for shop: ${shopId}`);
 
@@ -384,14 +383,6 @@ export const checkGracePeriodExpiry = onSchedule("every day 00:10", async (event
                         "subscription.endDate": null,
                         updatedAt: now,
                     });
-                }
-
-                if (razorpaySubId) {
-                    try {
-                        await cancelSubscription(razorpaySubId, true);
-                    } catch (error) {
-                        console.error(`Failed to cancel Razorpay subscription ${razorpaySubId}:`, error);
-                    }
                 }
 
                 if (shopId) {
@@ -546,13 +537,6 @@ export const checkCancelledSubscriptionEnd = onSchedule("every day 00:15", async
     }
 });
 
-const PLAN_NAMES: Record<string, string> = {
-    free: "Free",
-    pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
-};
-
 /**
  * Apply scheduled downgrades daily at 00:20.
  * Subs with pendingDowngrade and effectiveDate <= now → switch to lower plan.
@@ -587,8 +571,8 @@ export const applyScheduledDowngrades = onSchedule("every day 00:20", async (eve
         for (const doc of toApply) {
             const subData = doc.data();
             const shopId = subData.shopId || doc.id;
-            const toPlan = subData.pendingDowngrade.toPlan;
-            const planName = PLAN_NAMES[toPlan] || toPlan;
+            const toPlan = normalizePlanId(subData.pendingDowngrade.toPlan);
+            const planName = planDisplayName(toPlan);
 
             await doc.ref.update({
                 planId: toPlan,
@@ -850,15 +834,6 @@ export * from "./auth";
  */
 export { cleanupOrderImagesDaily } from "./scheduled/cleanup-order-images";
 
-/**
- * Razorpay Webhook
- */
-export * from "./webhooks/razorpay-webhook";
-
-/**
- * Razorpay Requests
- */
-export * from "./requests/create-order";
 export * from "./requests/create-public-order";
 export * from "./requests/get-public-order-slot-availability";
 export * from "./triggers/on-public-order-created";
@@ -870,4 +845,6 @@ export * from "./requests/validate-coupon";
 export * from "./requests/get-subscription-settings";
 export * from "./requests/get-help-content";
 export * from "./requests/validate-app-login-email";
+export * from "./requests/verify-apple-purchase";
+export * from "./requests/verify-google-purchase";
 

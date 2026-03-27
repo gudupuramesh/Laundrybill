@@ -5,6 +5,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -51,6 +53,8 @@ export default function OrdersScreen({
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
   const STATUS_CONFIG = useMemo((): Record<string, { label: string; bg: string; color: string }> => ({
     pending: { label: t('mobile.orderStatusPending'), bg: '#fff3e0', color: '#e65100' },
@@ -222,12 +226,12 @@ export default function OrdersScreen({
             <TouchableOpacity style={[styles.statCard, stats.dueCount > 0 && { backgroundColor: '#ffdad6' }]} onPress={() => setFilter(filter === 'due' ? 'all' : 'due')}>
               <Text style={[styles.statLabel, stats.dueCount > 0 && { color: '#93000a' }]}>{t('mobile.ordersStatDue')}</Text>
               <Text style={[styles.statValue, { color: stats.dueCount > 0 ? '#93000a' : '#00408f', fontSize: 14 }]}>
-                {stats.dueCount > 0 ? `₹${stats.dueAmount}` : '0'}
+                {stats.dueCount > 0 ? formatCurrency(stats.dueAmount, countrySettings) : formatCurrency(0, countrySettings)}
               </Text>
             </TouchableOpacity>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>{t('mobile.ordersStatToday')}</Text>
-              <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>₹{stats.todayCollected}</Text>
+              <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>{formatCurrency(stats.todayCollected, countrySettings)}</Text>
             </View>
           </View>
 
@@ -301,7 +305,7 @@ export default function OrdersScreen({
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           {balance > 0 && (
                             <View style={styles.dueBadge}>
-                              <Text style={styles.dueBadgeText}>{t('mobile.orderDueShort', { amount: balance.toLocaleString() })}</Text>
+                              <Text style={styles.dueBadgeText}>{withCurrencySymbol(t('mobile.orderDueShort', { amount: balance.toLocaleString() }) as string)}</Text>
                             </View>
                           )}
                           <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
@@ -315,7 +319,7 @@ export default function OrdersScreen({
                       <View style={styles.orderMeta}>
                         <Text style={styles.orderMetaText}>{t('mobile.orderItemsCount', { count: itemCount })}</Text>
                         <View style={styles.dot} />
-                        <Text style={styles.orderAmount}>₹{total}</Text>
+                        <Text style={styles.orderAmount}>{formatCurrency(total, countrySettings)}</Text>
                         <View style={styles.dot} />
                         <Text style={styles.orderTime}>{timeAgo(created)}</Text>
                       </View>

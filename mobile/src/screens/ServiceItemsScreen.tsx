@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { firestore } from '../lib/db';
 import { auth, getShopId } from '../lib/auth';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 
@@ -104,6 +106,8 @@ export default function ServiceItemsScreen({
   const [editSaving, setEditSaving] = useState(false);
 
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
   // Load items for this category from Firestore
   useEffect(() => {
@@ -378,7 +382,7 @@ export default function ServiceItemsScreen({
                       )}
                     </View>
                   </View>
-                  <Text style={styles.itemPrice}>₹{item.basePrice}</Text>
+                  <Text style={styles.itemPrice}>{formatCurrency(item.basePrice, countrySettings)}</Text>
                 </View>
 
                 <View style={styles.itemActions}>
@@ -420,7 +424,7 @@ export default function ServiceItemsScreen({
                   )}
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemPrice}>₹{item.basePrice}</Text>
+                    <Text style={styles.itemPrice}>{formatCurrency(item.basePrice, countrySettings)}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.restoreBtn}
@@ -514,7 +518,7 @@ export default function ServiceItemsScreen({
 
             <View style={styles.modalRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalLabel}>{t('mobile.basePriceField')}</Text>
+                <Text style={styles.modalLabel}>{withCurrencySymbol(t('mobile.basePriceField') as string)}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editPrice}
@@ -533,7 +537,7 @@ export default function ServiceItemsScreen({
                   placeholder="1.5"
                 />
                 <Text style={styles.expressHint}>
-                  {t('mobile.expressPricePreview', { amount: Math.round((parseFloat(editPrice) || 0) * (parseFloat(editExpressMultiplier) || 1.5)) })}
+                  {withCurrencySymbol(t('mobile.expressPricePreview', { amount: Math.round((parseFloat(editPrice) || 0) * (parseFloat(editExpressMultiplier) || 1.5)) }) as string)}
                 </Text>
               </View>
             </View>

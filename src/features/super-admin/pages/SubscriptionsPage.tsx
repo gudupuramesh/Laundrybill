@@ -18,10 +18,12 @@ import {
     Phone,
     Mail,
     UserPlus,
+    Wallet,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import type { SubscriptionStatus } from "@/types/super-admin";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 import { cn } from "@/lib/utils";
 import { ShopDetailSheet } from "../components/ShopDetailSheet";
 
@@ -37,15 +39,11 @@ const STATUS_FILTERS: { value: SubscriptionStatus | "all" | "expiring"; label: s
 const PLAN_COLORS: Record<PlanType, string> = {
     free: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     pro: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    pro_plus: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-    business: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
 };
 
 const PLAN_LABELS: Record<PlanType, string> = {
     free: "Free",
     pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
 };
 
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -61,8 +59,6 @@ const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [
     { value: "all", label: "All Plans" },
     { value: "free", label: "Free" },
     { value: "pro", label: "Pro" },
-    { value: "pro_plus", label: "Pro Plus" },
-    { value: "business", label: "Business" },
 ];
 
 export function SubscriptionsPage() {
@@ -226,6 +222,7 @@ export function SubscriptionsPage() {
                             endDate <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) &&
                             sub.status === "active";
                         const phoneDisplay = sub.shopPhone || sub.ownerPhone || "";
+                        const displayPlanId = normalizePlanId(sub.planId);
 
                         return (
                             <LCard
@@ -248,9 +245,9 @@ export function SubscriptionsPage() {
                                                 </h3>
                                                 <span className={cn(
                                                     "px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0",
-                                                    PLAN_COLORS[sub.planId]
+                                                    PLAN_COLORS[displayPlanId]
                                                 )}>
-                                                    {PLAN_LABELS[sub.planId]}
+                                                    {PLAN_LABELS[displayPlanId]}
                                                 </span>
                                                 <span className={cn(
                                                     "px-2 py-0.5 rounded-full text-[10px] font-medium capitalize shrink-0",
@@ -258,6 +255,18 @@ export function SubscriptionsPage() {
                                                 )}>
                                                     {sub.status}
                                                 </span>
+                                                {sub.provider && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 inline-flex items-center gap-1">
+                                                        <Wallet className="h-3 w-3" />
+                                                        {sub.provider === "apple_iap"
+                                                            ? "Apple IAP"
+                                                            : sub.provider === "google_play"
+                                                                ? "Google Play"
+                                                                : sub.provider === "razorpay"
+                                                                    ? "Legacy"
+                                                                    : sub.provider}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Row 2: Contact info */}
@@ -274,6 +283,11 @@ export function SubscriptionsPage() {
                                                     <span className="flex items-center gap-1">
                                                         <Mail className="h-3 w-3 shrink-0" />
                                                         <span className="truncate">{sub.ownerEmail}</span>
+                                                    </span>
+                                                )}
+                                                {(sub.providerRef || sub.providerOrderId) && (
+                                                    <span className="truncate">
+                                                        Ref: {sub.providerRef || sub.providerOrderId}
                                                     </span>
                                                 )}
                                             </div>

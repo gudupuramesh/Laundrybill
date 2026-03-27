@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { PlatformStats } from "@/types/super-admin";
+import { normalizePlanId } from "@/types/plans";
 
 export function usePlatformStats() {
     const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -43,7 +44,7 @@ export function usePlatformStats() {
             }).length;
 
             // Subscriptions
-            let planDistribution = { free: 0, pro: 0, pro_plus: 0, business: 0 };
+            let planDistribution = { free: 0, pro: 0 };
             let activeSubscriptions = 0;
             let trialUsers = 0;
             let expiringSoon = 0;
@@ -52,8 +53,8 @@ export function usePlatformStats() {
                 const subsSnapshot = await getDocs(collection(db, "subscriptions"));
                 subsSnapshot.docs.forEach((d) => {
                     const sub = d.data();
-                    const planId = (sub.planId || "free") as keyof typeof planDistribution;
-                    if (planId in planDistribution) planDistribution[planId]++;
+                    const planId = normalizePlanId(sub.planId);
+                    if (planId === "pro") planDistribution.pro++;
                     else planDistribution.free++;
 
                     if (sub.status === "active") activeSubscriptions++;

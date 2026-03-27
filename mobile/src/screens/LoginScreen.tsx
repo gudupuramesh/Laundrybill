@@ -15,7 +15,7 @@ import {
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
+import { sendPasswordReset, signInWithEmailPassword, signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
 import * as Google from 'expo-auth-session/providers/google';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -35,6 +35,7 @@ const L = {
   orContinue: 'OR CONTINUE WITH',
   continueGoogle: 'Continue with Google',
   continueApple: 'Continue with Apple',
+  forgotPassword: 'Forgot password?',
   trustedTitle: 'TRUSTED BY 2,400+ SHOPS',
   trustedSubtitle: 'Processing 50k+ orders daily.',
   trustedPlus: '+2k',
@@ -56,12 +57,15 @@ const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? 'https://laundrybill.
 const labelSerif = Platform.OS === 'ios' ? { fontFamily: 'Georgia' as const } : {};
 
 export default function LoginScreen({
-  onGetOtp,
+  onEmailSignIn,
+  onOpenCreateAccount,
 }: {
-  onGetOtp: (phone: string) => Promise<void> | void;
+  onEmailSignIn?: (email: string) => Promise<void> | void;
+  onOpenCreateAccount?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
@@ -119,15 +123,42 @@ export default function LoginScreen({
     }
   };
 
-  const handlePhoneLogin = async () => {
-    const digits = phoneNumber.replace(/\D/g, '');
-    if (!digits || digits.length < 10) {
-      alert(L.invalidPhone);
+  const handleEmailLogin = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      alert('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
-    await onGetOtp(digits);
-    setLoading(false);
+    try {
+      await signInWithEmailPassword(normalizedEmail, password);
+      await onEmailSignIn?.(normalizedEmail);
+    } catch (e: any) {
+      alert(e?.message || 'Email sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      alert('Enter your email first, then tap Forgot password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordReset(normalizedEmail);
+      alert('Password reset link sent to your email.');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to send reset email.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openLegal = async (url: string) => {
@@ -159,31 +190,46 @@ export default function LoginScreen({
             <Text style={styles.subheadline}>{L.subheadline}</Text>
 
             <View style={styles.formBlock}>
-              <Text style={[labelSerif, styles.inputLabel]}>{L.mobileLabel}</Text>
+              <Text style={[labelSerif, styles.inputLabel]}>EMAIL</Text>
               <View style={styles.inputContainer}>
-                <View style={styles.countryCode}>
-                  <Text style={styles.countryCodeText}>+91</Text>
-                </View>
                 <TextInput
                   style={styles.input}
-                  placeholder={L.placeholder}
+                  placeholder="name@example.com"
                   placeholderTextColor="rgba(67, 70, 84, 0.38)"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={phoneNumber}
-                  onChangeText={(t) => setPhoneNumber(t.replace(/\D/g, ''))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={email}
+                  onChangeText={setEmail}
                 />
               </View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor="rgba(67, 70, 84, 0.38)"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                />
+              </View>
+              <TouchableOpacity onPress={handleForgotPassword} disabled={loading} style={styles.forgotBtn} hitSlop={8}>
+                <Text style={styles.forgotText}>{L.forgotPassword}</Text>
+              </TouchableOpacity>
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={handlePhoneLogin} disabled={loading} activeOpacity={0.9}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleEmailLogin} disabled={loading} activeOpacity={0.9}>
                 {loading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <View style={styles.primaryBtnInner}>
-                    <Text style={styles.primaryBtnText}>{L.getOtp}</Text>
+                    <Text style={styles.primaryBtnText}>Sign In</Text>
                     <MaterialIcons name="arrow-forward" size={20} color="#ffffff" />
                   </View>
                 )}
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} onPress={onOpenCreateAccount} disabled={loading} activeOpacity={0.92}>
+                <MaterialIcons name="mail" size={20} color="#00408f" style={styles.socialIconPad} />
+                <Text style={[labelSerif, styles.socialBtnText]}>Create account</Text>
               </TouchableOpacity>
 
               <View style={styles.dividerRow}>
@@ -331,19 +377,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(195, 198, 214, 0.45)',
     overflow: 'hidden',
   },
-  countryCode: {
-    paddingHorizontal: 14,
-    backgroundColor: '#eef2f6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(195, 198, 214, 0.4)',
-  },
-  countryCodeText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#191c1e',
-  },
   input: {
     flex: 1,
     fontSize: 17,
@@ -364,6 +397,16 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#00408f',
   },
   primaryBtnInner: {
     flexDirection: 'row',

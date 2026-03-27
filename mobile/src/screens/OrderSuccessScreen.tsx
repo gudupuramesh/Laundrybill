@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 interface PlacedOrder {
   id: string;
@@ -34,6 +36,8 @@ export default function OrderSuccessScreen({
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const countrySettings = useShopCountrySettings();
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString(i18n.language || 'en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
@@ -70,8 +74,8 @@ export default function OrderSuccessScreen({
       ...order.items.map(i => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
       ``,
       t('mobile.waPayment'),
-      t('mobile.waTotal', { amount: order.financials.total }),
-      order.paymentStatus === 'paid' ? t('mobile.waPaidFull') : t('mobile.waBalanceDue', { amount: order.financials.balance }),
+      withCurrencySymbol(t('mobile.waTotal', { amount: order.financials.total }) as string),
+      order.paymentStatus === 'paid' ? t('mobile.waPaidFull') : withCurrencySymbol(t('mobile.waBalanceDue', { amount: order.financials.balance }) as string),
       ``,
       `*${readyLabel}:*`,
       formatDate(order.expectedDelivery),
@@ -115,7 +119,7 @@ export default function OrderSuccessScreen({
                 <Text style={styles.itemName}>{item.serviceName}</Text>
                 <Text style={styles.itemMeta}>{item.categoryName} · x{item.quantity}</Text>
               </View>
-              <Text style={styles.itemPrice}>₹{Math.round(item.total)}</Text>
+              <Text style={styles.itemPrice}>{formatCurrency(Math.round(item.total), countrySettings)}</Text>
             </View>
           ))}
 
@@ -124,18 +128,18 @@ export default function OrderSuccessScreen({
           {/* Financials */}
           <View style={styles.finRow}>
             <Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text>
-            <Text style={styles.finValue}>₹{order.financials.subtotal}</Text>
+            <Text style={styles.finValue}>{formatCurrency(order.financials.subtotal, countrySettings)}</Text>
           </View>
           {order.financials.discountAmount > 0 ? (
             <View style={styles.finRow}>
               <Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text>
-              <Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{order.financials.discountAmount}</Text>
+              <Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(order.financials.discountAmount, countrySettings)}</Text>
             </View>
           ) : null}
           {order.financials.taxAmount > 0 ? (
             <View style={styles.finRow}>
               <Text style={styles.finLabel}>{order.financials.taxName || t('mobile.taxFallback')} ({order.financials.taxRate}%)</Text>
-              <Text style={styles.finValue}>+₹{order.financials.taxAmount}</Text>
+              <Text style={styles.finValue}>+{formatCurrency(order.financials.taxAmount, countrySettings)}</Text>
             </View>
           ) : null}
 
@@ -143,7 +147,7 @@ export default function OrderSuccessScreen({
 
           <View style={styles.finRow}>
             <Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text>
-            <Text style={styles.totalValue}>₹{order.financials.total}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(order.financials.total, countrySettings)}</Text>
           </View>
 
           {/* Payment Status */}

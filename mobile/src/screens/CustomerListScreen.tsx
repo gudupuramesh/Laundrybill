@@ -6,6 +6,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -45,6 +47,7 @@ export default function CustomerListScreen({
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
 
   const FILTERS = useMemo(
     () => [
@@ -140,7 +143,7 @@ export default function CustomerListScreen({
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>{t('mobile.customersStatAvgValue')}</Text>
-              <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>₹{stats.avgValue}</Text>
+              <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>{formatCurrency(stats.avgValue, countrySettings)}</Text>
             </View>
           </View>
 
@@ -216,7 +219,7 @@ export default function CustomerListScreen({
                       <View style={styles.customerMeta}>
                         <Text style={styles.metaText}>{t('mobile.customerOrdersMeta', { count: customer.totalOrders || 0 })}</Text>
                         <View style={styles.dot} />
-                        <Text style={styles.metaText}>₹{Math.round(customer.totalSpent || 0)}</Text>
+                        <Text style={styles.metaText}>{formatCurrency(Math.round(customer.totalSpent || 0), countrySettings)}</Text>
                         {lastOrder ? (
                           <>
                             <View style={styles.dot} />

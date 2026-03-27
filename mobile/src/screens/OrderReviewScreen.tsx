@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DraftOrderPayload } from '../types/orderDraft';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 // Same logic as web: first 2 letters of shop name + 2 random chars
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -51,6 +53,7 @@ export default function OrderReviewScreen({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
 
   // Shop tax settings
   const [taxEnabled, setTaxEnabled] = useState(false);
@@ -406,11 +409,11 @@ export default function OrderReviewScreen({
                       <View>
                         <Text style={styles.itemName}>{item.serviceName}</Text>
                         <Text style={styles.itemMeta}>
-                          {`x${item.quantity} · ₹${Math.round(item.unitPrice)} ea.`}
+                          {`x${item.quantity} · ${formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.`}
                           {item.express ? t('mobile.expressSuffixShort') : ''}
                         </Text>
                       </View>
-                      <Text style={styles.itemTotal}>₹{Math.round(item.total)}</Text>
+                      <Text style={styles.itemTotal}>{formatCurrency(Math.round(item.total), countrySettings)}</Text>
                     </View>
                     {index !== group.items.length - 1 ? <View style={styles.separator} /> : null}
                   </View>
@@ -425,7 +428,7 @@ export default function OrderReviewScreen({
           {/* Subtotal */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>{t('mobile.subtotalLabel')}</Text>
-            <Text style={styles.summaryValue}>₹{computed.subtotal}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(computed.subtotal, countrySettings)}</Text>
           </View>
 
           {/* Discount */}
@@ -447,7 +450,7 @@ export default function OrderReviewScreen({
           {computed.discountAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabelSmall}>{t('mobile.discountApplied')}</Text>
-              <Text style={styles.discountApplied}>-₹{computed.discountAmount}</Text>
+              <Text style={styles.discountApplied}>-{formatCurrency(computed.discountAmount, countrySettings)}</Text>
             </View>
           ) : null}
 
@@ -458,7 +461,7 @@ export default function OrderReviewScreen({
                 <MaterialIcons name="receipt" size={18} color="#434654" />
                 <Text style={styles.summaryLabel}>{taxName} ({taxRate}%)</Text>
               </View>
-              <Text style={styles.summaryValue}>+₹{computed.taxAmount}</Text>
+              <Text style={styles.summaryValue}>+{formatCurrency(computed.taxAmount, countrySettings)}</Text>
             </View>
           ) : null}
 
@@ -480,7 +483,7 @@ export default function OrderReviewScreen({
           <View>
             <Text style={styles.grandTotalLabel}>{t('mobile.grandTotalLabel')}</Text>
             <View style={styles.grandTotalRow}>
-              <Text style={styles.grandTotalValue}>₹{computed.total}</Text>
+              <Text style={styles.grandTotalValue}>{formatCurrency(computed.total, countrySettings)}</Text>
               {taxEnabled ? <Text style={styles.taxLabel}>{t('mobile.inclTax', { tax: taxName })}</Text> : null}
             </View>
           </View>

@@ -12,19 +12,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
+import LoadingScreen from './LoadingScreen';
 
 type Props = {
   onDone: () => void;
 };
 
-/** Onboarding slides (billing, tracking, QR). */
+/** Onboarding: splash (same as LoadingScreen) + billing, tracking, QR (4 slides). */
 export default function OnboardingScreen({ onDone }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width: windowW, height: windowH } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
-  const total = 3;
+  const total = 4;
   const topBarsH = 3 + 52;
   const footerH = 210;
   const slideMinH = Math.max(400, windowH - insets.top - insets.bottom - topBarsH - footerH);
@@ -48,6 +49,7 @@ export default function OnboardingScreen({ onDone }: Props) {
   );
 
   const progressPct = ((page + 1) / total) * 100;
+  const isLastPage = page === total - 1;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, flex: 1 }]}>
@@ -72,6 +74,9 @@ export default function OnboardingScreen({ onDone }: Props) {
         style={styles.hScroll}
         contentContainerStyle={styles.hScrollContent}
       >
+        <View style={[styles.splashSlide, { width: windowW, minHeight: slideMinH }]}>
+          <LoadingScreen embedded />
+        </View>
         <SlideBilling windowW={windowW} slideMinH={slideMinH} />
         <SlideTracking windowW={windowW} slideMinH={slideMinH} />
         <SlideQr windowW={windowW} slideMinH={slideMinH} />
@@ -79,7 +84,7 @@ export default function OnboardingScreen({ onDone }: Props) {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.dots}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <View
               key={i}
               style={[styles.dot, i === page ? styles.dotActive : styles.dotInactive]}
@@ -97,10 +102,10 @@ export default function OnboardingScreen({ onDone }: Props) {
           <TouchableOpacity
             onPress={goNext}
             activeOpacity={0.92}
-            style={page === total - 1 ? styles.ctaLastWrap : undefined}
+            style={isLastPage ? styles.ctaLastWrap : undefined}
             accessibilityRole="button"
           >
-            {page === total - 1 ? (
+            {isLastPage ? (
               <View style={styles.ctaLast}>
                 <Text style={styles.ctaLastText}>{t('mobile.onboardGetStarted')}</Text>
                 <MaterialIcons name="arrow-forward" size={22} color="#fff" />
@@ -114,7 +119,7 @@ export default function OnboardingScreen({ onDone }: Props) {
           </TouchableOpacity>
         )}
 
-        {page === 0 ? (
+        {page === 1 ? (
           <View style={styles.trustRow}>
             <MaterialIcons name="verified-user" size={16} color="#00408f" style={styles.trustIcon} />
             <Text style={styles.trustText}>{t('mobile.onboardEnterpriseSecurity')}</Text>
@@ -296,6 +301,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#f8f9fb',
+  },
+  splashSlide: {
+    overflow: 'hidden',
   },
   hScroll: {
     flex: 1,

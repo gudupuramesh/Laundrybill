@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { formatCurrency, normalizePhoneForCountry, toE164 } from '../lib/currency-format';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -141,7 +143,7 @@ function findStatusIndex(currentStatus: string, flow: string[]): number {
 
 // ─── Receipt HTML Generator ──────────────────────────────────────────
 
-function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: string): string {
+function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: string, currencySymbol: string): string {
   const fin = order.financials || {};
   const shopName = shopData?.name || 'LaundryBill';
   const shopPhone = shopData?.phone || '';
@@ -154,23 +156,24 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   const deliveryLabel = t(deliveryLabelKey(deliveryType));
   const qrUrl = getQRImageUrl(getTrackingUrl(publicId), 150);
   const taxName = fin.taxName || t('mobile.taxFallback');
+  const fmt = (v: number) => `${currencySymbol}${Math.round(v || 0).toLocaleString(locale || 'en-US')}`;
 
   const itemRows = (order.items || []).map((item: any) => `
     <tr>
       <td style="padding:6px 0;font-size:13px;">
         <strong>${escHtml(item.serviceName)}</strong>${item.express ? ` <span style="color:#e65100;font-size:10px;">${escHtml(t('mobile.receiptHtmlExpressBadge'))}</span>` : ''}
-        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity} · ₹${Math.round(item.unitPrice)}${escHtml(t('mobile.receiptHtmlItemEa'))}</span>
+        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity} · ${fmt(item.unitPrice)}${escHtml(t('mobile.receiptHtmlItemEa'))}</span>
       </td>
-      <td style="padding:6px 0;text-align:right;font-weight:600;font-size:13px;">₹${Math.round(item.total || 0)}</td>
+      <td style="padding:6px 0;text-align:right;font-weight:600;font-size:13px;">${fmt(item.total || 0)}</td>
     </tr>
   `).join('');
 
   const finRows: string[] = [];
-  finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlSubtotal'))}</td><td style="text-align:right">₹${Math.round(fin.subtotal || 0)}</td></tr>`);
-  if (fin.discountAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlDiscount'))}</td><td style="text-align:right;color:#006b5f">-₹${Math.round(fin.discountAmount)}</td></tr>`);
-  if (fin.expressCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlExpressCharge'))}</td><td style="text-align:right">+₹${Math.round(fin.expressCharge)}</td></tr>`);
-  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate || 0 }))}</td><td style="text-align:right">+₹${Math.round(fin.taxAmount)}</td></tr>`);
-  if (fin.deliveryCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.deliveryChargeLabel'))}</td><td style="text-align:right">+₹${Math.round(fin.deliveryCharge)}</td></tr>`);
+  finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlSubtotal'))}</td><td style="text-align:right">${fmt(fin.subtotal || 0)}</td></tr>`);
+  if (fin.discountAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlDiscount'))}</td><td style="text-align:right;color:#006b5f">-${fmt(fin.discountAmount)}</td></tr>`);
+  if (fin.expressCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlExpressCharge'))}</td><td style="text-align:right">+${fmt(fin.expressCharge)}</td></tr>`);
+  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate || 0 }))}</td><td style="text-align:right">+${fmt(fin.taxAmount)}</td></tr>`);
+  if (fin.deliveryCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.deliveryChargeLabel'))}</td><td style="text-align:right">+${fmt(fin.deliveryCharge)}</td></tr>`);
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -221,11 +224,11 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   <hr class="divider"/>
 
   <table class="fin-table">${finRows.join('')}</table>
-  <table><tr class="total-row"><td>${escHtml(t('mobile.receiptHtmlTotal'))}</td><td style="text-align:right">₹${Math.round(fin.total || 0)}</td></tr></table>
+  <table><tr class="total-row"><td>${escHtml(t('mobile.receiptHtmlTotal'))}</td><td style="text-align:right">${fmt(fin.total || 0)}</td></tr></table>
 
   <table class="fin-table" style="margin-top:8px">
-    <tr><td>${escHtml(t('mobile.receiptHtmlAmountPaid'))}</td><td style="text-align:right;font-weight:600">₹${Math.round(fin.amountPaid || 0)}</td></tr>
-    <tr><td>${escHtml(t('mobile.receiptHtmlBalanceDue'))}</td><td style="text-align:right;font-weight:700;color:${(fin.balance || 0) > 0 ? '#93000a' : '#006b5f'}">₹${Math.round(fin.balance || 0)}</td></tr>
+    <tr><td>${escHtml(t('mobile.receiptHtmlAmountPaid'))}</td><td style="text-align:right;font-weight:600">${fmt(fin.amountPaid || 0)}</td></tr>
+    <tr><td>${escHtml(t('mobile.receiptHtmlBalanceDue'))}</td><td style="text-align:right;font-weight:700;color:${(fin.balance || 0) > 0 ? '#93000a' : '#006b5f'}">${fmt(fin.balance || 0)}</td></tr>
   </table>
 
   <div class="payment-status ${(fin.balance || 0) > 0 ? 'unpaid' : 'paid'}">
@@ -261,6 +264,8 @@ export default function OrderDetailsScreen({
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
   const [order, setOrder] = useState<any>(null);
   const [shopData, setShopData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -484,7 +489,7 @@ export default function OrderDetailsScreen({
 
   const handlePrintReceipt = async () => {
     try {
-      const html = generateReceiptHtml(order, shopData, t, i18n.language);
+      const html = generateReceiptHtml(order, shopData, t, countrySettings.locale || i18n.language, countrySettings.currencySymbol || '₹');
       await Print.printAsync({ html });
     } catch (e: any) {
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintReceipt'));
@@ -493,7 +498,7 @@ export default function OrderDetailsScreen({
 
   const handleShareReceiptPdf = async () => {
     try {
-      const html = generateReceiptHtml(order, shopData, t, i18n.language);
+      const html = generateReceiptHtml(order, shopData, t, countrySettings.locale || i18n.language, countrySettings.currencySymbol || '₹');
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
@@ -527,8 +532,8 @@ export default function OrderDetailsScreen({
       ...(order?.items || []).map((i: any) => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
       ``,
       t('mobile.waPayment'),
-      t('mobile.waTotal', { amount: Math.round(fin.total || 0) }),
-      fin.balance > 0 ? t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) : t('mobile.waPaidFull'),
+      withCurrencySymbol(t('mobile.waTotal', { amount: Math.round(fin.total || 0) }) as string),
+      fin.balance > 0 ? withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string) : t('mobile.waPaidFull'),
     ];
     if (expectedDelivery) lines.push(``, `*${dateLabel}:*`, formatDateShortLocalized(expectedDelivery, i18n.language));
     lines.push(``, t('mobile.waTrackOrder'), trackingUrl, ``, t('mobile.waViewReceipt'), getReceiptUrl(publicId));
@@ -632,7 +637,7 @@ export default function OrderDetailsScreen({
           {fin.balance > 0 && (
             <TouchableOpacity style={styles.actionChip} onPress={() => { setPayAmount(String(Math.round(fin.balance))); setPaymentModal(true); }}>
               <MaterialIcons name="payments" size={18} color="#006b5f" />
-              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>{t('mobile.collectAmount', { amount: Math.round(fin.balance) })}</Text>
+              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>{withCurrencySymbol(t('mobile.collectAmount', { amount: Math.round(fin.balance) }) as string)}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.actionChip} onPress={handleShareWhatsApp}>
@@ -690,7 +695,8 @@ export default function OrderDetailsScreen({
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.smallCircleBtn, { backgroundColor: '#e6f7f2' }]} onPress={() => {
                   const p = (order.customerPhone || '').replace(/\D/g, '');
-                  Linking.openURL(`https://wa.me/${p.startsWith('91') ? p : `91${p}`}`).catch(() => {});
+                  const wa = toE164(normalizePhoneForCountry(p, countrySettings), countrySettings).replace(/\D/g, '');
+                  Linking.openURL(`https://wa.me/${wa}`).catch(() => {});
                 }}>
                   <MaterialIcons name="chat" size={16} color="#25D366" />
                 </TouchableOpacity>
@@ -721,7 +727,7 @@ export default function OrderDetailsScreen({
                 <MaterialIcons name="local-laundry-service" size={16} color="#00408f" />
                 <Text style={styles.serviceTitle}>{group.name.toUpperCase()}</Text>
               </View>
-              <Text style={styles.serviceSub}>₹{Math.round(group.subtotal)}</Text>
+              <Text style={styles.serviceSub}>{formatCurrency(Math.round(group.subtotal), countrySettings)}</Text>
             </View>
             <View style={styles.serviceItems}>
               {group.items.map((item: any, idx: number) => (
@@ -729,9 +735,9 @@ export default function OrderDetailsScreen({
                   <View style={styles.serviceItem}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemName}>{item.serviceName}</Text>
-                      <Text style={styles.itemMeta}>x{item.quantity} · ₹{Math.round(item.unitPrice)} ea.{item.express ? t('mobile.expressSuffixShort') : ''}</Text>
+                      <Text style={styles.itemMeta}>x{item.quantity} · {formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.{item.express ? t('mobile.expressSuffixShort') : ''}</Text>
                     </View>
-                    <Text style={styles.itemTotal}>₹{Math.round(item.total)}</Text>
+                    <Text style={styles.itemTotal}>{formatCurrency(Math.round(item.total), countrySettings)}</Text>
                   </View>
                   {idx < group.items.length - 1 ? <View style={styles.separator} /> : null}
                 </View>
@@ -743,18 +749,18 @@ export default function OrderDetailsScreen({
         {/* ─── Financials ─────────────────────────────────────────── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('mobile.paymentSummaryTitle')}</Text>
-          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text><Text style={styles.finValue}>₹{Math.round(fin.subtotal || 0)}</Text></View>
-          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-₹{Math.round(fin.discountAmount)}</Text></View>}
-          {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.expressChargeLabel')}</Text><Text style={styles.finValue}>+₹{Math.round(fin.expressCharge)}</Text></View>}
-          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+₹{Math.round(fin.taxAmount)}</Text></View>}
-          {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.deliveryChargeLabel')}</Text><Text style={styles.finValue}>+₹{Math.round(fin.deliveryCharge)}</Text></View>}
+          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text><Text style={styles.finValue}>{formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}</Text></View>
+          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(Math.round(fin.discountAmount), countrySettings)}</Text></View>}
+          {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.expressChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.expressCharge), countrySettings)}</Text></View>}
+          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.taxAmount), countrySettings)}</Text></View>}
+          {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.deliveryChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.deliveryCharge), countrySettings)}</Text></View>}
           <View style={styles.divider} />
-          <View style={styles.finRow}><Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text><Text style={styles.totalValue}>₹{Math.round(fin.total || 0)}</Text></View>
-          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.paidLabelFin')}</Text><Text style={styles.finValue}>₹{Math.round(fin.amountPaid || 0)}</Text></View>
+          <View style={styles.finRow}><Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text><Text style={styles.totalValue}>{formatCurrency(Math.round(fin.total || 0), countrySettings)}</Text></View>
+          <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.paidLabelFin')}</Text><Text style={styles.finValue}>{formatCurrency(Math.round(fin.amountPaid || 0), countrySettings)}</Text></View>
           <View style={[styles.paymentBadge, fin.balance > 0 ? styles.unpaidBg : styles.paidBg]}>
             <MaterialIcons name={fin.balance > 0 ? 'schedule' : 'check-circle'} size={14} color={fin.balance > 0 ? '#93000a' : '#006b5f'} />
             <Text style={fin.balance > 0 ? styles.unpaidText : styles.paidText}>
-              {fin.balance > 0 ? t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) : t('mobile.paidInFull')}
+              {fin.balance > 0 ? withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string) : t('mobile.paidInFull')}
             </Text>
           </View>
         </View>
@@ -915,7 +921,7 @@ export default function OrderDetailsScreen({
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{t('mobile.collectPaymentTitle')}</Text>
-            <Text style={styles.modalSubtitle}>{t('mobile.balanceSubtitle', { amount: Math.round(fin.balance || 0) })}</Text>
+            <Text style={styles.modalSubtitle}>{withCurrencySymbol(t('mobile.balanceSubtitle', { amount: Math.round(fin.balance || 0) }) as string)}</Text>
             <Text style={styles.fieldLabel}>{t('mobile.amountField')}</Text>
             <TextInput style={styles.modalInputSingle} keyboardType="numeric" value={payAmount} onChangeText={setPayAmount} placeholder="0" placeholderTextColor="#c3c6d6" />
             <Text style={styles.fieldLabel}>{t('mobile.paymentMethodField')}</Text>
@@ -942,7 +948,7 @@ export default function OrderDetailsScreen({
                 onPress={handleCollectPayment}
                 disabled={!payAmount || parseFloat(payAmount) <= 0 || saving}
               >
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{t('mobile.collectBtn', { amount: payAmount || '0' })}</Text>}
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{withCurrencySymbol(t('mobile.collectBtn', { amount: payAmount || '0' }) as string)}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1004,7 +1010,7 @@ export default function OrderDetailsScreen({
                         <Text style={styles.itemTagIndex}>{t('mobile.tagIndex', { index: tag.index, total: tag.total })}</Text>
                         <Text style={styles.itemTagName}>{tag.serviceName}</Text>
                         <Text style={styles.itemTagMeta}>{tag.categoryName}</Text>
-                        <Text style={styles.itemTagMeta}>₹{Math.round(tag.unitPrice)} · Order #{publicId}</Text>
+                        <Text style={styles.itemTagMeta}>{formatCurrency(Math.round(tag.unitPrice), countrySettings)} · Order #{publicId}</Text>
                       </View>
                     </View>
                   ))}

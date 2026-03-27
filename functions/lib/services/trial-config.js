@@ -6,16 +6,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSubscriptionButtonsEnabled = exports.getDurationDiscounts = exports.DEFAULT_DURATION_DISCOUNTS = exports.getTrialConfig = exports.getTrialPlanName = void 0;
 const admin = require("firebase-admin");
+const plan_normalize_1 = require("../lib/plan-normalize");
 const TRIAL_CONFIG_DOC = "subscription";
 const DEFAULT_TRIAL_DAYS = 14;
 const DEFAULT_TRIAL_PLAN_ID = "pro";
-const PLAN_NAMES = {
-    pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
-};
 function getTrialPlanName(planId) {
-    return PLAN_NAMES[planId] || "Pro";
+    return (0, plan_normalize_1.normalizePlanId)(planId) === "pro" ? "Pro" : "Free";
 }
 exports.getTrialPlanName = getTrialPlanName;
 /**
@@ -41,11 +37,9 @@ async function getTrialConfig() {
         if (days <= 0)
             days = DEFAULT_TRIAL_DAYS;
         days = Math.min(days, 365);
-        const planId = data === null || data === void 0 ? void 0 : data.trialPlanId;
-        const validPlans = ["pro", "pro_plus", "business"];
         return {
             trialDurationDays: days,
-            trialPlanId: planId && validPlans.includes(planId) ? planId : DEFAULT_TRIAL_PLAN_ID,
+            trialPlanId: DEFAULT_TRIAL_PLAN_ID,
         };
     }
     catch (e) {

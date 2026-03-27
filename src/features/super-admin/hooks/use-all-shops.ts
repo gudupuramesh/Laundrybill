@@ -19,6 +19,7 @@ import type { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Shop } from "@/types/shop";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 
 interface UseAllShopsOptions {
     searchTerm?: string;
@@ -94,7 +95,7 @@ export function useAllShops(options: UseAllShopsOptions = {}) {
                         if (subSnap.exists()) {
                             const subData = subSnap.data();
                             subscription = {
-                                planId: subData.planId || "free",
+                                planId: normalizePlanId(subData.planId),
                                 status: subData.status || "active",
                                 endDate: subData.endDate?.toDate?.(),
                                 billingCycle: subData.billingCycle,
@@ -146,7 +147,7 @@ export function useAllShops(options: UseAllShopsOptions = {}) {
             // Apply plan filter
             if (planFilter !== "all") {
                 filteredShops = filteredShops.filter(
-                    (shop) => shop.subscription?.planId === planFilter
+                    (shop) => normalizePlanId(shop.subscription?.planId) === planFilter
                 );
             }
 

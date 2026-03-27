@@ -18,8 +18,8 @@ import OrderDetailsScreen from './src/screens/OrderDetailsScreen';
 import CustomerListScreen from './src/screens/CustomerListScreen';
 import CustomerDetailScreen from './src/screens/CustomerDetailScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import OtpVerificationScreen from './src/screens/OtpVerificationScreen';
 import RegisterShopScreen from './src/screens/RegisterShopScreen';
+import CreateAccountScreen from './src/screens/CreateAccountScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import AddCustomerScreen from './src/screens/AddCustomerScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
@@ -28,6 +28,8 @@ import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 
 const ONBOARDING_DONE_KEY = 'onboarding_completed_v1';
+const PENDING_REGISTRATION_KEY = 'pending_registration_v1';
+const FORCE_SETUP_UID_KEY = 'force_setup_uid_v1';
 
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
@@ -49,21 +51,20 @@ function MainLayout() {
   const [activeTab, setActiveTab] = useState('HOME');
   const [activeScreen, setActiveScreen] = useState<string | null>('LOGIN'); // Start with auth flow
   const [orderDraft, setOrderDraft] = useState<DraftOrderPayload | null>(null);
-  const [userPhone, setUserPhone] = useState<string>('');
   const [orderInProgress, setOrderInProgress] = useState(false); // keeps CreateOrderScreen mounted across tabs
   const [ordersInitialFilter, setOrdersInitialFilter] = useState<string | undefined>(undefined);
   const [placedOrder, setPlacedOrder] = useState<any>(null); // holds the order after placement for success screen
   const [editingOrder, setEditingOrder] = useState<any>(null); // order being edited
+  const [pendingRegistration, setPendingRegistration] = useState<{ email: string } | null>(null);
+  const [forceSetupFlow, setForceSetupFlow] = useState(false);
+  const pendingRegistrationRef = useRef<{ email: string } | null>(null);
+  const forceSetupFlowRef = useRef(false);
   const createOrderRef = useRef<CreateOrderScreenRef>(null);
   
   // Firebase Auth State
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<any>(null); // from @react-native-firebase/auth
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
-
-  // Keep a ref so the auth handler can access the latest phone entered
-  const userPhoneRef = React.useRef(userPhone);
-  React.useEffect(() => { userPhoneRef.current = userPhone; }, [userPhone]);
 
   React.useEffect(() => {
     void initStoredLanguage();
@@ -78,6 +79,18 @@ function MainLayout() {
   React.useEffect(() => {
     refreshOnboardingFromStorage();
   }, [refreshOnboardingFromStorage]);
+
+  React.useEffect(() => {
+    void AsyncStorage.getItem(PENDING_REGISTRATION_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed?.email) {
+          setPendingRegistration({ email: String(parsed.email) });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   /** After logout, re-read storage so we never treat "unknown" as first-launch onboarding. */
   React.useEffect(() => {
@@ -108,6 +121,14 @@ function MainLayout() {
   }, [user, activeScreen]);
 
   React.useEffect(() => {
+    pendingRegistrationRef.current = pendingRegistration;
+  }, [pendingRegistration]);
+
+  React.useEffect(() => {
+    forceSetupFlowRef.current = forceSetupFlow;
+  }, [forceSetupFlow]);
+
+  React.useEffect(() => {
     try {
       const { auth, setResolvedShopId } = require('./src/lib/auth');
       const { firestore } = require('./src/lib/db');
@@ -118,6 +139,41 @@ function MainLayout() {
           try {
             const uid = currentUser.uid;
             let foundShopId: string | null = null;
+            let routingReason = 'unknown';
+            const forcedSetupUid = await AsyncStorage.getItem(FORCE_SETUP_UID_KEY);
+            const isForcedSetupForCurrentUser = !!forcedSetupUid && forcedSetupUid === uid;
+            const shouldForceSetupNow = forceSetupFlowRef.current || isForcedSetupForCurrentUser;
+
+            const pendingReg = pendingRegistrationRef.current;
+            // Fresh signup path: if pending registration exists, always force setup
+            // until we can prove a valid shop exists for this uid.
+            if (pendingReg || shouldForceSetupNow) {
+              const uidShopDoc = await firestore().collection('shops').doc(uid).get();
+              const uidShopData = (uidShopDoc.data?.() ?? {}) as any;
+              const hasRealShopSetup =
+                !!uidShopDoc.exists &&
+                typeof uidShopData?.name === 'string' &&
+                uidShopData.name.trim().length > 0 &&
+                typeof uidShopData?.ownerId === 'string' &&
+                uidShopData.ownerId === uid;
+              if (!hasRealShopSetup) {
+                setResolvedShopId(null);
+                routingReason = 'forced_register_pending_signup_no_uid_shop';
+                console.log('[auth-route]', routingReason, { uid, pendingEmail: pendingReg?.email || null, currentEmail: currentUser?.email || null });
+                setActiveScreen('REGISTER_SHOP');
+                if (initializing) setInitializing(false);
+                return;
+              }
+              // Shop exists now; clear pending marker
+              setPendingRegistration(null);
+              pendingRegistrationRef.current = null;
+              setForceSetupFlow(false);
+              forceSetupFlowRef.current = false;
+              void AsyncStorage.removeItem(PENDING_REGISTRATION_KEY);
+              void AsyncStorage.removeItem(FORCE_SETUP_UID_KEY);
+              routingReason = 'pending_signup_cleared_uid_shop_exists';
+              console.log('[auth-route]', routingReason, { uid });
+            }
 
             // 1. Check users/{uid} — may already have shopId from web app or previous login
             const userDoc = await firestore().collection('users').doc(uid).get();
@@ -128,6 +184,7 @@ function MainLayout() {
                 const shopCheck = await firestore().collection('shops').doc(userData.shopId).get();
                 if (shopCheck.exists) {
                   foundShopId = userData.shopId;
+                  routingReason = 'found_via_users_doc_shopid';
                 }
               }
             }
@@ -137,35 +194,32 @@ function MainLayout() {
               const shopDoc = await firestore().collection('shops').doc(uid).get();
               if (shopDoc.exists) {
                 foundShopId = uid;
+                routingReason = 'found_via_uid_shop_doc';
               }
             }
 
             // 3. Cross-provider match: search shops by phone number
-            //    (handles: user registered on web with email, now logging in with same phone on mobile)
-            if (!foundShopId) {
-              const phone = currentUser.phoneNumber || userPhoneRef.current;
-              if (phone) {
-                const digits = phone.replace(/\D/g, '').slice(-10);
-                if (digits.length === 10) {
-                  const withPrefix = `+91${digits}`;
-                  // Try +91 format first, then raw digits
-                  let snap = await firestore().collection('shops').where('phone', '==', withPrefix).limit(1).get();
-                  if (snap.empty) {
-                    snap = await firestore().collection('shops').where('phone', '==', digits).limit(1).get();
-                  }
-                  if (!snap.empty) {
-                    foundShopId = snap.docs[0].id;
-                    const shopData = snap.docs[0].data();
-                    // Link this auth identity to the existing shop (like web app does)
-                    await firestore().collection('users').doc(uid).set({
-                      phone: phone,
-                      shopId: foundShopId,
-                      shopName: shopData.name || '',
-                      role: 'admin',
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                    });
-                  }
+            if (!foundShopId && currentUser.phoneNumber) {
+              const phone = currentUser.phoneNumber;
+              const digits = phone.replace(/\D/g, '').slice(-10);
+              if (digits.length === 10) {
+                const withPrefix = `+91${digits}`;
+                let snap = await firestore().collection('shops').where('phone', '==', withPrefix).limit(1).get();
+                if (snap.empty) {
+                  snap = await firestore().collection('shops').where('phone', '==', digits).limit(1).get();
+                }
+                if (!snap.empty) {
+                  foundShopId = snap.docs[0].id;
+                  routingReason = 'found_via_phone_match';
+                  const shopData = snap.docs[0].data();
+                  await firestore().collection('users').doc(uid).set({
+                    phone: phone,
+                    shopId: foundShopId,
+                    shopName: shopData.name || '',
+                    role: 'admin',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  });
                 }
               }
             }
@@ -174,8 +228,11 @@ function MainLayout() {
             setResolvedShopId(foundShopId);
 
             if (foundShopId) {
+              console.log('[auth-route]', routingReason, { uid, shopId: foundShopId });
               setActiveScreen(null); // Go to Dashboard
             } else {
+              routingReason = routingReason === 'unknown' ? 'no_shop_found_go_register' : routingReason;
+              console.log('[auth-route]', routingReason, { uid });
               setActiveScreen('REGISTER_SHOP');
             }
           } catch (e) {
@@ -287,39 +344,41 @@ function MainLayout() {
       <View style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
         <LoginScreen 
-          onGetOtp={async (phone: string) => {
-            setUserPhone(phone);
-            try {
-              const { sendMsg91Otp } = require('./src/lib/auth');
-              await sendMsg91Otp(phone);
-              setActiveScreen('OTP_VERIFICATION');
-            } catch (error) {
-              console.error(error);
-              alert(t('mobile.failedToSendOtp'));
-            }
-          }} 
+          onEmailSignIn={() => {}}
+          onOpenCreateAccount={() => setActiveScreen('CREATE_ACCOUNT')}
         />
       </View>
     );
   }
 
-  if (activeScreen === 'OTP_VERIFICATION') {
+  if (activeScreen === 'CREATE_ACCOUNT') {
     return (
       <View style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
-        <OtpVerificationScreen 
-          phoneNumber={userPhone || '98765 43210'}
+        <CreateAccountScreen
           onBack={() => setActiveScreen('LOGIN')}
-          onVerify={async (otp) => {
+          onCreate={async ({ email, password }) => {
             try {
-              const { verifyMsg91Otp } = require('./src/lib/auth');
-              await verifyMsg91Otp(userPhone, otp);
-              // onAuthStateChanged in the useEffect handles the redirect automatically
+              const pending = { email };
+              pendingRegistrationRef.current = pending;
+              setPendingRegistration(pending);
+              forceSetupFlowRef.current = true;
+              setForceSetupFlow(true);
+              await AsyncStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify(pending));
+              const { registerWithEmailPassword } = require('./src/lib/auth');
+              const cred = await registerWithEmailPassword(email, password);
+              const createdUid = cred?.user?.uid;
+              if (createdUid) {
+                await AsyncStorage.setItem(FORCE_SETUP_UID_KEY, createdUid);
+              }
+              const { setResolvedShopId } = require('./src/lib/auth');
+              setResolvedShopId(null);
+              setActiveScreen('REGISTER_SHOP');
             } catch (error: any) {
-              console.error('Invalid OTP', error);
-              alert(error.message || t('mobile.invalidOtpMsg'));
+              console.error('Create account error', error);
+              alert(error?.message || 'Failed to create account');
             }
-          }} 
+          }}
         />
       </View>
     );
@@ -330,8 +389,17 @@ function MainLayout() {
       <View style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
         <RegisterShopScreen 
-          onComplete={() => setActiveScreen(null)} 
-          initialPhone={userPhone}
+          onComplete={() => {
+            setPendingRegistration(null);
+            setForceSetupFlow(false);
+            forceSetupFlowRef.current = false;
+            void AsyncStorage.removeItem(PENDING_REGISTRATION_KEY);
+            void AsyncStorage.removeItem(FORCE_SETUP_UID_KEY);
+            setActiveScreen(null);
+          }} 
+          initialPhone=""
+          initialName=""
+          initialEmail={pendingRegistration?.email || ''}
         />
       </View>
     );

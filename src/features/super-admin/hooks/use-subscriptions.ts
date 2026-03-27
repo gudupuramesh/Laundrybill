@@ -15,10 +15,12 @@ import {
     updateDoc,
     serverTimestamp,
     Timestamp,
+    deleteField,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Subscription, SubscriptionStatus } from "@/types/super-admin";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 
 // Extended subscription with shop details for the list view
 export interface SubscriptionWithShop extends Subscription {
@@ -61,6 +63,21 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
                 id: d.id,
                 ...d.data(),
             } as SubscriptionWithShop));
+            results = results.map((sub) => ({
+                ...sub,
+                provider:
+                    sub.provider ||
+                    ((sub as any).razorpayPaymentId || (sub as any).razorpaySubscriptionId
+                        ? "razorpay"
+                        : undefined),
+                providerRef:
+                    sub.providerRef ||
+                    (sub as any).razorpaySubscriptionId ||
+                    (sub as any).razorpayPaymentId,
+                providerOrderId:
+                    sub.providerOrderId ||
+                    (sub as any).razorpayOrderId,
+            }));
 
             // Enrich with shop data: fetch each shop doc to get shopName, phone, email, joinedAt.
             // This handles existing subscriptions that were created before shopName/ownerEmail/ownerPhone
@@ -104,9 +121,9 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
                 });
             }
 
-            // Client-side plan filter
+            // Client-side plan filter (legacy pro_plus/business count as pro)
             if (planFilter !== "all") {
-                results = results.filter((sub) => sub.planId === planFilter);
+                results = results.filter((sub) => normalizePlanId(sub.planId) === planFilter);
             }
 
             // Client-side search (also search by phone)
@@ -298,4 +315,76 @@ export function useCreateSubscription() {
     };
 
     return { createSubscription, loading, error };
+}
+
+/**
+ * Super Admin: set a shop’s subscription to canonical Free (clears trial / pending downgrade / legacy plan ids).
+ * Matches the shape used when a trial expires (see checkTrialExpiry in Cloud Functions).
+ */
+export function useMoveSubscriptionToFree() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const moveToFree = async (
+        subscriptionDocId: string,
+        targetShopId: string | undefined,
+        reason: string,
+        adminId: string
+    ) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const subRef = doc(db, "subscriptions", subscriptionDocId);
+            const subSnap = await getDoc(subRef);
+            if (!subSnap.exists()) {
+                throw new Error("Subscription document not found");
+            }
+            const subData = subSnap.data();
+            const shopId = targetShopId || subData?.shopId || subscriptionDocId;
+            const shopRef = doc(db, "shops", shopId);
+
+            const reasonText = reason.trim() || "Super admin: moved subscription to Free plan";
+
+            await updateDoc(subRef, {
+                planId: "free",
+                planName: "Free",
+                status: "free",
+                endDate: null,
+                currentPeriodEnd: null,
+                currentPeriodStart: null,
+                trialEndDate: deleteField(),
+                pendingDowngrade: deleteField(),
+                activeUntil: deleteField(),
+                graceEndDate: deleteField(),
+                lastTrialReminderSent: deleteField(),
+                manualOverride: {
+                    reason: reasonText,
+                    overriddenBy: adminId,
+                    overriddenAt: serverTimestamp(),
+                    originalEndDate: subData?.endDate || serverTimestamp(),
+                },
+                updatedAt: serverTimestamp(),
+            });
+
+            await updateDoc(shopRef, {
+                plan: "free",
+                subscriptionStatus: "free",
+                "subscription.planId": "free",
+                "subscription.status": "free",
+                "subscription.endDate": null,
+                updatedAt: serverTimestamp(),
+            });
+
+            return { success: true as const, shopId };
+        } catch (err) {
+            console.error("moveToFree failed:", err);
+            setError("Failed to move to Free plan");
+            return { success: false as const, error: err };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return { moveToFree, loading, error };
 }

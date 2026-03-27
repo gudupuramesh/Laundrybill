@@ -1,11 +1,20 @@
 /**
  * Plan Types
- * 
- * Subscription plan definitions and feature flags
+ *
+ * Single product model: Free + one paid tier ("pro").
+ * Legacy Firestore values pro_plus / business are normalized to "pro" at read time.
  */
 
-// Plan identifiers
-export type PlanType = "free" | "pro" | "pro_plus" | "business";
+/** Canonical plan ids only */
+export type PlanType = "free" | "pro";
+
+/** Normalize legacy tier ids from older data */
+export function normalizePlanId(raw: string | null | undefined): PlanType {
+    if (!raw) return "free";
+    const r = String(raw).toLowerCase();
+    if (r === "pro" || r === "pro_plus" || r === "business") return "pro";
+    return "free";
+}
 
 // Feature flags for each plan
 export interface PlanFeatures {
@@ -18,20 +27,20 @@ export interface PlanFeatures {
     whatsappReceipts: boolean;
     multiLanguage: boolean;
 
-    // Staff & Operations (Pro+)
+    // Staff & Operations (paid)
     staffManagement: boolean;
     attendance: boolean;
     payroll: boolean;
     expenses: boolean;
     reports: boolean;
 
-    // Advanced Features (Pro Plus / Business)
+    // Advanced (included in single paid tier)
     damagePhotos: boolean;
     staffApp: boolean;
     driverApp: boolean;
     plantApp: boolean;
     qrScans: boolean;
-    /** Public ordering page (Business plan only) */
+    /** Public ordering page */
     publicOrderingPage: boolean;
 }
 

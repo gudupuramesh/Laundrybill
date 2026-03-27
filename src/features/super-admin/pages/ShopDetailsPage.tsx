@@ -35,6 +35,7 @@ import {
 import { format } from "date-fns";
 import type { Shop } from "@/types/shop";
 import type { PlanType } from "@/types/plans";
+import { normalizePlanId } from "@/types/plans";
 import { useShopOrderStats } from "../hooks/use-shop-order-stats";
 import { useShopCategoryStats } from "../hooks/use-shop-category-stats";
 import {
@@ -48,15 +49,11 @@ import { cn } from "@/lib/utils";
 const PLAN_LABELS: Record<PlanType, string> = {
   free: "Free",
   pro: "Pro",
-  pro_plus: "Pro Plus",
-  business: "Business",
 };
 
 const PLAN_COLORS: Record<PlanType, string> = {
   free: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
   pro: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  pro_plus: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  business: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
 };
 
 function formatAmount(amount: number): string {
@@ -141,7 +138,7 @@ export function ShopDetailsPage() {
         if (subSnap.exists()) {
           const d = subSnap.data();
           setSub({
-            planId: (d.planId as PlanType) || "free",
+            planId: normalizePlanId(d.planId),
             status: d.status || "active",
             endDate: d.endDate?.toDate?.() ?? undefined,
           });

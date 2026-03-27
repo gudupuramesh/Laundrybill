@@ -164,18 +164,6 @@ export function SuperAdminDashboard() {
                             total={stats?.totalShops || 1}
                             color="blue"
                         />
-                        <PlanBar
-                            label="Pro Plus"
-                            count={stats?.planDistribution?.pro_plus || 0}
-                            total={stats?.totalShops || 1}
-                            color="purple"
-                        />
-                        <PlanBar
-                            label="Business"
-                            count={stats?.planDistribution?.business || 0}
-                            total={stats?.totalShops || 1}
-                            color="orange"
-                        />
                     </div>
                 </LCard>
 

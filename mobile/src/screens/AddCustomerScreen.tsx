@@ -9,14 +9,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '').replace(/^91/, '').slice(-10);
+function normalizePhone(phone: string, countryCode: string): string {
+  return normalizePhoneForCountry(phone, { countryCode });
 }
 
-function isValidIndianPhone(phone: string): boolean {
-  const digits = normalizePhone(phone);
-  return digits.length === 10 && /^[6-9]/.test(digits);
+function isValidPhoneByCountry(phone: string, countryCode: string, digits: number): boolean {
+  const local = normalizePhone(phone, countryCode);
+  return local.length === Math.max(6, digits || 10);
 }
 
 export default function AddCustomerScreen({
@@ -29,6 +31,8 @@ export default function AddCustomerScreen({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const phoneDigits = Math.max(6, countrySettings.phoneDigits || 10);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -83,7 +87,7 @@ export default function AddCustomerScreen({
     const contactEmail = contact.emails?.[0]?.email || '';
 
     setName(contactName);
-    setPhone(normalizePhone(contactPhone));
+    setPhone(normalizePhone(contactPhone, countrySettings.countryCode));
     if (contactEmail) setEmail(contactEmail);
     setContactModal(false);
   };
@@ -102,20 +106,20 @@ export default function AddCustomerScreen({
   const handleSave = async () => {
     // Validate
     const trimmedName = name.trim();
-    const trimmedPhone = normalizePhone(phone);
+    const trimmedPhone = normalizePhone(phone, countrySettings.countryCode);
 
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
-    if (!isValidIndianPhone(trimmedPhone)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneIndiaMsg')); return; }
+    if (!isValidPhoneByCountry(trimmedPhone, countrySettings.countryCode, phoneDigits)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg')); return; }
 
     if (!shopId || saving) return;
     setSaving(true);
 
     try {
-      // Check for duplicate phone (try both raw and +91 formats)
+      // Check for duplicate phone (both local and E.164 for selected country)
       const custCollection = firestore().collection(`shops/${shopId}/customers`);
       let dupSnap = await custCollection.where('phone', '==', trimmedPhone).limit(1).get();
       if (dupSnap.empty) {
-        dupSnap = await custCollection.where('phone', '==', `+91${trimmedPhone}`).limit(1).get();
+        dupSnap = await custCollection.where('phone', '==', toE164(trimmedPhone, countrySettings)).limit(1).get();
       }
 
       if (!dupSnap.empty) {
@@ -141,7 +145,7 @@ export default function AddCustomerScreen({
 
       const customerData = {
         name: trimmedName,
-        phone: trimmedPhone,
+        phone: toE164(trimmedPhone, countrySettings),
         email: email.trim() || null,
         address: address.trim() || null,
         notes: notes.trim() || null,
@@ -218,15 +222,15 @@ export default function AddCustomerScreen({
 
             <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.phoneRow}>
-              <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>+91</Text></View>
+              <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>{countrySettings.phoneCountryCode || '+91'}</Text></View>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, phoneDigits))}
                 placeholder={t('mobile.phPhone10Digit')}
                 placeholderTextColor="#c3c6d6"
                 keyboardType="phone-pad"
-                maxLength={10}
+                maxLength={phoneDigits}
               />
             </View>
 

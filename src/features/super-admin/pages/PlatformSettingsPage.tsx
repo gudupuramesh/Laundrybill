@@ -60,7 +60,7 @@ interface PlatformSettings {
 interface TrialSettings {
     trialDurationValue: number;
     trialDurationUnit: "days" | "months";
-    trialPlanId: "pro" | "pro_plus" | "business";
+    trialPlanId: "pro";
 }
 
 /** Duration discount % for 3/6/9/12 months (shop subscription page) */
@@ -108,11 +108,7 @@ const DEFAULT_TRIAL: TrialSettings = {
     trialPlanId: "pro",
 };
 
-const TRIAL_PLAN_OPTIONS: { value: "pro" | "pro_plus" | "business"; label: string }[] = [
-    { value: "pro", label: "Pro" },
-    { value: "pro_plus", label: "Pro Plus" },
-    { value: "business", label: "Business" },
-];
+const TRIAL_PLAN_OPTIONS: { value: "pro"; label: string }[] = [{ value: "pro", label: "Pro" }];
 
 export function PlatformSettingsPage() {
     const { superAdmin } = useSuperAdmin();
@@ -162,11 +158,10 @@ export function PlatformSettingsPage() {
                 const data = subSnap.data();
                 const value = Number(data?.trialDurationValue);
                 const unit = (data?.trialDurationUnit === "months" ? "months" : "days") as "days" | "months";
-                const planId = (data?.trialPlanId as TrialSettings["trialPlanId"]) || "pro";
                 setTrial({
                     trialDurationValue: Number.isFinite(value) && value > 0 ? value : 14,
                     trialDurationUnit: unit,
-                    trialPlanId: ["pro", "pro_plus", "business"].includes(planId) ? planId : "pro",
+                    trialPlanId: "pro",
                 });
                 const pct = (k: keyof DurationDiscounts) => {
                     const v = Number(data?.[k]);
@@ -327,7 +322,7 @@ export function PlatformSettingsPage() {
                     />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                    Example: 2 months of Business = new shops get Business features for 60 days, then Free unless they subscribe.
+                    Example: 14 days of Pro = new shops get Pro features for the trial period, then Free unless they subscribe.
                 </p>
             </LCard>
 

@@ -1,6 +1,7 @@
 import type { PlanType } from "./plans";
 
 export type ShopSubscriptionStatus = "active" | "expired" | "cancelled" | "grace_period" | "past_due" | "trial" | "free";
+export type SubscriptionProvider = "razorpay" | "apple_iap" | "google_play" | "manual" | "free";
 
 export interface ShopUsage {
     ordersThisMonth: number;
@@ -30,6 +31,15 @@ export interface ShopSubscription {
 
     // Billing info if available
     billingCycle?: "monthly" | "yearly" | "3_months" | "6_months" | "9_months" | "12_months";
+    provider?: SubscriptionProvider;
+    providerRef?: string | null;
+    providerOrderId?: string | null;
+    providerCustomerId?: string | null;
+    isAutoRenew?: boolean;
+    currentPeriodStart?: any;
+    currentPeriodEnd?: any;
+    purchaseState?: "initiated" | "pending_verify" | "active" | "failed" | "cancelled";
+    lastPurchaseError?: string | null;
     pendingDowngrade?: {
         toPlan: PlanType;
         effectiveDate: any;

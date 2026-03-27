@@ -272,7 +272,7 @@ export function DashboardPage() {
                 </div>
             )}
 
-            {/* Paid plan: single line – plan name, days/expiry; Upgrade only if not highest plan */}
+            {/* Paid plan: single line – plan name, days/expiry (Pro is the only paid tier) */}
             {subscription && subscription.planId !== "free" && subscription.status !== "expired" && subscription.status !== "trial" && (
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20">
                     <div className="flex flex-wrap items-center gap-2 gap-y-0">
@@ -286,11 +286,6 @@ export function DashboardPage() {
                             <span className="text-sm text-muted-foreground">{t('dashboard.planEnjoyMessage')}</span>
                         )}
                     </div>
-                    {subscription.planId !== "business" && (
-                        <LButton variant="primary" size="sm" onClick={() => navigate("/settings/subscription")}>
-                            {t('dashboard.upgrade')}
-                        </LButton>
-                    )}
                 </div>
             )}
 

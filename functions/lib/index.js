@@ -19,7 +19,6 @@ const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const dotenv = require("dotenv");
-const razorpay_1 = require("./services/razorpay");
 const zeptomail_1 = require("./services/zeptomail");
 const platform_settings_1 = require("./services/platform-settings");
 const email_trial_1 = require("./services/email-trial");
@@ -27,6 +26,7 @@ const email_trial_reminder_1 = require("./services/email-trial-reminder");
 const email_grace_1 = require("./services/email-grace");
 const email_grace_reminder_1 = require("./services/email-grace-reminder");
 const email_cancelled_1 = require("./services/email-cancelled");
+const plan_normalize_1 = require("./lib/plan-normalize");
 dotenv.config();
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -321,7 +321,6 @@ exports.checkGracePeriodExpiry = (0, scheduler_1.onSchedule)("every day 00:10", 
             for (const doc of chunk) {
                 const subData = doc.data();
                 const shopId = subData.shopId;
-                const razorpaySubId = subData.razorpaySubscriptionId;
                 console.log(`Grace period ended for shop: ${shopId}`);
                 batch.update(doc.ref, {
                     status: "expired",
@@ -343,14 +342,6 @@ exports.checkGracePeriodExpiry = (0, scheduler_1.onSchedule)("every day 00:10", 
                         "subscription.endDate": null,
                         updatedAt: now,
                     });
-                }
-                if (razorpaySubId) {
-                    try {
-                        await (0, razorpay_1.cancelSubscription)(razorpaySubId, true);
-                    }
-                    catch (error) {
-                        console.error(`Failed to cancel Razorpay subscription ${razorpaySubId}:`, error);
-                    }
                 }
                 if (shopId) {
                     emailPromises.push((async () => {
@@ -478,12 +469,6 @@ exports.checkCancelledSubscriptionEnd = (0, scheduler_1.onSchedule)("every day 0
         console.error("Error running cancelled subscription end check:", error);
     }
 });
-const PLAN_NAMES = {
-    free: "Free",
-    pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
-};
 /**
  * Apply scheduled downgrades daily at 00:20.
  * Subs with pendingDowngrade and effectiveDate <= now → switch to lower plan.
@@ -515,8 +500,8 @@ exports.applyScheduledDowngrades = (0, scheduler_1.onSchedule)("every day 00:20"
         for (const doc of toApply) {
             const subData = doc.data();
             const shopId = subData.shopId || doc.id;
-            const toPlan = subData.pendingDowngrade.toPlan;
-            const planName = PLAN_NAMES[toPlan] || toPlan;
+            const toPlan = (0, plan_normalize_1.normalizePlanId)(subData.pendingDowngrade.toPlan);
+            const planName = (0, plan_normalize_1.planDisplayName)(toPlan);
             await doc.ref.update({
                 planId: toPlan,
                 planName,
@@ -750,14 +735,6 @@ __exportStar(require("./auth"), exports);
  */
 var cleanup_order_images_1 = require("./scheduled/cleanup-order-images");
 Object.defineProperty(exports, "cleanupOrderImagesDaily", { enumerable: true, get: function () { return cleanup_order_images_1.cleanupOrderImagesDaily; } });
-/**
- * Razorpay Webhook
- */
-__exportStar(require("./webhooks/razorpay-webhook"), exports);
-/**
- * Razorpay Requests
- */
-__exportStar(require("./requests/create-order"), exports);
 __exportStar(require("./requests/create-public-order"), exports);
 __exportStar(require("./requests/get-public-order-slot-availability"), exports);
 __exportStar(require("./triggers/on-public-order-created"), exports);
@@ -769,4 +746,6 @@ __exportStar(require("./requests/validate-coupon"), exports);
 __exportStar(require("./requests/get-subscription-settings"), exports);
 __exportStar(require("./requests/get-help-content"), exports);
 __exportStar(require("./requests/validate-app-login-email"), exports);
+__exportStar(require("./requests/verify-apple-purchase"), exports);
+__exportStar(require("./requests/verify-google-purchase"), exports);
 //# sourceMappingURL=index.js.map

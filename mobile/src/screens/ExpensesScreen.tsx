@@ -9,6 +9,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { formatCurrency } from '../lib/currency-format';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -169,7 +171,9 @@ function buildFinancialReportHtml(
   periodLabel: string,
   t: TFunction,
   locale: string,
+  currencySymbol: string,
 ): string {
+  const fmt = (v: number) => `${currencySymbol}${Math.round(v || 0).toLocaleString(locale || 'en-US')}`;
   const guest = t('mobile.guestLabel');
   const dash = '—';
 
@@ -179,7 +183,7 @@ function buildFinancialReportHtml(
       const catInfo = CAT_DEF_MAP[cat] || { labelEn: cat, group: 'Other' };
       const cLab = escHtml(catLabelT(cat, t));
       const gLab = escHtml(groupLabelT(catInfo.group, t));
-      return `<tr><td>${cLab}</td><td>${gLab}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString(locale)}</td></tr>`;
+      return `<tr><td>${cLab}</td><td>${gLab}</td><td style="text-align:right">${fmt(amt)}</td></tr>`;
     }).join('');
 
   const revenueRows = Object.entries(f.revenueByType)
@@ -188,7 +192,7 @@ function buildFinancialReportHtml(
     .map(([type, amt]) => {
       const pct = f.totalRevenue > 0 ? Math.round((amt / f.totalRevenue) * 100) : 0;
       const lab = escHtml(deliveryTypeLabelT(type, t));
-      return `<tr><td>${lab}</td><td style="text-align:right">₹${Math.round(amt).toLocaleString(locale)}</td><td style="text-align:right">${pct}%</td></tr>`;
+      return `<tr><td>${lab}</td><td style="text-align:right">${fmt(amt)}</td><td style="text-align:right">${pct}%</td></tr>`;
     }).join('');
 
   const expenseDetailRows = expenses
@@ -202,7 +206,7 @@ function buildFinancialReportHtml(
       const cLab = escHtml(catLabelT(exp.category || 'miscellaneous', t));
       const desc = escHtml(exp.description || dash);
       const vend = escHtml(exp.vendor || dash);
-      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>${cLab}</td><td>${desc}</td><td>${vend}</td><td style="text-align:right">₹${Math.round(exp.amount).toLocaleString(locale)}</td></tr>`;
+      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>${cLab}</td><td>${desc}</td><td>${vend}</td><td style="text-align:right">${fmt(exp.amount)}</td></tr>`;
     }).join('');
 
   const orderDetailRows = orders
@@ -214,7 +218,7 @@ function buildFinancialReportHtml(
       const created = toDate(order.createdAt);
       const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
       const name = escHtml(order.customerName || guest);
-      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>#${escHtml(publicId)}</td><td>${name}</td><td style="text-align:right">₹${total.toLocaleString(locale)}</td><td style="text-align:right">₹${paid.toLocaleString(locale)}</td><td style="text-align:right;color:${balance > 0 ? '#c62828' : '#2e7d32'}">₹${balance.toLocaleString(locale)}</td></tr>`;
+      return `<tr><td>${formatFullDateLocale(created || new Date(), locale)}</td><td>#${escHtml(publicId)}</td><td>${name}</td><td style="text-align:right">${fmt(total)}</td><td style="text-align:right">${fmt(paid)}</td><td style="text-align:right;color:${balance > 0 ? '#c62828' : '#2e7d32'}">${fmt(balance)}</td></tr>`;
     }).join('');
 
   const genDate = formatFullDateLocale(new Date(), locale);
@@ -262,10 +266,10 @@ function buildFinancialReportHtml(
   </div>
 
   <div class="summary-grid">
-    <div class="summary-box green"><div class="label">${escHtml(t('mobile.finRepTotalIncome'))}</div><div class="value">₹${Math.round(f.totalRevenue).toLocaleString(locale)}</div></div>
-    <div class="summary-box red"><div class="label">${escHtml(t('mobile.finRepTotalExpenses'))}</div><div class="value">₹${Math.round(f.totalExpenses).toLocaleString(locale)}</div></div>
-    <div class="summary-box orange"><div class="label">${escHtml(t('mobile.finRepPendingDues'))}</div><div class="value">₹${Math.round(f.pending).toLocaleString(locale)}</div></div>
-    <div class="summary-box ${f.netProfit >= 0 ? 'blue' : 'loss'}"><div class="label">${escHtml(t('mobile.finRepNetProfit'))}</div><div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString(locale)}</div></div>
+    <div class="summary-box green"><div class="label">${escHtml(t('mobile.finRepTotalIncome'))}</div><div class="value">${fmt(f.totalRevenue)}</div></div>
+    <div class="summary-box red"><div class="label">${escHtml(t('mobile.finRepTotalExpenses'))}</div><div class="value">${fmt(f.totalExpenses)}</div></div>
+    <div class="summary-box orange"><div class="label">${escHtml(t('mobile.finRepPendingDues'))}</div><div class="value">${fmt(f.pending)}</div></div>
+    <div class="summary-box ${f.netProfit >= 0 ? 'blue' : 'loss'}"><div class="label">${escHtml(t('mobile.finRepNetProfit'))}</div><div class="value">${f.netProfit < 0 ? '-' : ''}${fmt(Math.abs(f.netProfit))}</div></div>
   </div>
 
   <div class="section">
@@ -273,7 +277,7 @@ function buildFinancialReportHtml(
     <table>
       <tr><th>${escHtml(t('mobile.finRepColType'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColAmount'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColPercent'))}</th></tr>
       ${revenueRows || `<tr><td colspan="3" style="text-align:center;color:#737685">${escHtml(t('mobile.finRepNoRevenue'))}</td></tr>`}
-      <tr class="total-row"><td>${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">₹${Math.round(f.totalRevenue).toLocaleString(locale)}</td><td></td></tr>
+      <tr class="total-row"><td>${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">${fmt(f.totalRevenue)}</td><td></td></tr>
     </table>
   </div>
 
@@ -282,7 +286,7 @@ function buildFinancialReportHtml(
     <table>
       <tr><th>${escHtml(t('mobile.finRepColCategory'))}</th><th>${escHtml(t('mobile.finRepColGroup'))}</th><th style="text-align:right">${escHtml(t('mobile.finRepColAmount'))}</th></tr>
       ${expenseRows || `<tr><td colspan="3" style="text-align:center;color:#737685">${escHtml(t('mobile.finRepNoExpenses'))}</td></tr>`}
-      <tr class="total-row"><td colspan="2">${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">₹${Math.round(f.totalExpenses).toLocaleString(locale)}</td></tr>
+      <tr class="total-row"><td colspan="2">${escHtml(t('mobile.finRepTotal'))}</td><td style="text-align:right">${fmt(f.totalExpenses)}</td></tr>
     </table>
   </div>
 
@@ -304,7 +308,7 @@ function buildFinancialReportHtml(
 
   <div class="profit-section ${f.netProfit >= 0 ? 'blue' : 'loss'}">
     <div class="label">${escHtml(t('mobile.finRepNetProfitLoss'))}</div>
-    <div class="value">${f.netProfit < 0 ? '-' : ''}₹${Math.abs(Math.round(f.netProfit)).toLocaleString(locale)}</div>
+    <div class="value">${f.netProfit < 0 ? '-' : ''}${fmt(Math.abs(f.netProfit))}</div>
   </div>
 
   <div class="footer">
@@ -320,6 +324,8 @@ export default function ExpensesScreen() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('month');
   const [refDate, setRefDate] = useState(new Date());
@@ -522,14 +528,22 @@ export default function ExpensesScreen() {
   const generateReport = useCallback(async () => {
     setGeneratingReport(true);
     try {
-      const html = buildFinancialReportHtml(financials, expenses, orders, periodLabel, t, i18n.language);
+      const html = buildFinancialReportHtml(
+        financials,
+        expenses,
+        orders,
+        periodLabel,
+        t,
+        countrySettings.locale || i18n.language,
+        countrySettings.currencySymbol || '₹'
+      );
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: t('mobile.finShareReportTitle') });
     } catch (e: any) {
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedReport'));
     }
     setGeneratingReport(false);
-  }, [financials, expenses, orders, periodLabel, t, i18n.language]);
+  }, [financials, expenses, orders, periodLabel, t, i18n.language, countrySettings.locale, countrySettings.currencySymbol]);
 
   const PERIOD_OPTIONS = useMemo(
     () => [
@@ -636,20 +650,20 @@ export default function ExpensesScreen() {
           <View style={styles.summaryGrid}>
             <View style={[styles.summaryCard, { backgroundColor: '#e8f5e9' }]}>
               <Text style={styles.summaryLabel}>{t('mobile.finSummaryIncome')}</Text>
-              <Text style={[styles.summaryValue, { color: '#2e7d32' }]}>₹{Math.round(financials.totalRevenue).toLocaleString()}</Text>
+              <Text style={[styles.summaryValue, { color: '#2e7d32' }]}>{formatCurrency(Math.round(financials.totalRevenue), countrySettings)}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: '#fce4ec' }]}>
               <Text style={styles.summaryLabel}>{t('mobile.finSummaryExpenses')}</Text>
-              <Text style={[styles.summaryValue, { color: '#c62828' }]}>₹{Math.round(financials.totalExpenses).toLocaleString()}</Text>
+              <Text style={[styles.summaryValue, { color: '#c62828' }]}>{formatCurrency(Math.round(financials.totalExpenses), countrySettings)}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: '#fff3e0' }]}>
               <Text style={styles.summaryLabel}>{t('mobile.finSummaryPending')}</Text>
-              <Text style={[styles.summaryValue, { color: '#e65100' }]}>₹{Math.round(financials.pending).toLocaleString()}</Text>
+              <Text style={[styles.summaryValue, { color: '#e65100' }]}>{formatCurrency(Math.round(financials.pending), countrySettings)}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: financials.netProfit >= 0 ? '#e3f2fd' : '#ffdad6' }]}>
               <Text style={styles.summaryLabel}>{t('mobile.finSummaryNetProfit')}</Text>
               <Text style={[styles.summaryValue, { color: financials.netProfit >= 0 ? '#00408f' : '#93000a' }]}>
-                {financials.netProfit < 0 ? '-' : ''}₹{Math.abs(Math.round(financials.netProfit)).toLocaleString()}
+                {financials.netProfit < 0 ? '-' : ''}{formatCurrency(Math.abs(Math.round(financials.netProfit)), countrySettings)}
               </Text>
             </View>
           </View>
@@ -688,7 +702,7 @@ export default function ExpensesScreen() {
                             <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: '#00408f' }]} />
                           </View>
                         </View>
-                        <Text style={styles.breakdownValue}>₹{Math.round(amount).toLocaleString()}</Text>
+                        <Text style={styles.breakdownValue}>{formatCurrency(Math.round(amount), countrySettings)}</Text>
                         <Text style={styles.breakdownPct}>{pct}%</Text>
                       </View>
                     );
@@ -712,7 +726,7 @@ export default function ExpensesScreen() {
                             <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
                           </View>
                         </View>
-                        <Text style={styles.breakdownValue}>₹{Math.round(amount).toLocaleString()}</Text>
+                        <Text style={styles.breakdownValue}>{formatCurrency(Math.round(amount), countrySettings)}</Text>
                         <Text style={styles.breakdownPct}>{pct}%</Text>
                       </View>
                     );
@@ -726,12 +740,12 @@ export default function ExpensesScreen() {
                 <View style={styles.collectionRow}>
                   <View style={styles.collectionItem}>
                     <Text style={styles.collectionLabel}>{t('mobile.finCollected')}</Text>
-                    <Text style={[styles.collectionValue, { color: '#2e7d32' }]}>₹{Math.round(financials.collected).toLocaleString()}</Text>
+                    <Text style={[styles.collectionValue, { color: '#2e7d32' }]}>{formatCurrency(Math.round(financials.collected), countrySettings)}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
                     <Text style={styles.collectionLabel}>{t('mobile.finPending')}</Text>
-                    <Text style={[styles.collectionValue, { color: '#e65100' }]}>₹{Math.round(financials.pending).toLocaleString()}</Text>
+                    <Text style={[styles.collectionValue, { color: '#e65100' }]}>{formatCurrency(Math.round(financials.pending), countrySettings)}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
@@ -771,13 +785,13 @@ export default function ExpensesScreen() {
                           <View style={styles.revenueMeta}>
                             <Text style={styles.revenueType}>{deliveryTypeLabelT(dType, t)}</Text>
                             {balance > 0 ? (
-                              <Text style={styles.revenueDue}>{t('mobile.orderDueLabel', { amount: balance })}</Text>
+                              <Text style={styles.revenueDue}>{withCurrencySymbol(t('mobile.orderDueLabel', { amount: balance }) as string)}</Text>
                             ) : (
                               <Text style={styles.revenuePaid}>{t('mobile.paidLabel')}</Text>
                             )}
                           </View>
                         </View>
-                        <Text style={styles.revenueAmount}>₹{total}</Text>
+                        <Text style={styles.revenueAmount}>{formatCurrency(total, countrySettings)}</Text>
                       </View>
                     );
                   })}
@@ -823,7 +837,7 @@ export default function ExpensesScreen() {
                             ) : null}
                           </View>
                         </View>
-                        <Text style={styles.expenseAmount}>-₹{Math.round(exp.amount)}</Text>
+                        <Text style={styles.expenseAmount}>-{formatCurrency(Math.round(exp.amount), countrySettings)}</Text>
                         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteExpense(exp.id)}>
                           <MaterialIcons name="delete-outline" size={18} color="#c62828" />
                         </TouchableOpacity>
@@ -929,7 +943,7 @@ export default function ExpensesScreen() {
             {/* Amount */}
             <Text style={styles.fieldLabel}>{t('mobile.finAmountLabel')} <Text style={{ color: '#c62828' }}>*</Text></Text>
             <View style={styles.amountRow}>
-              <Text style={styles.currencySign}>₹</Text>
+              <Text style={styles.currencySign}>{countrySettings.currencySymbol || '$'}</Text>
               <TextInput
                 style={styles.amountInput}
                 value={expAmount}

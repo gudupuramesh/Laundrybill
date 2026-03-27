@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 
 function formatTimeAgo(date: any, t: TFunction, locale: string): string {
   if (!date) return '';
@@ -57,6 +59,8 @@ export default function HomeScreen({
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
   const [shopData, setShopData] = useState<any>(null);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -216,7 +220,7 @@ export default function HomeScreen({
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>{t('mobile.statsCollected')}</Text>
-                <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>₹{stats.collected}</Text>
+                <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>{formatCurrency(stats.collected, countrySettings)}</Text>
               </View>
             </View>
 
@@ -228,7 +232,7 @@ export default function HomeScreen({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dueTitle}>{t('mobile.dueOrdersTitle', { count: stats.dueCount })}</Text>
-                  <Text style={styles.dueAmount}>{t('mobile.dueTotal', { amount: stats.dueAmount.toLocaleString() })}</Text>
+                  <Text style={styles.dueAmount}>{withCurrencySymbol(t('mobile.dueTotal', { amount: stats.dueAmount.toLocaleString() }) as string)}</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={20} color="#93000a" />
               </TouchableOpacity>
@@ -277,13 +281,13 @@ export default function HomeScreen({
                       {order.financials?.total ? (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.orderAmount}>₹{Math.round(order.financials.total)}</Text>
+                          <Text style={styles.orderAmount}>{formatCurrency(Math.round(order.financials.total), countrySettings)}</Text>
                         </>
                       ) : null}
                       {balance > 0 ? (
                         <>
                           <View style={styles.dot} />
-                          <Text style={styles.dueBadgeText}>{t('mobile.orderDueShort', { amount: balance.toLocaleString() })}</Text>
+                          <Text style={styles.dueBadgeText}>{withCurrencySymbol(t('mobile.orderDueShort', { amount: balance.toLocaleString() }) as string)}</Text>
                         </>
                       ) : null}
                     </View>

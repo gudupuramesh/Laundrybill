@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, query, where, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth";
-import { PLANS } from "@/config/plans";
-import type { PlanType } from "@/types/plans";
+import { PLANS, getPlan } from "@/config/plans";
+import { normalizePlanId } from "@/types/plans";
 import type { Plan } from "@/types/plans";
 import { useShop } from "@/hooks/use-shop"; // Hybrid Source
 import { usePlans } from "@/features/super-admin/hooks/use-plans";
@@ -66,9 +66,9 @@ export function useShopSubscription() {
                 }
 
                 if (data) {
-                    const planId = (data.planId as PlanType) || "free";
-                    // Dynamic Plan Lookup
-                    const planDef = plans.find(p => p.id === planId) || PLANS[planId as keyof typeof PLANS] || PLANS.free;
+                    const planId = normalizePlanId(data.planId);
+                    const planDef =
+                        plans.find((p) => normalizePlanId(p.id) === planId) || getPlan(planId);
 
                     const endDate = data.endDate?.toDate?.() || null;
                     const trialEndDateAt = data.trialEndDate?.toDate?.() || null;
@@ -154,19 +154,19 @@ function getRobustSubscription(
     plans: Plan[]
 ): ShopSubscription | null {
     // 1. If we have a valid Sub Doc that is NOT Free, trust it (it has billing info)
-    if (subDoc && subDoc.planId !== "free") {
-        return subDoc;
+    const normalizedSubPlan = normalizePlanId(subDoc?.planId);
+    if (subDoc && normalizedSubPlan !== "free") {
+        return { ...subDoc, planId: normalizedSubPlan, planName: getPlan(normalizedSubPlan).name };
     }
 
     // 2. If Shop Profile has a plan (synced via Cloud Function/Admin Override)
     // AND it is better than Free, use it.
-    const shopPlanId = shop?.subscription?.planId || shop?.plan;
+    const shopPlanId = normalizePlanId(String(shop?.subscription?.planId || shop?.plan || ""));
     const shopSub = shop?.subscription;
 
     if (shopPlanId && shopPlanId !== "free") {
-        const planId = shopPlanId as PlanType;
-        // Dynamic Lookup
-        const planDef = plans.find(p => p.id === planId) || PLANS[planId] || PLANS.free;
+        const planId = shopPlanId;
+        const planDef = plans.find((p) => normalizePlanId(p.id) === planId) || getPlan(planId);
 
         // Construct a synthetic subscription object from Shop data
         return {

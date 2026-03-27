@@ -8,15 +8,14 @@ import * as admin from "firebase-admin";
 import { sendEmail } from "../services/zeptomail";
 import { getPlatformSettings } from "../services/platform-settings";
 import { getDowngradeScheduledTemplate } from "../services/email-downgrade-scheduled";
+import { normalizePlanId, planDisplayName } from "../lib/plan-normalize";
 
 const PLAN_ORDER: Record<string, number> = {
     free: 0,
     pro: 1,
-    pro_plus: 2,
-    business: 3,
 };
 
-const VALID_PLANS = ["free", "pro", "pro_plus", "business"];
+const VALID_TO_PLAN_RAW = ["free", "pro", "pro_plus", "business"];
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -33,9 +32,10 @@ export const scheduleDowngrade = onCall(async (request) => {
     if (!shopId || typeof shopId !== "string") {
         throw new HttpsError("invalid-argument", "Missing or invalid shopId.");
     }
-    if (!toPlan || !VALID_PLANS.includes(toPlan)) {
+    if (!toPlan || typeof toPlan !== "string" || !VALID_TO_PLAN_RAW.includes(String(toPlan).toLowerCase().trim())) {
         throw new HttpsError("invalid-argument", "Missing or invalid toPlan.");
     }
+    const toPlanNorm = normalizePlanId(toPlan);
 
     const uid = request.auth.uid;
 
@@ -61,13 +61,14 @@ export const scheduleDowngrade = onCall(async (request) => {
         const subData = subDoc.data();
         const status = subData?.status;
         const currentPlan = subData?.planId || "free";
+        const currentPlanNorm = normalizePlanId(currentPlan);
 
         if (status !== "active" && status !== "trial") {
             throw new HttpsError("failed-precondition", "Only active or trial subscriptions can be downgraded.");
         }
 
-        const fromOrder = PLAN_ORDER[currentPlan] ?? 0;
-        const toOrder = PLAN_ORDER[toPlan] ?? 0;
+        const fromOrder = PLAN_ORDER[currentPlanNorm] ?? 0;
+        const toOrder = PLAN_ORDER[toPlanNorm] ?? 0;
         if (toOrder >= fromOrder) {
             throw new HttpsError(
                 "invalid-argument",
@@ -84,7 +85,7 @@ export const scheduleDowngrade = onCall(async (request) => {
 
         await subRef.update({
             pendingDowngrade: {
-                toPlan,
+                toPlan: toPlanNorm,
                 effectiveDate,
                 requestedAt: now,
             },
@@ -92,12 +93,6 @@ export const scheduleDowngrade = onCall(async (request) => {
         });
 
         const effectiveDateObj = effectiveDate?.toDate?.();
-        const planNames: Record<string, string> = {
-            free: "Free",
-            pro: "Pro",
-            pro_plus: "Pro Plus",
-            business: "Business",
-        };
 
         try {
             const shopData = shopDoc.data();
@@ -109,8 +104,8 @@ export const scheduleDowngrade = onCall(async (request) => {
                     : "";
                 const htmlBody = getDowngradeScheduledTemplate({
                     shopName: shopData?.name || "Shop Owner",
-                    currentPlanName: planNames[currentPlan] || currentPlan,
-                    newPlanName: planNames[toPlan] || toPlan,
+                    currentPlanName: planDisplayName(currentPlan),
+                    newPlanName: planDisplayName(toPlanNorm),
                     effectiveDate: effectiveStr,
                     settings,
                 });
@@ -127,9 +122,9 @@ export const scheduleDowngrade = onCall(async (request) => {
 
         return {
             success: true,
-            toPlan,
+            toPlan: toPlanNorm,
             effectiveDate: effectiveDateObj ? effectiveDateObj.toISOString() : null,
-            message: `Your plan will change to ${toPlan} at the end of your current period.`,
+            message: `Your plan will change to ${planDisplayName(toPlanNorm)} at the end of your current period.`,
         };
     } catch (error) {
         if (error instanceof HttpsError) throw error;

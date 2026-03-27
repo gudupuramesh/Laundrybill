@@ -4,6 +4,7 @@
  */
 
 import * as admin from "firebase-admin";
+import { normalizePlanId } from "../lib/plan-normalize";
 
 const TRIAL_CONFIG_DOC = "subscription";
 const DEFAULT_TRIAL_DAYS = 14;
@@ -21,14 +22,8 @@ export interface TrialConfigStored {
     trialPlanId?: string;
 }
 
-const PLAN_NAMES: Record<string, string> = {
-    pro: "Pro",
-    pro_plus: "Pro Plus",
-    business: "Business",
-};
-
 export function getTrialPlanName(planId: string): string {
-    return PLAN_NAMES[planId] || "Pro";
+    return normalizePlanId(planId) === "pro" ? "Pro" : "Free";
 }
 
 /**
@@ -53,11 +48,9 @@ export async function getTrialConfig(): Promise<TrialConfig> {
         if (days <= 0) days = DEFAULT_TRIAL_DAYS;
         days = Math.min(days, 365);
 
-        const planId = data?.trialPlanId as string | undefined;
-        const validPlans = ["pro", "pro_plus", "business"];
         return {
             trialDurationDays: days,
-            trialPlanId: planId && validPlans.includes(planId) ? planId : DEFAULT_TRIAL_PLAN_ID,
+            trialPlanId: DEFAULT_TRIAL_PLAN_ID,
         };
     } catch (e) {
         console.warn("getTrialConfig failed, using defaults:", e);

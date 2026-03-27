@@ -26,6 +26,9 @@ try {
     onAuthStateChanged: webOnAuthStateChanged,
     signInWithCustomToken: webSignInWithCustomToken,
     signInWithCredential: webSignInWithCredential,
+    signInWithEmailAndPassword: webSignInWithEmailAndPassword,
+    createUserWithEmailAndPassword: webCreateUserWithEmailAndPassword,
+    sendPasswordResetEmail: webSendPasswordResetEmail,
     GoogleAuthProvider: WebGoogleAuthProvider,
     signOut: webSignOut,
   } = require('firebase/auth');
@@ -36,6 +39,9 @@ try {
     onAuthStateChanged: (cb: any) => webOnAuthStateChanged(webAuth, cb),
     signInWithCustomToken: (token: string) => webSignInWithCustomToken(webAuth, token),
     signInWithCredential: (credential: any) => webSignInWithCredential(webAuth, credential),
+    signInWithEmailAndPassword: (email: string, password: string) => webSignInWithEmailAndPassword(webAuth, email, password),
+    createUserWithEmailAndPassword: (email: string, password: string) => webCreateUserWithEmailAndPassword(webAuth, email, password),
+    sendPasswordResetEmail: (email: string) => webSendPasswordResetEmail(webAuth, email),
     signOut: () => webSignOut(webAuth),
     get currentUser() { return webAuth.currentUser; },
   };
@@ -49,70 +55,6 @@ try {
   });
 
   // isMockEnv stays FALSE — this is a real Firebase connection, not a mock!
-}
-
-const MSG91_AUTH_KEY = process.env.EXPO_PUBLIC_MSG91_AUTH_KEY || '449167AV9OuzJhy68135dccP1';
-const MSG91_TEMPLATE_ID = process.env.EXPO_PUBLIC_MSG91_TEMPLATE_ID || '69218ec0be240a7f4f6e2ba8';
-
-function getRawPhone(phone: string) {
-  return phone.replace(/\D/g, '').slice(-10);
-}
-
-export async function sendMsg91Otp(phoneNumber: string) {
-  const rawNum = getRawPhone(phoneNumber);
-  const mobile = `91${rawNum}`;
-
-  try {
-    const url = `https://control.msg91.com/api/v5/otp?template_id=${MSG91_TEMPLATE_ID}&mobile=${mobile}&authkey=${MSG91_AUTH_KEY}`;
-    const response = await fetch(url, { method: 'POST' });
-    const data = await response.json();
-
-    if (data.type === 'error') {
-      throw new Error(data.message || 'Failed to send OTP via MSG91');
-    }
-
-    return true;
-  } catch (error) {
-    console.error('MSG91 Send Error:', error);
-    throw error;
-  }
-}
-
-export async function verifyMsg91Otp(phoneNumber: string, otp: string) {
-  // 1. Verify OTP via MSG91 REST API
-  const rawNum = getRawPhone(phoneNumber);
-  const mobile = `91${rawNum}`;
-
-  try {
-    const url = `https://control.msg91.com/api/v5/otp/verify?otp=${otp}&mobile=${mobile}&authkey=${MSG91_AUTH_KEY}`;
-    const response = await fetch(url, { method: 'GET' });
-    const data = await response.json();
-
-    if (data.type === 'error' || data.message === "OTP not match") {
-      throw new Error(data.message || 'Invalid OTP');
-    }
-  } catch (error) {
-    console.error('MSG91 Verify Error:', error);
-    throw error;
-  }
-
-  // 2. Get Firebase Custom Token via Cloud Function
-  try {
-    const rawNum2 = getRawPhone(phoneNumber);
-    const e164Phone = `+91${rawNum2}`;
-
-    const loginFn = functions().httpsCallable('loginWithMsg91');
-    const result = await loginFn({ phone: e164Phone });
-    const { token } = result.data as { token: string };
-
-    if (!token) throw new Error("No custom token returned from Cloud Function");
-
-    // 3. Sign in to Firebase (works with both native and web SDK)
-    return await auth().signInWithCustomToken(token);
-  } catch (error) {
-    console.error('Cloud Function / Custom Token Error:', error);
-    throw error;
-  }
 }
 
 export async function signInWithGoogle() {
@@ -141,6 +83,21 @@ export async function signInWithGoogle() {
 export async function signInWithGoogleIdToken(idToken: string) {
   const googleCredential = auth.GoogleAuthProvider.credential(idToken);
   return auth().signInWithCredential(googleCredential);
+}
+
+export async function signInWithEmailPassword(email: string, password: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return auth().signInWithEmailAndPassword(normalizedEmail, password);
+}
+
+export async function registerWithEmailPassword(email: string, password: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return auth().createUserWithEmailAndPassword(normalizedEmail, password);
+}
+
+export async function sendPasswordReset(email: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return auth().sendPasswordResetEmail(normalizedEmail);
 }
 
 // Resolved shopId — set by App.tsx after matching, used by all screens

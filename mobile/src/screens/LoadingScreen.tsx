@@ -16,8 +16,13 @@ const SPLASH_HERO = require('../../assets/splash-hero.png');
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
+type LoadingScreenProps = {
+  /** When true, tighter layout for onboarding carousel (slide 1 of 4). */
+  embedded?: boolean;
+};
+
 /** Stitch LaundryFlow Dashboard — Initial Splash Screen (Alternative); brand from i18n + app logo */
-export default function LoadingScreen() {
+export default function LoadingScreen({ embedded = false }: LoadingScreenProps) {
   const { t } = useTranslation();
   const progressAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -54,9 +59,11 @@ export default function LoadingScreen() {
     outputRange: ['26%', '78%'],
   });
 
+  const heroH = embedded ? Math.min(SCREEN_H * 0.34, 280) : HERO_H;
+
   return (
-    <View style={styles.root}>
-      <View style={styles.heroWrap}>
+    <View style={[styles.root, embedded && styles.rootEmbedded]}>
+      <View style={[styles.heroWrap, { height: heroH }]}>
         <ImageBackground source={SPLASH_HERO} style={styles.heroImage} resizeMode="cover">
           <LinearGradient
             colors={['rgba(0, 64, 143, 0.12)', 'transparent']}
@@ -66,7 +73,7 @@ export default function LoadingScreen() {
           />
           <LinearGradient
             colors={['transparent', 'rgba(248, 249, 251, 0.92)', '#f8f9fb']}
-            style={styles.heroBottomFade}
+            style={[styles.heroBottomFade, { height: heroH * 0.55 }]}
             start={{ x: 0.5, y: 0.35 }}
             end={{ x: 0.5, y: 1 }}
           />
@@ -77,23 +84,25 @@ export default function LoadingScreen() {
         </ImageBackground>
       </View>
 
-      <View style={styles.lower}>
-        <View style={styles.brandBlock}>
+      <View style={[styles.lower, embedded && styles.lowerEmbedded]}>
+        <View style={[styles.brandBlock, embedded && styles.brandBlockEmbedded]}>
           <View style={styles.brandRow}>
             <View style={styles.logoShell}>
               <Image source={APP_LOGO} style={styles.logo} resizeMode="contain" />
             </View>
             <View>
               <Text style={styles.brandTitle}>
-                <Text style={styles.brandLaundry}>{brandParts.first}</Text>
-                {brandParts.rest ? <Text style={styles.brandBill}> {brandParts.rest}</Text> : null}
+                <Text style={[styles.brandLaundry, embedded && styles.brandTextEmbedded]}>{brandParts.first}</Text>
+                {brandParts.rest ? (
+                  <Text style={[styles.brandBill, embedded && styles.brandTextEmbedded]}> {brandParts.rest}</Text>
+                ) : null}
               </Text>
-              <Text style={styles.tagline}>{t('mobile.loadingTagline')}</Text>
+              <Text style={[styles.tagline, embedded && styles.taglineEmbedded]}>{t('mobile.loadingTagline')}</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.progressWrap}>
+        <View style={[styles.progressWrap, embedded && styles.progressWrapEmbedded]}>
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
           </View>
@@ -118,8 +127,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fb',
   },
+  rootEmbedded: {
+    minHeight: 0,
+  },
   heroWrap: {
-    height: HERO_H,
     width: '100%',
     backgroundColor: '#e8eef5',
   },
@@ -133,7 +144,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: HERO_H * 0.55,
   },
   badge: {
     position: 'absolute',
@@ -170,8 +180,28 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     justifyContent: 'center',
   },
+  lowerEmbedded: {
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    paddingBottom: 12,
+    flexGrow: 1,
+  },
   brandBlock: {
     marginBottom: 36,
+  },
+  brandBlockEmbedded: {
+    marginBottom: 16,
+  },
+  brandTextEmbedded: {
+    fontSize: 24,
+  },
+  taglineEmbedded: {
+    letterSpacing: 1.6,
+    marginTop: 4,
+  },
+  progressWrapEmbedded: {
+    marginTop: 8,
+    gap: 10,
   },
   brandRow: {
     flexDirection: 'row',

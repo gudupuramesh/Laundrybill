@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { formatCurrency } from '../lib/currency-format';
 import i18n from '../lib/i18n';
 import { DraftOrderPayload } from '../types/orderDraft';
 
@@ -110,6 +112,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
 
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -657,7 +660,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             <TouchableOpacity key={item.id} style={styles.itemChip} onPress={() => selectMostUsed(item)}>
               <Text style={styles.itemChipText}>{item.name}</Text>
               <Text style={styles.itemChipMeta}>{item.categoryName}</Text>
-              <Text style={styles.itemChipPrice}>₹{item.basePrice || 0}</Text>
+              <Text style={styles.itemChipPrice}>{formatCurrency(item.basePrice || 0, countrySettings)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -699,7 +702,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                   <View style={styles.itemInfoCol}>
                     <Text numberOfLines={1} style={selected ? styles.itemName : styles.itemNameUnselected}>{item.name}</Text>
                     <View style={styles.unitRow}>
-                      <Text style={styles.itemPriceUnselected}>₹{unitPrice}/{pricingTypeToUnit(item.pricingType)}</Text>
+                      <Text style={styles.itemPriceUnselected}>{formatCurrency(unitPrice, countrySettings)}/{pricingTypeToUnit(item.pricingType)}</Text>
                       <TouchableOpacity onPress={() => openEditItem(item)} style={{ padding: 2 }}>
                         <MaterialIcons name="edit" size={13} color="#737685" />
                       </TouchableOpacity>
@@ -739,7 +742,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     </View>
                   )}
                   <View style={styles.priceColCompact}>
-                    <Text style={selected ? styles.itemPriceSelected : styles.itemPriceUnselected}>₹{Math.round(unitPrice * (state.quantity || 0))}</Text>
+                    <Text style={selected ? styles.itemPriceSelected : styles.itemPriceUnselected}>{formatCurrency(Math.round(unitPrice * (state.quantity || 0)), countrySettings)}</Text>
                   </View>
                 </View>
               </View>
@@ -768,7 +771,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.summaryCard}>
           <View style={styles.summaryTotal}>
             <Text style={styles.summaryCount}>{t('mobile.itemsCount', { count: totals.itemCount })}</Text>
-            <Text style={styles.summaryPrice}>₹{totals.total}</Text>
+            <Text style={styles.summaryPrice}>{formatCurrency(totals.total, countrySettings)}</Text>
           </View>
           <TouchableOpacity style={styles.reviewBtn} onPress={handleReviewOrder}>
             <Text style={styles.reviewBtnText}>{t('mobile.reviewOrder')}</Text>

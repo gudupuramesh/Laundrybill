@@ -10,13 +10,12 @@ const admin = require("firebase-admin");
 const zeptomail_1 = require("../services/zeptomail");
 const platform_settings_1 = require("../services/platform-settings");
 const email_downgrade_scheduled_1 = require("../services/email-downgrade-scheduled");
+const plan_normalize_1 = require("../lib/plan-normalize");
 const PLAN_ORDER = {
     free: 0,
     pro: 1,
-    pro_plus: 2,
-    business: 3,
 };
-const VALID_PLANS = ["free", "pro", "pro_plus", "business"];
+const VALID_TO_PLAN_RAW = ["free", "pro", "pro_plus", "business"];
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
@@ -30,9 +29,10 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
     if (!shopId || typeof shopId !== "string") {
         throw new https_1.HttpsError("invalid-argument", "Missing or invalid shopId.");
     }
-    if (!toPlan || !VALID_PLANS.includes(toPlan)) {
+    if (!toPlan || typeof toPlan !== "string" || !VALID_TO_PLAN_RAW.includes(String(toPlan).toLowerCase().trim())) {
         throw new https_1.HttpsError("invalid-argument", "Missing or invalid toPlan.");
     }
+    const toPlanNorm = (0, plan_normalize_1.normalizePlanId)(toPlan);
     const uid = request.auth.uid;
     try {
         const shopRef = db.collection("shops").doc(shopId);
@@ -53,11 +53,12 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
         const subData = subDoc.data();
         const status = subData === null || subData === void 0 ? void 0 : subData.status;
         const currentPlan = (subData === null || subData === void 0 ? void 0 : subData.planId) || "free";
+        const currentPlanNorm = (0, plan_normalize_1.normalizePlanId)(currentPlan);
         if (status !== "active" && status !== "trial") {
             throw new https_1.HttpsError("failed-precondition", "Only active or trial subscriptions can be downgraded.");
         }
-        const fromOrder = (_b = PLAN_ORDER[currentPlan]) !== null && _b !== void 0 ? _b : 0;
-        const toOrder = (_c = PLAN_ORDER[toPlan]) !== null && _c !== void 0 ? _c : 0;
+        const fromOrder = (_b = PLAN_ORDER[currentPlanNorm]) !== null && _b !== void 0 ? _b : 0;
+        const toOrder = (_c = PLAN_ORDER[toPlanNorm]) !== null && _c !== void 0 ? _c : 0;
         if (toOrder >= fromOrder) {
             throw new https_1.HttpsError("invalid-argument", "Can only downgrade to a lower plan. Use Upgrade for a higher plan.");
         }
@@ -68,19 +69,13 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
         const effectiveDate = (_f = (_e = subData === null || subData === void 0 ? void 0 : subData.currentPeriodEnd) !== null && _e !== void 0 ? _e : subData === null || subData === void 0 ? void 0 : subData.endDate) !== null && _f !== void 0 ? _f : now;
         await subRef.update({
             pendingDowngrade: {
-                toPlan,
+                toPlan: toPlanNorm,
                 effectiveDate,
                 requestedAt: now,
             },
             updatedAt: now,
         });
         const effectiveDateObj = (_g = effectiveDate === null || effectiveDate === void 0 ? void 0 : effectiveDate.toDate) === null || _g === void 0 ? void 0 : _g.call(effectiveDate);
-        const planNames = {
-            free: "Free",
-            pro: "Pro",
-            pro_plus: "Pro Plus",
-            business: "Business",
-        };
         try {
             const shopData = shopDoc.data();
             const ownerEmail = (_h = shopData === null || shopData === void 0 ? void 0 : shopData.email) !== null && _h !== void 0 ? _h : shopData === null || shopData === void 0 ? void 0 : shopData.ownerEmail;
@@ -91,8 +86,8 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
                     : "";
                 const htmlBody = (0, email_downgrade_scheduled_1.getDowngradeScheduledTemplate)({
                     shopName: (shopData === null || shopData === void 0 ? void 0 : shopData.name) || "Shop Owner",
-                    currentPlanName: planNames[currentPlan] || currentPlan,
-                    newPlanName: planNames[toPlan] || toPlan,
+                    currentPlanName: (0, plan_normalize_1.planDisplayName)(currentPlan),
+                    newPlanName: (0, plan_normalize_1.planDisplayName)(toPlanNorm),
                     effectiveDate: effectiveStr,
                     settings,
                 });
@@ -109,9 +104,9 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
         }
         return {
             success: true,
-            toPlan,
+            toPlan: toPlanNorm,
             effectiveDate: effectiveDateObj ? effectiveDateObj.toISOString() : null,
-            message: `Your plan will change to ${toPlan} at the end of your current period.`,
+            message: `Your plan will change to ${(0, plan_normalize_1.planDisplayName)(toPlanNorm)} at the end of your current period.`,
         };
     }
     catch (error) {

@@ -1,12 +1,11 @@
 /**
  * Cancel subscription at period end (user-initiated).
  * Sets status to cancelled, activeUntil = current period end.
- * If Razorpay subscription exists, cancels it at cycle end.
+ * Billing (Google Play / App Store) is managed in the store; this updates Firestore only.
  */
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import { cancelSubscription } from "../services/razorpay";
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -53,16 +52,6 @@ export const cancelSubscriptionAtPeriodEnd = onCall(async (request) => {
 
         const now = admin.firestore.Timestamp.now();
         const activeUntil = subData?.currentPeriodEnd ?? subData?.endDate ?? now;
-
-        const razorpaySubId = subData?.razorpaySubscriptionId;
-        if (razorpaySubId) {
-            try {
-                await cancelSubscription(razorpaySubId, true);
-                console.log(`Razorpay subscription ${razorpaySubId} cancelled at cycle end.`);
-            } catch (err) {
-                console.error("Razorpay cancel failed (continuing with Firestore update):", err);
-            }
-        }
 
         await subRef.update({
             status: "cancelled",

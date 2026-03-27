@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
+import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { auth, getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
+import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { COUNTRIES, getCountry } from '../lib/country-config';
 import {
   LANGUAGE_OPTIONS,
   nativeLabelForCode,
@@ -27,9 +29,11 @@ export default function SettingsScreen({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
 
   const [shopData, setShopData] = useState<any>(null);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [userProfileEmail, setUserProfileEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [serviceCount, setServiceCount] = useState(0);
 
@@ -37,6 +41,22 @@ export default function SettingsScreen({
   const [darkMode, setDarkMode] = useState(false);
   const [languageCode, setLanguageCode] = useState('en');
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+  const isIndiaCountry = countrySettings.countryCode === 'IN';
+  const languageOptionsForCountry = isIndiaCountry
+    ? LANGUAGE_OPTIONS
+    : LANGUAGE_OPTIONS.filter((opt) => opt.code === 'en');
+  const filteredCountries = COUNTRIES.filter((country) => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      country.name.toLowerCase().includes(q) ||
+      country.code.toLowerCase().includes(q) ||
+      country.phoneCode.toLowerCase().includes(q) ||
+      country.currencyCode.toLowerCase().includes(q)
+    );
+  });
 
   const ordersUsed = useMergedOrdersUsed(subscriptionData, shopId);
 
@@ -47,6 +67,18 @@ export default function SettingsScreen({
     try {
       const shopId = getShopId();
       if (!shopId) { setLoading(false); return; }
+      const uid = auth().currentUser?.uid;
+      if (uid) {
+        firestore()
+          .collection('users')
+          .doc(uid)
+          .get()
+          .then((doc: any) => {
+            const userData = (doc?.data?.() ?? {}) as any;
+            if (userData?.email) setUserProfileEmail(String(userData.email));
+          })
+          .catch((err: any) => console.error('Settings user email fetch error:', err));
+      }
 
       unsubShop = firestore()
         .collection('shops')
@@ -90,7 +122,16 @@ export default function SettingsScreen({
         .then((snapshot: any) => {
           setServiceCount(snapshot.docs?.length || 0);
         })
-        .catch((err: any) => console.error('Service count error:', err));
+        .catch((err: any) => {
+          const code = err?.code || '';
+          // During first-time setup/mapping, this read can be temporarily denied by rules.
+          if (code === 'firestore/permission-denied') {
+            setServiceCount(0);
+            console.warn('Service count unavailable due to access rules');
+            return;
+          }
+          console.error('Service count error:', err);
+        });
 
     } catch (e) {
       console.error('Settings fetch error:', e);
@@ -113,6 +154,38 @@ export default function SettingsScreen({
       );
     } catch (e) {
       console.error('Failed to save setting:', e);
+    }
+  };
+
+  const saveCountrySettings = async (countryCode: string) => {
+    try {
+      const sid = getShopId();
+      if (!sid) return;
+      const selected = getCountry(countryCode);
+      const forceEnglish = selected.code !== 'IN';
+      await firestore().collection('shops').doc(sid).set(
+        {
+          settings: {
+            countryCode: selected.code,
+            phoneCountryCode: selected.phoneCode,
+            currency: selected.currencyCode,
+            currencySymbol: selected.currencySymbol,
+            locale: selected.locale,
+            timezone: selected.timezone,
+            taxName: selected.taxName,
+            ...(forceEnglish ? { language: 'en' } : {}),
+          },
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+      if (forceEnglish) {
+        setLanguageCode('en');
+        void setAppLanguageCode('en');
+      }
+    } catch (e) {
+      console.error('Failed to save country settings:', e);
+      Alert.alert(t('mobile.errorTitle'), 'Failed to update country settings');
     }
   };
 
@@ -146,7 +219,7 @@ export default function SettingsScreen({
   // Display values
   const shopName = shopData?.name || t('mobile.myShopDefault');
   const shopPhone = shopData?.phone || auth().currentUser?.phoneNumber || '';
-  const shopEmail = shopData?.email || '';
+  const shopEmail = shopData?.email || auth().currentUser?.email || userProfileEmail || '';
   const ownerDisplay = [shopEmail, shopPhone].filter(Boolean).join(' \u2022 ');
 
   // Subscription
@@ -158,7 +231,7 @@ export default function SettingsScreen({
   const formatSubDate = (val: any): string => {
     if (!val) return '';
     const d = val.toDate ? val.toDate() : val.seconds ? new Date(val.seconds * 1000) : new Date(val);
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString(countrySettings.locale || 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   const endDate = formatSubDate(subscriptionData?.endDate);
@@ -327,13 +400,25 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.languageSection')}</Text>
           <View style={styles.sectionCard}>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => setShowLangPicker(true)}>
+            <TouchableOpacity style={styles.listItem} onPress={() => setShowCountryPicker(true)}>
+              <View style={styles.listItemLeft}>
+                <MaterialIcons name="public" size={20} color="#00408f" />
+                <Text style={styles.listItemText}>
+                  {getCountry(countrySettings.countryCode).name} ({countrySettings.phoneCountryCode})
+                </Text>
+              </View>
+              <View style={styles.listItemRight}>
+                <Text style={styles.versionText}>{countrySettings.currency}</Text>
+                <MaterialIcons name="expand-more" size={20} color="#737685" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => { if (isIndiaCountry) setShowLangPicker(true); }}>
               <View style={styles.listItemLeft}>
                 <MaterialIcons name="translate" size={20} color="#00408f" />
                 <Text style={styles.listItemText}>{nativeLabelForCode(languageCode)}</Text>
               </View>
               <View style={styles.listItemRight}>
-                <MaterialIcons name="expand-more" size={20} color="#737685" />
+                <MaterialIcons name={isIndiaCountry ? "expand-more" : "lock"} size={20} color="#737685" />
               </View>
             </TouchableOpacity>
           </View>
@@ -371,7 +456,7 @@ export default function SettingsScreen({
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>{t('mobile.selectLanguage')}</Text>
           <View style={{ gap: 2, marginTop: 8 }}>
-            {LANGUAGE_OPTIONS.map((opt) => (
+            {languageOptionsForCountry.map((opt) => (
               <TouchableOpacity
                 key={opt.code}
                 style={[styles.langOption, languageCode === opt.code && styles.langOptionActive]}
@@ -389,6 +474,42 @@ export default function SettingsScreen({
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+      </Modal>
+
+      {/* Country Picker Modal */}
+      <Modal visible={showCountryPicker} transparent animationType="fade" onRequestClose={() => setShowCountryPicker(false)}>
+        <Pressable style={styles.modalDismiss} onPress={() => setShowCountryPicker(false)} />
+        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>Select country</Text>
+          <TextInput
+            style={styles.countrySearchInput}
+            placeholder="Search country / code / dial code"
+            value={countrySearch}
+            onChangeText={setCountrySearch}
+            autoCapitalize="none"
+          />
+          <ScrollView style={{ maxHeight: 360 }}>
+            <View style={{ gap: 2, marginTop: 8 }}>
+            {filteredCountries.map((country) => (
+              <TouchableOpacity
+                key={country.code}
+                style={[styles.langOption, countrySettings.countryCode === country.code && styles.langOptionActive]}
+                onPress={() => {
+                  void saveCountrySettings(country.code);
+                  setCountrySearch('');
+                  setShowCountryPicker(false);
+                }}
+              >
+                <Text style={[styles.langOptionText, countrySettings.countryCode === country.code && styles.langOptionTextActive]}>
+                  {country.name} ({country.phoneCode}) · {country.currencyCode}
+                </Text>
+                {countrySettings.countryCode === country.code && <MaterialIcons name="check" size={20} color="#00408f" />}
+              </TouchableOpacity>
+            ))}
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -654,6 +775,18 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 4 },
+  countrySearchInput: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 8,
+    fontSize: 14,
+    color: '#191c1e',
+    backgroundColor: '#f8fafc',
+  },
   langOption: {
     flexDirection: 'row',
     alignItems: 'center',
