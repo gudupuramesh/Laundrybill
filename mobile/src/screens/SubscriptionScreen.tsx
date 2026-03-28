@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
-import functions from '@react-native-firebase/functions';
+import { createNamedHttpsCallable } from '../lib/httpsCallable';
 import { endAppleIap, getAppleSubscriptionDisplayPrice, getIosProductId, initAppleIap, isAppleIapAvailable, normalizeReceipt, requestAppleSubscription, restoreAppleSubscriptions } from '../lib/billing/appleIap';
 import { endGoogleIap, finishGoogleTransaction, getAndroidProductId, getGoogleSubscriptionDisplayPrice, initGoogleIap, isGoogleIapAvailable, normalizeGooglePurchase, requestGoogleSubscription, restoreGoogleSubscriptions } from '../lib/billing/googleIap';
 
@@ -169,7 +169,7 @@ export default function SubscriptionScreen({
         throw new Error('Missing Google purchase token');
       }
       setPurchaseState('pending_verify');
-      const verifyGooglePurchase = functions().httpsCallable('verifyGooglePurchase');
+      const verifyGooglePurchase = createNamedHttpsCallable('verifyGooglePurchase');
       await verifyGooglePurchase({
         planId: plan.id,
         billingCycle: cycle,
@@ -214,7 +214,7 @@ export default function SubscriptionScreen({
       if (!normalized.receiptData) throw new Error('Missing purchase receipt');
 
       setPurchaseState('pending_verify');
-      const verifyApplePurchase = functions().httpsCallable('verifyApplePurchase');
+      const verifyApplePurchase = createNamedHttpsCallable('verifyApplePurchase');
       await verifyApplePurchase({
         shopId,
         planId: plan.id,
@@ -268,7 +268,7 @@ export default function SubscriptionScreen({
           Alert.alert('Restore Purchases', 'Could not read receipt from restored purchase.');
           return;
         }
-        const verifyApplePurchase = functions().httpsCallable('verifyApplePurchase');
+        const verifyApplePurchase = createNamedHttpsCallable('verifyApplePurchase');
         await verifyApplePurchase({
           shopId,
           planId: restorePlanId,
@@ -294,7 +294,7 @@ export default function SubscriptionScreen({
           Alert.alert('Restore Purchases', 'Could not read purchase token from restored purchase.');
           return;
         }
-        const verifyGooglePurchase = functions().httpsCallable('verifyGooglePurchase');
+        const verifyGooglePurchase = createNamedHttpsCallable('verifyGooglePurchase');
         await verifyGooglePurchase({
           shopId,
           planId: restorePlanId,
