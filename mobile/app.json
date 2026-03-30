@@ -3,14 +3,14 @@
     "name": "Laundrybill",
     "slug": "laundrybill",
     "scheme": "laundrybill",
-    "version": "1.2.6",
+    "version": "1.5.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f8f9fb"
+      "backgroundColor": "#13253d"
     },
     "ios": {
       "appleTeamId": "QWW8YD6KZV",
@@ -21,14 +21,19 @@
     "android": {
       "package": "in.laundrybill",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 12,
+      "versionCode": 24,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#13253d",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -48,7 +53,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Laundrybill uses the camera to scan QR codes on order bags and item tags."
+          "cameraPermission": "Laundrybill needs camera access to scan QR codes printed on order bags and item tags for quick order tracking and pickup verification."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Laundrybill uses your location to auto-fill your shop address during registration and to show your shop on the map for customers.",
+          "locationAlwaysPermission": "Laundrybill uses your location to auto-fill your shop address during registration and to show your shop on the map for customers.",
+          "locationWhenInUsePermission": "Laundrybill uses your location to auto-fill your shop address during registration and to show your shop on the map for customers."
         }
       ]
     ]

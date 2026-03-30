@@ -131,18 +131,6 @@ export function PlanEditorSheet({
                             value={formData.description || ""}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                         />
-                        <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
-                            <Label htmlFor="plan-is-active" className="text-sm font-medium cursor-pointer">
-                                Active (visible for new upgrades)
-                            </Label>
-                            <Checkbox
-                                id="plan-is-active"
-                                checked={formData.isActive !== false}
-                                onCheckedChange={(checked) =>
-                                    setFormData({ ...formData, isActive: checked === true })
-                                }
-                            />
-                        </div>
                     </div>
 
                     {/* Pricing */}

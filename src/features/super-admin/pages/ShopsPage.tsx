@@ -8,7 +8,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAllShops } from "../hooks/use-all-shops";
-import { formatStorageBytes } from "../hooks/use-shop-storage-stats";
 import { LCard, LPageLoader, LButton, LBottomSheet } from "@/components/laundry";
 import {
     Search,
@@ -18,8 +17,8 @@ import {
     Phone,
     Mail,
     Calendar,
-    HardDrive,
     CreditCard,
+    MapPin,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { PlanType } from "@/types/plans";
@@ -151,12 +150,14 @@ export function ShopsPage() {
                 <div className="grid gap-3 md:gap-4">
                     {shops.map((shop) => {
                         const planKey = normalizePlanId(shop.subscription?.planId);
-                        const storageBytes = shop.storageStats?.totalBytes ?? 0;
-                        const imageCount = shop.storageStats?.imageCount ?? 0;
-                        const storageLabel =
-                            storageBytes > 0 || imageCount > 0
-                                ? `${formatStorageBytes(storageBytes)} · ${imageCount} image${imageCount !== 1 ? "s" : ""}`
-                                : "No storage yet";
+                        const subStatus = shop.subscription?.status || "free";
+                        const statusColor =
+                            subStatus === "active" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                            : subStatus === "trial" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                            : subStatus === "expired" ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                            : subStatus === "cancelled" ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+                        const cityName = (shop as any).location?.city || "";
                         return (
                             <LCard
                                 key={shop.id}
@@ -183,12 +184,22 @@ export function ShopsPage() {
                                                 >
                                                     {PLAN_LABELS[planKey]}
                                                 </span>
+                                                <span
+                                                    className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[10px] font-medium capitalize shrink-0",
+                                                        statusColor
+                                                    )}
+                                                >
+                                                    {subStatus}
+                                                </span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-muted-foreground">
-                                                <span className="flex items-center gap-1 shrink-0">
-                                                    <HardDrive className="h-3.5 w-3.5" />
-                                                    {storageLabel}
-                                                </span>
+                                                {cityName && (
+                                                    <span className="flex items-center gap-1 shrink-0">
+                                                        <MapPin className="h-3.5 w-3.5" />
+                                                        {cityName}
+                                                    </span>
+                                                )}
                                                 {shop.phone && (
                                                     <span className="flex items-center gap-1 truncate">
                                                         <Phone className="h-3.5 w-3.5 shrink-0" />

@@ -7,6 +7,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { HelpButton } from '../components/HelpButton';
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -198,10 +199,13 @@ export default function OrdersScreen({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
-        <TouchableOpacity style={styles.timePicker} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
-          <Text style={styles.timePickerText}>{TIME_FILTERS.find((tf) => tf.key === timePeriod)?.label || t('mobile.timeFilterAll')}</Text>
-          <MaterialIcons name="expand-more" size={18} color="#00408f" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <HelpButton pageId="mobile_orders" />
+          <TouchableOpacity style={styles.timePicker} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
+            <Text style={styles.timePickerText}>{TIME_FILTERS.find((tf) => tf.key === timePeriod)?.label || t('mobile.timeFilterAll')}</Text>
+            <MaterialIcons name="expand-more" size={18} color="#00408f" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (

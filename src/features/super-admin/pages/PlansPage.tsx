@@ -8,13 +8,10 @@ import { useMemo, useState } from "react";
 import { usePlans } from "../hooks/use-plans";
 import { LCard, LButton, LPageLoader } from "@/components/laundry";
 import { PlanEditorSheet } from "../components/PlanEditorSheet";
-import { Check, Edit, Trash2 } from "lucide-react";
+import { Check, X, Edit, Trash2 } from "lucide-react";
 import type { Plan } from "@/types/plans";
 import { normalizePlanId } from "@/types/plans";
 import { cn } from "@/lib/utils";
-import { formatCurrencyValue } from "@/hooks/use-currency";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 
 const PLAN_COLORS: Record<string, string> = {
     free: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -27,12 +24,7 @@ export function PlansPage() {
     const [busyPlanId, setBusyPlanId] = useState<string | null>(null);
 
     const sortedPlans = useMemo(() => {
-        return [...plans].sort((a, b) => {
-            const aOn = a.isActive !== false ? 0 : 1;
-            const bOn = b.isActive !== false ? 0 : 1;
-            if (aOn !== bOn) return aOn - bOn;
-            return a.prices.monthly - b.prices.monthly;
-        });
+        return [...plans].sort((a, b) => a.prices.monthly - b.prices.monthly);
     }, [plans]);
 
     const handleSave = async (plan: Plan) => {
@@ -40,14 +32,6 @@ export function PlansPage() {
         setEditingPlan(null);
     };
 
-    const handleToggleActive = async (plan: Plan, next: boolean) => {
-        setBusyPlanId(plan.id);
-        try {
-            await updatePlan({ ...plan, isActive: next });
-        } finally {
-            setBusyPlanId(null);
-        }
-    };
 
     const handleDelete = async (plan: Plan) => {
         if (plan.id === "free") return;
@@ -87,23 +71,26 @@ export function PlansPage() {
             <div>
                 <h1 className="text-2xl font-bold">Subscription Plans</h1>
                 <p className="text-muted-foreground mt-1 max-w-3xl">
-                    Keep <strong>Free</strong> plus one paid tier (e.g. <strong>Pro</strong>). Turn <strong>Active</strong> off or <strong>Delete</strong> extra tiers you do not sell.
-                    Delete removes the document from Firestore; Active off only hides it from upgrades.
+                    Control free tier limits (orders/month, staff, etc.). Pricing is managed in Google Play / App Store.
+                    When a free user hits the limit, they are shown an upgrade prompt.
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {sortedPlans.map((plan) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sortedPlans.map((plan) => {
+                    const isPro = normalizePlanId(plan.id) === "pro";
+                    return (
                     <LCard
                         key={plan.id}
                         padding="none"
                         className={cn(
                             "flex flex-col h-full overflow-visible",
-                            plan.isActive === false && "opacity-75 ring-1 ring-muted-foreground/20"
+                            isPro && "ring-2 ring-blue-500/30",
                         )}
                     >
-                        <div className="p-6 flex-1 flex flex-col">
-                            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                        <div className="p-5 md:p-6 flex-1 flex flex-col">
+                            {/* Header: name + actions */}
+                            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                                     <div className={cn(
                                         "inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider",
@@ -111,11 +98,6 @@ export function PlansPage() {
                                     )}>
                                         {plan.name}
                                     </div>
-                                    {plan.isActive === false && (
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                            Inactive
-                                        </span>
-                                    )}
                                 </div>
                                 <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                                     <LButton
@@ -141,87 +123,66 @@ export function PlansPage() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-border/60">
-                                <Label htmlFor={`active-${plan.id}`} className="text-sm font-medium cursor-pointer">
-                                    Active (show in shop upgrade)
-                                </Label>
-                                <Switch
-                                    id={`active-${plan.id}`}
-                                    checked={plan.isActive !== false}
-                                    disabled={busyPlanId === plan.id}
-                                    onCheckedChange={(checked) => handleToggleActive(plan, checked)}
-                                />
-                            </div>
-
-                            <div className="mb-6">
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-3xl font-bold">{formatCurrencyValue(plan.prices.monthly)}</span>
-                                    <span className="text-muted-foreground">/mo</span>
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                    {formatCurrencyValue(plan.prices.yearly)}/yr (billed annually)
-                                </div>
-                            </div>
-
-                            <p className="text-sm text-muted-foreground mb-6 h-10">
+                            <p className="text-sm text-muted-foreground mb-5">
                                 {plan.description}
                             </p>
 
-                            <div className="space-y-3">
-                                <h4 className="font-medium text-sm">Limits</h4>
-                                <ul className="text-sm space-y-2 text-muted-foreground">
-                                    <li className="flex justify-between">
-                                        <span>Orders</span>
-                                        <span className="font-medium text-foreground">{plan.limits.maxOrders === -1 ? "Unlimited" : plan.limits.maxOrders}</span>
-                                    </li>
-                                    <li className="flex justify-between">
-                                        <span>Staff</span>
-                                        <span className="font-medium text-foreground">{plan.limits.maxStaff === -1 ? "Unlimited" : plan.limits.maxStaff}</span>
-                                    </li>
-                                    <li className="flex justify-between">
-                                        <span>Delivery Agents</span>
-                                        <span className="font-medium text-foreground">{plan.limits.maxDeliveryAgents === -1 ? "Unlimited" : (plan.limits.maxDeliveryAgents || 0)}</span>
-                                    </li>
-                                    <li className="flex justify-between">
-                                        <span>Plant Staff</span>
-                                        <span className="font-medium text-foreground">{plan.limits.maxPlantStaff === -1 ? "Unlimited" : (plan.limits.maxPlantStaff || 0)}</span>
-                                    </li>
-                                </ul>
-
-                                <div className="border-t my-4" />
-
-                                <h4 className="font-medium text-sm">Key Features</h4>
-                                <ul className="space-y-2">
-                                    {plan.features.staffManagement && (
-                                        <li className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-green-500" /> Staff Management
-                                        </li>
-                                    )}
-                                    {plan.features.damagePhotos && (
-                                        <li className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-green-500" /> Damage Photos
-                                        </li>
-                                    )}
-                                    {plan.features.driverApp && (
-                                        <li className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-green-500" /> Driver App
-                                        </li>
-                                    )}
-                                    {plan.features.plantApp && (
-                                        <li className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-green-500" /> Plant Dashboard
-                                        </li>
-                                    )}
-                                    {plan.features.publicOrderingPage && (
-                                        <li className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-green-500" /> Public Ordering Page
-                                        </li>
-                                    )}
-                                </ul>
+                            {/* Usage Limits */}
+                            <div className="mb-5">
+                                <h4 className="font-semibold text-sm mb-3 text-foreground">Usage Limits</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <LimitItem label="Orders / month" value={plan.limits.maxOrders} />
+                                    <LimitItem label="Customers" value={plan.limits.maxCustomers} />
+                                    <LimitItem label="Staff members" value={plan.limits.maxStaff} />
+                                    <LimitItem label="Delivery agents" value={plan.limits.maxDeliveryAgents} />
+                                    <LimitItem label="Plant staff" value={plan.limits.maxPlantStaff} />
+                                    <LimitItem label="Storage" value={`${plan.limits.storageGB === -1 ? "Unlimited" : plan.limits.storageGB + " GB"}`} />
+                                </div>
                             </div>
+
+                            <div className="border-t border-border/60 pt-4" />
+
+                            {/* All Features */}
+                            <div>
+                                <h4 className="font-semibold text-sm mb-3 text-foreground">Features</h4>
+                                <div className="space-y-1.5">
+                                    <FeatureRow label="Orders & POS" included={plan.features.orders} />
+                                    <FeatureRow label="Customers" included={plan.features.customers} />
+                                    <FeatureRow label="Services & Inventory" included={plan.features.services} />
+                                    <FeatureRow label="Order Tracking" included={plan.features.orderTracking} />
+                                    <FeatureRow label="WhatsApp Receipts" included={plan.features.whatsappReceipts} />
+                                    <FeatureRow label="Multi-Language" included={plan.features.multiLanguage} />
+                                    <FeatureRow label="Staff Management" included={plan.features.staffManagement} />
+                                    <FeatureRow label="Attendance Tracking" included={plan.features.attendance} />
+                                    <FeatureRow label="Payroll" included={plan.features.payroll} />
+                                    <FeatureRow label="Expenses" included={plan.features.expenses} />
+                                    <FeatureRow label="Reports & Analytics" included={plan.features.reports} />
+                                    <FeatureRow label="Damage Photos" included={plan.features.damagePhotos} />
+                                    <FeatureRow label="QR Code Scanning" included={plan.features.qrScans} />
+                                    <FeatureRow label="Staff App" included={plan.features.staffApp} />
+                                    <FeatureRow label="Driver / Agent App" included={plan.features.driverApp} />
+                                    <FeatureRow label="Plant Dashboard" included={plan.features.plantApp} />
+                                    <FeatureRow label="Public Ordering Page" included={plan.features.publicOrderingPage} />
+                                </div>
+                            </div>
+
+                            {/* Apps included */}
+                            {plan.apps && plan.apps.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-border/60">
+                                    <h4 className="font-semibold text-sm mb-2 text-foreground">Apps Included</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {plan.apps.map((app) => (
+                                            <span key={app} className="px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
+                                                {app} App
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </LCard>
-                ))}
+                    );
+                })}
             </div>
 
             <PlanEditorSheet
@@ -231,6 +192,31 @@ export function PlansPage() {
                 onClose={() => setEditingPlan(null)}
                 onSave={handleSave}
             />
+        </div>
+    );
+}
+
+function LimitItem({ label, value }: { label: string; value: number | string }) {
+    const isUnlimited = value === -1 || value === "Unlimited";
+    return (
+        <div className="rounded-lg bg-muted/50 p-2.5">
+            <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+            <p className={cn("text-sm font-semibold", isUnlimited ? "text-primary" : "text-foreground")}>
+                {isUnlimited ? "Unlimited" : typeof value === "number" && value === 0 ? "—" : value}
+            </p>
+        </div>
+    );
+}
+
+function FeatureRow({ label, included }: { label: string; included: boolean }) {
+    return (
+        <div className="flex items-center gap-2 text-sm">
+            {included ? (
+                <Check className="h-4 w-4 text-green-500 shrink-0" />
+            ) : (
+                <X className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            )}
+            <span className={included ? "text-foreground" : "text-muted-foreground/60"}>{label}</span>
         </div>
     );
 }

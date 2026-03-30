@@ -6,7 +6,6 @@ export let isMockEnv = false;
 
 try {
   auth = require('@react-native-firebase/auth').default;
-  functions = require('@react-native-firebase/functions').default;
 
   try {
     GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;

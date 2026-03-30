@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HelpButton } from '../components/HelpButton';
 
 export default function ScanScreen({
   onBack,
@@ -71,7 +72,7 @@ export default function ScanScreen({
               <MaterialIcons name="arrow-back" size={24} color="#00408f" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('mobile.scanTitleShort')}</Text>
-            <View style={{ width: 40 }} />
+            <HelpButton pageId="mobile_scan" />
           </View>
         </View>
         <View style={styles.permissionContainer}>

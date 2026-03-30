@@ -158,7 +158,7 @@ export function ShopDetailsPage() {
   if (!shopId) {
     return (
       <div className="p-4 md:p-6">
-        <LButton variant="ghost" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate("/super-admin/shops")}>
+        <LButton variant="ghost" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate(-1)}>
           Back to Shops
         </LButton>
         <p className="mt-4 text-muted-foreground">No shop selected.</p>
@@ -173,7 +173,7 @@ export function ShopDetailsPage() {
   if (!shop) {
     return (
       <div className="p-4 md:p-6">
-        <LButton variant="ghost" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate("/super-admin/shops")}>
+        <LButton variant="ghost" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate(-1)}>
           Back to Shops
         </LButton>
         <p className="mt-4 text-destructive">Shop not found.</p>
@@ -189,7 +189,7 @@ export function ShopDetailsPage() {
         variant="ghost"
         size="sm"
         leftIcon={<ArrowLeft className="h-4 w-4" />}
-        onClick={() => navigate("/super-admin/shops")}
+        onClick={() => navigate(-1)}
       >
         Back to Shops
       </LButton>
@@ -205,14 +205,29 @@ export function ShopDetailsPage() {
               <h1 className="text-xl md:text-2xl font-semibold text-foreground">
                 {shop.name || "Unnamed Shop"}
               </h1>
-              <span
-                className={cn(
-                  "inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                  PLAN_COLORS[planId]
+              <div className="flex items-center gap-2 mt-1">
+                <span
+                  className={cn(
+                    "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
+                    PLAN_COLORS[planId]
+                  )}
+                >
+                  {PLAN_LABELS[planId]}
+                </span>
+                {sub?.status && (
+                  <span
+                    className={cn(
+                      "inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize",
+                      sub.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        : sub.status === "trial" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                        : sub.status === "expired" ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    )}
+                  >
+                    {sub.status}
+                  </span>
                 )}
-              >
-                {PLAN_LABELS[planId]}
-              </span>
+              </div>
             </div>
           </div>
         </div>

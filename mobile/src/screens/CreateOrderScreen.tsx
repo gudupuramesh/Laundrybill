@@ -10,6 +10,7 @@ import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import i18n from '../lib/i18n';
 import { DraftOrderPayload } from '../types/orderDraft';
+import { HelpButton } from '../components/HelpButton';
 
 interface Customer {
   id: string;
@@ -216,15 +217,18 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
     if (!editOrder || loading) return;
     // Set customer (locked in edit mode)
     const cust = editOrder.customer || {};
-    if (cust.id || cust.name) {
+    const custId = cust.id || editOrder.customerId || '';
+    const custName = cust.name || editOrder.customerName || '';
+    const custPhone = cust.phone || editOrder.customerPhone || '';
+    if (custId || custName || custPhone) {
       setSelectedCustomer({
-        id: cust.id || editOrder.customerId || '',
-        name: cust.name || editOrder.customerName || '',
-        phone: cust.phone || editOrder.customerPhone || '',
-        email: cust.email || null,
-        address: cust.address || null,
+        id: custId,
+        name: custName,
+        phone: custPhone,
+        email: cust.email || editOrder.customerEmail || null,
+        address: cust.address || editOrder.customerAddress || null,
       });
-      setSearch(`${cust.name || editOrder.customerName || ''} • ${cust.phone || editOrder.customerPhone || ''}`);
+      setSearch(`${custName} • ${custPhone}`);
     }
     // Pre-fill cart from order items
     const newCart: Record<string, CartState> = {};
@@ -567,6 +571,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             <TouchableOpacity style={styles.iconBtn}>
               <MaterialIcons name="history" size={24} color="#00408f" />
             </TouchableOpacity>
+            <HelpButton pageId="mobile_newOrder" />
           </View>
         </View>
       </View>

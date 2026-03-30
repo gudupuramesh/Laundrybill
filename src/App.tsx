@@ -33,10 +33,10 @@ import {
   SubscriptionsPage,
   PlansPage,
   PaymentsPage,
-  ActivityPage,
   PlatformSettingsPage,
   SupportHelpPage,
   ItemsListPage,
+  NotificationsPage,
 } from "@/features/super-admin";
 import {
   StaffAuthProvider,
@@ -199,10 +199,10 @@ function App() {
                       <Route path="map" element={<ShopsMapPage />} />
                       <Route path="subscriptions" element={<SubscriptionsPage />} />
                       <Route path="payments" element={<PaymentsPage />} />
-                      <Route path="activity" element={<ActivityPage />} />
                       <Route path="scan" element={<SuperAdminScanPage />} />
                       <Route path="settings" element={<PlatformSettingsPage />} />
                       <Route path="items-list" element={<ItemsListPage />} />
+                      <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="support" element={<SupportHelpPage />} />
                     </Route>
                   </Routes>

@@ -8,6 +8,8 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { usePlanLimits } from '../lib/usePlanLimits';
+import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 
 // Same logic as web: first 2 letters of shop name + 2 random chars
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -43,12 +45,14 @@ export default function OrderReviewScreen({
   onEditCustomer,
   draftOrder,
   editOrderId,
+  editOrder,
 }: {
   onBack: () => void,
   onPlaceOrder: (order: PlacedOrder) => void,
   onEditCustomer?: () => void,
   draftOrder: DraftOrderPayload | null,
-  editOrderId?: string | null
+  editOrderId?: string | null,
+  editOrder?: any,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -127,6 +131,14 @@ export default function OrderReviewScreen({
 
   // Expected delivery: today + max turnaround days (editable)
   const [expectedDelivery, setExpectedDelivery] = useState<Date>(() => {
+    // Prefill from existing order when editing
+    if (editOrder?.expectedDelivery) {
+      const ed = editOrder.expectedDelivery;
+      if (ed?.toDate) return ed.toDate();
+      if (ed?.seconds) return new Date(ed.seconds * 1000);
+      if (ed instanceof Date) return ed;
+      return new Date(ed);
+    }
     if (!draftOrder) return new Date();
     let maxDays = 2;
     draftOrder.items.forEach((item: any) => {
@@ -138,9 +150,50 @@ export default function OrderReviewScreen({
     return date;
   });
 
+  // Prefill discount, notes, and delivery type from existing order when editing
+  useEffect(() => {
+    if (!editOrder) return;
+    const fin = editOrder.financials || {};
+    if (fin.discountAmount > 0) {
+      if (fin.discountType === 'percent' && fin.discountValue) {
+        setDiscountText(`${fin.discountValue}%`);
+      } else {
+        setDiscountText(String(fin.discountAmount));
+      }
+    }
+    if (editOrder.deliveryNotes) setNotes(editOrder.deliveryNotes);
+    if (editOrder.deliveryType === 'delivery_home' || editOrder.deliveryType === 'pickup_store') {
+      setDeliveryType(editOrder.deliveryType);
+    }
+    if (editOrder.paymentStatus === 'paid' || (fin.amountPaid > 0 && fin.balance <= 0)) {
+      setPaymentStatus('paid');
+    }
+  }, [editOrder]);
+
+  // ─── Plan limit enforcement ───────────────────────────────────
+  const [subData, setSubData] = useState<any>(null);
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore().collection('subscriptions').doc(shopId).onSnapshot(
+      (snap: any) => { if (snap.exists) setSubData(snap.data()); },
+      () => {}
+    );
+    return unsub;
+  }, [shopId]);
+  const planLimits = usePlanLimits(subData);
+  const ordersUsed = useMergedOrdersUsed(subData, shopId);
+  const planKey = (subData?.planId || subData?.planName || 'free').toString().toLowerCase();
+  const isPaidPlan = subData?.status === 'active' && !['free', 'trial'].includes(planKey);
+  const orderLimitReached = !editOrderId && !isPaidPlan && planLimits.maxOrders > 0 && ordersUsed >= planLimits.maxOrders;
+
   const handlePlaceOrder = async () => {
     if (!draftOrder || !shopId) {
       Alert.alert(t('mobile.errorTitle'), t('mobile.missingOrderData'));
+      return;
+    }
+    // Hard block: prevent placing order if limit reached (new orders only)
+    if (orderLimitReached) {
+      Alert.alert(t('mobile.orderLimitTitle'), t('mobile.orderLimitMessage', { limit: planLimits.maxOrders }));
       return;
     }
     setPlacing(true);

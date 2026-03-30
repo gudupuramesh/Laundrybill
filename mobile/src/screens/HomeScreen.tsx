@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
+import { usePlanLimits } from '../lib/usePlanLimits';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { HelpButton } from '../components/HelpButton';
 
 function formatTimeAgo(date: any, t: TFunction, locale: string): string {
   if (!date) return '';
@@ -68,6 +70,7 @@ export default function HomeScreen({
   const [loading, setLoading] = useState(true);
 
   const ordersUsed = useMergedOrdersUsed(subscriptionData, shopId);
+  const planLimits = usePlanLimits(subscriptionData);
 
   useEffect(() => {
     let unsubShop: (() => void) | undefined;
@@ -115,7 +118,7 @@ export default function HomeScreen({
   const shopName = shopData?.name || t('mobile.myShopDefault');
   const planKey = (subscriptionData?.planId || subscriptionData?.planName || shopData?.plan || 'free').toString().toLowerCase();
   const subStatus = (subscriptionData?.status || 'trial').toLowerCase();
-  const orderLimit = subscriptionData?.limits?.maxOrders ?? 30;
+  const orderLimit = planLimits.maxOrders > 0 ? planLimits.maxOrders : 0; // 0 or -1 = unlimited
   const isPaidPlan =
     subStatus === 'active' &&
     planKey !== 'free' &&
@@ -148,6 +151,7 @@ export default function HomeScreen({
           <Text style={styles.shopName} numberOfLines={1}>{shopName}</Text>
         </View>
         <View style={styles.notifBtn}>
+          <HelpButton pageId="mobile_home" />
           {isPaidPlan ? (
             <SubBadgeWrap {...subBadgeWrapProps} style={styles.subBadgePaid}>
               <MaterialIcons name="workspace-premium" size={12} color="#00408f" />

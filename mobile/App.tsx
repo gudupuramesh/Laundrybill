@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { StyleSheet, Text, View, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeScreen from './src/screens/HomeScreen';
@@ -26,6 +26,13 @@ import ExpensesScreen from './src/screens/ExpensesScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
+import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
+import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
+import { usePlanLimits } from './src/lib/usePlanLimits';
+import { useMergedOrdersUsed } from './src/lib/useBillingPeriodOrderCount';
+
+// Register background message handler (must be outside components)
+registerBackgroundHandler();
 
 const ONBOARDING_DONE_KEY = 'onboarding_completed_v1';
 const PENDING_REGISTRATION_KEY = 'pending_registration_v1';
@@ -128,6 +135,11 @@ function MainLayout() {
     forceSetupFlowRef.current = forceSetupFlow;
   }, [forceSetupFlow]);
 
+  // Configure RevenueCat SDK once on mount
+  React.useEffect(() => {
+    configureRevenueCat().catch((e) => console.warn("[RevenueCat] configure error", e));
+  }, []);
+
   React.useEffect(() => {
     try {
       const { auth, setResolvedShopId } = require('./src/lib/auth');
@@ -135,6 +147,12 @@ function MainLayout() {
 
       const subscriber = auth().onAuthStateChanged(async (currentUser: any) => {
         setUser(currentUser);
+        // Sync RevenueCat identity with Firebase user
+        if (currentUser?.uid) {
+          loginRevenueCat(currentUser.uid).catch((e) => console.warn("[RevenueCat] login error", e));
+        } else {
+          logoutRevenueCat().catch(() => {});
+        }
         if (currentUser) {
           try {
             const uid = currentUser.uid;
@@ -264,10 +282,52 @@ function MainLayout() {
     return () => clearTimeout(id);
   }, [bootstrapReady]);
 
+  // Register push notifications when user is logged in
+  usePushNotifications(user ? (data: any) => {
+    // Navigate to order details if notification contains orderId
+    if (data?.orderId) {
+      setActiveScreen(`ORDER_DETAILS_${data.orderId}`);
+    }
+  } : undefined);
+
+  // ─── Subscription & Plan Limits (for order blocking) ────────────
+  const [appSubData, setAppSubData] = React.useState<any>(null);
+  const { getShopId: getShopIdFn } = require('./src/lib/auth');
+  const { firestore: firestoreFn } = require('./src/lib/db');
+  const currentShopId = getShopIdFn();
+  const appOrdersUsed = useMergedOrdersUsed(appSubData, currentShopId);
+  const appPlanLimits = usePlanLimits(appSubData);
+
+  React.useEffect(() => {
+    if (!currentShopId) return;
+    const unsub = firestoreFn()
+      .collection('subscriptions')
+      .doc(currentShopId)
+      .onSnapshot((snap: any) => {
+        if (snap.exists) setAppSubData(snap.data());
+      }, () => {});
+    return unsub;
+  }, [currentShopId]);
+
+  const planKey = (appSubData?.planId || appSubData?.planName || 'free').toString().toLowerCase();
+  const isPaidPlan = ['active'].includes(appSubData?.status) && !['free', 'trial'].includes(planKey);
+  const orderLimitReached = !isPaidPlan && appPlanLimits.maxOrders > 0 && appOrdersUsed >= appPlanLimits.maxOrders;
+
   /** Native splash stays up until bootstrapReady; avoid painting login/dashboard underneath early */
   if (!bootstrapReady) return null;
 
   const openCreateOrder = () => {
+    if (orderLimitReached) {
+      Alert.alert(
+        t('mobile.orderLimitTitle'),
+        t('mobile.orderLimitMessage', { limit: appPlanLimits.maxOrders }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('mobile.upgradePlan'), onPress: () => setActiveScreen('SUBSCRIPTION') },
+        ]
+      );
+      return;
+    }
     setEditingOrder(null);
     setOrderInProgress(true);
     setActiveScreen('CREATE_ORDER');
@@ -623,6 +683,7 @@ function MainLayout() {
                 onBack={() => setActiveScreen('CREATE_ORDER')}
                 draftOrder={orderDraft}
                 editOrderId={editingOrder?.id || null}
+                editOrder={editingOrder}
                 onEditCustomer={() => {
                   createOrderRef.current?.goToCustomerStep();
                   setActiveScreen('CREATE_ORDER');

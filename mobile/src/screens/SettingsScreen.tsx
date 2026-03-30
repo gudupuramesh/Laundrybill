@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
+import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -8,6 +8,9 @@ import { auth, getShopId } from '../lib/auth';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { COUNTRIES, getCountry } from '../lib/country-config';
+import appJson from '../../app.json';
+import { HelpButton } from '../components/HelpButton';
+import { usePlanLimits } from '../lib/usePlanLimits';
 import {
   LANGUAGE_OPTIONS,
   nativeLabelForCode,
@@ -43,6 +46,8 @@ export default function SettingsScreen({
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
+  const [platformSettings, setPlatformSettings] = useState<{ supportEmail?: string; supportPhone?: string; whatsappNumber?: string; privacyPolicyUrl?: string; websiteUrl?: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const isIndiaCountry = countrySettings.countryCode === 'IN';
   const languageOptionsForCountry = isIndiaCountry
     ? LANGUAGE_OPTIONS
@@ -59,6 +64,7 @@ export default function SettingsScreen({
   });
 
   const ordersUsed = useMergedOrdersUsed(subscriptionData, shopId);
+  const planLimits = usePlanLimits(subscriptionData);
 
   useEffect(() => {
     let unsubShop: (() => void) | undefined;
@@ -124,13 +130,43 @@ export default function SettingsScreen({
         })
         .catch((err: any) => {
           const code = err?.code || '';
-          // During first-time setup/mapping, this read can be temporarily denied by rules.
           if (code === 'firestore/permission-denied') {
             setServiceCount(0);
             console.warn('Service count unavailable due to access rules');
             return;
           }
           console.error('Service count error:', err);
+        });
+
+      // Fetch platform settings for support & privacy links
+      firestore()
+        .collection('platformSettings')
+        .doc('emailBranding')
+        .get()
+        .then((doc: any) => {
+          if (doc.exists) {
+            const d = doc.data();
+            setPlatformSettings({
+              supportEmail: d?.supportEmail || 'support@laundrybill.com',
+              supportPhone: d?.supportPhone || '',
+              whatsappNumber: d?.whatsappNumber || '',
+              privacyPolicyUrl: d?.privacyPolicyUrl || (d?.websiteUrl ? `${d.websiteUrl}/privacy` : 'https://laundrybill.com/privacy'),
+              websiteUrl: d?.websiteUrl || 'https://laundrybill.com',
+            });
+          } else {
+            setPlatformSettings({
+              supportEmail: 'support@laundrybill.com',
+              privacyPolicyUrl: 'https://laundrybill.com/privacy',
+              websiteUrl: 'https://laundrybill.com',
+            });
+          }
+        })
+        .catch(() => {
+          setPlatformSettings({
+            supportEmail: 'support@laundrybill.com',
+            privacyPolicyUrl: 'https://laundrybill.com/privacy',
+            websiteUrl: 'https://laundrybill.com',
+          });
         });
 
     } catch (e) {
@@ -216,6 +252,62 @@ export default function SettingsScreen({
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('mobile.deleteAccountTitle'),
+      t('mobile.deleteAccountMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('mobile.deleteAccountConfirm'),
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              t('mobile.deleteAccountFinalTitle'),
+              t('mobile.deleteAccountFinalMessage'),
+              [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                  text: t('mobile.deleteAccountFinalConfirm'),
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      const user = auth().currentUser;
+                      if (user) {
+                        // Mark account for deletion in Firestore
+                        const sid = getShopId();
+                        if (sid) {
+                          await firestore().collection('shops').doc(sid).set(
+                            { deletionRequested: true, deletionRequestedAt: new Date(), deletionRequestedBy: user.uid },
+                            { merge: true }
+                          );
+                        }
+                        await user.delete();
+                      }
+                    } catch (e: any) {
+                      // If re-auth required, sign out so they can sign in again and retry
+                      if (e.code === 'auth/requires-recent-login') {
+                        Alert.alert(
+                          t('mobile.reAuthRequiredTitle'),
+                          t('mobile.reAuthRequiredMessage'),
+                          [{ text: t('common.ok'), onPress: () => auth().signOut() }]
+                        );
+                      } else {
+                        Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.deleteAccountError'));
+                      }
+                    }
+                    setDeleting(false);
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   // Display values
   const shopName = shopData?.name || t('mobile.myShopDefault');
   const shopPhone = shopData?.phone || auth().currentUser?.phoneNumber || '';
@@ -240,7 +332,7 @@ export default function SettingsScreen({
   const displayEndDate = endDate || trialEndDate || '';
 
   // Usage (ordersUsed from live order count + subscription fallback — see useMergedOrdersUsed)
-  const maxOrders = subscriptionData?.limits?.maxOrders || 30;
+  const maxOrders = planLimits.maxOrders > 0 ? planLimits.maxOrders : 0; // 0 or -1 = unlimited
   const totalCustomers = subscriptionData?.usage?.totalCustomers || 0;
   const totalStaff = subscriptionData?.usage?.totalStaff || 0;
 
@@ -274,6 +366,7 @@ export default function SettingsScreen({
       {/* Header — minimal top padding */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('mobile.settingsHeader')}</Text>
+        <HelpButton pageId="mobile_settings" />
       </View>
 
       <ScrollView
@@ -430,23 +523,45 @@ export default function SettingsScreen({
           <View style={styles.sectionCard}>
             <View style={styles.listItem}>
               <Text style={styles.listItemTextNoIcon}>{t('mobile.appVersion')}</Text>
-              <Text style={styles.versionText}>v1.0.0</Text>
+              <Text style={styles.versionText}>v{appJson.expo.version} ({appJson.expo.android?.versionCode ?? ''})</Text>
             </View>
-            <TouchableOpacity style={styles.listItem}>
+            <TouchableOpacity style={styles.listItem} onPress={() => Linking.openURL(platformSettings?.privacyPolicyUrl || 'https://laundrybill.com/privacy')}>
               <Text style={styles.listItemTextNoIcon}>{t('mobile.privacyPolicy')}</Text>
               <MaterialIcons name="open-in-new" size={16} color="#737685" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.listItemNoBorder}>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => {
+              const email = platformSettings?.supportEmail || 'support@laundrybill.com';
+              const whatsapp = platformSettings?.whatsappNumber;
+              if (whatsapp) {
+                const num = whatsapp.replace(/\D/g, '');
+                Linking.openURL(`https://wa.me/${num}`).catch(() => Linking.openURL(`mailto:${email}`));
+              } else {
+                Linking.openURL(`mailto:${email}`);
+              }
+            }}>
               <Text style={styles.supportText}>{t('mobile.contactSupport')}</Text>
               <MaterialIcons name="support-agent" size={16} color="#00408f" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Log Out */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>{t('mobile.logout')}</Text>
-        </TouchableOpacity>
+        {/* Account */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('mobile.accountSection')}</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.logoutListItem} onPress={handleLogout}>
+              <MaterialIcons name="logout" size={18} color="#ba1a1a" />
+              <Text style={styles.logoutText}>{t('mobile.logout')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteListItem} onPress={handleDeleteAccount} disabled={deleting}>
+              <MaterialIcons name="delete-forever" size={18} color="#93000a" />
+              {deleting
+                ? <ActivityIndicator size="small" color="#93000a" />
+                : <Text style={styles.deleteText}>{t('mobile.deleteAccount')}</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
 
       {/* Language Picker Modal */}
@@ -524,7 +639,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     height: 48,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#f8f9fb',
   },
   headerTitle: {
@@ -756,19 +873,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#00408f',
   },
-  logoutBtn: {
-    backgroundColor: '#f3f4f6',
-    paddingVertical: 16,
-    borderRadius: 12,
+  logoutListItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
+    gap: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.5)',
   },
   logoutText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#ba1a1a',
-    letterSpacing: 1,
+  },
+  deleteListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  deleteText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#93000a',
   },
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },

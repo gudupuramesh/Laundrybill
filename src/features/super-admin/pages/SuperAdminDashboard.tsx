@@ -18,6 +18,9 @@ import {
     Calendar,
     RefreshCw,
     HardDrive,
+    MapPin,
+    FileText,
+    Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -196,6 +199,13 @@ export function SuperAdminDashboard() {
                             compact={isMobile}
                         />
                         <QuickStat
+                            icon={Store}
+                            label="New Shops"
+                            value={stats?.newShopsThisMonth?.toString() || "0"}
+                            subValue="this month"
+                            compact={isMobile}
+                        />
+                        <QuickStat
                             icon={HardDrive}
                             label="Storage (All Shops)"
                             value={formatStorageBytes(stats?.totalStorageBytes || 0)}
@@ -232,9 +242,21 @@ export function SuperAdminDashboard() {
                             compact={isMobile}
                         />
                         <QuickAction
-                            label="Activity"
-                            icon={Calendar}
-                            href="/super-admin/activity"
+                            label="Map"
+                            icon={MapPin}
+                            href="/super-admin/map"
+                            compact={isMobile}
+                        />
+                        <QuickAction
+                            label="Plans"
+                            icon={FileText}
+                            href="/super-admin/plans"
+                            compact={isMobile}
+                        />
+                        <QuickAction
+                            label="Notifications"
+                            icon={Bell}
+                            href="/super-admin/notifications"
                             compact={isMobile}
                         />
                     </div>

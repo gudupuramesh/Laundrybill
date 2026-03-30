@@ -510,41 +510,33 @@ export default function OrderDetailsScreen({
     }
   };
 
-  const handleShareWhatsApp = () => {
-    const phone = (order?.customerPhone || '').replace(/\D/g, '');
-    if (!phone) {
-      Alert.alert(t('mobile.noPhoneTitle'), t('mobile.noPhoneRequired'));
-      return;
-    }
-    const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
+  const handleShare = async () => {
     const shopName = shopData?.name || 'LaundryBill';
     const dateLabel = deliveryType === 'pickup_store' ? t('mobile.readyForPickupLabel') : t('mobile.expectedDeliveryLabel');
 
     const lines = [
-      t('mobile.waOrderUpdate', { shop: shopName }),
+      `${shopName} — Order #${publicId}`,
       ``,
-      t('mobile.waOrderId', { id: publicId }),
-      t('mobile.waDate', { date: formatDateLocalized(createdAt, i18n.language) }),
-      t('mobile.waType', { type: t(deliveryLabelKey(deliveryType)) }),
-      t('mobile.waOrderStatusLine', { status: odStatusLabel(status, t) }),
+      `${t('mobile.waOrderStatusLine', { status: odStatusLabel(status, t) })}`,
       ``,
       t('mobile.waItems'),
-      ...(order?.items || []).map((i: any) => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
+      ...(order?.items || []).map((i: any) => `- ${i.serviceName} x${i.quantity} — ${formatCurrency(Math.round(i.total || (i.unitPrice * i.quantity)), countrySettings)}`),
       ``,
-      t('mobile.waPayment'),
-      withCurrencySymbol(t('mobile.waTotal', { amount: Math.round(fin.total || 0) }) as string),
-      fin.balance > 0 ? withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string) : t('mobile.waPaidFull'),
+      `${t('mobile.subtotalLabel')}: ${formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}`,
     ];
-    if (expectedDelivery) lines.push(``, `*${dateLabel}:*`, formatDateShortLocalized(expectedDelivery, i18n.language));
-    lines.push(``, t('mobile.waTrackOrder'), trackingUrl, ``, t('mobile.waViewReceipt'), getReceiptUrl(publicId));
-    Linking.openURL(`https://wa.me/${fullPhone}?text=${encodeURIComponent(lines.join('\n'))}`).catch(() =>
-      Alert.alert(t('mobile.errorTitle'), t('mobile.couldNotOpenWhatsapp'))
-    );
-  };
+    if (fin.discountAmount > 0) lines.push(`${t('mobile.discountLabel')}: -${formatCurrency(Math.round(fin.discountAmount), countrySettings)}`);
+    if (fin.taxAmount > 0) lines.push(`${fin.taxName || t('mobile.taxFallback')}: +${formatCurrency(Math.round(fin.taxAmount), countrySettings)}`);
+    lines.push(`${t('mobile.totalLabel')}: ${formatCurrency(Math.round(fin.total || 0), countrySettings)}`);
+    if (fin.balance > 0) {
+      lines.push(withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string));
+    } else {
+      lines.push(t('mobile.waPaidFull'));
+    }
+    if (expectedDelivery) lines.push(``, `${dateLabel}: ${formatDateShortLocalized(expectedDelivery, i18n.language)}`);
+    lines.push(``, `${t('mobile.waTrackOrder')}:`, trackingUrl, ``, `${t('mobile.waViewReceipt')}:`, getReceiptUrl(publicId));
 
-  const handleShareTrackingLink = async () => {
     try {
-      await Share.share({ message: t('mobile.trackOrderShareMsg', { id: publicId, url: trackingUrl }) });
+      await Share.share({ message: lines.join('\n') });
     } catch (e) {}
   };
 
@@ -616,9 +608,11 @@ export default function OrderDetailsScreen({
               <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
-            <MaterialIcons name="edit" size={22} color="#00408f" />
-          </TouchableOpacity>
+          {!isTerminal && (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => onEditOrder ? onEditOrder(order) : (() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); })()}>
+              <MaterialIcons name="edit" size={22} color="#00408f" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -640,9 +634,9 @@ export default function OrderDetailsScreen({
               <Text style={[styles.actionChipText, { color: '#006b5f' }]}>{withCurrencySymbol(t('mobile.collectAmount', { amount: Math.round(fin.balance) }) as string)}</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.actionChip} onPress={handleShareWhatsApp}>
-            <MaterialIcons name="chat" size={18} color="#25D366" />
-            <Text style={[styles.actionChipText, { color: '#25D366' }]}>{t('mobile.whatsappChip')}</Text>
+          <TouchableOpacity style={styles.actionChip} onPress={handleShare}>
+            <MaterialIcons name="share" size={18} color="#00408f" />
+            <Text style={styles.actionChipText}>{t('mobile.shareChip')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={() => { setQrTab('order'); setQrModal(true); }}>
             <MaterialIcons name="qr-code-2" size={18} color="#00408f" />
@@ -656,20 +650,10 @@ export default function OrderDetailsScreen({
             <MaterialIcons name="picture-as-pdf" size={18} color="#c62828" />
             <Text style={[styles.actionChipText, { color: '#c62828' }]}>{t('mobile.pdfChip')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={handleShareTrackingLink}>
-            <MaterialIcons name="share" size={18} color="#00408f" />
-            <Text style={styles.actionChipText}>{t('mobile.shareChip')}</Text>
-          </TouchableOpacity>
           {!isTerminal && (
-            <TouchableOpacity style={styles.actionChip} onPress={() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); }}>
-              <MaterialIcons name="edit" size={18} color="#434654" />
-              <Text style={[styles.actionChipText, { color: '#434654' }]}>{t('mobile.editChip')}</Text>
-            </TouchableOpacity>
-          )}
-          {!isTerminal && onEditOrder && (
-            <TouchableOpacity style={[styles.actionChip, { borderColor: '#bbdefb' }]} onPress={() => onEditOrder(order)}>
-              <MaterialIcons name="edit-note" size={18} color="#00408f" />
-              <Text style={[styles.actionChipText, { color: '#00408f' }]}>{t('mobile.editItemsChip')}</Text>
+            <TouchableOpacity style={[styles.actionChip, { borderColor: '#bbdefb' }]} onPress={() => onEditOrder ? onEditOrder(order) : (() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); })()}>
+              <MaterialIcons name="edit" size={18} color="#00408f" />
+              <Text style={[styles.actionChipText, { color: '#00408f' }]}>{t('mobile.editChip')}</Text>
             </TouchableOpacity>
           )}
           {!isTerminal && ['pending', 'processing', 'confirmed', 'pickup_scheduled'].includes(status) && (
@@ -984,7 +968,7 @@ export default function OrderDetailsScreen({
                 <Text style={styles.qrOrderId}>#{publicId}</Text>
                 <Text style={styles.qrSubInfo}>{order.customerName || t('mobile.guestLabel')} · {t('mobile.itemsCountShort', { count: (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) })}</Text>
                 <Text style={styles.qrHint}>{t('mobile.qrScanHint')}</Text>
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16, alignSelf: 'stretch' }]} onPress={handleShareTrackingLink}>
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16, alignSelf: 'stretch' }]} onPress={handleShare}>
                   <MaterialIcons name="share" size={18} color="#fff" />
                   <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>{t('mobile.shareTrackingLink')}</Text>
                 </TouchableOpacity>

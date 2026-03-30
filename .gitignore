@@ -1,5 +1,6 @@
 # Environment and secrets
 .env
+mobile/android/keystore.properties
 .env.*
 !.env.example
 functions/.env

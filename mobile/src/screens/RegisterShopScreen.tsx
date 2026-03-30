@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable, Image, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { firestore } from '../lib/db';
 import { auth, getShopId, setResolvedShopId } from '../lib/auth';
 import { COUNTRIES, getCountry, getCountryCodeFromPhone } from '../lib/country-config';
@@ -101,6 +102,8 @@ export default function RegisterShopScreen({
   const [logoUri, setLogoUri] = useState('');
   const [logoKey, setLogoKey] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
 
   // Always check for existing shop/user data — handles web-registered users logging in on mobile
   useEffect(() => {
@@ -136,6 +139,9 @@ export default function RegisterShopScreen({
           setLogoUri(data.logoUrl || '');
           setLogoKey(data.logoKey || '');
           setCountryCode(shopSettings.countryCode || 'IN');
+          if (data.location?.lat && data.location?.lng) {
+            setGpsCoords({ lat: data.location.lat, lng: data.location.lng });
+          }
         } else {
           // 2. No shop yet — check users collection for any existing profile info (email, phone)
           const userDoc = await firestore().collection('users').doc(uid).get();
@@ -183,6 +189,42 @@ export default function RegisterShopScreen({
       }
     } catch (e: any) {
       alert(e?.message || 'Failed to select image');
+    }
+  };
+
+  const handleGetLocation = async () => {
+    try {
+      setFetchingLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is needed to auto-fill your shop address. You can enter the address manually instead.');
+        setFetchingLocation(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const { latitude, longitude } = loc.coords;
+      setGpsCoords({ lat: latitude, lng: longitude });
+
+      // Try reverse geocoding to auto-fill address fields
+      try {
+        const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (geo) {
+          setFormData(prev => ({
+            ...prev,
+            street: geo.street || geo.name || prev.street,
+            area: geo.district || geo.subregion || prev.area,
+            city: geo.city || prev.city,
+            state: geo.region || prev.state,
+            pincode: geo.postalCode || prev.pincode,
+          }));
+        }
+      } catch {
+        // Reverse geocode failed — coordinates still saved, user fills address manually
+      }
+    } catch (e: any) {
+      Alert.alert('Location Error', e?.message || 'Could not get your current location. Please enter the address manually.');
+    } finally {
+      setFetchingLocation(false);
     }
   };
 
@@ -367,6 +409,7 @@ export default function RegisterShopScreen({
           city: formData.city,
           state: formData.state,
           pincode: formData.pincode,
+          ...(gpsCoords ? { lat: gpsCoords.lat, lng: gpsCoords.lng } : {}),
         },
         gstNumber: formData.gstNumber,
         businessHours: {
@@ -528,7 +571,27 @@ export default function RegisterShopScreen({
           {/* Section 2: Location */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('mobile.locationSection')}</Text>
-            
+
+            <TouchableOpacity
+              style={styles.locationBtn}
+              onPress={handleGetLocation}
+              disabled={fetchingLocation}
+            >
+              {fetchingLocation ? (
+                <ActivityIndicator size="small" color="#0056bd" />
+              ) : (
+                <MaterialIcons name="my-location" size={18} color="#0056bd" />
+              )}
+              <Text style={styles.locationBtnText}>
+                {fetchingLocation ? 'Getting location...' : gpsCoords ? 'Location captured — Update' : 'Use Current Location'}
+              </Text>
+            </TouchableOpacity>
+            {gpsCoords && (
+              <Text style={styles.locationCoords}>
+                GPS: {gpsCoords.lat.toFixed(5)}, {gpsCoords.lng.toFixed(5)}
+              </Text>
+            )}
+
             <Text style={styles.label}>{t('mobile.streetAddressLabel')}</Text>
             <TextInput style={styles.input} placeholder={t('mobile.phStreet')} value={formData.street} onChangeText={(t) => handleChange('street', t)} />
 
@@ -954,6 +1017,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#191c1e',
     backgroundColor: '#f8fafc',
+  },
+  locationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#eaf1ff',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  locationBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0056bd',
+  },
+  locationCoords: {
+    fontSize: 11,
+    color: '#64748b',
+    marginBottom: 12,
+    marginTop: -6,
+    paddingHorizontal: 4,
   },
   countryOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 8 },
   countryOptionActive: { backgroundColor: '#eaf1ff' },

@@ -13,6 +13,7 @@ import { formatCurrency } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { HelpButton } from '../components/HelpButton';
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -563,6 +564,7 @@ export default function ExpensesScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('mobile.tabFinance')}</Text>
+        <HelpButton pageId="mobile_expenses" />
       </View>
 
       {loading ? (

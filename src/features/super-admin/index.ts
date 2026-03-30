@@ -18,10 +18,10 @@ export { ShopsMapPage } from "./pages/ShopsMapPage";
 export { SubscriptionsPage } from "./pages/SubscriptionsPage";
 export { PlansPage } from "./pages/PlansPage";
 export { PaymentsPage } from "./pages/PaymentsPage";
-export { ActivityPage } from "./pages/ActivityPage";
 export { PlatformSettingsPage } from "./pages/PlatformSettingsPage";
 export { SupportHelpPage } from "./pages/SupportHelpPage";
 export { ItemsListPage } from "./pages/ItemsListPage";
+export { NotificationsPage } from "./pages/NotificationsPage";
 
 // Components
 export { ShopDetailSheet } from "./components/ShopDetailSheet";
@@ -31,4 +31,3 @@ export { usePlatformStats } from "./hooks/use-platform-stats";
 export { useAllShops } from "./hooks/use-all-shops";
 export { useSubscriptions, useOverridePlan } from "./hooks/use-subscriptions";
 export { usePayments, useVerifyPayment } from "./hooks/use-payments";
-export { useActivityLogs, ACTIVITY_TYPE_CONFIG } from "./hooks/use-activity-logs";

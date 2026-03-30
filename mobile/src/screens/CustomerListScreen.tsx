@@ -8,6 +8,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { HelpButton } from '../components/HelpButton';
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -112,10 +113,13 @@ export default function CustomerListScreen({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('mobile.customersScreenTitle')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <HelpButton pageId="mobile_customers" />
         <TouchableOpacity style={styles.headerAddBtn} onPress={onAddCustomer} activeOpacity={0.7}>
           <MaterialIcons name="person-add" size={18} color="#fff" />
           <Text style={styles.headerAddBtnText}>{t('common.add')}</Text>
         </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (

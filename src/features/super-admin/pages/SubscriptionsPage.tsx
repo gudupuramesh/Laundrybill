@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSubscriptions } from "../hooks/use-subscriptions";
 import { LCard, LPageLoader, LBottomSheet } from "@/components/laundry";
 import {
@@ -25,7 +26,6 @@ import type { SubscriptionStatus } from "@/types/super-admin";
 import type { PlanType } from "@/types/plans";
 import { normalizePlanId } from "@/types/plans";
 import { cn } from "@/lib/utils";
-import { ShopDetailSheet } from "../components/ShopDetailSheet";
 
 const STATUS_FILTERS: { value: SubscriptionStatus | "all" | "expiring"; label: string }[] = [
     { value: "all", label: "All" },
@@ -66,9 +66,9 @@ export function SubscriptionsPage() {
     const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | "all" | "expiring">("all");
     const [planFilter, setPlanFilter] = useState<PlanType | "all">("all");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-    const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+    const navigate = useNavigate();
 
-    const { subscriptions, loading, error, refetch } = useSubscriptions({
+    const { subscriptions, loading, error } = useSubscriptions({
         statusFilter,
         planFilter,
         searchTerm,
@@ -230,7 +230,7 @@ export function SubscriptionsPage() {
                                 variant="elevated"
                                 padding="md"
                                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                                onClick={() => setSelectedShopId(sub.shopId)}
+                                onClick={() => navigate(`/super-admin/shops/${sub.shopId}`)}
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -324,13 +324,6 @@ export function SubscriptionsPage() {
                 </div>
             )}
 
-            {/* Shop Detail Sheet */}
-            <ShopDetailSheet
-                shopId={selectedShopId}
-                open={!!selectedShopId}
-                onClose={() => setSelectedShopId(null)}
-                onUpdate={refetch}
-            />
         </div>
     );
 }

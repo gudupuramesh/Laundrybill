@@ -15,7 +15,6 @@ import {
     Package,
     CreditCard,
     Users,
-    Activity,
     Settings,
     LogOut,
     Menu,
@@ -25,6 +24,7 @@ import {
     FileText,
     HelpCircle,
     MapPin,
+    Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ const NAV_ITEMS = [
     { id: "items-list", label: "Items List", path: "/super-admin/items-list", icon: Package },
     { id: "subscriptions", label: "Subscriptions", path: "/super-admin/subscriptions", icon: CreditCard },
     { id: "payments", label: "Payments", path: "/super-admin/payments", icon: Users },
-    { id: "activity", label: "Activity", path: "/super-admin/activity", icon: Activity },
+    { id: "notifications", label: "Notifications", path: "/super-admin/notifications", icon: Bell },
     { id: "support", label: "Support & Help", path: "/super-admin/support", icon: HelpCircle },
     { id: "settings", label: "Settings", path: "/super-admin/settings", icon: Settings },
 ];
@@ -74,7 +74,6 @@ export function SuperAdminLayout() {
             path.startsWith("/super-admin/plans") ||
             path.startsWith("/super-admin/items-list") ||
             path.startsWith("/super-admin/payments") ||
-            path.startsWith("/super-admin/activity") ||
             path.startsWith("/super-admin/support") ||
             path.startsWith("/super-admin/settings")
         )
