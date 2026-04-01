@@ -97,6 +97,7 @@ function getEmailFooter(settings: PlatformSettings): string {
 
 /**
  * Welcome Email - Sent when a new shop is registered
+ * Highlights free plan features + showcases Pro plan benefits
  */
 export function getWelcomeEmailTemplate(shopName: string, settings: PlatformSettings = DEFAULT_SETTINGS): string {
     return `<!DOCTYPE html>
@@ -108,38 +109,83 @@ export function getWelcomeEmailTemplate(shopName: string, settings: PlatformSett
     <style>${commonStyles}</style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    <div style="display: none; max-height: 0; overflow: hidden;">Welcome to ${settings.brandName}! Your account is now active.</div>
+    <div style="display: none; max-height: 0; overflow: hidden;">Welcome to ${settings.brandName}! Your account is now active. Explore what you can do.</div>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f5;">
         <tr><td align="center" style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="w-full" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
                 ${getEmailHeader(settings, "Welcome Aboard!")}
                 <!-- Content -->
-                <tr><td style="padding: 40px;">
+                <tr><td style="padding: 40px;" class="mobile-padding">
                     <div style="background-color: #f0fdfa; border: 2px solid #ccfbf1; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 24px;">
-                        <span style="color: #0f766e; font-size: 14px; font-weight: 600;">🎉 Account Created Successfully</span>
+                        <span style="color: #0f766e; font-size: 14px; font-weight: 600;">Account Created Successfully</span>
                     </div>
                     <h2 style="margin: 0 0 16px; color: #18181b; font-size: 24px; font-weight: 700; text-align: center;">Welcome, ${shopName}!</h2>
                     <p style="margin: 0 0 24px; color: #52525b; font-size: 16px; line-height: 1.6; text-align: center;">
-                        Thank you for joining ${settings.brandName}! Your smart laundry management solution is ready. Start streamlining your business today.
+                        Thank you for joining ${settings.brandName}! Your smart laundry management solution is ready. Here's what you can do right away:
                     </p>
-                    <!-- Features -->
+
+                    <!-- Free Plan Features -->
+                    <p style="margin: 0 0 12px; color: #18181b; font-size: 15px; font-weight: 700;">Your Free Plan includes:</p>
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 24px;">
-                        <tr><td style="padding: 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7; margin-bottom: 8px;">
-                            <strong style="color: #0f766e;">✓ Order Management</strong><br><span style="color: #71717a; font-size: 13px;">Create & track orders effortlessly</span>
+                        <tr><td style="padding: 10px 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                            <strong style="color: #0f766e;">&#10003; Order Management</strong> &mdash; <span style="color: #71717a; font-size: 13px;">Create, track & manage up to 50 orders/month</span>
                         </td></tr>
-                        <tr><td style="height: 8px;"></td></tr>
-                        <tr><td style="padding: 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
-                            <strong style="color: #0f766e;">✓ Customer Database</strong><br><span style="color: #71717a; font-size: 13px;">Build relationships with preferences</span>
+                        <tr><td style="height: 6px;"></td></tr>
+                        <tr><td style="padding: 10px 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                            <strong style="color: #0f766e;">&#10003; Customer Database</strong> &mdash; <span style="color: #71717a; font-size: 13px;">Store up to 100 customers with preferences</span>
                         </td></tr>
-                        <tr><td style="height: 8px;"></td></tr>
-                        <tr><td style="padding: 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
-                            <strong style="color: #0f766e;">✓ Business Analytics</strong><br><span style="color: #71717a; font-size: 13px;">Real-time insights dashboard</span>
+                        <tr><td style="height: 6px;"></td></tr>
+                        <tr><td style="padding: 10px 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                            <strong style="color: #0f766e;">&#10003; WhatsApp Receipts</strong> &mdash; <span style="color: #71717a; font-size: 13px;">Send order receipts to customers instantly</span>
+                        </td></tr>
+                        <tr><td style="height: 6px;"></td></tr>
+                        <tr><td style="padding: 10px 12px; background: #fafafa; border-radius: 8px; border: 1px solid #e4e4e7;">
+                            <strong style="color: #0f766e;">&#10003; POS &amp; Order Tracking</strong> &mdash; <span style="color: #71717a; font-size: 13px;">Point-of-sale billing and live order status</span>
                         </td></tr>
                     </table>
+
+                    <!-- Pro Plan Upsell -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 24px; border: 2px solid #0f766e; border-radius: 12px; overflow: hidden;">
+                        <tr><td style="background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%); padding: 16px; text-align: center;">
+                            <span style="color: #ffffff; font-size: 16px; font-weight: 700;">Unlock More with Pro</span>
+                        </td></tr>
+                        <tr><td style="padding: 16px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" width="50%" valign="top">&#9733; Unlimited orders</td>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" width="50%" valign="top">&#9733; Unlimited customers</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Staff management</td>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Attendance &amp; payroll</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Reports &amp; analytics</td>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Expense tracking</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Driver &amp; plant apps</td>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; Public ordering page</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; QR code scanning</td>
+                                    <td style="padding: 6px 0; color: #18181b; font-size: 14px;" valign="top">&#9733; 100 GB storage</td>
+                                </tr>
+                            </table>
+                        </td></tr>
+                    </table>
+
                     <!-- CTA -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
-                        <tr><td style="background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%); border-radius: 50px; text-align: center;">
-                            <a href="${settings.dashboardUrl}" style="display: inline-block; padding: 16px 40px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">Open Dashboard →</a>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr><td align="center" style="padding-bottom: 12px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                <tr><td style="background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%); border-radius: 50px; text-align: center;">
+                                    <a href="${settings.dashboardUrl}" style="display: inline-block; padding: 16px 40px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">Open Dashboard</a>
+                                </td></tr>
+                            </table>
+                        </td></tr>
+                        <tr><td align="center">
+                            <a href="${settings.appUrl || settings.dashboardUrl}/settings/subscription" style="color: #0f766e; font-size: 14px; font-weight: 600; text-decoration: none;">View Pro Plan &amp; Pricing &rarr;</a>
                         </td></tr>
                     </table>
                 </td></tr>

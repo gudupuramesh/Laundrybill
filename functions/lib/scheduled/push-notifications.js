@@ -30,12 +30,12 @@ exports.sendUpgradeReminders = functions.pubsub
         const intervalDays = config.upgradeReminderIntervalDays || 2; // default every 2 days
         const reminderTitle = config.upgradeReminderTitle || "Upgrade to Pro";
         const reminderBody = config.upgradeReminderBody || "Get unlimited orders, reports & more. Upgrade to Pro today!";
-        // 2. Find all free/trial subscriptions
+        // 2. Find all free plan subscriptions
         const subsSnap = await db.collection("subscriptions")
-            .where("planId", "in", ["free", "trial"])
+            .where("planId", "==", "free")
             .get();
         if (subsSnap.empty) {
-            console.log("No free/trial users found");
+            console.log("No free users found");
             return;
         }
         let sentCount = 0;
@@ -139,8 +139,7 @@ exports.sendAdminNotification = functions.https.onCall(async (data, context) => 
     else {
         // Filter by subscription plan
         const planFilter = target === "free" ? ["free"] :
-            target === "trial" ? ["trial"] :
-                target === "pro" ? ["pro", "pro_monthly", "pro_yearly"] : [];
+            target === "pro" ? ["pro", "pro_monthly", "pro_yearly"] : [];
         if (planFilter.length > 0) {
             const subsSnap = await db.collection("subscriptions")
                 .where("planId", "in", planFilter)

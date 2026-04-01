@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { LCard, LButton, LTextInput, LSelect, LPageLoader, LToggle, useLToast } from "@/components/laundry";
+import { LCard, LButton, LTextInput, LPageLoader, LToggle, useLToast } from "@/components/laundry";
 import { useSuperAdmin } from "../SuperAdminAuthContext";
 import {
     Building2,
@@ -24,9 +24,9 @@ import {
     Instagram,
     Twitter,
     Linkedin,
-    Gift,
     Percent,
     CreditCard,
+    Smartphone,
 } from "lucide-react";
 interface PlatformSettings {
     // Brand
@@ -56,13 +56,6 @@ interface PlatformSettings {
     helpDocsUrl: string;
 }
 
-/** Trial config stored in platformSettings/subscription */
-interface TrialSettings {
-    trialDurationValue: number;
-    trialDurationUnit: "days" | "months";
-    trialPlanId: "pro";
-}
-
 /** Duration discount % for 3/6/9/12 months (shop subscription page) */
 interface DurationDiscounts {
     discount3Months: number;
@@ -74,6 +67,13 @@ interface DurationDiscounts {
 /** Whether shop owners can upgrade/downgrade/cancel subscriptions */
 interface SubscriptionControls {
     buttonsEnabled: boolean;
+}
+
+/** App version control — triggers update prompt in mobile app */
+interface AppVersionSettings {
+    latestVersion: string;
+    minVersion: string;
+    whatsNew: string;
 }
 
 const DEFAULT_DURATION_DISCOUNTS: DurationDiscounts = {
@@ -102,21 +102,13 @@ const DEFAULT_SETTINGS: PlatformSettings = {
     helpDocsUrl: ""
 };
 
-const DEFAULT_TRIAL: TrialSettings = {
-    trialDurationValue: 14,
-    trialDurationUnit: "days",
-    trialPlanId: "pro",
-};
-
-const TRIAL_PLAN_OPTIONS: { value: "pro"; label: string }[] = [{ value: "pro", label: "Pro" }];
-
 export function PlatformSettingsPage() {
     const { superAdmin } = useSuperAdmin();
     const { addToast } = useLToast();
     const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
-    const [trial, setTrial] = useState<TrialSettings>(DEFAULT_TRIAL);
     const [durationDiscounts, setDurationDiscounts] = useState<DurationDiscounts>(DEFAULT_DURATION_DISCOUNTS);
     const [subscriptionControls, setSubscriptionControls] = useState<SubscriptionControls>({ buttonsEnabled: true });
+    const [appVersion, setAppVersion] = useState<AppVersionSettings>({ latestVersion: "", minVersion: "", whatsNew: "" });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -127,9 +119,10 @@ export function PlatformSettingsPage() {
 
     const loadSettings = async () => {
         try {
-            const [brandSnap, subSnap] = await Promise.all([
+            const [brandSnap, subSnap, appSnap] = await Promise.all([
                 getDoc(doc(db, "platformSettings", "emailBranding")),
                 getDoc(doc(db, "platformSettings", "subscription")),
+                getDoc(doc(db, "platformSettings", "app")),
             ]);
 
             if (brandSnap.exists()) {
@@ -156,13 +149,6 @@ export function PlatformSettingsPage() {
 
             if (subSnap.exists()) {
                 const data = subSnap.data();
-                const value = Number(data?.trialDurationValue);
-                const unit = (data?.trialDurationUnit === "months" ? "months" : "days") as "days" | "months";
-                setTrial({
-                    trialDurationValue: Number.isFinite(value) && value > 0 ? value : 14,
-                    trialDurationUnit: unit,
-                    trialPlanId: "pro",
-                });
                 const pct = (k: keyof DurationDiscounts) => {
                     const v = Number(data?.[k]);
                     return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_DURATION_DISCOUNTS[k];
@@ -176,6 +162,15 @@ export function PlatformSettingsPage() {
                 // Load subscription buttons enabled (default true if not set)
                 setSubscriptionControls({
                     buttonsEnabled: data?.subscriptionButtonsEnabled !== false,
+                });
+            }
+
+            if (appSnap.exists()) {
+                const data = appSnap.data();
+                setAppVersion({
+                    latestVersion: data.latestVersion || "",
+                    minVersion: data.minVersion || "",
+                    whatsNew: data.whatsNew || "",
                 });
             }
         } catch (error) {
@@ -196,14 +191,18 @@ export function PlatformSettingsPage() {
                     updatedBy: superAdmin?.id || "unknown"
                 }, { merge: true }),
                 setDoc(doc(db, "platformSettings", "subscription"), {
-                    trialDurationValue: trial.trialDurationValue,
-                    trialDurationUnit: trial.trialDurationUnit,
-                    trialPlanId: trial.trialPlanId,
                     discount3Months: durationDiscounts.discount3Months,
                     discount6Months: durationDiscounts.discount6Months,
                     discount9Months: durationDiscounts.discount9Months,
                     discount12Months: durationDiscounts.discount12Months,
                     subscriptionButtonsEnabled: subscriptionControls.buttonsEnabled,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: superAdmin?.id || "unknown"
+                }, { merge: true }),
+                setDoc(doc(db, "platformSettings", "app"), {
+                    latestVersion: appVersion.latestVersion,
+                    minVersion: appVersion.minVersion,
+                    whatsNew: appVersion.whatsNew,
                     updatedAt: serverTimestamp(),
                     updatedBy: superAdmin?.id || "unknown"
                 }, { merge: true }),
@@ -220,10 +219,6 @@ export function PlatformSettingsPage() {
 
     const updateField = (field: keyof PlatformSettings, value: string) => {
         setSettings(prev => ({ ...prev, [field]: value }));
-    };
-
-    const updateTrial = (updates: Partial<TrialSettings>) => {
-        setTrial(prev => ({ ...prev, ...updates }));
     };
 
     if (loading) return <LPageLoader message="Loading settings..." />;
@@ -281,51 +276,6 @@ export function PlatformSettingsPage() {
                 </div>
             </LCard>
 
-            {/* Trial Settings — new user free trial duration and plan */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Gift className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Trial Settings</h2>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                    When a new shop registers, they get a free trial of the selected plan for the duration below. After the trial ends, they move to the Free plan unless they have upgraded to a paid plan.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="text-sm font-medium text-foreground block mb-1.5">Trial duration</label>
-                        <input
-                            type="number"
-                            min={1}
-                            max={trial.trialDurationUnit === "months" ? 12 : 365}
-                            value={trial.trialDurationValue}
-                            onChange={(e) => {
-                                const v = parseInt(e.target.value, 10);
-                                if (e.target.value === "" || !Number.isNaN(v)) updateTrial({ trialDurationValue: e.target.value === "" ? 1 : Math.max(1, v) });
-                            }}
-                            className="w-full h-11 px-3 rounded-lg border border-border bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                    </div>
-                    <LSelect
-                        label="Unit"
-                        value={trial.trialDurationUnit}
-                        onChange={(value) => updateTrial({ trialDurationUnit: value as "days" | "months" })}
-                        options={[
-                            { value: "days", label: "Days" },
-                            { value: "months", label: "Months" },
-                        ]}
-                    />
-                    <LSelect
-                        label="Trial plan"
-                        value={trial.trialPlanId}
-                        onChange={(value) => updateTrial({ trialPlanId: value as TrialSettings["trialPlanId"] })}
-                        options={TRIAL_PLAN_OPTIONS}
-                    />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                    Example: 14 days of Pro = new shops get Pro features for the trial period, then Free unless they subscribe.
-                </p>
-            </LCard>
-
             {/* Duration discounts for shop subscription (3/6/9/12 months) */}
             <LCard className="p-6">
                 <div className="flex items-center gap-2 mb-4">
@@ -379,6 +329,43 @@ export function PlatformSettingsPage() {
                         checked={subscriptionControls.buttonsEnabled}
                         onChange={(checked) => setSubscriptionControls({ buttonsEnabled: checked })}
                     />
+                </div>
+            </LCard>
+
+            {/* App Version Control */}
+            <LCard className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <Smartphone className="h-5 w-5 text-primary" />
+                    <h2 className="text-lg font-semibold">App Version Control</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                    When you publish a new version to the Play Store, update the version here. Users will see an update prompt when they open the app.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <LTextInput
+                        label="Latest Version"
+                        placeholder="1.5.3"
+                        value={appVersion.latestVersion}
+                        onChange={(e) => setAppVersion(prev => ({ ...prev, latestVersion: e.target.value }))}
+                        hint="Current version on Play Store"
+                    />
+                    <LTextInput
+                        label="Minimum Version (Force Update)"
+                        placeholder="1.0.0"
+                        value={appVersion.minVersion}
+                        onChange={(e) => setAppVersion(prev => ({ ...prev, minVersion: e.target.value }))}
+                        hint="Users below this version must update"
+                    />
+                    <div className="md:col-span-1">
+                        <label className="text-sm font-medium text-foreground block mb-1.5">What's New</label>
+                        <textarea
+                            value={appVersion.whatsNew}
+                            onChange={(e) => setAppVersion(prev => ({ ...prev, whatsNew: e.target.value }))}
+                            placeholder="e.g. Bug fixes and performance improvements"
+                            rows={3}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none"
+                        />
+                    </div>
                 </div>
             </LCard>
 

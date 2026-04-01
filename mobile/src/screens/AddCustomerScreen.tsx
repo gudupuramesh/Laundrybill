@@ -115,8 +115,28 @@ export default function AddCustomerScreen({
     setSaving(true);
 
     try {
-      // Check for duplicate phone (both local and E.164 for selected country)
       const custCollection = firestore().collection(`shops/${shopId}/customers`);
+
+      // Check customer limit from plan
+      const subSnap = await firestore().collection('subscriptions').doc(shopId).get();
+      const planId = subSnap.data()?.planId || 'free';
+      const planSnap = await firestore().collection('plans').doc(planId).get();
+      const maxCustomers = planSnap.data()?.limits?.maxCustomers ?? 0;
+
+      if (maxCustomers !== -1 && maxCustomers > 0) {
+        const countSnap = await custCollection.count().get();
+        const currentCount = countSnap.data().count;
+        if (currentCount >= maxCustomers) {
+          Alert.alert(
+            t('mobile.customerLimitTitle', 'Customer Limit Reached'),
+            t('mobile.customerLimitMsg', `Your plan allows up to ${maxCustomers} customers. Upgrade to add more.`),
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Check for duplicate phone (both local and E.164 for selected country)
       let dupSnap = await custCollection.where('phone', '==', trimmedPhone).limit(1).get();
       if (dupSnap.empty) {
         dupSnap = await custCollection.where('phone', '==', toE164(trimmedPhone, countrySettings)).limit(1).get();

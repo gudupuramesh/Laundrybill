@@ -299,6 +299,12 @@ service cloud.firestore {
     match /platformSettings/{docId} {
       allow read: if request.auth != null;
       allow write: if isSuperAdmin();
+
+      // Subcollections (e.g. notifications/history)
+      match /{subcol}/{subDocId} {
+        allow read: if request.auth != null;
+        allow write: if isSuperAdmin();
+      }
     }
 
     // Coupons (super admin manage; validateCoupon callable reads via Admin SDK)

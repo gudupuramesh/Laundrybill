@@ -153,7 +153,6 @@ export function ShopsPage() {
                         const subStatus = shop.subscription?.status || "free";
                         const statusColor =
                             subStatus === "active" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                            : subStatus === "trial" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
                             : subStatus === "expired" ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                             : subStatus === "cancelled" ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
                             : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";

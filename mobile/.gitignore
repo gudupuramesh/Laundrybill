@@ -38,4 +38,12 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+
+# Android — committed to Git so signing config & notification channels persist.
+# Secrets stay local (never committed):
+/android/local.properties
+/android/keystore.properties
+/android/.gradle/
+/android/app/build/
+/android/build/
+/android/.idea/

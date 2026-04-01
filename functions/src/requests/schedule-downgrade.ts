@@ -5,9 +5,6 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import { sendEmail } from "../services/zeptomail";
-import { getPlatformSettings } from "../services/platform-settings";
-import { getDowngradeScheduledTemplate } from "../services/email-downgrade-scheduled";
 import { normalizePlanId, planDisplayName } from "../lib/plan-normalize";
 
 const PLAN_ORDER: Record<string, number> = {
@@ -63,8 +60,8 @@ export const scheduleDowngrade = onCall(async (request) => {
         const currentPlan = subData?.planId || "free";
         const currentPlanNorm = normalizePlanId(currentPlan);
 
-        if (status !== "active" && status !== "trial") {
-            throw new HttpsError("failed-precondition", "Only active or trial subscriptions can be downgraded.");
+        if (status !== "active") {
+            throw new HttpsError("failed-precondition", "Only active subscriptions can be downgraded.");
         }
 
         const fromOrder = PLAN_ORDER[currentPlanNorm] ?? 0;
@@ -93,32 +90,6 @@ export const scheduleDowngrade = onCall(async (request) => {
         });
 
         const effectiveDateObj = effectiveDate?.toDate?.();
-
-        try {
-            const shopData = shopDoc.data();
-            const ownerEmail = shopData?.email ?? shopData?.ownerEmail;
-            if (ownerEmail) {
-                const settings = await getPlatformSettings();
-                const effectiveStr = effectiveDateObj
-                    ? effectiveDateObj.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-                    : "";
-                const htmlBody = getDowngradeScheduledTemplate({
-                    shopName: shopData?.name || "Shop Owner",
-                    currentPlanName: planDisplayName(currentPlan),
-                    newPlanName: planDisplayName(toPlanNorm),
-                    effectiveDate: effectiveStr,
-                    settings,
-                });
-                await sendEmail({
-                    to: [{ address: ownerEmail, name: shopData?.name || "Shop Owner" }],
-                    subject: "Plan change scheduled – LaundryBill",
-                    htmlBody,
-                });
-                console.log(`Downgrade scheduled email sent to ${ownerEmail}`);
-            }
-        } catch (err) {
-            console.error("Failed to send downgrade scheduled email:", err);
-        }
 
         return {
             success: true,

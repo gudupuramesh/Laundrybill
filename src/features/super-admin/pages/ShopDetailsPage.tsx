@@ -31,6 +31,10 @@ import {
   MapPinned,
   BarChart3,
   Map,
+  Shield,
+  ArrowDownToLine,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Shop } from "@/types/shop";
@@ -43,8 +47,10 @@ import {
   type MapMonthFilter,
   type MapDeliveryFilter,
 } from "../hooks/use-shop-orders-for-map";
+import { useMoveSubscriptionToFree, useOverridePlan } from "../hooks/use-subscriptions";
 import { DeliveryMap } from "../components/DeliveryMap";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/AuthContext";
 
 const PLAN_LABELS: Record<PlanType, string> = {
   free: "Free",
@@ -68,9 +74,22 @@ function formatAmount(amount: number): string {
 export function ShopDetailsPage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [shop, setShop] = useState<Shop | null>(null);
   const [sub, setSub] = useState<{ planId: PlanType; status: string; endDate?: Date } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Plan management state
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overridePlanId, setOverridePlanId] = useState<PlanType>("pro");
+  const [overrideEndDate, setOverrideEndDate] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [moveToFreeReason, setMoveToFreeReason] = useState("");
+  const [showMoveToFreeConfirm, setShowMoveToFreeConfirm] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  const { moveToFree, loading: moveToFreeLoading, error: moveToFreeError } = useMoveSubscriptionToFree();
+  const { overridePlan, loading: overrideLoading, error: overrideError } = useOverridePlan();
 
   const {
     thisMonth,
@@ -219,7 +238,6 @@ export function ShopDetailsPage() {
                     className={cn(
                       "inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize",
                       sub.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                        : sub.status === "trial" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
                         : sub.status === "expired" ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     )}
@@ -271,6 +289,206 @@ export function ShopDetailsPage() {
           )}
         </div>
       </LCard>
+
+      {/* Plan management */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Shield className="h-5 w-5" />
+          Plan management
+        </h2>
+
+        {actionSuccess && (
+          <div className="mb-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {actionSuccess}
+          </div>
+        )}
+        {(moveToFreeError || overrideError) && (
+          <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {moveToFreeError || overrideError}
+          </div>
+        )}
+
+        <LCard variant="outlined" className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Current plan</p>
+              <p className="text-lg font-semibold">
+                {PLAN_LABELS[planId]}{" "}
+                <span className="text-sm font-normal text-muted-foreground capitalize">
+                  ({sub?.status || "no subscription"})
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {/* Move to Free button */}
+            {planId !== "free" && (
+              <LButton
+                variant="outline"
+                size="sm"
+                leftIcon={<ArrowDownToLine className="h-4 w-4" />}
+                onClick={() => {
+                  setShowMoveToFreeConfirm(!showMoveToFreeConfirm);
+                  setShowOverrideForm(false);
+                  setActionSuccess(null);
+                }}
+                disabled={moveToFreeLoading}
+              >
+                Move to Free plan
+              </LButton>
+            )}
+
+            {/* Override Plan button */}
+            <LButton
+              variant="outline"
+              size="sm"
+              leftIcon={<Shield className="h-4 w-4" />}
+              onClick={() => {
+                setShowOverrideForm(!showOverrideForm);
+                setShowMoveToFreeConfirm(false);
+                setActionSuccess(null);
+              }}
+              disabled={overrideLoading}
+            >
+              Override plan
+            </LButton>
+          </div>
+
+          {/* Move to Free confirmation */}
+          {showMoveToFreeConfirm && (
+            <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium text-foreground">
+                Move <strong>{shop.name}</strong> to Free plan?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                This will clear trial status, set the plan to Free, and remove the end date.
+              </p>
+              <div>
+                <label className="block text-sm font-medium mb-1">Reason (optional)</label>
+                <input
+                  type="text"
+                  value={moveToFreeReason}
+                  onChange={(e) => setMoveToFreeReason(e.target.value)}
+                  placeholder="e.g. Trial ended, moving to free"
+                  className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                />
+              </div>
+              <div className="flex gap-2">
+                <LButton
+                  variant="primary"
+                  size="sm"
+                  loading={moveToFreeLoading}
+                  onClick={async () => {
+                    const result = await moveToFree(
+                      shopId!,
+                      shopId,
+                      moveToFreeReason || "Admin: moved to free plan",
+                      user?.uid || "super-admin"
+                    );
+                    if (result.success) {
+                      setSub({ planId: "free", status: "free", endDate: undefined });
+                      setShowMoveToFreeConfirm(false);
+                      setMoveToFreeReason("");
+                      setActionSuccess("Successfully moved to Free plan");
+                    }
+                  }}
+                >
+                  Confirm move to Free
+                </LButton>
+                <LButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMoveToFreeConfirm(false)}
+                >
+                  Cancel
+                </LButton>
+              </div>
+            </div>
+          )}
+
+          {/* Override Plan form */}
+          {showOverrideForm && (
+            <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium text-foreground">
+                Override plan for <strong>{shop.name}</strong>
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium mb-1">New plan</label>
+                  <select
+                    value={overridePlanId}
+                    onChange={(e) => setOverridePlanId(e.target.value as PlanType)}
+                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                  >
+                    <option value="free">Free</option>
+                    <option value="pro">Pro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End date</label>
+                  <input
+                    type="date"
+                    value={overrideEndDate}
+                    onChange={(e) => setOverrideEndDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Reason</label>
+                <input
+                  type="text"
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="e.g. Gifted pro access, manual renewal"
+                  className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                />
+              </div>
+              <div className="flex gap-2">
+                <LButton
+                  variant="primary"
+                  size="sm"
+                  loading={overrideLoading}
+                  disabled={!overrideEndDate || !overrideReason}
+                  onClick={async () => {
+                    const result = await overridePlan(
+                      shopId!,
+                      overridePlanId,
+                      new Date(overrideEndDate),
+                      overrideReason,
+                      user?.uid || "super-admin",
+                      shopId
+                    );
+                    if (result.success) {
+                      setSub({
+                        planId: overridePlanId,
+                        status: "active",
+                        endDate: new Date(overrideEndDate),
+                      });
+                      setShowOverrideForm(false);
+                      setOverrideReason("");
+                      setOverrideEndDate("");
+                      setActionSuccess(`Plan overridden to ${PLAN_LABELS[overridePlanId]}`);
+                    }
+                  }}
+                >
+                  Apply override
+                </LButton>
+                <LButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowOverrideForm(false)}
+                >
+                  Cancel
+                </LButton>
+              </div>
+            </div>
+          )}
+        </LCard>
+      </div>
 
       {/* Order summary */}
       <div>

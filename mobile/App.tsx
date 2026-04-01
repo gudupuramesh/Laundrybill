@@ -30,6 +30,8 @@ import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/li
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
 import { usePlanLimits } from './src/lib/usePlanLimits';
 import { useMergedOrdersUsed } from './src/lib/useBillingPeriodOrderCount';
+import { useAppUpdateChecker } from './src/lib/useAppUpdateChecker';
+import UpdateModal from './src/components/UpdateModal';
 
 // Register background message handler (must be outside components)
 registerBackgroundHandler();
@@ -289,6 +291,10 @@ function MainLayout() {
       setActiveScreen(`ORDER_DETAILS_${data.orderId}`);
     }
   } : undefined);
+
+  // ─── App Update Checker ─────────────────────────────────────────
+  const updateInfo = useAppUpdateChecker();
+  const [updateDismissed, setUpdateDismissed] = useState(false);
 
   // ─── Subscription & Plan Limits (for order blocking) ────────────
   const [appSubData, setAppSubData] = React.useState<any>(null);
@@ -658,6 +664,11 @@ function MainLayout() {
             <Text style={activeTab === 'SETTINGS' ? styles.navItemTextActive : styles.navItemText}>{t('common.settings')}</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* App Update Modal */}
+      {updateInfo?.updateAvailable && !updateDismissed && (
+        <UpdateModal info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
       )}
 
       {/* CreateOrderScreen overlay — stays mounted while order is in progress */}

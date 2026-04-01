@@ -46,8 +46,8 @@ export const cancelSubscriptionAtPeriodEnd = onCall(async (request) => {
 
         const subData = subDoc.data();
         const status = subData?.status;
-        if (status !== "active" && status !== "trial") {
-            throw new HttpsError("failed-precondition", "Only active or trial subscriptions can be cancelled.");
+        if (status !== "active") {
+            throw new HttpsError("failed-precondition", "Only active subscriptions can be cancelled.");
         }
 
         const now = admin.firestore.Timestamp.now();

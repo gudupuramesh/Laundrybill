@@ -2,13 +2,6 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten, onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
-import { sendEmail } from "./services/zeptomail";
-import { getPlatformSettings } from "./services/platform-settings";
-import { getTrialEndedTemplate } from "./services/email-trial";
-import { getTrialReminderTemplate } from "./services/email-trial-reminder";
-import { getGraceEndedTemplate } from "./services/email-grace";
-import { getGraceReminderTemplate } from "./services/email-grace-reminder";
-import { getSubscriptionEndedTemplate } from "./services/email-cancelled";
 import { normalizePlanId, planDisplayName } from "./lib/plan-normalize";
 
 dotenv.config();
@@ -97,57 +90,43 @@ export const checkSubscriptionExpiration = onSchedule("every day 00:00", async (
 });
 
 /**
- * Create trial subscription when a new shop is created.
- * Trial duration and plan come from platformSettings/subscription (Super Admin config).
+ * Create free subscription when a new shop is created.
+ * New shops always start on the Free plan.
  */
 export const createTrialSubscriptionOnShopCreate = onDocumentCreated("shops/{shopId}", async (event) => {
     const shopId = event.params.shopId;
     const shopData = event.data?.data();
 
     if (!shopId || !shopData) {
-        console.log("Missing shop data for trial creation.");
+        console.log("Missing shop data for subscription creation.");
         return;
     }
 
     try {
-        const { getTrialConfig, getTrialPlanName } = await import("./services/trial-config");
-        const config = await getTrialConfig();
-
         const subRef = db.collection("subscriptions").doc(shopId);
         const existingSub = await subRef.get();
 
         if (existingSub.exists) {
-            console.log(`Subscription already exists for shop ${shopId}. Skipping trial creation.`);
+            console.log(`Subscription already exists for shop ${shopId}. Skipping.`);
             return;
         }
 
         const now = admin.firestore.Timestamp.now();
-        const trialDays = config.trialDurationDays;
-        const trialEnd = new Date(now.toDate().getTime());
-        trialEnd.setDate(trialEnd.getDate() + trialDays);
-
-        const trialEndTs = admin.firestore.Timestamp.fromDate(trialEnd);
-        const planName = getTrialPlanName(config.trialPlanId);
 
         await subRef.set({
             shopId,
             shopName: shopData.name || "",
             ownerEmail: shopData.email || "",
             ownerPhone: shopData.phone || "",
-            planId: config.trialPlanId,
-            planName,
-            status: "trial",
+            planId: "free",
+            planName: "Free",
+            status: "free",
             billingCycle: "monthly",
-            trialStartDate: now,
-            trialEndDate: trialEndTs,
-            currentPeriodStart: now,
-            currentPeriodEnd: trialEndTs,
-            endDate: trialEndTs,
             createdAt: now,
             updatedAt: now,
         });
 
-        console.log(`Trial subscription created for shop ${shopId}: ${planName} for ${trialDays} days (ends ${trialEnd.toISOString()}).`);
+        console.log(`Free subscription created for shop ${shopId}.`);
 
         // --- Notify all Super Admins about new shop registration ---
         try {
@@ -195,35 +174,32 @@ export const createTrialSubscriptionOnShopCreate = onDocumentCreated("shops/{sho
 });
 
 /**
- * Check for expired trials daily (00:05).
- * Downgrades expired trials to Free plan.
+ * Migrate remaining trial subscriptions to free (cleanup).
+ * Runs daily at 00:05 to convert any legacy trial users to free plan.
  */
 export const checkTrialExpiry = onSchedule("every day 00:05", async (event) => {
-    console.log("Starting daily trial expiry check...");
+    console.log("Starting trial expiry check...");
 
     const now = admin.firestore.Timestamp.now();
 
     try {
-        const settings = await getPlatformSettings();
-        const upgradeUrl = `${settings.appUrl}/settings/subscription`;
-        const emailPromises: Promise<unknown>[] = [];
-
-        const expiredTrialsSnapshot = await db.collection("subscriptions")
+        // Only migrate trial subscriptions whose endDate has passed
+        const trialSnapshot = await db.collection("subscriptions")
             .where("status", "==", "trial")
-            .where("trialEndDate", "<=", now)
+            .where("endDate", "<=", now)
             .get();
 
-        if (expiredTrialsSnapshot.empty) {
-            console.log("No expired trials found.");
+        if (trialSnapshot.empty) {
+            console.log("No expired trial subscriptions found.");
             return;
         }
 
-        console.log(`Found ${expiredTrialsSnapshot.size} expired trials.`);
+        console.log(`Found ${trialSnapshot.size} expired trial subscriptions to migrate to free.`);
 
         const chunks = [];
-        let currentChunk = [];
+        let currentChunk: FirebaseFirestore.QueryDocumentSnapshot[] = [];
 
-        for (const doc of expiredTrialsSnapshot.docs) {
+        for (const doc of trialSnapshot.docs) {
             currentChunk.push(doc);
             if (currentChunk.length >= 400) {
                 chunks.push(currentChunk);
@@ -239,14 +215,11 @@ export const checkTrialExpiry = onSchedule("every day 00:05", async (event) => {
                 const subData = doc.data();
                 const shopId = subData.shopId;
 
-                console.log(`Expiring trial for shop: ${shopId}`);
-
                 batch.update(doc.ref, {
                     status: "free",
                     planId: "free",
                     planName: "Free",
                     trialExpiredAt: now,
-                    expiredAt: now,
                     endDate: null,
                     currentPeriodEnd: null,
                     updatedAt: now,
@@ -263,53 +236,12 @@ export const checkTrialExpiry = onSchedule("every day 00:05", async (event) => {
                         updatedAt: now,
                     });
                 }
-
-                if (shopId) {
-                    emailPromises.push((async () => {
-                        const shopDoc = await db.collection("shops").doc(shopId).get();
-                        const shopData = shopDoc.data();
-                        const ownerEmail = shopData?.email || shopData?.ownerEmail || subData.userEmail;
-
-                        if (!ownerEmail) {
-                            console.warn(`No email found for shop ${shopId}, skipping trial ended email.`);
-                            return;
-                        }
-
-                        const shopName = shopData?.name || "Shop Owner";
-                        const trialEndDate = subData.trialEndDate?.toDate?.()
-                            ? subData.trialEndDate.toDate().toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric"
-                            })
-                            : new Date().toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric"
-                            });
-
-                        const htmlBody = getTrialEndedTemplate({
-                            shopName,
-                            trialEndDate,
-                            upgradeUrl,
-                            settings,
-                        });
-
-                        await sendEmail({
-                            to: [{ address: ownerEmail, name: shopName }],
-                            subject: "Your LaundryBill trial has ended",
-                            htmlBody,
-                        });
-                    })());
-                }
             }
 
             await batch.commit();
         }
 
-        await Promise.all(emailPromises);
-
-        console.log("Trial expiry check completed successfully.");
+        console.log("Trial expiry check completed.");
     } catch (error) {
         console.error("Error running trial expiry check:", error);
     }
@@ -325,10 +257,6 @@ export const checkGracePeriodExpiry = onSchedule("every day 00:10", async (event
     const now = admin.firestore.Timestamp.now();
 
     try {
-        const settings = await getPlatformSettings();
-        const upgradeUrl = `${settings.appUrl}/settings/subscription`;
-        const emailPromises: Promise<unknown>[] = [];
-
         const graceExpiredSnapshot = await db.collection("subscriptions")
             .where("status", "==", "grace_period")
             .where("graceEndDate", "<=", now)
@@ -384,41 +312,10 @@ export const checkGracePeriodExpiry = onSchedule("every day 00:10", async (event
                         updatedAt: now,
                     });
                 }
-
-                if (shopId) {
-                    emailPromises.push((async () => {
-                        const shopDoc = await db.collection("shops").doc(shopId).get();
-                        const shopData = shopDoc.data();
-                        const ownerEmail = shopData?.email || shopData?.ownerEmail || subData.userEmail;
-
-                        if (!ownerEmail) {
-                            console.warn(`No email found for shop ${shopId}, skipping grace ended email.`);
-                            return;
-                        }
-
-                        const shopName = shopData?.name || "Shop Owner";
-                        const previousPlanName = subData.planName || "Premium";
-
-                        const htmlBody = getGraceEndedTemplate({
-                            shopName,
-                            previousPlanName,
-                            upgradeUrl,
-                            settings,
-                        });
-
-                        await sendEmail({
-                            to: [{ address: ownerEmail, name: shopName }],
-                            subject: "Your LaundryBill subscription has expired",
-                            htmlBody,
-                        });
-                    })());
-                }
             }
 
             await batch.commit();
         }
-
-        await Promise.all(emailPromises);
 
         console.log("Grace period expiry check completed successfully.");
     } catch (error) {
@@ -435,10 +332,6 @@ export const checkCancelledSubscriptionEnd = onSchedule("every day 00:15", async
     const now = admin.firestore.Timestamp.now();
 
     try {
-        const settings = await getPlatformSettings();
-        const upgradeUrl = `${settings.appUrl}/settings/subscription`;
-        const emailPromises: Promise<unknown>[] = [];
-
         const cancelledSnapshot = await db.collection("subscriptions")
             .where("status", "==", "cancelled")
             .where("activeUntil", "<=", now)
@@ -495,41 +388,10 @@ export const checkCancelledSubscriptionEnd = onSchedule("every day 00:15", async
                         updatedAt: now,
                     });
                 }
-
-                if (shopId) {
-                    emailPromises.push((async () => {
-                        const shopDoc = await db.collection("shops").doc(shopId).get();
-                        const shopData = shopDoc.data();
-                        const ownerEmail = shopData?.email || shopData?.ownerEmail || subData.userEmail;
-
-                        if (!ownerEmail) {
-                            console.warn(`No email found for shop ${shopId}, skipping subscription ended email.`);
-                            return;
-                        }
-
-                        const shopName = shopData?.name || "Shop Owner";
-                        const previousPlanName = subData.planName || "Premium";
-
-                        const htmlBody = getSubscriptionEndedTemplate({
-                            shopName,
-                            previousPlanName,
-                            upgradeUrl,
-                            settings,
-                        });
-
-                        await sendEmail({
-                            to: [{ address: ownerEmail, name: shopName }],
-                            subject: "Your LaundryBill subscription has ended",
-                            htmlBody,
-                        });
-                    })());
-                }
             }
 
             await batch.commit();
         }
-
-        await Promise.all(emailPromises);
 
         console.log("Cancelled subscription end check completed successfully.");
     } catch (error) {
@@ -593,152 +455,8 @@ export const applyScheduledDowngrades = onSchedule("every day 00:20", async (eve
     }
 });
 
-/**
- * Send trial reminder emails daily at 09:05.
- * Sends when 7, 3, or 1 days left in trial (tracked via lastTrialReminderSent).
- */
-export const sendTrialReminders = onSchedule("every day 09:05", async (event) => {
-    console.log("Starting daily trial reminder check...");
-
-    const now = new Date();
-
-    try {
-        const settings = await getPlatformSettings();
-        const upgradeUrl = `${settings.appUrl}/settings/subscription`;
-
-        const trialSnapshot = await db.collection("subscriptions")
-            .where("status", "==", "trial")
-            .get();
-
-        if (trialSnapshot.empty) {
-            console.log("No trial subscriptions found.");
-            return;
-        }
-
-        let sent = 0;
-        for (const doc of trialSnapshot.docs) {
-            const sub = doc.data();
-            const shopId = sub.shopId || doc.id;
-            const trialEnd = sub.trialEndDate?.toDate?.();
-            if (!trialEnd) continue;
-
-            const diffMs = trialEnd.getTime() - now.getTime();
-            const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-            if (daysLeft < 0) continue;
-
-            const targetDays = [7, 3, 1];
-            const lastSent = sub.lastTrialReminderSent ?? 999;
-            if (!targetDays.includes(daysLeft) || lastSent <= daysLeft) continue;
-
-            const shopDoc = await db.collection("shops").doc(shopId).get();
-            const shopData = shopDoc.data();
-            const ownerEmail = shopData?.email || shopData?.ownerEmail || sub.userEmail;
-            if (!ownerEmail) continue;
-
-            const shopName = shopData?.name || "Shop Owner";
-            const trialEndStr = trialEnd.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-            const htmlBody = getTrialReminderTemplate({
-                shopName,
-                daysLeft,
-                trialEndDate: trialEndStr,
-                upgradeUrl,
-                settings,
-            });
-
-            await sendEmail({
-                to: [{ address: ownerEmail, name: shopName }],
-                subject: daysLeft === 1 ? "Your LaundryBill trial ends tomorrow" : `Your LaundryBill trial: ${daysLeft} days left`,
-                htmlBody,
-            });
-
-            await doc.ref.update({
-                lastTrialReminderSent: daysLeft,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-            sent++;
-        }
-
-        console.log(`Trial reminders: sent ${sent}.`);
-    } catch (error) {
-        console.error("Error sending trial reminders:", error);
-    }
-});
-
-/**
- * Send grace period reminder emails daily at 09:10.
- * Sends on day 1, 3, 5, 7 of grace (tracked via lastGraceReminderDay).
- */
-export const sendGraceReminders = onSchedule("every day 09:10", async (event) => {
-    console.log("Starting daily grace period reminder check...");
-
-    const now = new Date();
-
-    try {
-        const settings = await getPlatformSettings();
-        const updatePaymentUrl = `${settings.appUrl}/settings/subscription`;
-
-        const graceSnapshot = await db.collection("subscriptions")
-            .where("status", "==", "grace_period")
-            .get();
-
-        if (graceSnapshot.empty) {
-            console.log("No grace period subscriptions found.");
-            return;
-        }
-
-        let sent = 0;
-        for (const doc of graceSnapshot.docs) {
-            const sub = doc.data();
-            const shopId = sub.shopId || doc.id;
-            const graceEnd = sub.graceEndDate?.toDate?.();
-            const lastFailed = sub.lastFailedPaymentDate?.toDate?.();
-            if (!graceEnd || !lastFailed) continue;
-
-            const msSinceGraceStart = now.getTime() - lastFailed.getTime();
-            const dayOfGrace = Math.floor(msSinceGraceStart / (1000 * 60 * 60 * 24)) + 1;
-            const targetDays = [1, 3, 5, 7];
-            if (!targetDays.includes(dayOfGrace)) continue;
-            if (sub.lastGraceReminderDay === dayOfGrace) continue;
-
-            const msLeft = graceEnd.getTime() - now.getTime();
-            const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-            const graceEndStr = graceEnd.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-
-            const shopDoc = await db.collection("shops").doc(shopId).get();
-            const shopData = shopDoc.data();
-            const ownerEmail = shopData?.email || shopData?.ownerEmail || sub.userEmail;
-            if (!ownerEmail) continue;
-
-            const shopName = shopData?.name || "Shop Owner";
-            const planName = sub.planName || "Premium";
-            const htmlBody = getGraceReminderTemplate({
-                shopName,
-                planName,
-                dayOfGrace,
-                daysLeft,
-                graceEndDate: graceEndStr,
-                updatePaymentUrl,
-                settings,
-            });
-
-            await sendEmail({
-                to: [{ address: ownerEmail, name: shopName }],
-                subject: dayOfGrace === 7 ? "Final notice: Your LaundryBill subscription will be downgraded today" : `Action required: Update payment (Day ${dayOfGrace} of grace)`,
-                htmlBody,
-            });
-
-            await doc.ref.update({
-                lastGraceReminderDay: dayOfGrace,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-            sent++;
-        }
-
-        console.log(`Grace reminders: sent ${sent}.`);
-    } catch (error) {
-        console.error("Error sending grace reminders:", error);
-    }
-});
+// Email reminder functions removed — Google/RevenueCat handles subscription emails.
+// Push notifications (sendUpgradeReminders, sendAdminNotification) handle user engagement.
 
 /**
  * Sync Subscription changes to Shop Profile.
@@ -819,10 +537,7 @@ export const syncSubscriptionToShop = onDocumentWritten("subscriptions/{subscrip
 /**
  * Notification Functions
  */
-export * from "./notifications/expiry-check";
-export * from "./notifications/test-email";
 export * from "./notifications/welcome-email";
-export * from "./notifications/upgrade-email";
 
 /**
  * Auth Functions

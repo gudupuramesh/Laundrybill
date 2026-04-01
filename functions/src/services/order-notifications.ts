@@ -114,6 +114,13 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
         token,
         notification: { title, body },
         data: { ...data },
+        android: {
+          priority: "high" as const,
+          notification: {
+            channelId: "order_updates",
+            icon: "ic_launcher",
+          },
+        },
       })
     )
   );

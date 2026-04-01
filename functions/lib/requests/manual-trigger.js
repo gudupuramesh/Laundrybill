@@ -43,6 +43,7 @@ exports.manualTrigger = (0, https_1.onRequest)(async (req, res) => {
                 console.log(`Processing expiry for ${shopId} (EndDate: ${endDateObj} < Now: ${nowObj})`);
                 let newStatus = "expired";
                 let trialExpiredAt = null;
+                // Legacy trial users are treated as free
                 if (status === "trial") {
                     newStatus = "free";
                     trialExpiredAt = now;

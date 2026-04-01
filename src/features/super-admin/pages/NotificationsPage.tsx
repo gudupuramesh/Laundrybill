@@ -42,7 +42,6 @@ const DEFAULT_CONFIG: NotificationConfig = {
 const TARGET_OPTIONS = [
   { value: "all", label: "All Users", desc: "Every registered shop" },
   { value: "free", label: "Free Plan", desc: "Free tier users only" },
-  { value: "trial", label: "Trial Users", desc: "Currently on trial" },
   { value: "pro", label: "Pro Users", desc: "Active Pro subscribers" },
 ];
 

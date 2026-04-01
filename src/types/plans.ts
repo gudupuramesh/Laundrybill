@@ -22,7 +22,6 @@ export interface PlanFeatures {
     orders: boolean;
     customers: boolean;
     services: boolean;
-    posBasic: boolean;
     orderTracking: boolean;
     whatsappReceipts: boolean;
     multiLanguage: boolean;

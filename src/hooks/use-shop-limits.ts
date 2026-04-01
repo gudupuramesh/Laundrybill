@@ -9,7 +9,7 @@ import { useShopSubscription } from "@/hooks/use-shop-subscription";
 export function useShopLimits() {
     const { subscription, loading } = useShopSubscription();
     const { shop, loading: shopLoading } = useShop(); // Read directly from Shop Profile (synced by Cloud Function)
-    const { plans } = usePlans();
+    const { plans, loading: plansLoading } = usePlans();
 
     // Strategy: Prefer Shop Document Plan (synced by Cloud Function) if available,
     // otherwise fallback to Subscription Document Plan,
@@ -35,10 +35,9 @@ export function useShopLimits() {
         activeUntil &&
         activeUntil > now;
 
-    // Valid statuses that allow paid plan access
+    // Valid statuses that allow paid plan access (no trial — only free & pro)
     const isActiveSubscription =
         subscriptionStatus === "active" ||
-        subscriptionStatus === "trial" ||
         subscriptionStatus === "grace_period" ||
         isCancelledButActive;
 
@@ -117,6 +116,6 @@ export function useShopLimits() {
         isPro: currentPlanId !== "free",
         /** @deprecated Same as paid tier (single Pro plan). Use isPro. */
         isBusiness: currentPlanId !== "free",
-        loading: loading || shopLoading
+        loading: loading || shopLoading || plansLoading
     };
 }

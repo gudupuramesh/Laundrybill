@@ -199,6 +199,11 @@ export default function SettingsScreen({
       if (!sid) return;
       const selected = getCountry(countryCode);
       const forceEnglish = selected.code !== 'IN';
+
+      // Check if country is actually changing
+      const prevCode = countrySettings.countryCode;
+      const isCountryChange = prevCode && prevCode !== selected.code;
+
       await firestore().collection('shops').doc(sid).set(
         {
           settings: {
@@ -218,6 +223,21 @@ export default function SettingsScreen({
       if (forceEnglish) {
         setLanguageCode('en');
         void setAppLanguageCode('en');
+      }
+
+      // Force user to update phone number when country changes
+      if (isCountryChange) {
+        Alert.alert(
+          'Update Phone Number',
+          `Your country has been changed to ${selected.name} (${selected.phoneCode}). Please update your shop phone number to match the new country format (${selected.phoneDigits} digits).`,
+          [
+            {
+              text: 'Update Now',
+              onPress: () => onEditProfile(),
+            },
+          ],
+          { cancelable: false }
+        );
       }
     } catch (e) {
       console.error('Failed to save country settings:', e);

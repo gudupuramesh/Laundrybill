@@ -40,8 +40,8 @@ exports.cancelSubscriptionAtPeriodEnd = (0, https_1.onCall)(async (request) => {
         }
         const subData = subDoc.data();
         const status = subData === null || subData === void 0 ? void 0 : subData.status;
-        if (status !== "active" && status !== "trial") {
-            throw new https_1.HttpsError("failed-precondition", "Only active or trial subscriptions can be cancelled.");
+        if (status !== "active") {
+            throw new https_1.HttpsError("failed-precondition", "Only active subscriptions can be cancelled.");
         }
         const now = admin.firestore.Timestamp.now();
         const activeUntil = (_c = (_b = subData === null || subData === void 0 ? void 0 : subData.currentPeriodEnd) !== null && _b !== void 0 ? _b : subData === null || subData === void 0 ? void 0 : subData.endDate) !== null && _c !== void 0 ? _c : now;

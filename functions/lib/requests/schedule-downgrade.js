@@ -7,9 +7,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.scheduleDowngrade = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-const zeptomail_1 = require("../services/zeptomail");
-const platform_settings_1 = require("../services/platform-settings");
-const email_downgrade_scheduled_1 = require("../services/email-downgrade-scheduled");
 const plan_normalize_1 = require("../lib/plan-normalize");
 const PLAN_ORDER = {
     free: 0,
@@ -21,7 +18,7 @@ if (admin.apps.length === 0) {
 }
 const db = admin.firestore();
 exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g;
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in to schedule a downgrade.");
     }
@@ -54,8 +51,8 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
         const status = subData === null || subData === void 0 ? void 0 : subData.status;
         const currentPlan = (subData === null || subData === void 0 ? void 0 : subData.planId) || "free";
         const currentPlanNorm = (0, plan_normalize_1.normalizePlanId)(currentPlan);
-        if (status !== "active" && status !== "trial") {
-            throw new https_1.HttpsError("failed-precondition", "Only active or trial subscriptions can be downgraded.");
+        if (status !== "active") {
+            throw new https_1.HttpsError("failed-precondition", "Only active subscriptions can be downgraded.");
         }
         const fromOrder = (_b = PLAN_ORDER[currentPlanNorm]) !== null && _b !== void 0 ? _b : 0;
         const toOrder = (_c = PLAN_ORDER[toPlanNorm]) !== null && _c !== void 0 ? _c : 0;
@@ -76,32 +73,6 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
             updatedAt: now,
         });
         const effectiveDateObj = (_g = effectiveDate === null || effectiveDate === void 0 ? void 0 : effectiveDate.toDate) === null || _g === void 0 ? void 0 : _g.call(effectiveDate);
-        try {
-            const shopData = shopDoc.data();
-            const ownerEmail = (_h = shopData === null || shopData === void 0 ? void 0 : shopData.email) !== null && _h !== void 0 ? _h : shopData === null || shopData === void 0 ? void 0 : shopData.ownerEmail;
-            if (ownerEmail) {
-                const settings = await (0, platform_settings_1.getPlatformSettings)();
-                const effectiveStr = effectiveDateObj
-                    ? effectiveDateObj.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-                    : "";
-                const htmlBody = (0, email_downgrade_scheduled_1.getDowngradeScheduledTemplate)({
-                    shopName: (shopData === null || shopData === void 0 ? void 0 : shopData.name) || "Shop Owner",
-                    currentPlanName: (0, plan_normalize_1.planDisplayName)(currentPlan),
-                    newPlanName: (0, plan_normalize_1.planDisplayName)(toPlanNorm),
-                    effectiveDate: effectiveStr,
-                    settings,
-                });
-                await (0, zeptomail_1.sendEmail)({
-                    to: [{ address: ownerEmail, name: (shopData === null || shopData === void 0 ? void 0 : shopData.name) || "Shop Owner" }],
-                    subject: "Plan change scheduled – LaundryBill",
-                    htmlBody,
-                });
-                console.log(`Downgrade scheduled email sent to ${ownerEmail}`);
-            }
-        }
-        catch (err) {
-            console.error("Failed to send downgrade scheduled email:", err);
-        }
         return {
             success: true,
             toPlan: toPlanNorm,

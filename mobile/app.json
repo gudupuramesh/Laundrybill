@@ -3,7 +3,7 @@
     "name": "Laundrybill",
     "slug": "laundrybill",
     "scheme": "laundrybill",
-    "version": "1.5.3",
+    "version": "1.5.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
     "android": {
       "package": "in.laundrybill",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 24,
+      "versionCode": 25,
       "adaptiveIcon": {
         "backgroundColor": "#13253d",
         "foregroundImage": "./assets/android-icon-foreground.png",

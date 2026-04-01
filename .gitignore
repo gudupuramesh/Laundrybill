@@ -1,9 +1,15 @@
 # Environment and secrets
 .env
 mobile/android/keystore.properties
+mobile/android/local.properties
 .env.*
 !.env.example
 functions/.env
+
+# Keystore / signing (keep local only)
+Laundrybill_APK/
+*.jks
+*.keystore
 
 # Logs
 logs

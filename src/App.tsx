@@ -239,7 +239,7 @@ function App() {
               <Route path="delivery-settings" element={<DeliverySettingsPage />} />
               <Route path="settings/subscription" element={<SubscriptionPage />} />
               <Route path="settings/payment-history" element={<PaymentHistoryPage />} />
-              <Route path="settings/public-page" element={<PublicPageSettingsPage />} />
+              <Route path="settings/public-page" element={<FeatureGuard feature="publicOrderingPage"><PublicPageSettingsPage /></FeatureGuard>} />
               <Route path="help" element={<HelpPage />} />
             </Route>
 

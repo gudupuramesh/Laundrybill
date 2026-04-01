@@ -58,13 +58,11 @@ export function usePlatformStats() {
                     else planDistribution.free++;
 
                     if (sub.status === "active") activeSubscriptions++;
-                    if (sub.status === "trial") {
-                        trialUsers++;
-                        activeSubscriptions++; // Trial counts as active
-                    }
+                    // Legacy trial users counted as free (no more trials)
+                    if (sub.status === "trial") trialUsers++;
 
                     const endDate = (sub.endDate as { toDate?: () => Date })?.toDate?.();
-                    if (endDate && endDate <= sevenDaysFromNow && (sub.status === "active" || sub.status === "trial")) {
+                    if (endDate && endDate <= sevenDaysFromNow && sub.status === "active") {
                         expiringSoon++;
                     }
                 });

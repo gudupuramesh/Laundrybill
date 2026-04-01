@@ -86,6 +86,13 @@ async function sendOrderNotification(payload) {
         token,
         notification: { title, body },
         data: Object.assign({}, data),
+        android: {
+            priority: "high",
+            notification: {
+                channelId: "order_updates",
+                icon: "ic_launcher",
+            },
+        },
     })));
     let sent = 0;
     results.forEach((r, i) => {

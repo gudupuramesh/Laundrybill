@@ -18,7 +18,6 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
     orders: "Unlimited Orders",
     customers: "Unlimited Customers",
     services: "Service Menu",
-    posBasic: "Basic POS",
     orderTracking: "Public Tracking",
     whatsappReceipts: "WhatsApp Receipts",
     multiLanguage: "Multi-language",

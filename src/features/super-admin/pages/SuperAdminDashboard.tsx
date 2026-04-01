@@ -128,7 +128,6 @@ export function SuperAdminDashboard() {
                             icon={Users}
                             label="Active Subscriptions"
                             value={stats?.activeSubscriptions || 0}
-                            subValue={stats?.trialUsers ? `${stats.trialUsers} on trial` : undefined}
                             color="green"
                         />
                         <StatCard

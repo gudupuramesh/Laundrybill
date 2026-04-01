@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 const STATUS_FILTERS: { value: SubscriptionStatus | "all" | "expiring"; label: string }[] = [
     { value: "all", label: "All" },
     { value: "active", label: "Active" },
-    { value: "trial", label: "Trial" },
+    { value: "free", label: "Free" },
     { value: "expiring", label: "Expiring Soon" },
     { value: "expired", label: "Expired" },
     { value: "cancelled", label: "Cancelled" },

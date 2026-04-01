@@ -1,13 +1,12 @@
 /**
  * Reads plan limits from Firestore `plans/{planId}` collection.
- * Admin configures limits in Super Admin → Plans page.
- * The subscription doc tells us which planId the shop is on,
- * then we fetch the actual limits from the plans collection.
+ * The super admin configures all limits — this hook has NO hardcoded overrides.
+ * If the plan document doesn't exist in Firestore, all limits default to 0 (fully restricted).
  */
 import { useEffect, useState } from 'react';
 import { firestore } from './db';
 
-interface PlanLimits {
+export interface PlanLimits {
   maxOrders: number;
   maxCustomers: number;
   maxStaff: number;
@@ -16,68 +15,61 @@ interface PlanLimits {
   storageGb: number;
 }
 
-const DEFAULT_FREE_LIMITS: PlanLimits = {
-  maxOrders: 30,
+// Fallback when plan document doesn't exist at all in Firestore.
+// Zero = fully restricted, forces admin to configure plans properly.
+const EMPTY_LIMITS: PlanLimits = {
+  maxOrders: 0,
   maxCustomers: 0,
   maxStaff: 0,
   maxAgents: 0,
   maxPlantStaff: 0,
-  storageGb: 0.5,
-};
-
-const PRO_LIMITS: PlanLimits = {
-  maxOrders: -1, // unlimited
-  maxCustomers: -1,
-  maxStaff: 5,
-  maxAgents: 2,
-  maxPlantStaff: 0,
-  storageGb: 5,
+  storageGb: 0,
 };
 
 /**
  * Hook to get the current plan's limits from Firestore.
  * Reads the planId from subscription, then fetches the plan document.
+ * All values come from what the super admin set — no hardcoded overrides.
  */
 export function usePlanLimits(subscriptionData: any): PlanLimits {
-  const [limits, setLimits] = useState<PlanLimits>(DEFAULT_FREE_LIMITS);
+  const [limits, setLimits] = useState<PlanLimits>(EMPTY_LIMITS);
 
   useEffect(() => {
     if (!subscriptionData) return;
 
     const planId = subscriptionData.planId || subscriptionData.planName || 'free';
-    const normalizedPlanId = planId.toLowerCase().replace(/[_\s]/g, '');
+    const normalized = String(planId).toLowerCase().replace(/[_\s]/g, '');
 
-    // Determine if pro plan
-    const isPro = normalizedPlanId.includes('pro') || normalizedPlanId.includes('premium') || normalizedPlanId.includes('business');
+    // Normalize legacy plan ids to canonical "pro"
+    const isPro = normalized.includes('pro') || normalized.includes('premium') || normalized.includes('business');
+    const candidates = [planId, normalized, isPro ? 'pro' : 'free'].filter(
+      (v, i, a) => a.indexOf(v) === i // dedupe
+    );
 
-    // Fetch from Firestore plans collection
     const tryFetch = async () => {
       try {
-        // Try exact planId first, then normalized versions
-        const candidates = [planId, normalizedPlanId, isPro ? 'pro' : 'free'];
-
         for (const id of candidates) {
           const snap = await firestore().collection('plans').doc(id).get();
           if (snap.exists) {
             const data = snap.data();
-            const planLimits = data?.limits || {};
+            const l = data?.limits || {};
             setLimits({
-              maxOrders: planLimits.maxOrders ?? (isPro ? -1 : DEFAULT_FREE_LIMITS.maxOrders),
-              maxCustomers: planLimits.maxCustomers ?? (isPro ? -1 : 0),
-              maxStaff: planLimits.maxStaff ?? (isPro ? 5 : 0),
-              maxAgents: planLimits.maxAgents ?? (isPro ? 2 : 0),
-              maxPlantStaff: planLimits.maxPlantStaff ?? 0,
-              storageGb: planLimits.storageGb ?? (isPro ? 5 : 0.5),
+              maxOrders: l.maxOrders ?? 0,
+              maxCustomers: l.maxCustomers ?? 0,
+              maxStaff: l.maxStaff ?? 0,
+              maxAgents: l.maxAgents ?? l.maxDeliveryAgents ?? 0,
+              maxPlantStaff: l.maxPlantStaff ?? 0,
+              storageGb: l.storageGb ?? l.storageGB ?? 0,
             });
             return;
           }
         }
-
-        // No plan found in Firestore — use defaults
-        setLimits(isPro ? PRO_LIMITS : DEFAULT_FREE_LIMITS);
+        // Plan document not found — use empty (fully restricted)
+        console.warn(`Plan document not found for planId="${planId}". Using restricted defaults.`);
+        setLimits(EMPTY_LIMITS);
       } catch (e) {
         console.error('Failed to fetch plan limits:', e);
-        setLimits(isPro ? PRO_LIMITS : DEFAULT_FREE_LIMITS);
+        setLimits(EMPTY_LIMITS);
       }
     };
 

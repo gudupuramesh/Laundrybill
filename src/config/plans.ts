@@ -10,7 +10,6 @@ const BASE_FEATURES: PlanFeatures = {
     orders: true,
     customers: true,
     services: true,
-    posBasic: true,
     orderTracking: true,
     whatsappReceipts: true,
     multiLanguage: true,

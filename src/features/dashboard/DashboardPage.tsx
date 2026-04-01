@@ -70,7 +70,7 @@ export function DashboardPage() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const { role } = useAuth();
-    const { hasFeature, checkLimit } = useShopLimits();
+    const { hasFeature, checkLimit, loading: limitsLoading } = useShopLimits();
     const { formatAmount } = useCurrency();
     const {
         stats,
@@ -248,32 +248,8 @@ export function DashboardPage() {
                 </div>
             )}
 
-            {/* Trial: single line – plan name, in trial, days left, Upgrade only */}
-            {subscription?.status === "trial" && (
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20">
-                    <div className="flex flex-wrap items-center gap-2 gap-y-0">
-                        <span className="font-semibold text-foreground">{subscription.planName || 'Pro'}</span>
-                        <span className="text-sm text-muted-foreground">{t('dashboard.inTrial', 'in trial')}</span>
-                        {subscription.daysRemaining != null && subscription.daysRemaining > 0 && (
-                            <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {subscription.daysRemaining === 1
-                                    ? t('dashboard.trialDaysLeftOne')
-                                    : t('dashboard.trialDaysLeft', { count: subscription.daysRemaining })}
-                            </span>
-                        )}
-                        {subscription.daysRemaining != null && subscription.daysRemaining <= 0 && (
-                            <span className="text-sm text-destructive font-medium">{t('dashboard.trialEnded')}</span>
-                        )}
-                    </div>
-                    <LButton variant="primary" size="sm" onClick={() => navigate("/settings/subscription")}>
-                        {t('dashboard.upgrade')}
-                    </LButton>
-                </div>
-            )}
-
             {/* Paid plan: single line – plan name, days/expiry (Pro is the only paid tier) */}
-            {subscription && subscription.planId !== "free" && subscription.status !== "expired" && subscription.status !== "trial" && (
+            {subscription && subscription.planId !== "free" && subscription.status !== "expired" && (
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20">
                     <div className="flex flex-wrap items-center gap-2 gap-y-0">
                         <span className="font-semibold text-foreground">{subscription.planName}</span>
@@ -289,8 +265,8 @@ export function DashboardPage() {
                 </div>
             )}
 
-            {/* Plan Limit Alert (Show for Free Plan or any capped plan) */}
-            {orderLimit.limit !== -1 && (
+            {/* Plan Limit Alert (Show for Free Plan or any capped plan, only after data loads) */}
+            {!limitsLoading && orderLimit.limit > 0 && (
                 <div className="mb-4">
                     <LCard variant="elevated" className={cn(
                         "border-l-4",
@@ -396,7 +372,7 @@ export function DashboardPage() {
                             leftIcon={<PlusCircle className="h-5 w-5" />}
                             onClick={() => navigate("/new-order")}
                             fullWidth
-                            disabled={subscription?.planId === "free" && stats.monthlyOrders >= 50}
+                            disabled={isOrderLimitReached}
                         >
                             {t('dashboard.newOrder')}
                         </LButton>

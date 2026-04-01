@@ -21,6 +21,7 @@ import {
 } from "@/components/laundry";
 import { useCustomers, useCustomerStats } from "@/hooks/use-customers";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useShopLimits } from "@/hooks/use-shop-limits";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import { useLToast } from "@/components/laundry";
 import { Users, UserPlus, TrendingUp } from "lucide-react";
@@ -43,7 +44,21 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
 
     const { customers, loading, hasMore, loadMore, createCustomer } = useCustomers(searchQuery);
     const stats = useCustomerStats();
+    const { checkLimit } = useShopLimits();
     const { addToast } = useLToast();
+
+    const customerLimit = checkLimit("maxCustomers", stats.totalCustomers);
+    const handleAddCustomer = () => {
+        if (!customerLimit.allowed) {
+            addToast({
+                type: "error",
+                title: t("customers.limitReached", "Customer limit reached"),
+                description: t("customers.limitReachedDesc", `Your plan allows up to ${customerLimit.limit} customers. Upgrade to add more.`),
+            });
+            return;
+        }
+        setFormSheetOpen(true);
+    };
 
     const handleCreateCustomer = async (data: any) => {
         try {
@@ -108,7 +123,7 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                         variant="primary"
                         size="sm"
                         leftIcon={<UserPlus className="h-4 w-4" />}
-                        onClick={() => setFormSheetOpen(true)}
+                        onClick={handleAddCustomer}
                     >
                         {t('customers.add')}
                     </LButton>
@@ -138,7 +153,7 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                             !searchQuery
                                 ? {
                                     label: t('customers.addCustomer'),
-                                    onClick: () => setFormSheetOpen(true),
+                                    onClick: handleAddCustomer,
                                 }
                                 : undefined
                         }

@@ -34,7 +34,7 @@ export function generateOrderWhatsAppMessage(order: Order, shop?: Shop, currency
     const deliveryType = mapLegacyDeliveryType(order.deliveryType);
     const deliveryLabel = DELIVERY_TYPE_LABELS[deliveryType] || deliveryType;
 
-    const shopName = shop?.name || "LaundryBoss";
+    const shopName = shop?.name || "LaundryBill";
 
     const lines: string[] = [
         `🧺 *${shopName} - Order Confirmed!*`,

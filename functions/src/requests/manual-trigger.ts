@@ -52,6 +52,7 @@ export const manualTrigger = onRequest(async (req, res) => {
                 let newStatus = "expired";
                 let trialExpiredAt = null;
 
+                // Legacy trial users are treated as free
                 if (status === "trial") {
                     newStatus = "free";
                     trialExpiredAt = now;

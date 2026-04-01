@@ -37,7 +37,6 @@ export function SubscriptionPage() {
     const subscriptionStatus = subscription?.status;
     const isActiveSub =
         subscriptionStatus === "active" ||
-        subscriptionStatus === "trial" ||
         subscriptionStatus === "grace_period" ||
         (subscriptionStatus === "cancelled" &&
             subscription?.activeUntil &&
@@ -70,7 +69,7 @@ export function SubscriptionPage() {
                     variant="elevated"
                     className={cn(
                         "border-l-4",
-                        subscription?.status === "active" || subscription?.status === "trial"
+                        subscription?.status === "active"
                             ? "border-l-green-500"
                             : subscription?.status === "expired"
                               ? "border-l-red-500"
@@ -86,7 +85,7 @@ export function SubscriptionPage() {
                                 {subscription?.status === "expired" ? "Free Plan" : subscription?.planName || "Free Plan"}
                                 <LBadge
                                     variant={
-                                        subscription?.status === "active" || subscription?.status === "trial"
+                                        subscription?.status === "active"
                                             ? "success"
                                             : subscription?.status === "expired"
                                               ? "destructive"
@@ -97,9 +96,7 @@ export function SubscriptionPage() {
                                 >
                                     {subscription?.status === "active"
                                         ? "Active"
-                                        : subscription?.status === "trial"
-                                          ? "Trial"
-                                          : subscription?.status === "expired"
+                                        : subscription?.status === "expired"
                                             ? "Expired"
                                             : subscription?.status === "cancelled"
                                               ? "Cancelled"

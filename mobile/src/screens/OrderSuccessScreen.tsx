@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { firestore } from '../lib/db';
+import { getShopId } from '../lib/auth';
+
+const WEB_APP_URL = 'https://app.laundrybill.com';
 
 interface PlacedOrder {
   id: string;
@@ -39,6 +43,17 @@ export default function OrderSuccessScreen({
   const countrySettings = useShopCountrySettings();
   const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
+  // Fetch shop name from Firestore if not passed as prop
+  const [resolvedShopName, setResolvedShopName] = useState(shopName || '');
+  useEffect(() => {
+    if (shopName) return;
+    const sid = getShopId();
+    if (!sid) return;
+    firestore().collection('shops').doc(sid).get()
+      .then((snap) => { if (snap.exists) setResolvedShopName(snap.data()?.name || 'LaundryBill'); })
+      .catch(() => {});
+  }, [shopName]);
+
   const formatDate = (d: Date) =>
     d.toLocaleDateString(i18n.language || 'en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -63,8 +78,11 @@ export default function OrderSuccessScreen({
             : dt;
     const readyLabel = order.deliveryType === 'pickup_store' ? t('mobile.readyForPickupLabel') : t('mobile.expectedDeliveryLabel');
 
+    const trackingUrl = `${WEB_APP_URL}/track/${order.publicId}`;
+    const receiptUrl = `${WEB_APP_URL}/receipt/${order.publicId}`;
+
     const lines = [
-      t('mobile.waOrderConfirmed', { shop: shopName || 'LaundryBoss' }),
+      t('mobile.waOrderConfirmed', { shop: resolvedShopName || 'LaundryBill' }),
       ``,
       t('mobile.waOrderId', { id: order.publicId }),
       t('mobile.waDate', { date: formatDateTime(order.createdAt) }),
@@ -79,6 +97,12 @@ export default function OrderSuccessScreen({
       ``,
       `*${readyLabel}:*`,
       formatDate(order.expectedDelivery),
+      ``,
+      `📱 *Track Your Order:*`,
+      trackingUrl,
+      ``,
+      `🧾 *View Receipt:*`,
+      receiptUrl,
       ``,
       t('mobile.waQuestions'),
     ];
