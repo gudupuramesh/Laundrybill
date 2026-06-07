@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { sendPasswordReset, signInWithEmailPassword, signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
 import * as Google from 'expo-auth-session/providers/google';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -24,37 +25,8 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '28
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
 const APP_LOGO = require('../../assets/login-logo.png');
 
-/** Login UI is fixed English regardless of app language (product requirement). */
-const L = {
-  brandName: 'LaundryBill',
-  headline: 'Empowering your laundry business',
-  subheadline: 'Sign in to orchestrate your operations.',
-  mobileLabel: 'MOBILE NUMBER',
-  placeholder: '00000 00000',
-  getOtp: 'Get OTP',
-  orContinue: 'OR CONTINUE WITH',
-  continueGoogle: 'Continue with Google',
-  continueApple: 'Continue with Apple',
-  forgotPassword: 'Forgot password?',
-  trustedTitle: 'TRUSTED BY 2,400+ SHOPS',
-  trustedSubtitle: 'Processing 50k+ orders daily.',
-  trustedPlus: '+2k',
-  terms: 'TERMS OF SERVICE',
-  privacy: 'PRIVACY POLICY',
-  copyright: '© 2024 LaundryBill Technologies. All rights reserved.',
-  version: 'High-Density Operational Interface v2.4.0',
-  invalidPhone: 'Please enter a valid 10-digit mobile number.',
-  googleFailed: 'Google sign-in failed. Please try again.',
-  appleSoon: 'Apple sign-in is coming soon.',
-  appleFailed: 'Apple sign-in failed. Please try again.',
-} as const;
-
-/** Each link opens only its document (not the homepage). Override via env if your site uses different paths. */
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://laundrybill.com/terms';
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? 'https://laundrybill.com/privacy-policy';
-
-/** Georgia reads reliably on iOS; Android `serif` can be missing on some OEM builds and break Text layout. */
-const labelSerif = Platform.OS === 'ios' ? { fontFamily: 'Georgia' as const } : {};
 
 export default function LoginScreen({
   onEmailSignIn,
@@ -66,6 +38,7 @@ export default function LoginScreen({
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
@@ -83,7 +56,7 @@ export default function LoginScreen({
         signInWithGoogleIdToken(idToken)
           .catch((e) => {
             console.error('Google credential sign-in error:', e);
-            alert(L.googleFailed);
+            alert('Google sign-in failed. Please try again.');
           })
           .finally(() => setLoading(false));
       }
@@ -105,7 +78,7 @@ export default function LoginScreen({
         return;
       }
       console.error(e);
-      alert(L.googleFailed);
+      alert('Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -114,10 +87,10 @@ export default function LoginScreen({
   const handleAppleLogin = async () => {
     try {
       setLoading(true);
-      alert(L.appleSoon);
+      alert('Apple sign-in is coming soon.');
     } catch (e) {
       console.error(e);
-      alert(L.appleFailed);
+      alert('Apple sign-in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -147,7 +120,7 @@ export default function LoginScreen({
   const handleForgotPassword = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      alert('Enter your email first, then tap Forgot password.');
+      alert('Enter your email first, then tap Forgot Password.');
       return;
     }
     setLoading(true);
@@ -170,32 +143,39 @@ export default function LoginScreen({
   };
 
   return (
-    <View style={[styles.screenRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.gradientTopWash} pointerEvents="none" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex1}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.pad}>
-            <View style={styles.brandRow}>
-              <View style={styles.logoContainer}>
-                {!logoError ? (
-                  <Image source={APP_LOGO} style={styles.logoImage} resizeMode="contain" onError={() => setLogoError(true)} />
-                ) : (
-                  <MaterialIcons name="local-laundry-service" size={30} color="#ffffff" />
-                )}
-              </View>
-              <Text style={[styles.brandName, styles.brandNameSpaced]}>{L.brandName}</Text>
+    <View style={[s.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Logo & Title ──────────────────────────────────── */}
+          <View style={s.headerLogo}>
+            <View style={s.logoBadge}>
+              {!logoError ? (
+                <Image source={APP_LOGO} style={s.logoImage} resizeMode="contain" onError={() => setLogoError(true)} />
+              ) : (
+                <MaterialIcons name="local-laundry-service" size={38} color="#fff" />
+              )}
             </View>
+            <Text style={s.appTitle}>Laundry Bill</Text>
+            <Text style={s.appSubtitle}>
+              Log in to manage your laundry shop orders, finances & customers
+            </Text>
+          </View>
 
-            <Text style={styles.headline}>{L.headline}</Text>
-            <Text style={styles.subheadline}>{L.subheadline}</Text>
-
-            <View style={styles.formBlock}>
-              <Text style={[labelSerif, styles.inputLabel]}>EMAIL</Text>
-              <View style={styles.inputContainer}>
+          {/* ── Form Card ─────────────────────────────────────── */}
+          <View style={s.formCard}>
+            {/* Email */}
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>EMAIL ADDRESS</Text>
+              <View style={s.inputWrapper}>
+                <MaterialIcons name="mail-outline" size={18} color={colors.textSecondary} style={s.inputIcon} />
                 <TextInput
-                  style={styles.input}
-                  placeholder="name@example.com"
-                  placeholderTextColor="rgba(67, 70, 84, 0.38)"
+                  style={s.inputField}
+                  placeholder="name@laundryshop.com"
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -203,81 +183,113 @@ export default function LoginScreen({
                   onChangeText={setEmail}
                 />
               </View>
-              <View style={styles.inputContainer}>
+            </View>
+
+            {/* Password */}
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>PASSWORD</Text>
+              <View style={s.inputWrapper}>
+                <MaterialIcons name="lock-outline" size={18} color={colors.textSecondary} style={s.inputIcon} />
                 <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(67, 70, 84, 0.38)"
-                  secureTextEntry
+                  style={s.inputField}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={setPassword}
                 />
+                <TouchableOpacity
+                  style={s.eyeToggle}
+                  onPress={() => setShowPassword((v) => !v)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility' : 'visibility-off'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={handleForgotPassword} disabled={loading} style={styles.forgotBtn} hitSlop={8}>
-                <Text style={styles.forgotText}>{L.forgotPassword}</Text>
+            </View>
+
+            {/* Forgot Password */}
+            <TouchableOpacity onPress={handleForgotPassword} disabled={loading} style={s.forgotRow}>
+              <Text style={s.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            {/* Sign In Button */}
+            <TouchableOpacity
+              style={s.btnSubmit}
+              onPress={handleEmailLogin}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={s.btnSubmitText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* OR Divider */}
+            <View style={s.dividerRow}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerText}>OR</Text>
+              <View style={s.dividerLine} />
+            </View>
+
+            {/* Social Buttons */}
+            <View style={s.socialGrid}>
+              <TouchableOpacity
+                style={s.btnGoogle}
+                onPress={handleGoogleLogin}
+                disabled={loading}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="logo-google" size={18} color="#4285F4" />
+                <Text style={s.btnGoogleText}>Google</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleEmailLogin} disabled={loading} activeOpacity={0.9}>
-                {loading ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <View style={styles.primaryBtnInner}>
-                    <Text style={styles.primaryBtnText}>Sign In</Text>
-                    <MaterialIcons name="arrow-forward" size={20} color="#ffffff" />
-                  </View>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} onPress={onOpenCreateAccount} disabled={loading} activeOpacity={0.92}>
-                <MaterialIcons name="mail" size={20} color="#00408f" style={styles.socialIconPad} />
-                <Text style={[labelSerif, styles.socialBtnText]}>Create account</Text>
-              </TouchableOpacity>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={[labelSerif, styles.dividerText]}>{L.orContinue}</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} onPress={handleGoogleLogin} disabled={loading} activeOpacity={0.92}>
-                <Ionicons name="logo-google" size={22} color="#4285F4" style={styles.socialIconPad} />
-                <Text style={[labelSerif, styles.socialBtnText]}>{L.continueGoogle}</Text>
-              </TouchableOpacity>
-
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity style={styles.socialBtn} onPress={handleAppleLogin} disabled={loading} activeOpacity={0.92}>
-                  <MaterialIcons name="apple" size={24} color="#000000" style={styles.socialIconPad} />
-                  <Text style={[labelSerif, styles.socialBtnText]}>{L.continueApple}</Text>
+              {Platform.OS === 'ios' ? (
+                <TouchableOpacity
+                  style={s.btnApple}
+                  onPress={handleAppleLogin}
+                  disabled={loading}
+                  activeOpacity={0.9}
+                >
+                  <MaterialIcons name="apple" size={18} color="#fff" />
+                  <Text style={s.btnAppleText}>Apple</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={s.btnGoogle}
+                  onPress={onOpenCreateAccount}
+                  disabled={loading}
+                  activeOpacity={0.9}
+                >
+                  <MaterialIcons name="person-add" size={18} color={colors.primary} />
+                  <Text style={s.btnGoogleText}>Sign Up</Text>
                 </TouchableOpacity>
               )}
             </View>
+          </View>
 
-            <View style={styles.trustBanner}>
-              <View style={styles.avatarRow}>
-                {['#f59e0b', '#3b82f6', '#a855f7'].map((bg, i) => (
-                  <View key={bg} style={[styles.avatar, { backgroundColor: bg, marginLeft: i === 0 ? 0 : -10 }]} />
-                ))}
-                <View style={[styles.avatar, styles.plusAvatar, { marginLeft: -10 }]}>
-                  <Text style={styles.plusAvatarText}>{L.trustedPlus}</Text>
-                </View>
-              </View>
-              <View style={styles.trustCopy}>
-                <Text style={styles.trustTitle}>{L.trustedTitle}</Text>
-                <Text style={styles.trustSub}>{L.trustedSubtitle}</Text>
-              </View>
-            </View>
-
-            <View style={styles.footer}>
-              <View style={styles.footerLinks}>
-                <TouchableOpacity onPress={() => openLegal(TERMS_URL)} hitSlop={8}>
-                  <Text style={[labelSerif, styles.footerLink]}>{L.terms}</Text>
-                </TouchableOpacity>
-                <Text style={[styles.footerDot, styles.footerDotPad]}>·</Text>
-                <TouchableOpacity onPress={() => openLegal(PRIVACY_URL)} hitSlop={8}>
-                  <Text style={[labelSerif, styles.footerLink]}>{L.privacy}</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.footerMeta}>{L.copyright}</Text>
-              <Text style={styles.footerVersion}>{L.version}</Text>
+          {/* ── Footer ────────────────────────────────────────── */}
+          <View style={s.footer}>
+            <Text style={s.footerPrompt}>
+              Don't have an account?{' '}
+              <Text style={s.footerLink} onPress={onOpenCreateAccount}>
+                Sign Up
+              </Text>
+            </Text>
+            <View style={s.footerLegalRow}>
+              <TouchableOpacity onPress={() => openLegal(TERMS_URL)} hitSlop={8}>
+                <Text style={s.legalLink}>Terms</Text>
+              </TouchableOpacity>
+              <Text style={s.legalDot}>·</Text>
+              <TouchableOpacity onPress={() => openLegal(PRIVACY_URL)} hitSlop={8}>
+                <Text style={s.legalLink}>Privacy</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -286,271 +298,218 @@ export default function LoginScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  screenRoot: {
+const s = StyleSheet.create({
+  screen: {
     flex: 1,
-    backgroundColor: '#f8faff',
-    overflow: 'hidden',
-  },
-  flex1: {
-    flex: 1,
-  },
-  gradientTopWash: {
-    ...StyleSheet.absoluteFillObject,
-    height: '55%',
-    backgroundColor: '#dbe8ff',
-    opacity: 0.55,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
     paddingBottom: 24,
   },
-  pad: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  brandRow: {
-    flexDirection: 'row',
+
+  // Logo header
+  headerLogo: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginTop: 40,
+    marginBottom: 0,
   },
-  logoContainer: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#00408f',
-    borderRadius: 12,
+  logoBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00408f',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  logoImage: {
-    width: 32,
-    height: 32,
-  },
-  brandName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#00408f',
-    letterSpacing: -0.3,
-  },
-  brandNameSpaced: {
-    marginLeft: 12,
-  },
-  headline: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#191c1e',
-    letterSpacing: -0.6,
-    lineHeight: 32,
-    marginBottom: 8,
-  },
-  subheadline: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#434654',
-    lineHeight: 22,
-    marginBottom: 28,
-  },
-  formBlock: {
-    marginTop: 0,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#737685',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginLeft: 2,
-    marginBottom: 8,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    height: 54,
-    marginBottom: 14,
-    backgroundColor: 'rgba(241, 245, 249, 0.95)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(195, 198, 214, 0.45)',
-    overflow: 'hidden',
-  },
-  input: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#191c1e',
-    paddingHorizontal: 14,
-    letterSpacing: 0.5,
-  },
-  primaryBtn: {
-    height: 52,
-    marginBottom: 14,
-    backgroundColor: '#00408f',
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#00408f',
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
+    marginBottom: 16,
+    shadowColor: '#0C2340',
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
-  forgotBtn: {
+  logoImage: {
+    width: 48,
+    height: 48,
+  },
+  appTitle: {
+    fontSize: 26,
+    fontFamily: fonts.extrabold,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  appSubtitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 24,
+    lineHeight: 18,
+  },
+
+  // Form card
+  formCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+    marginTop: -10,
+    gap: 16,
+    shadowColor: '#141E3C',
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    height: 50,
+  },
+  inputIcon: {
+    marginLeft: 14,
+  },
+  inputField: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: colors.text,
+    paddingHorizontal: 12,
+    height: '100%',
+  },
+  eyeToggle: {
+    paddingHorizontal: 14,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  forgotRow: {
     alignSelf: 'flex-end',
-    marginTop: -4,
-    marginBottom: 12,
+    marginTop: -8,
   },
   forgotText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
-  primaryBtnInner: {
-    flexDirection: 'row',
+  btnSubmit: {
+    height: 50,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  primaryBtnText: {
+  btnSubmitText: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 0.8,
-    marginRight: 10,
+    fontFamily: fonts.bold,
+    color: '#fff',
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 14,
+    marginVertical: 4,
   },
   dividerLine: {
     flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(148, 163, 184, 0.55)',
+    height: 1,
+    backgroundColor: colors.border,
   },
   dividerText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#737685',
-    letterSpacing: 1.4,
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.textMuted,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
     paddingHorizontal: 12,
   },
-  socialBtn: {
-    minHeight: 52,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: 'rgba(195, 198, 214, 0.55)',
-    borderRadius: 14,
+  socialGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    gap: 12,
   },
-  socialBtnGap: {
-    marginBottom: 14,
-  },
-  socialIconPad: {
-    marginRight: 12,
-  },
-  socialBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#191c1e',
-  },
-  trustBanner: {
-    marginTop: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(241, 245, 249, 0.9)',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-  },
-  avatarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  plusAvatar: {
-    backgroundColor: '#14532d',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plusAvatarText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#ffffff',
-  },
-  trustCopy: {
+  btnGoogle: {
     flex: 1,
-    minWidth: 0,
-  },
-  trustTitle: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#191c1e',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  trustSub: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    marginTop: 4,
-  },
-  footer: {
-    marginTop: 28,
-    alignItems: 'center',
-    paddingBottom: 8,
-  },
-  footerLinks: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  btnGoogleText: {
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  btnApple: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    backgroundColor: '#000',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#000',
+  },
+  btnAppleText: {
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: '#fff',
+  },
+
+  // Footer
+  footer: {
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 12,
+  },
+  footerPrompt: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
   },
   footerLink: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#737685',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
-  footerDot: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '700',
+  footerLegalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  footerDotPad: {
-    marginHorizontal: 8,
+  legalLink: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: colors.textMuted,
   },
-  footerMeta: {
-    fontSize: 11,
-    color: '#94a3b8',
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  footerVersion: {
-    fontSize: 10,
-    color: '#cbd5e1',
-    marginTop: 6,
-    textAlign: 'center',
+  legalDot: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
 });

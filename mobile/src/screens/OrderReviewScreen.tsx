@@ -10,6 +10,7 @@ import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import { usePlanLimits } from '../lib/usePlanLimits';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 // Same logic as web: first 2 letters of shop name + 2 random chars
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -381,7 +382,7 @@ export default function OrderReviewScreen({
   if (!draftOrder) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>{t('mobile.noDraftOrder')}</Text>
+        <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 }}>{t('mobile.noDraftOrder')}</Text>
         <TouchableOpacity style={styles.placeOrderBtn} onPress={onBack}>
           <Text style={styles.placeOrderText}>{t('mobile.backToCreateOrder')}</Text>
         </TouchableOpacity>
@@ -402,12 +403,12 @@ export default function OrderReviewScreen({
         <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-              <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+              <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.orderReviewTitle')}</Text>
           </View>
           <TouchableOpacity style={styles.iconBtn}>
-            <MaterialIcons name="more-vert" size={24} color="#00408f" />
+            <MaterialIcons name="more-vert" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -422,7 +423,7 @@ export default function OrderReviewScreen({
         <View style={styles.customerCard}>
           <View style={styles.customerLeft}>
             <View style={styles.customerAvatar}>
-              <MaterialIcons name="person" size={24} color="#00408f" />
+              <MaterialIcons name="person" size={24} color={colors.primary} />
             </View>
             <View>
               <Text style={styles.customerName}>{draftOrder.customer.name}</Text>
@@ -445,14 +446,14 @@ export default function OrderReviewScreen({
                   <MaterialIcons
                     name={groupIndex % 2 === 0 ? 'local-laundry-service' : 'iron'}
                     size={20}
-                    color={groupIndex % 2 === 0 ? '#00408f' : '#5e3c00'}
+                    color={groupIndex % 2 === 0 ? colors.primary : '#5e3c00'}
                   />
                   <Text style={groupIndex % 2 === 0 ? styles.serviceTitleWash : styles.serviceTitleIron}>
-                    {group.name.toUpperCase()}
+                    {group.name.toUpperCase()} · {group.items.length} {group.items.length === 1 ? 'ITEM' : 'ITEMS'}
                   </Text>
                 </View>
                 <Text style={groupIndex % 2 === 0 ? styles.serviceSubtotalWash : styles.serviceSubtotalIron}>
-                  {t('mobile.subtotalLine', { amount: Math.round(group.subtotal) })}
+                  {formatCurrency(Math.round(group.subtotal), countrySettings)}
                 </Text>
               </View>
               <View style={styles.serviceItems}>
@@ -487,7 +488,7 @@ export default function OrderReviewScreen({
           {/* Discount */}
           <View style={styles.summaryRow}>
             <View style={styles.summaryRowLabel}>
-              <MaterialIcons name="local-offer" size={18} color="#006b5f" />
+              <MaterialIcons name="local-offer" size={18} color={colors.success} />
               <Text style={styles.discountLabel}>{t('mobile.discountLabel')}</Text>
             </View>
             <TextInput
@@ -511,46 +512,38 @@ export default function OrderReviewScreen({
           {taxEnabled ? (
             <View style={styles.summaryRow}>
               <View style={styles.summaryRowLabel}>
-                <MaterialIcons name="receipt" size={18} color="#434654" />
+                <MaterialIcons name="receipt" size={18} color={colors.textSecondary} />
                 <Text style={styles.summaryLabel}>{taxName} ({taxRate}%)</Text>
               </View>
               <Text style={styles.summaryValue}>+{formatCurrency(computed.taxAmount, countrySettings)}</Text>
             </View>
           ) : null}
 
-          {/* Notes */}
-          <View style={styles.notesContainer}>
-            <MaterialIcons name="sticky-note-2" size={20} color="#434654" />
-            <TextInput
-              style={styles.notesInput}
-              placeholder={t('mobile.addNotePlaceholder')}
-              placeholderTextColor="rgba(67, 70, 84, 0.5)"
-              value={notes}
-              onChangeText={setNotes}
-            />
+          {/* Divider before Grand Total */}
+          <View style={styles.summaryDivider} />
+
+          {/* Grand Total — inside summary card */}
+          <View style={styles.summaryRow}>
+            <Text style={styles.grandTotalLabel}>{t('mobile.grandTotalLabel')}</Text>
+            <Text style={styles.grandTotalValue}>{formatCurrency(computed.total, countrySettings)}</Text>
           </View>
         </View>
 
-        {/* Grand Total */}
-        <View style={styles.finalTotalContainer}>
-          <View>
-            <Text style={styles.grandTotalLabel}>{t('mobile.grandTotalLabel')}</Text>
-            <View style={styles.grandTotalRow}>
-              <Text style={styles.grandTotalValue}>{formatCurrency(computed.total, countrySettings)}</Text>
-              {taxEnabled ? <Text style={styles.taxLabel}>{t('mobile.inclTax', { tax: taxName })}</Text> : null}
-            </View>
-          </View>
-          {computed.expressCharge > 0 ? (
-            <View style={styles.expressBadge}>
-              <MaterialIcons name="bolt" size={14} color="#006f63" />
-              <Text style={styles.expressText}>{t('mobile.expressLabel')}</Text>
-            </View>
-          ) : null}
+        {/* Notes — outside summary card */}
+        <View style={styles.notesCard}>
+          <MaterialIcons name="sticky-note-2" size={20} color={colors.textMuted} />
+          <TextInput
+            style={styles.notesInput}
+            placeholder={t('mobile.addNotePlaceholder')}
+            placeholderTextColor={colors.textMuted}
+            value={notes}
+            onChangeText={setNotes}
+          />
         </View>
 
         {/* Expected Delivery — editable */}
         <View style={styles.deliveryDateCard}>
-          <MaterialIcons name="event" size={20} color="#00408f" />
+          <MaterialIcons name="event" size={20} color={colors.primary} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.deliveryDateLabel}>{deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}</Text>
             <Text style={styles.deliveryDateValue}>{formatDate(expectedDelivery)}</Text>
@@ -565,7 +558,7 @@ export default function OrderReviewScreen({
                 if (d >= new Date(new Date().toDateString())) setExpectedDelivery(d);
               }}
             >
-              <MaterialIcons name="remove" size={18} color="#00408f" />
+              <MaterialIcons name="remove" size={18} color={colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.dateAdjustBtn}
@@ -575,7 +568,7 @@ export default function OrderReviewScreen({
                 setExpectedDelivery(d);
               }}
             >
-              <MaterialIcons name="add" size={18} color="#00408f" />
+              <MaterialIcons name="add" size={18} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -621,7 +614,7 @@ export default function OrderReviewScreen({
       </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Fixed Bottom Action */}
+      {/* Fixed Bottom Action — Split layout like HTML */}
       <View style={[styles.bottomAction, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={[styles.placeOrderBtn, placing && { opacity: 0.6 }]}
@@ -630,11 +623,19 @@ export default function OrderReviewScreen({
           disabled={placing}
         >
           {placing ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator color={colors.surface} />
           ) : (
             <>
-              <Text style={styles.placeOrderText}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.placeOrderBtn')}</Text>
-              <MaterialIcons name="chevron-right" size={24} color="#ffffff" />
+              <View>
+                <Text style={styles.placeOrderItemCount}>
+                  {draftOrder?.items?.length || 0} {t('mobile.items', { defaultValue: 'ITEMS' }).toUpperCase()}
+                </Text>
+                <Text style={styles.placeOrderTotal}>{formatCurrency(computed.total, countrySettings)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.placeOrderText}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.placeOrderBtn')}</Text>
+                <MaterialIcons name="arrow-forward" size={20} color={colors.surface} />
+              </View>
             </>
           )}
         </TouchableOpacity>
@@ -644,110 +645,111 @@ export default function OrderReviewScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
-  header: { backgroundColor: '#f8f9fb', zIndex: 10 },
-  headerInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 56, paddingHorizontal: 8 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#00408f' },
-  iconBtn: { padding: 8 },
-  scrollContent: { padding: 16, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { backgroundColor: colors.surface, zIndex: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 48, paddingHorizontal: 8 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  scrollContent: { padding: 16, gap: 16 },
   customerCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 16,
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    ...shadows.card, ...shadows.cardBorder,
   },
   customerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  customerAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#d8e2ff', alignItems: 'center', justifyContent: 'center' },
-  customerName: { fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 2 },
-  customerPhone: { fontSize: 12, fontWeight: '500', color: '#434654' },
-  editBtnText: { fontSize: 12, fontWeight: '700', color: '#00408f', paddingHorizontal: 12, paddingVertical: 4 },
+  customerAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' },
+  customerName: { fontSize: 16, fontFamily: fonts.bold, color: colors.text, marginBottom: 2 },
+  customerPhone: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary },
+  editBtnText: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary, paddingHorizontal: 12, paddingVertical: 4 },
   servicesContainer: { gap: 12 },
-  serviceSection: { backgroundColor: '#f3f4f6', borderRadius: 12, overflow: 'hidden' },
+  serviceSection: { backgroundColor: colors.surface, borderRadius: radii.card, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
   serviceHeaderWash: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(0, 64, 143, 0.05)',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(195, 198, 214, 0.1)',
+    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.primaryTint,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   serviceHeaderIron: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(125, 82, 0, 0.1)',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(195, 198, 214, 0.1)',
+    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.warningBg,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   serviceHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  serviceTitleWash: { fontSize: 10, fontWeight: '700', color: '#00408f', letterSpacing: 1 },
-  serviceSubtotalWash: { fontSize: 10, fontWeight: '700', color: '#00408f' },
-  serviceTitleIron: { fontSize: 10, fontWeight: '700', color: '#5e3c00', letterSpacing: 1 },
-  serviceSubtotalIron: { fontSize: 10, fontWeight: '700', color: '#5e3c00' },
-  serviceItems: { backgroundColor: '#ffffff' },
+  serviceTitleWash: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 1 },
+  serviceSubtotalWash: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary },
+  serviceTitleIron: { fontSize: 10, fontFamily: fonts.bold, color: '#5e3c00', letterSpacing: 1 },
+  serviceSubtotalIron: { fontSize: 10, fontFamily: fonts.bold, color: '#5e3c00' },
+  serviceItems: { backgroundColor: colors.surface },
   serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  separator: { height: 1, backgroundColor: 'rgba(195, 198, 214, 0.1)' },
-  itemName: { fontSize: 14, fontWeight: '600', color: '#191c1e', marginBottom: 2 },
-  itemMeta: { fontSize: 11, color: '#434654' },
-  itemTotal: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
+  separator: { height: 1, backgroundColor: colors.border },
+  itemName: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text, marginBottom: 2 },
+  itemMeta: { fontSize: 11, color: colors.textSecondary },
+  itemTotal: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
   summaryCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 16, gap: 14,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, gap: 14,
+    ...shadows.card, ...shadows.cardBorder,
   },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryRowLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  summaryLabel: { fontSize: 14, fontWeight: '600', color: '#434654' },
-  summaryLabelSmall: { fontSize: 12, color: '#737685', marginLeft: 26 },
-  summaryValue: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
-  discountLabel: { fontSize: 14, fontWeight: '600', color: '#191c1e' },
-  discountInput: { fontSize: 14, fontWeight: '700', color: '#006b5f', padding: 0, minWidth: 100 },
-  discountApplied: { fontSize: 13, fontWeight: '700', color: '#006b5f' },
-  notesContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#edeef0',
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, gap: 12,
+  summaryLabel: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
+  summaryLabelSmall: { fontSize: 12, color: colors.textMuted, marginLeft: 26 },
+  summaryValue: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  discountLabel: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
+  discountInput: { fontSize: 14, fontFamily: fonts.bold, color: colors.success, padding: 0, minWidth: 100 },
+  discountApplied: { fontSize: 13, fontFamily: fonts.bold, color: colors.success },
+  summaryDivider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  grandTotalLabel: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  grandTotalValue: { fontSize: 18, fontFamily: fonts.bold, color: colors.primary },
+  notesCard: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface,
+    borderRadius: radii.card, paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+    borderWidth: 1, borderColor: colors.border,
   },
-  notesInput: { flex: 1, fontSize: 14, color: '#191c1e', padding: 0 },
-  finalTotalContainer: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-    paddingTop: 16, paddingBottom: 8, paddingHorizontal: 8,
-  },
-  grandTotalLabel: { fontSize: 11, fontWeight: '700', color: '#434654', letterSpacing: 0.5 },
-  grandTotalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  grandTotalValue: { fontSize: 32, fontWeight: '800', color: '#00408f' },
-  taxLabel: { fontSize: 10, fontWeight: '500', color: '#434654' },
+  notesInput: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.text, padding: 0 },
   expressBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#76f4e0',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.successBg,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.button, marginBottom: 4,
   },
-  expressText: { fontSize: 10, fontWeight: '700', color: '#006f63' },
+  expressText: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary },
   deliveryDateCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#d8e2ff',
-    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primaryTint,
+    borderRadius: radii.input, paddingHorizontal: 16, paddingVertical: 12,
   },
-  deliveryDateLabel: { fontSize: 10, fontWeight: '700', color: '#00408f', letterSpacing: 0.5 },
-  deliveryDateValue: { fontSize: 14, fontWeight: '700', color: '#00408f', marginTop: 2 },
+  deliveryDateLabel: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 0.5 },
+  deliveryDateValue: { fontSize: 14, fontFamily: fonts.bold, color: colors.primary, marginTop: 2 },
   dateAdjustRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dateAdjustBtn: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0, 64, 143, 0.12)',
+    width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.6)',
     alignItems: 'center', justifyContent: 'center',
   },
   toggleGroup: { gap: 8 },
-  toggleLabel: { fontSize: 10, fontWeight: '700', color: '#434654', letterSpacing: 1, paddingHorizontal: 4 },
-  segmentControl: { flexDirection: 'row', backgroundColor: '#edeef0', borderRadius: 12, padding: 4 },
+  toggleLabel: { fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 1, paddingHorizontal: 4 },
+  segmentControl: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: radii.button, padding: 4 },
   segmentActive: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 8,
+    flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 8,
     elevation: 1, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
   },
   segmentInactive: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   segmentError: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#ffdad6', borderRadius: 8,
+    flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.errorBg, borderRadius: 8,
     elevation: 1, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
   },
-  segmentTextActive: { fontSize: 12, fontWeight: '700', color: '#00408f' },
-  segmentTextInactive: { fontSize: 12, fontWeight: '700', color: '#434654' },
-  segmentTextError: { fontSize: 12, fontWeight: '700', color: '#93000a' },
+  segmentTextActive: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary },
+  segmentTextInactive: { fontSize: 12, fontFamily: fonts.bold, color: colors.textSecondary },
+  segmentTextError: { fontSize: 12, fontFamily: fonts.bold, color: colors.error },
   bottomAction: {
     position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)', borderTopWidth: 1, borderTopColor: 'rgba(195, 198, 214, 0.2)',
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
   },
   placeOrderBtn: {
-    height: 56, backgroundColor: '#00408f', borderRadius: 12, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 12,
-    elevation: 4, shadowColor: '#00408f', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    height: 56, backgroundColor: colors.primary, borderRadius: radii.input, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20,
+    elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
-  placeOrderText: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
+  placeOrderItemCount: { fontSize: 11, fontFamily: fonts.bold, color: colors.surface, letterSpacing: 0.5, opacity: 0.8 },
+  placeOrderTotal: { fontSize: 18, fontFamily: fonts.bold, color: colors.surface },
+  placeOrderText: { fontSize: 16, fontFamily: fonts.bold, color: colors.surface },
 });

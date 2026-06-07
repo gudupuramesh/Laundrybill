@@ -1,3 +1,5 @@
+export type PricingType = "piece" | "kg" | "lb" | "sqft" | "sqm" | "set" | "pair" | "load" | "bag";
+
 export interface CountryConfig {
   code: string;
   name: string;
@@ -8,7 +10,45 @@ export interface CountryConfig {
   timezone: string;
   phoneDigits: number;
   taxName: string;
+  supportedUnits: PricingType[];
+  defaultUnit: PricingType;
+  weightUnit: 'kg' | 'lb';
+  areaUnit: 'sqft' | 'sqm';
 }
+
+// Unit display labels
+export const UNIT_LABELS: Record<PricingType, { full: string; short: string }> = {
+  piece: { full: 'Per Piece', short: 'pc' },
+  kg: { full: 'Per Kilogram', short: 'kg' },
+  lb: { full: 'Per Pound', short: 'lb' },
+  sqft: { full: 'Per Sq. Foot', short: 'sqft' },
+  sqm: { full: 'Per Sq. Meter', short: 'm²' },
+  set: { full: 'Per Set', short: 'set' },
+  pair: { full: 'Per Pair', short: 'pair' },
+  load: { full: 'Per Load', short: 'load' },
+  bag: { full: 'Per Bag', short: 'bag' },
+};
+
+// Country → unit mapping
+const UNIT_OVERRIDES: Record<string, { supportedUnits: PricingType[]; defaultUnit: PricingType; weightUnit: 'kg' | 'lb'; areaUnit: 'sqft' | 'sqm' }> = {
+  IN: { supportedUnits: ['piece', 'kg', 'sqft', 'set', 'pair'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqft' },
+  US: { supportedUnits: ['piece', 'lb', 'sqft', 'set', 'pair', 'load', 'bag'], defaultUnit: 'piece', weightUnit: 'lb', areaUnit: 'sqft' },
+  CA: { supportedUnits: ['piece', 'lb', 'sqft', 'set', 'pair', 'load', 'bag'], defaultUnit: 'piece', weightUnit: 'lb', areaUnit: 'sqft' },
+  GB: { supportedUnits: ['piece', 'lb', 'kg', 'sqm', 'set', 'pair', 'load'], defaultUnit: 'piece', weightUnit: 'lb', areaUnit: 'sqm' },
+  AU: { supportedUnits: ['piece', 'kg', 'sqm', 'set', 'pair', 'load'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqm' },
+  AE: { supportedUnits: ['piece', 'kg', 'set', 'pair', 'bag'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqft' },
+  SA: { supportedUnits: ['piece', 'kg', 'set', 'pair', 'bag'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqft' },
+  SG: { supportedUnits: ['piece', 'kg', 'set', 'pair'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqm' },
+  MY: { supportedUnits: ['piece', 'kg', 'set', 'pair'], defaultUnit: 'piece', weightUnit: 'kg', areaUnit: 'sqm' },
+};
+
+// Default for countries not in the override list
+const DEFAULT_UNITS: { supportedUnits: PricingType[]; defaultUnit: PricingType; weightUnit: 'kg' | 'lb'; areaUnit: 'sqft' | 'sqm' } = {
+  supportedUnits: ['piece', 'kg', 'sqm', 'set', 'pair', 'load', 'bag'],
+  defaultUnit: 'piece',
+  weightUnit: 'kg',
+  areaUnit: 'sqm',
+};
 
 type TelCountry = { name: string; iso2: string; dialCode: string; format?: string };
 const telData = require('country-telephone-data') as { allCountries: TelCountry[] };
@@ -51,6 +91,7 @@ export const COUNTRIES: CountryConfig[] = Array.from(
   .map((c) => {
     const code = String(c.iso2 || "").toUpperCase();
     const mappedCurrency = resolveCurrencyCode(code);
+    const unitConfig = UNIT_OVERRIDES[code] || DEFAULT_UNITS;
     const base: CountryConfig = {
       code,
       name: c.name,
@@ -61,6 +102,10 @@ export const COUNTRIES: CountryConfig[] = Array.from(
       timezone: "UTC",
       phoneDigits: inferPhoneDigits(c),
       taxName: "Tax",
+      supportedUnits: unitConfig.supportedUnits,
+      defaultUnit: unitConfig.defaultUnit,
+      weightUnit: unitConfig.weightUnit,
+      areaUnit: unitConfig.areaUnit,
     };
     return { ...base, ...(OVERRIDES[code] || {}) };
   })
@@ -75,6 +120,26 @@ export function getCountry(code?: string): CountryConfig {
 
 export function getCountryByCurrency(currencyCode?: string): CountryConfig {
   return COUNTRIES.find((c) => c.currencyCode === currencyCode) || getCountry(DEFAULT_COUNTRY_CODE);
+}
+
+/** Get supported units for a country code */
+export function getUnitsForCountry(countryCode?: string): { units: PricingType[]; defaultUnit: PricingType; labels: typeof UNIT_LABELS } {
+  const country = getCountry(countryCode);
+  return {
+    units: country.supportedUnits,
+    defaultUnit: country.defaultUnit,
+    labels: UNIT_LABELS,
+  };
+}
+
+/** Get unit label (short form) for display */
+export function getUnitLabel(pricingType: string): string {
+  return UNIT_LABELS[pricingType as PricingType]?.short || pricingType;
+}
+
+/** Get unit full label for pickers */
+export function getUnitFullLabel(pricingType: string): string {
+  return UNIT_LABELS[pricingType as PricingType]?.full || pricingType;
 }
 
 export function getCountryCodeFromPhone(input?: string): string | null {

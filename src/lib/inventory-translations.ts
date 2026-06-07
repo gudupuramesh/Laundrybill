@@ -306,12 +306,17 @@ export function getTranslatedUnit(unit: string): string {
         return translated;
     }
 
-    // Fallback units
+    // Fallback units — supports all country-specific units
     const fallbackUnits: Record<string, string> = {
         'piece': 'pc',
         'kg': 'kg',
+        'lb': 'lb',
         'sqft': 'sq.ft',
+        'sqm': 'm²',
         'set': 'set',
+        'pair': 'pair',
+        'load': 'load',
+        'bag': 'bag',
     };
 
     return fallbackUnits[unit] || unit;

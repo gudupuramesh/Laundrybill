@@ -12,6 +12,7 @@ import { getShopId } from '../lib/auth';
 import { formatCurrency } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
+import { colors, fonts, radii, shadows } from '../theme';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -64,14 +65,14 @@ function getInitials(name: string): string {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending: { bg: '#fff3e0', text: '#e65100' },
-  confirmed: { bg: '#e3f2fd', text: '#1565c0' },
-  processing: { bg: '#fff8e1', text: '#f9a825' },
-  ready: { bg: '#e8f5e9', text: '#2e7d32' },
-  out_for_delivery: { bg: '#e3f2fd', text: '#1565c0' },
-  delivered: { bg: '#e8f5e9', text: '#2e7d32' },
-  picked_up: { bg: '#e8f5e9', text: '#2e7d32' },
-  cancelled: { bg: '#fce4ec', text: '#c62828' },
+  pending: { bg: colors.warningBg, text: colors.warning },
+  confirmed: { bg: colors.primaryTint, text: colors.primary },
+  processing: { bg: colors.inProgressBg, text: colors.inProgress },
+  ready: { bg: '#F1FBE7', text: '#84CC16' },
+  out_for_delivery: { bg: colors.primaryTint, text: colors.primary },
+  delivered: { bg: colors.successBg, text: colors.success },
+  picked_up: { bg: colors.successBg, text: colors.success },
+  cancelled: { bg: colors.errorBg, text: colors.error },
 };
 
 // ─── Component ────────────────────────────────────────────────────────
@@ -231,13 +232,13 @@ export default function CustomerDetailScreen({
   // ─── Render ─────────────────────────────────────────────────────────
 
   if (loading) {
-    return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#00408f" /></View>;
+    return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
 
   if (!customer) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#191c1e', marginBottom: 12 }}>{t('mobile.customerNotFoundTitle')}</Text>
+        <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 }}>{t('mobile.customerNotFoundTitle')}</Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={onBack}><Text style={styles.primaryBtnText}>{t('mobile.goBack')}</Text></TouchableOpacity>
       </View>
     );
@@ -249,11 +250,11 @@ export default function CustomerDetailScreen({
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerInner}>
           <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-            <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+            <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{customer.name || t('mobile.customerDefaultTitle')}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.customerProfileTitle', { defaultValue: 'Customer Profile' })}</Text>
           <TouchableOpacity style={styles.iconBtn} onPress={openEditModal}>
-            <MaterialIcons name="edit" size={22} color="#00408f" />
+            <MaterialIcons name="edit" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -264,61 +265,46 @@ export default function CustomerDetailScreen({
       >
         {/* ─── Profile Card ─────────────────────────────────────── */}
         <View style={styles.profileCard}>
-          <View style={styles.profileTop}>
-            <View style={[styles.avatarLg, !isActive && { backgroundColor: '#737685' }]}>
-              <Text style={styles.avatarLgText}>{getInitials(customer.name || '')}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.nameStatusRow}>
-                <Text style={styles.profileName} numberOfLines={1}>{customer.name}</Text>
-                {!isActive && (
-                  <View style={styles.inactiveBadge}>
-                    <Text style={styles.inactiveBadgeText}>{t('mobile.inactiveLabel')}</Text>
-                  </View>
-                )}
-              </View>
-              {createdAt && (
-                <View style={styles.memberRow}>
-                  <MaterialIcons name="calendar-today" size={12} color="#737685" />
-                  <Text style={styles.memberText}>{memberSinceText(createdAt, i18n.language, t)}</Text>
-                </View>
-              )}
-              {/* Contact buttons */}
-              <View style={styles.contactBtns}>
-                {phone ? (
-                  <>
-                    <TouchableOpacity style={styles.contactCircle} onPress={handleCall}>
-                      <MaterialIcons name="call" size={16} color="#00408f" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.contactCircle, { backgroundColor: '#e6f7f2' }]} onPress={handleWhatsApp}>
-                      <MaterialIcons name="chat" size={16} color="#25D366" />
-                    </TouchableOpacity>
-                  </>
-                ) : null}
-              </View>
-            </View>
+          {/* Avatar */}
+          <View style={[styles.avatarLg, !isActive && { backgroundColor: colors.textMuted }]}>
+            <Text style={styles.avatarLgText}>{getInitials(customer.name || '')}</Text>
           </View>
 
-          {/* Contact info */}
-          <View style={styles.contactSection}>
+          {/* Name + Member since */}
+          <View style={{ alignItems: 'center', marginTop: 8 }}>
+            <Text style={styles.profileName} numberOfLines={1}>{customer.name}</Text>
+            {!isActive && (
+              <View style={[styles.inactiveBadge, { marginTop: 4 }]}>
+                <Text style={styles.inactiveBadgeText}>{t('mobile.inactiveLabel')}</Text>
+              </View>
+            )}
+            {phone ? <Text style={styles.memberText}>{phone}</Text> : null}
+            {createdAt && (
+              <View style={styles.memberRow}>
+                <MaterialIcons name="calendar-today" size={12} color={colors.textMuted} />
+                <Text style={styles.memberText}>{memberSinceText(createdAt, i18n.language, t)}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Action buttons row — Call, WhatsApp, New Order */}
+          <View style={styles.actionBtnsRow}>
             {phone ? (
-              <View style={styles.contactRow}>
-                <MaterialIcons name="phone" size={14} color="#737685" />
-                <Text style={styles.contactVal}>{phone}</Text>
-              </View>
+              <>
+                <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCall}>
+                  <MaterialIcons name="call" size={16} color={colors.textSecondary} />
+                  <Text style={styles.actionBtnSecondaryText}>{t('mobile.callBtn', { defaultValue: 'Call' })}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleWhatsApp}>
+                  <MaterialIcons name="chat" size={16} color="#25D366" />
+                  <Text style={styles.actionBtnSecondaryText}>{t('mobile.whatsappBtn', { defaultValue: 'WhatsApp' })}</Text>
+                </TouchableOpacity>
+              </>
             ) : null}
-            {email ? (
-              <View style={styles.contactRow}>
-                <MaterialIcons name="email" size={14} color="#737685" />
-                <Text style={styles.contactVal}>{email}</Text>
-              </View>
-            ) : null}
-            {address ? (
-              <View style={[styles.contactRow, { alignItems: 'flex-start' }]}>
-                <MaterialIcons name="location-on" size={14} color="#737685" style={{ marginTop: 2 }} />
-                <Text style={[styles.contactVal, { flex: 1 }]}>{address}</Text>
-              </View>
-            ) : null}
+            <TouchableOpacity style={styles.actionBtnPrimary}>
+              <MaterialIcons name="note-add" size={16} color={colors.surface} />
+              <Text style={styles.actionBtnPrimaryText}>{t('dashboard.newOrder')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -326,7 +312,7 @@ export default function CustomerDetailScreen({
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>{t('mobile.statTotalOrders')}</Text>
-            <Text style={[styles.statValue, { color: '#00408f' }]}>{stats.totalOrders}</Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.totalOrders}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>{t('mobile.statTotalSpent')}</Text>
@@ -336,9 +322,9 @@ export default function CustomerDetailScreen({
             <Text style={styles.statLabel}>AVG ORDER</Text>
             <Text style={styles.statValue}>{formatCurrency(stats.avgValue, countrySettings)}</Text>
           </View>
-          <View style={[styles.statCard, stats.unpaid > 0 && { backgroundColor: '#ffdad6' }]}>
-            <Text style={[styles.statLabel, stats.unpaid > 0 && { color: '#93000a' }]}>{t('mobile.statUnpaidLabel')}</Text>
-            <Text style={[styles.statValue, { color: stats.unpaid > 0 ? '#93000a' : '#2e7d32' }]}>
+          <View style={[styles.statCard, stats.unpaid > 0 && { backgroundColor: colors.errorBg }]}>
+            <Text style={[styles.statLabel, stats.unpaid > 0 && { color: colors.error }]}>{t('mobile.statUnpaidLabel')}</Text>
+            <Text style={[styles.statValue, { color: stats.unpaid > 0 ? colors.error : colors.success }]}>
               {formatCurrency(stats.unpaid, countrySettings)}
             </Text>
           </View>
@@ -352,63 +338,56 @@ export default function CustomerDetailScreen({
 
         {orders.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialIcons name="receipt-long" size={40} color="#c3c6d6" />
+            <MaterialIcons name="receipt-long" size={40} color={colors.textMuted} />
             <Text style={styles.emptyText}>{t('mobile.noOrdersYet')}</Text>
           </View>
         ) : (
-          <View style={styles.orderList}>
-            {orders.map((order) => {
+          <View style={styles.orderListCard}>
+            {orders.map((order, index) => {
               const cfg = STATUS_COLORS[order.status] || STATUS_COLORS.pending;
               const label = order.status ? cdOrderStatus(order.status, t) : t('mobile.unknownStatus');
               const created = toDate(order.createdAt);
               const itemCount = (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0);
               const total = Math.round(order.financials?.total || 0);
               const balance = Math.round(order.financials?.balance || 0);
+              const isPaid = balance <= 0;
               const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
-
-              // Gather unique service categories
-              const categories: string[] = [...new Set((order.items || []).map((i: any) => i.categoryName).filter(Boolean))] as string[];
 
               return (
                 <TouchableOpacity
                   key={order.id}
-                  style={styles.orderCard}
+                  style={[styles.historyRow, index < orders.length - 1 && styles.historyRowBorder]}
                   activeOpacity={0.7}
                   onPress={() => onViewOrder?.(order.id)}
                 >
-                  <View style={{ flex: 1 }}>
+                  {/* Left accent bar */}
+                  <View style={[styles.accentBar, { backgroundColor: cfg.text }]} />
+
+                  <View style={{ flex: 1, paddingLeft: 12 }}>
+                    {/* Row 1: Order ID + Status badge */}
                     <View style={styles.orderTopRow}>
-                      <Text style={styles.orderId}>#{publicId}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-                        <Text style={[styles.statusText, { color: cfg.text }]}>{label}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={styles.orderId}>{publicId}</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+                          <Text style={[styles.statusText, { color: cfg.text }]}>{label.toUpperCase()}</Text>
+                        </View>
                       </View>
-                    </View>
-                    <Text style={styles.orderDate}>{formatDateLocalized(created, i18n.language)}</Text>
-                    <View style={styles.orderMeta}>
-                      <Text style={styles.orderMetaText}>{t('mobile.itemsMetaCount', { count: itemCount })}</Text>
-                      <View style={styles.dot} />
                       <Text style={styles.orderAmount}>{formatCurrency(total, countrySettings)}</Text>
-                      {balance > 0 ? (
-                        <>
-                          <View style={styles.dot} />
-                          <Text style={styles.unpaidLabel}>{withCurrencySymbol(t('mobile.orderDueLabel', { amount: balance }) as string)}</Text>
-                        </>
-                      ) : (
-                        <>
-                          <View style={styles.dot} />
-                          <Text style={styles.paidLabel}>{t('mobile.paidLabel')}</Text>
-                        </>
-                      )}
                     </View>
-                    {categories.length > 0 && (
-                      <View style={styles.categoryTags}>
-                        {categories.slice(0, 3).map((cat: string) => (
-                          <View key={cat} style={styles.categoryTag}>
-                            <Text style={styles.categoryTagText}>{cat.toUpperCase()}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+                    {/* Row 2: Item count + date */}
+                    <Text style={styles.orderDate}>
+                      {itemCount} {t('mobile.items', { defaultValue: 'items' })} · {formatDateLocalized(created, i18n.language)}
+                    </Text>
+                  </View>
+
+                  {/* Right: Amount + paid/unpaid + chevron */}
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <View style={[styles.payBadge, isPaid ? styles.payBadgePaid : styles.payBadgeUnpaid]}>
+                      <Text style={[styles.payBadgeText, { color: isPaid ? colors.success : colors.error }]}>
+                        {isPaid ? t('mobile.paid', { defaultValue: 'PAID' }) : t('mobile.unpaid', { defaultValue: 'UNPAID' })}
+                      </Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={16} color={colors.textMuted} />
                   </View>
                 </TouchableOpacity>
               );
@@ -447,7 +426,7 @@ export default function CustomerDetailScreen({
             style={styles.notesInput}
             multiline
             placeholder={t('mobile.notesPlaceholderCustomer')}
-            placeholderTextColor="#737685"
+            placeholderTextColor={colors.textMuted}
             value={notesText}
             onChangeText={setNotesText}
             textAlignVertical="top"
@@ -469,7 +448,7 @@ export default function CustomerDetailScreen({
               value={editName}
               onChangeText={setEditName}
               placeholder={t('mobile.phCustomerName')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               autoCapitalize="words"
             />
 
@@ -481,7 +460,7 @@ export default function CustomerDetailScreen({
                 value={editPhone}
                 onChangeText={(t) => setEditPhone(t.replace(/\D/g, '').slice(0, phoneDigitsLimit))}
                 placeholder={t('mobile.phPhone10Digit')}
-                placeholderTextColor="#c3c6d6"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 maxLength={phoneDigitsLimit}
               />
@@ -493,7 +472,7 @@ export default function CustomerDetailScreen({
               value={editEmail}
               onChangeText={setEditEmail}
               placeholder={t('mobile.phOptional')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -504,7 +483,7 @@ export default function CustomerDetailScreen({
               value={editAddress}
               onChangeText={setEditAddress}
               placeholder={t('mobile.phOptional')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -533,128 +512,144 @@ export default function CustomerDetailScreen({
 // ─── Styles ──────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
-  header: { backgroundColor: '#f8f9fb', zIndex: 10 },
-  headerInner: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 8, gap: 8 },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#00408f' },
-  iconBtn: { padding: 8 },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { backgroundColor: colors.surface, zIndex: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerInner: { flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 8, gap: 8 },
+  headerTitle: { flex: 1, fontSize: 18, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted,
+    alignItems: 'center', justifyContent: 'center',
+  },
   scrollContent: { padding: 16, gap: 16 },
 
   // Profile card
   profileCard: {
-    backgroundColor: '#ffffff', borderRadius: 14, padding: 16,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16,
+    ...shadows.card, ...shadows.cardBorder,
+    alignItems: 'center', gap: 4,
   },
-  profileTop: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   avatarLg: {
-    width: 64, height: 64, borderRadius: 14, backgroundColor: '#00408f',
+    width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primaryTint,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarLgText: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  nameStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  profileName: { fontSize: 18, fontWeight: '700', color: '#191c1e', flexShrink: 1 },
-  inactiveBadge: { backgroundColor: '#fff3e0', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  inactiveBadgeText: { fontSize: 9, fontWeight: '700', color: '#e65100' },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  memberText: { fontSize: 11, color: '#737685' },
-  contactBtns: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  contactCircle: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#d8e2ff',
-    alignItems: 'center', justifyContent: 'center',
+  avatarLgText: { fontSize: 22, fontFamily: fonts.bold, color: colors.primary },
+  profileName: { fontSize: 20, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' },
+  inactiveBadge: { backgroundColor: colors.warningBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  inactiveBadgeText: { fontSize: 9, fontFamily: fonts.bold, color: colors.warning },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  memberText: { fontSize: 14, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
+  actionBtnsRow: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 12 },
+  actionBtnSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: radii.button,
+    backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border,
   },
-  contactSection: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#edeef0', gap: 8 },
-  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  contactVal: { fontSize: 13, color: '#191c1e', fontWeight: '500' },
+  actionBtnSecondaryText: { fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary },
+  actionBtnPrimary: {
+    flex: 1.2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: radii.button,
+    backgroundColor: colors.primary,
+  },
+  actionBtnPrimaryText: { fontSize: 13, fontFamily: fonts.bold, color: colors.surface },
 
-  // Stats
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Stats — 2x2 grid matching HTML metrics-grid
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   statCard: {
-    width: '48%', flexGrow: 1, backgroundColor: '#ffffff', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    width: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 16,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: colors.border,
   },
-  statLabel: { fontSize: 9, fontWeight: '700', color: '#737685', letterSpacing: 0.5, marginBottom: 2 },
-  statValue: { fontSize: 20, fontWeight: '800', color: '#191c1e' },
+  statLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
+  statValue: { fontSize: 20, fontFamily: fonts.bold, color: colors.text },
 
   // Section
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
-  orderCount: { fontSize: 11, fontWeight: '600', color: '#737685' },
+  sectionTitle: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' },
+  orderCount: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textMuted },
 
-  // Orders
-  orderList: { gap: 8 },
-  orderCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+  // Orders — card-flush with accent bars (matching HTML)
+  orderListCard: {
+    backgroundColor: colors.surface, borderRadius: radii.card,
+    borderWidth: 1, borderColor: colors.border, ...shadows.card,
+    overflow: 'hidden',
   },
-  orderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  orderId: { fontSize: 12, fontWeight: '700', color: '#00408f' },
-  orderDate: { fontSize: 11, color: '#737685', marginBottom: 3 },
-  orderMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  orderMetaText: { fontSize: 11, color: '#434654', fontWeight: '500' },
-  orderAmount: { fontSize: 11, fontWeight: '700', color: '#191c1e' },
-  unpaidLabel: { fontSize: 10, fontWeight: '700', color: '#93000a' },
-  paidLabel: { fontSize: 10, fontWeight: '700', color: '#006b5f' },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#c3c6d6' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
-  categoryTags: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  categoryTag: { backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  categoryTagText: { fontSize: 8, fontWeight: '600', color: '#434654', letterSpacing: 0.5 },
+  historyRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingRight: 16, paddingLeft: 0,
+    position: 'relative',
+  },
+  historyRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  accentBar: {
+    position: 'absolute', left: 0, top: 12, bottom: 12, width: 4,
+    borderTopRightRadius: 4, borderBottomRightRadius: 4,
+  },
+  orderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  orderId: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
+  orderDate: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
+  orderAmount: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
+  statusBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  statusText: { fontSize: 10, fontFamily: fonts.bold },
+  payBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  payBadgePaid: { backgroundColor: colors.successBg },
+  payBadgeUnpaid: { backgroundColor: colors.errorBg },
+  payBadgeText: { fontSize: 10, fontFamily: fonts.bold },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted },
 
   // Financial
   finCard: {
-    backgroundColor: '#f3f4f6', borderRadius: 12, padding: 16, gap: 12,
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.card, padding: 16, gap: 12,
+    borderWidth: 1, borderColor: colors.border,
   },
-  finTitle: { fontSize: 10, fontWeight: '700', color: '#434654', letterSpacing: 1 },
+  finTitle: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' },
   finRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  finLabel: { fontSize: 13, color: '#434654' },
-  finValueGreen: { fontSize: 13, fontWeight: '700', color: '#006b5f' },
-  finValueRed: { fontSize: 13, fontWeight: '700', color: '#93000a' },
+  finLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.textSecondary },
+  finValueGreen: { fontSize: 13, fontFamily: fonts.bold, color: colors.success },
+  finValueRed: { fontSize: 13, fontFamily: fonts.bold, color: colors.error },
 
   // Notes
   notesSection: { gap: 8 },
-  saveBtn: { fontSize: 13, fontWeight: '700', color: '#00408f' },
+  saveBtn: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary },
   notesInput: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 14, minHeight: 80,
-    fontSize: 13, color: '#191c1e', borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 14, minHeight: 80,
+    fontSize: 13, fontFamily: fonts.medium, color: colors.text, borderWidth: 1, borderColor: colors.border,
   },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 30, gap: 8 },
-  emptyText: { fontSize: 13, color: '#737685' },
+  emptyText: { fontSize: 13, fontFamily: fonts.medium, color: colors.textMuted },
 
   // Primary button
   primaryBtn: {
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, backgroundColor: '#00408f',
+    paddingHorizontal: 24, paddingVertical: 12, borderRadius: radii.button, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  primaryBtnText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  primaryBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 
   // Edit modal
-  modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 8 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#434654', letterSpacing: 0.3, marginTop: 12, marginBottom: 4 },
+  modalDismiss: { flex: 1, backgroundColor: 'rgba(26,29,46,0.4)' },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 8 },
+  fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },
   modalInput: {
-    backgroundColor: '#f8f9fb', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#191c1e', borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 14, fontFamily: fonts.medium, color: colors.text, borderWidth: 1, borderColor: colors.border,
   },
   editPhoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editPhonePrefix: {
-    backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: colors.border,
   },
-  editPhonePrefixText: { fontSize: 14, fontWeight: '600', color: '#434654' },
+  editPhonePrefixText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
   editActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   editCancelBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center', height: 48,
-    borderRadius: 12, borderWidth: 1, borderColor: '#edeef0',
+    borderRadius: radii.button, borderWidth: 1, borderColor: colors.border,
   },
-  editCancelText: { fontSize: 14, fontWeight: '600', color: '#434654' },
+  editCancelText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
   editSaveBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center', height: 48,
-    borderRadius: 12, backgroundColor: '#00408f',
+    borderRadius: radii.button, backgroundColor: colors.primary,
   },
-  editSaveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  editSaveBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 });

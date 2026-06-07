@@ -11,6 +11,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 function normalizePhone(phone: string, countryCode: string): string {
   return normalizePhoneForCountry(phone, { countryCode });
@@ -196,7 +197,7 @@ export default function AddCustomerScreen({
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerInner}>
           <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-            <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+            <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('mobile.addCustomerTitle')}</Text>
           <View style={{ width: 40 }} />
@@ -212,13 +213,13 @@ export default function AddCustomerScreen({
           {/* Import from Contacts */}
           <TouchableOpacity style={styles.contactBtn} onPress={handleOpenContacts} activeOpacity={0.7}>
             <View style={styles.contactBtnIcon}>
-              <MaterialIcons name="contacts" size={22} color="#00408f" />
+              <MaterialIcons name="contacts" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.contactBtnTitle}>{t('mobile.importFromContacts')}</Text>
               <Text style={styles.contactBtnSubtitle}>{t('mobile.importFromContactsSubtitle')}</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={20} color="#c3c6d6" />
+            <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           {/* Divider */}
@@ -230,17 +231,17 @@ export default function AddCustomerScreen({
 
           {/* Form Fields */}
           <View style={styles.formCard}>
-            <Text style={styles.fieldLabel}>{t('mobile.fieldName')} <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldName')} <Text style={{ color: colors.error }}>*</Text></Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
               placeholder={t('mobile.phCustomerName')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               autoCapitalize="words"
             />
 
-            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: colors.error }}>*</Text></Text>
             <View style={styles.phoneRow}>
               <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>{countrySettings.phoneCountryCode || '+91'}</Text></View>
               <TextInput
@@ -248,7 +249,7 @@ export default function AddCustomerScreen({
                 value={phone}
                 onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, phoneDigits))}
                 placeholder={t('mobile.phPhone10Digit')}
-                placeholderTextColor="#c3c6d6"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 maxLength={phoneDigits}
               />
@@ -260,7 +261,7 @@ export default function AddCustomerScreen({
               value={email}
               onChangeText={setEmail}
               placeholder="Optional"
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -271,7 +272,7 @@ export default function AddCustomerScreen({
               value={address}
               onChangeText={setAddress}
               placeholder={t('mobile.phOptional')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -282,7 +283,7 @@ export default function AddCustomerScreen({
               value={notes}
               onChangeText={setNotes}
               placeholder={t('mobile.phCustomerNotes')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -296,10 +297,10 @@ export default function AddCustomerScreen({
             activeOpacity={0.8}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.surface} />
             ) : (
               <>
-                <MaterialIcons name="person-add" size={20} color="#fff" />
+                <MaterialIcons name="person-add" size={20} color={colors.surface} />
                 <Text style={styles.saveBtnText}>Add Customer</Text>
               </>
             )}
@@ -318,14 +319,14 @@ export default function AddCustomerScreen({
               /* Permission denied — explain clearly */
               <View style={styles.permContainer}>
                 <View style={styles.permIconBg}>
-                  <MaterialIcons name="contacts" size={32} color="#00408f" />
+                  <MaterialIcons name="contacts" size={32} color={colors.primary} />
                 </View>
                 <Text style={styles.permTitle}>{t('mobile.permAccessContactsTitle')}</Text>
                 <Text style={styles.permBody}>
                   {t('mobile.permAccessContactsBody')}
                 </Text>
                 <View style={styles.permPrivacy}>
-                  <MaterialIcons name="shield" size={18} color="#006b5f" />
+                  <MaterialIcons name="shield" size={18} color={colors.success} />
                   <Text style={styles.permPrivacyText}>
                     {t('mobile.permPrivacyContacts')}
                   </Text>
@@ -347,30 +348,30 @@ export default function AddCustomerScreen({
               <>
                 <Text style={styles.modalTitle}>{t('mobile.selectContact')}</Text>
                 <View style={styles.contactSearchRow}>
-                  <MaterialIcons name="search" size={20} color="#737685" />
+                  <MaterialIcons name="search" size={20} color={colors.textMuted} />
                   <TextInput
                     style={styles.contactSearchInput}
                     placeholder={t('mobile.searchContactsPlaceholder')}
-                    placeholderTextColor="#737685"
+                    placeholderTextColor={colors.textMuted}
                     value={contactSearch}
                     onChangeText={setContactSearch}
                     autoFocus
                   />
                   {contactSearch ? (
                     <TouchableOpacity onPress={() => setContactSearch('')}>
-                      <MaterialIcons name="close" size={18} color="#737685" />
+                      <MaterialIcons name="close" size={18} color={colors.textMuted} />
                     </TouchableOpacity>
                   ) : null}
                 </View>
 
                 {loadingContacts ? (
                   <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#00408f" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                   </View>
                 ) : filteredContacts.length === 0 ? (
                   <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                    <MaterialIcons name="person-off" size={40} color="#c3c6d6" />
-                    <Text style={{ fontSize: 13, color: '#737685', marginTop: 8 }}>{t('mobile.noContactsFound')}</Text>
+                    <MaterialIcons name="person-off" size={40} color={colors.textMuted} />
+                    <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 8, fontFamily: fonts.medium }}>{t('mobile.noContactsFound')}</Text>
                   </View>
                 ) : (
                   <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -392,7 +393,7 @@ export default function AddCustomerScreen({
                             <Text style={styles.contactName} numberOfLines={1}>{cName}</Text>
                             {cPhone ? <Text style={styles.contactPhone}>{cPhone}</Text> : null}
                           </View>
-                          <MaterialIcons name="add-circle-outline" size={20} color="#00408f" />
+                          <MaterialIcons name="add-circle-outline" size={20} color={colors.primary} />
                         </TouchableOpacity>
                       );
                     })}
@@ -408,101 +409,100 @@ export default function AddCustomerScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
-  header: { backgroundColor: '#f8f9fb', zIndex: 10 },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { backgroundColor: colors.background, zIndex: 10 },
   headerInner: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 8, gap: 8 },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#00408f' },
+  headerTitle: { flex: 1, fontSize: 16, fontFamily: fonts.bold, color: colors.primary },
   iconBtn: { padding: 8 },
   scrollContent: { padding: 16, gap: 16 },
 
   // Contact import button
   contactBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: '#edeef0',
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 14,
+    ...shadows.card, ...shadows.cardBorder,
   },
   contactBtnIcon: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: '#d8e2ff',
+    width: 44, height: 44, borderRadius: radii.button, backgroundColor: colors.primaryTint,
     alignItems: 'center', justifyContent: 'center',
   },
-  contactBtnTitle: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
-  contactBtnSubtitle: { fontSize: 12, color: '#737685', marginTop: 1 },
+  contactBtnTitle: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  contactBtnSubtitle: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 1 },
 
   // Divider
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#edeef0' },
-  dividerText: { fontSize: 12, fontWeight: '500', color: '#737685' },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted },
 
   // Form
   formCard: {
-    backgroundColor: '#ffffff', borderRadius: 14, padding: 16, gap: 4,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, gap: 4,
+    ...shadows.card, ...shadows.cardBorder,
   },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: '#434654', marginTop: 10, marginBottom: 4 },
+  fieldLabel: { fontSize: 12, fontFamily: fonts.bold, color: colors.textSecondary, marginTop: 10, marginBottom: 4 },
   input: {
-    backgroundColor: '#f8f9fb', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#191c1e', borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.background, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 14, fontFamily: fonts.medium, color: colors.text, borderWidth: 1, borderColor: colors.border,
   },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phonePrefix: {
-    backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: colors.border,
   },
-  phonePrefixText: { fontSize: 14, fontWeight: '600', color: '#434654' },
+  phonePrefixText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
 
   // Save
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#00408f', paddingVertical: 14, borderRadius: 12,
+    backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radii.button,
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  saveBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 12 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 },
 
   // Contact search
   contactSearchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f8f9fb', borderRadius: 10, paddingHorizontal: 12, height: 40,
-    marginBottom: 12, borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.background, borderRadius: radii.input, paddingHorizontal: 12, height: 40,
+    marginBottom: 12, borderWidth: 1, borderColor: colors.border,
   },
-  contactSearchInput: { flex: 1, fontSize: 13, color: '#191c1e' },
+  contactSearchInput: { flex: 1, fontSize: 13, fontFamily: fonts.medium, color: colors.text },
 
   // Contact list items
   contactItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 10, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   contactAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#d8e2ff',
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryTint,
     alignItems: 'center', justifyContent: 'center',
   },
-  contactAvatarText: { fontSize: 13, fontWeight: '700', color: '#00408f' },
-  contactName: { fontSize: 14, fontWeight: '600', color: '#191c1e' },
-  contactPhone: { fontSize: 12, color: '#737685', marginTop: 1 },
+  contactAvatarText: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary },
+  contactName: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
+  contactPhone: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 1 },
 
   // Permission screen inside modal
   permContainer: { alignItems: 'center', paddingVertical: 16, paddingHorizontal: 8, gap: 12 },
   permIconBg: {
-    width: 64, height: 64, borderRadius: 16, backgroundColor: '#d8e2ff',
+    width: 64, height: 64, borderRadius: 16, backgroundColor: colors.primaryTint,
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
-  permTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', textAlign: 'center' },
-  permBody: { fontSize: 14, color: '#434654', textAlign: 'center', lineHeight: 20 },
+  permTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' },
+  permBody: { fontSize: 14, fontFamily: fonts.medium, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   permPrivacy: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#e6f7f2', borderRadius: 10, padding: 12, marginTop: 4,
+    backgroundColor: colors.successBg, borderRadius: radii.input, padding: 12, marginTop: 4,
   },
-  permPrivacyText: { flex: 1, fontSize: 12, color: '#006b5f', lineHeight: 18 },
+  permPrivacyText: { flex: 1, fontSize: 12, fontFamily: fonts.medium, color: colors.success, lineHeight: 18 },
   permBtn: {
-    width: '100%', paddingVertical: 14, borderRadius: 12, backgroundColor: '#00408f',
+    width: '100%', paddingVertical: 14, borderRadius: radii.button, backgroundColor: colors.primary,
     alignItems: 'center', marginTop: 4,
   },
-  permBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  permNotNow: { fontSize: 14, fontWeight: '600', color: '#737685' },
+  permBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
+  permNotNow: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textMuted },
 });

@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { HelpButton } from '../components/HelpButton';
 
 export default function ScanScreen({
@@ -69,7 +70,7 @@ export default function ScanScreen({
         <View style={[styles.header, { paddingTop: insets.top }]}>
           <View style={styles.headerInner}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-              <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+              <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('mobile.scanTitleShort')}</Text>
             <HelpButton pageId="mobile_scan" />
@@ -77,7 +78,7 @@ export default function ScanScreen({
         </View>
         <View style={styles.permissionContainer}>
           <View style={styles.permIconBg}>
-            <MaterialIcons name="qr-code-scanner" size={36} color="#00408f" />
+            <MaterialIcons name="qr-code-scanner" size={36} color={colors.primary} />
           </View>
           <Text style={styles.permissionTitle}>{t('mobile.scanPermissionTitle')}</Text>
           <Text style={styles.permissionSubtitle}>
@@ -154,18 +155,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   header: { zIndex: 10 },
   headerInner: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 8, gap: 8 },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#00408f' },
+  headerTitle: { flex: 1, fontSize: 16, fontFamily: fonts.bold, color: colors.primary },
   iconBtn: { padding: 8 },
 
   // Permission screen
-  permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 14, backgroundColor: '#f8f9fb' },
-  permIconBg: { width: 72, height: 72, borderRadius: 20, backgroundColor: '#d8e2ff', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  permissionTitle: { fontSize: 20, fontWeight: '800', color: '#191c1e', textAlign: 'center' },
-  permissionSubtitle: { fontSize: 14, color: '#434654', textAlign: 'center', lineHeight: 21 },
-  primaryBtn: { width: '100%', paddingVertical: 14, borderRadius: 12, backgroundColor: '#00408f', alignItems: 'center', marginTop: 8 },
-  primaryBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 14, backgroundColor: colors.background },
+  permIconBg: { width: 72, height: 72, borderRadius: 20, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  permissionTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' },
+  permissionSubtitle: { fontSize: 14, fontFamily: fonts.medium, color: colors.textSecondary, textAlign: 'center', lineHeight: 21 },
+  primaryBtn: { width: '100%', paddingVertical: 14, borderRadius: radii.button, backgroundColor: colors.primary, alignItems: 'center', marginTop: 8 },
+  primaryBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
   secondaryBtn: { paddingVertical: 10 },
-  secondaryBtnText: { fontSize: 14, fontWeight: '600', color: '#737685' },
+  secondaryBtnText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textMuted },
 
   // Overlay
   overlay: { ...StyleSheet.absoluteFillObject },
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center', paddingTop: 24, gap: 16,
   },
-  instruction: { fontSize: 14, fontWeight: '500', color: '#fff', textAlign: 'center', paddingHorizontal: 32 },
+  instruction: { fontSize: 14, fontFamily: fonts.medium, color: '#fff', textAlign: 'center', paddingHorizontal: 32 },
 
   // Corner markers
   corner: { position: 'absolute', width: 24, height: 24, borderColor: '#fff' },
@@ -196,5 +197,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  rescanText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  rescanText: { fontSize: 14, fontFamily: fonts.semibold, color: '#fff' },
 });

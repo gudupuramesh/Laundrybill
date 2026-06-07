@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 const APP_LOGO = require('../../assets/login-logo.png');
 const SPLASH_HERO = require('../../assets/splash-hero.png');
@@ -72,7 +73,7 @@ export default function LoadingScreen({ embedded = false }: LoadingScreenProps) 
             end={{ x: 0.5, y: 0.45 }}
           />
           <LinearGradient
-            colors={['transparent', 'rgba(248, 249, 251, 0.92)', '#f8f9fb']}
+            colors={['transparent', 'rgba(244, 246, 250, 0.92)', colors.background]}
             style={[styles.heroBottomFade, { height: heroH * 0.55 }]}
             start={{ x: 0.5, y: 0.35 }}
             end={{ x: 0.5, y: 1 }}
@@ -125,14 +126,14 @@ const HERO_H = Math.min(SCREEN_H * 0.46, 420);
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.background,
   },
   rootEmbedded: {
     minHeight: 0,
   },
   heroWrap: {
     width: '100%',
-    backgroundColor: '#e8eef5',
+    backgroundColor: colors.primaryTint,
   },
   heroImage: {
     flex: 1,
@@ -163,18 +164,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#006b5f',
+    backgroundColor: colors.success,
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 1.2,
-    color: '#434654',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   lower: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.background,
     paddingHorizontal: 36,
     paddingTop: 8,
     paddingBottom: 40,
@@ -212,11 +213,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     marginRight: 12,
-    borderRadius: 12,
-    backgroundColor: '#00408f',
+    borderRadius: radii.button,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00408f',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
     shadowRadius: 10,
@@ -231,22 +232,22 @@ const styles = StyleSheet.create({
   },
   brandLaundry: {
     fontSize: 30,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     letterSpacing: -0.5,
-    color: '#00408f',
+    color: colors.primary,
   },
   brandBill: {
     fontSize: 30,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     letterSpacing: -0.5,
-    color: '#191c1e',
+    color: colors.text,
   },
   tagline: {
     marginTop: 6,
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: 2.4,
-    color: '#737685',
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   progressWrap: {
@@ -258,13 +259,13 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e1e2e4',
+    backgroundColor: colors.border,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     borderRadius: 2,
-    backgroundColor: '#00408f',
+    backgroundColor: colors.primary,
   },
   progressMeta: {
     flexDirection: 'row',
@@ -274,9 +275,9 @@ const styles = StyleSheet.create({
   },
   initLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 1,
-    color: 'rgba(67, 70, 84, 0.65)',
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   dots: {

@@ -32,7 +32,7 @@ export interface InventoryCategory {
     updatedAt: Timestamp;
 }
 
-export type PricingType = "piece" | "kg" | "sqft" | "set";
+export type PricingType = "piece" | "kg" | "lb" | "sqft" | "sqm" | "set" | "pair" | "load" | "bag";
 
 export interface InventoryItem {
     id: string;

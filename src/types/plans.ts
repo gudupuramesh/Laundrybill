@@ -1,24 +1,32 @@
 /**
  * Plan Types
  *
- * Single product model: Free + one paid tier ("pro").
- * Legacy Firestore values pro_plus / business are normalized to "pro" at read time.
+ * Three-tier model:
+ *   Free    — Getting started, limited orders/customers
+ *   Pro     — Small shops: staff, attendance, expenses, reports, QR, WhatsApp
+ *   Business — Big shops / entrepreneurs: plant login, driver/agent app,
+ *              multi-staff, public ordering page, web dashboard, unlimited everything
+ *
+ * Legacy Firestore values (pro_plus, premium) are normalized at read time.
  */
 
-/** Canonical plan ids only */
-export type PlanType = "free" | "pro";
+/** Canonical plan ids */
+export type PlanType = "free" | "pro" | "business";
 
-/** Normalize legacy tier ids from older data */
+/** Normalize legacy / variant tier ids from older data */
 export function normalizePlanId(raw: string | null | undefined): PlanType {
     if (!raw) return "free";
-    const r = String(raw).toLowerCase();
-    if (r === "pro" || r === "pro_plus" || r === "business") return "pro";
+    const r = String(raw).toLowerCase().replace(/[_\s-]/g, "");
+    // Business tier aliases
+    if (r === "business" || r === "enterprise" || r === "proplus" || r === "premium") return "business";
+    // Pro tier
+    if (r === "pro" || r === "starter") return "pro";
     return "free";
 }
 
 // Feature flags for each plan
 export interface PlanFeatures {
-    // Core Features (all plans)
+    // Core Features (all plans including free)
     orders: boolean;
     customers: boolean;
     services: boolean;
@@ -26,14 +34,14 @@ export interface PlanFeatures {
     whatsappReceipts: boolean;
     multiLanguage: boolean;
 
-    // Staff & Operations (paid)
+    // Staff & Operations (Pro+)
     staffManagement: boolean;
     attendance: boolean;
     payroll: boolean;
     expenses: boolean;
     reports: boolean;
 
-    // Advanced (included in single paid tier)
+    // Advanced (Business only)
     damagePhotos: boolean;
     staffApp: boolean;
     driverApp: boolean;
@@ -41,6 +49,8 @@ export interface PlanFeatures {
     qrScans: boolean;
     /** Public ordering page */
     publicOrderingPage: boolean;
+    /** Web dashboard access for staff */
+    webDashboard: boolean;
 }
 
 // Usage limits for each plan

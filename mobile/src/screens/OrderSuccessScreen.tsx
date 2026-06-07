@@ -7,6 +7,7 @@ import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 const WEB_APP_URL = 'https://app.laundrybill.com';
 
@@ -120,7 +121,7 @@ export default function OrderSuccessScreen({
       >
         {/* Success Icon */}
         <View style={styles.successIcon}>
-          <MaterialIcons name="check" size={48} color="#ffffff" />
+          <MaterialIcons name="check" size={48} color={colors.surface} />
         </View>
         <Text style={styles.successTitle}>{t('mobile.orderPlacedTitle')}</Text>
         <Text style={styles.successSubtitle}>{t('mobile.orderCreatedSubtitle')}</Text>
@@ -157,7 +158,7 @@ export default function OrderSuccessScreen({
           {order.financials.discountAmount > 0 ? (
             <View style={styles.finRow}>
               <Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text>
-              <Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(order.financials.discountAmount, countrySettings)}</Text>
+              <Text style={[styles.finValue, { color: colors.success }]}>-{formatCurrency(order.financials.discountAmount, countrySettings)}</Text>
             </View>
           ) : null}
           {order.financials.taxAmount > 0 ? (
@@ -179,7 +180,7 @@ export default function OrderSuccessScreen({
             <MaterialIcons
               name={order.paymentStatus === 'paid' ? 'check-circle' : 'schedule'}
               size={16}
-              color={order.paymentStatus === 'paid' ? '#006b5f' : '#93000a'}
+              color={order.paymentStatus === 'paid' ? colors.success : colors.error}
             />
             <Text style={order.paymentStatus === 'paid' ? styles.paidText : styles.unpaidText}>
               {order.paymentStatus === 'paid' ? t('mobile.paidInFull') : t('mobile.unpaidBalance', { amount: order.financials.balance })}
@@ -189,7 +190,7 @@ export default function OrderSuccessScreen({
 
         {/* Expected Delivery */}
         <View style={styles.deliveryCard}>
-          <MaterialIcons name="event" size={22} color="#00408f" />
+          <MaterialIcons name="event" size={22} color={colors.primary} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.deliveryLabel}>
               {order.deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}
@@ -200,7 +201,7 @@ export default function OrderSuccessScreen({
             <MaterialIcons
               name={order.deliveryType === 'pickup_store' ? 'store' : 'delivery-dining'}
               size={14}
-              color="#00408f"
+              color={colors.primary}
             />
             <Text style={styles.deliveryTypeText}>
               {order.deliveryType === 'pickup_store' ? t('mobile.delivery_pickup_store')
@@ -214,17 +215,17 @@ export default function OrderSuccessScreen({
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp}>
-            <MaterialIcons name="chat" size={22} color="#ffffff" />
+            <MaterialIcons name="chat" size={22} color={colors.surface} />
             <Text style={styles.whatsappBtnText}>{t('mobile.shareWhatsapp')}</Text>
           </TouchableOpacity>
 
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.actionBtn} onPress={onViewOrder}>
-              <MaterialIcons name="receipt-long" size={22} color="#00408f" />
+              <MaterialIcons name="receipt-long" size={22} color={colors.primary} />
               <Text style={styles.actionBtnText}>{t('mobile.viewOrderBtn')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={onDone}>
-              <MaterialIcons name="home" size={22} color="#00408f" />
+              <MaterialIcons name="home" size={22} color={colors.primary} />
               <Text style={styles.actionBtnText}>{t('mobile.goHomeBtn')}</Text>
             </TouchableOpacity>
           </View>
@@ -235,66 +236,66 @@ export default function OrderSuccessScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingHorizontal: 20, alignItems: 'center' },
   successIcon: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#006b5f',
+    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  successTitle: { fontSize: 24, fontWeight: '800', color: '#191c1e', marginBottom: 4 },
-  successSubtitle: { fontSize: 14, color: '#434654', marginBottom: 24 },
+  successTitle: { fontSize: 24, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
+  successSubtitle: { fontSize: 14, color: colors.textSecondary, marginBottom: 24 },
   orderIdCard: {
-    backgroundColor: '#00408f', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 16,
+    backgroundColor: colors.primary, borderRadius: radii.button, paddingHorizontal: 24, paddingVertical: 16,
     alignItems: 'center', width: '100%', marginBottom: 16,
   },
-  orderIdLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(216,226,255,0.6)', letterSpacing: 1 },
-  orderIdValue: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginTop: 4 },
-  orderIdDate: { fontSize: 12, color: '#d8e2ff', marginTop: 4 },
+  orderIdLabel: { fontSize: 10, fontFamily: fonts.bold, color: 'rgba(216,226,255,0.6)', letterSpacing: 1 },
+  orderIdValue: { fontSize: 24, fontFamily: fonts.bold, color: colors.surface, marginTop: 4 },
+  orderIdDate: { fontSize: 12, color: colors.primaryTint, marginTop: 4 },
   card: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 16, width: '100%', marginBottom: 12,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, width: '100%', marginBottom: 12,
+    ...shadows.card, ...shadows.cardBorder,
   },
-  cardTitle: { fontSize: 14, fontWeight: '700', color: '#191c1e', marginBottom: 12 },
+  cardTitle: { fontSize: 14, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  itemName: { fontSize: 14, fontWeight: '600', color: '#191c1e' },
-  itemMeta: { fontSize: 11, color: '#434654', marginTop: 1 },
-  itemPrice: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
-  divider: { height: 1, backgroundColor: '#edeef0', marginVertical: 10 },
+  itemName: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
+  itemMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  itemPrice: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
   finRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  finLabel: { fontSize: 13, color: '#434654' },
-  finValue: { fontSize: 13, fontWeight: '600', color: '#191c1e' },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#191c1e' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: '#00408f' },
+  finLabel: { fontSize: 13, color: colors.textSecondary },
+  finValue: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text },
+  totalLabel: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  totalValue: { fontSize: 16, fontFamily: fonts.bold, color: colors.primary },
   paymentBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
   },
-  paidBadge: { backgroundColor: '#e6f7f2' },
-  unpaidBadge: { backgroundColor: '#ffdad6' },
-  paidText: { fontSize: 12, fontWeight: '700', color: '#006b5f' },
-  unpaidText: { fontSize: 12, fontWeight: '700', color: '#93000a' },
+  paidBadge: { backgroundColor: colors.successBg },
+  unpaidBadge: { backgroundColor: colors.errorBg },
+  paidText: { fontSize: 12, fontFamily: fonts.bold, color: colors.success },
+  unpaidText: { fontSize: 12, fontFamily: fonts.bold, color: colors.error },
   deliveryCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#d8e2ff',
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, width: '100%', marginBottom: 20,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primaryTint,
+    borderRadius: radii.card, paddingHorizontal: 16, paddingVertical: 14, width: '100%', marginBottom: 20,
   },
-  deliveryLabel: { fontSize: 10, fontWeight: '700', color: '#00408f', letterSpacing: 0.5 },
-  deliveryDate: { fontSize: 15, fontWeight: '700', color: '#00408f', marginTop: 2 },
+  deliveryLabel: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 0.5 },
+  deliveryDate: { fontSize: 15, fontFamily: fonts.bold, color: colors.primary, marginTop: 2 },
   deliveryTypeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(0,64,143,0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
   },
-  deliveryTypeText: { fontSize: 10, fontWeight: '700', color: '#00408f' },
+  deliveryTypeText: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary },
   actionsContainer: { width: '100%', gap: 12 },
   whatsappBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: '#25D366', height: 52, borderRadius: 12,
+    backgroundColor: '#25D366', height: 52, borderRadius: radii.button,
     elevation: 2, shadowColor: '#25D366', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
   },
-  whatsappBtnText: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
+  whatsappBtnText: { fontSize: 16, fontFamily: fonts.bold, color: colors.surface },
   actionRow: { flexDirection: 'row', gap: 12 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#ffffff', height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#d8e2ff',
+    backgroundColor: colors.surface, height: 48, borderRadius: radii.button, borderWidth: 1, borderColor: colors.primaryTint,
   },
-  actionBtnText: { fontSize: 14, fontWeight: '600', color: '#00408f' },
+  actionBtnText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.primary },
 });

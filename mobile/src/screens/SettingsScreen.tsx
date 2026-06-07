@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable, Linking } from 'react-native';
+import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable, Linking, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -11,6 +11,8 @@ import { COUNTRIES, getCountry } from '../lib/country-config';
 import appJson from '../../app.json';
 import { HelpButton } from '../components/HelpButton';
 import { usePlanLimits } from '../lib/usePlanLimits';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   LANGUAGE_OPTIONS,
   nativeLabelForCode,
@@ -23,11 +25,23 @@ export default function SettingsScreen({
   onManageItems,
   onEditProfile,
   onOpenSubscription,
+  onStaffList,
+  onAttendance,
+  onCreateStaffLogin,
+  onExpenseList,
+  onPreviewOnboarding,
+  onPreviewSetupInit,
 }: {
   onManageServices: () => void,
   onManageItems: () => void,
   onEditProfile: () => void,
   onOpenSubscription: () => void,
+  onStaffList?: () => void,
+  onAttendance?: () => void,
+  onCreateStaffLogin?: () => void,
+  onExpenseList?: () => void,
+  onPreviewOnboarding?: () => void,
+  onPreviewSetupInit?: () => void,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -48,6 +62,17 @@ export default function SettingsScreen({
   const [countrySearch, setCountrySearch] = useState('');
   const [platformSettings, setPlatformSettings] = useState<{ supportEmail?: string; supportPhone?: string; whatsappNumber?: string; privacyPolicyUrl?: string; websiteUrl?: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Tax / GST settings
+  const [taxEnabled, setTaxEnabled] = useState(false);
+  const [taxName, setTaxName] = useState('GST');
+  const [taxRate, setTaxRate] = useState(0);
+  const [gstNumber, setGstNumber] = useState('');
+  const [showTaxEditor, setShowTaxEditor] = useState(false);
+  const [taxNameDraft, setTaxNameDraft] = useState('GST');
+  const [taxRateDraft, setTaxRateDraft] = useState('0');
+  const [gstNumberDraft, setGstNumberDraft] = useState('');
+  const [savingTax, setSavingTax] = useState(false);
   const isIndiaCountry = countrySettings.countryCode === 'IN';
   const languageOptionsForCountry = isIndiaCountry
     ? LANGUAGE_OPTIONS
@@ -97,6 +122,13 @@ export default function SettingsScreen({
                 setShopData(data);
                 setDarkMode(data.settings?.darkMode ?? false);
                 setLanguageCode(resolveLanguageToCode(data.settings?.language));
+                const tax = data.settings?.tax;
+                if (tax) {
+                  setTaxEnabled(!!tax.enabled);
+                  setTaxName(tax.name || 'GST');
+                  setTaxRate(Number(tax.rate) || 0);
+                }
+                setGstNumber(data.gstNumber || '');
               }
             }
             setLoading(false);
@@ -193,6 +225,70 @@ export default function SettingsScreen({
     }
   };
 
+  const saveTaxEnabled = async (enabled: boolean) => {
+    try {
+      const sid = getShopId();
+      if (!sid) return;
+      setTaxEnabled(enabled);
+      await firestore().collection('shops').doc(sid).set(
+        {
+          settings: {
+            tax: { enabled, name: taxName || 'GST', rate: Number(taxRate) || 0 },
+          },
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error('Failed to save tax enabled:', e);
+      Alert.alert(t('mobile.errorTitle'), 'Failed to update tax setting');
+    }
+  };
+
+  const openTaxEditor = () => {
+    setTaxNameDraft(taxName || 'GST');
+    setTaxRateDraft(String(taxRate || 0));
+    setGstNumberDraft(gstNumber || '');
+    setShowTaxEditor(true);
+  };
+
+  const saveTaxDetails = async () => {
+    try {
+      const sid = getShopId();
+      if (!sid) return;
+      const rate = parseFloat(taxRateDraft);
+      if (isNaN(rate) || rate < 0 || rate > 100) {
+        Alert.alert(t('mobile.errorTitle'), t('mobile.taxRateInvalid'));
+        return;
+      }
+      const name = (taxNameDraft || 'GST').trim();
+      if (!name) {
+        Alert.alert(t('mobile.errorTitle'), t('mobile.taxNameInvalid'));
+        return;
+      }
+      setSavingTax(true);
+      await firestore().collection('shops').doc(sid).set(
+        {
+          settings: {
+            tax: { enabled: taxEnabled, name, rate },
+          },
+          gstNumber: gstNumberDraft.trim(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+      setTaxName(name);
+      setTaxRate(rate);
+      setGstNumber(gstNumberDraft.trim());
+      setShowTaxEditor(false);
+    } catch (e) {
+      console.error('Failed to save tax details:', e);
+      Alert.alert(t('mobile.errorTitle'), 'Failed to save tax details');
+    } finally {
+      setSavingTax(false);
+    }
+  };
+
   const saveCountrySettings = async (countryCode: string) => {
     try {
       const sid = getShopId();
@@ -214,12 +310,16 @@ export default function SettingsScreen({
             locale: selected.locale,
             timezone: selected.timezone,
             taxName: selected.taxName,
+            // Also update the tax.name so it's consistent
+            tax: { name: selected.taxName },
             ...(forceEnglish ? { language: 'en' } : {}),
           },
           updatedAt: new Date(),
         },
         { merge: true }
       );
+      // Update local state immediately
+      setTaxName(selected.taxName);
       if (forceEnglish) {
         setLanguageCode('en');
         void setAppLanguageCode('en');
@@ -336,7 +436,12 @@ export default function SettingsScreen({
 
   // Subscription
   const planName = subscriptionData?.planId || subscriptionData?.planName || shopData?.plan || 'free';
-  const planDisplayName = planName.charAt(0).toUpperCase() + planName.slice(1).replace('_', ' ');
+  const normalizedPlan = String(planName).toLowerCase().replace(/[_\s-]/g, '');
+  const planDisplayName = (normalizedPlan === 'business' || normalizedPlan === 'enterprise' || normalizedPlan === 'proplus' || normalizedPlan === 'premium')
+    ? 'Business Plan'
+    : (normalizedPlan === 'pro' || normalizedPlan === 'starter')
+      ? 'Pro Plan'
+      : 'Free Plan';
   const planStatus = subscriptionData?.status || 'trial';
   const billingCycle = subscriptionData?.billingCycle || '';
 
@@ -365,27 +470,28 @@ export default function SettingsScreen({
     planStatus.toUpperCase();
 
   const statusBadgeStyle = ['active', 'trial'].includes(planStatus)
-    ? { backgroundColor: '#76f4e0' }
+    ? { backgroundColor: colors.mint }
     : planStatus === 'free'
-      ? { backgroundColor: '#e7e8ea' }
-      : { backgroundColor: '#ffdad6' };
+      ? { backgroundColor: colors.border }
+      : { backgroundColor: colors.errorBg };
 
-  const statusTextColor = ['active', 'trial'].includes(planStatus) ? '#005047' :
-    planStatus === 'free' ? '#434654' : '#ba1a1a';
+  const statusTextColor = ['active', 'trial'].includes(planStatus) ? colors.darkBlue :
+    planStatus === 'free' ? colors.textSecondary : colors.error;
 
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#00408f" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header — minimal top padding */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('mobile.settingsHeader')}</Text>
+        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>{t('mobile.settingsTitle', { defaultValue: 'Settings' })}</Text>
         <HelpButton pageId="mobile_settings" />
       </View>
 
@@ -393,68 +499,86 @@ export default function SettingsScreen({
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Card */}
+        {/* Shop Details Card */}
         <View style={styles.profileCard}>
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{shopName.charAt(0).toUpperCase()}</Text>
+              {shopData?.logoUrl ? (
+                <Image source={{ uri: shopData.logoUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{shopName.charAt(0).toUpperCase()}</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.storeName} numberOfLines={1}>{shopName}</Text>
-              <Text style={styles.ownerInfo} numberOfLines={1}>{ownerDisplay || t('mobile.noContactInfo')}</Text>
+              <Text style={styles.ownerInfo} numberOfLines={1}>
+                {shopData?.location?.city ? `Store: ${shopData.location.city}` : ownerDisplay || t('mobile.noContactInfo')}
+              </Text>
+              {shopData?.phone ? (
+                <Text style={[styles.ownerInfo, { color: colors.textMuted }]} numberOfLines={1}>{shopData.phone}</Text>
+              ) : null}
             </View>
           </View>
           <TouchableOpacity style={styles.editProfileBtn} onPress={onEditProfile}>
-            <MaterialIcons name="edit" size={20} color="#00408f" />
+            <MaterialIcons name="edit" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        {/* Subscription Banner */}
-        <TouchableOpacity style={styles.promoBanner} onPress={onOpenSubscription} activeOpacity={0.9}>
-          <View style={styles.promoHeader}>
-            <View>
-              <Text style={styles.promoOverline}>{t('mobile.currentPlan')}</Text>
-              <Text style={styles.promoTitle}>{planDisplayName}</Text>
+        {/* Subscription Banner — Blue Gradient */}
+        <TouchableOpacity activeOpacity={0.9} onPress={onOpenSubscription}>
+          <LinearGradient
+            colors={['#1B61E5', '#124BB8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.promoBanner}
+          >
+            {/* Header: Plan name + badge */}
+            <View style={styles.promoHeader}>
+              <View>
+                <Text style={styles.promoOverline}>{t('mobile.currentPlan')}</Text>
+                <Text style={styles.promoTitle}>{planDisplayName}</Text>
+              </View>
+              <View style={styles.promoBadge}>
+                <Text style={styles.promoBadgeText}>{statusLabel}</Text>
+              </View>
             </View>
-            <View style={[styles.promoBadge, statusBadgeStyle]}>
-              <Text style={[styles.promoBadgeText, { color: statusTextColor }]}>{statusLabel}</Text>
-            </View>
-          </View>
 
-          {/* Usage Stats */}
-          <View style={styles.usageRow}>
-            <View style={styles.usageStat}>
-              <Text style={styles.usageValue}>{ordersUsed}{maxOrders > 0 ? `/${maxOrders}` : ''}</Text>
-              <Text style={styles.usageLabel}>{t('mobile.ordersUsage')}</Text>
+            {/* Usage Stats: Orders / Customers / Staff */}
+            <View style={styles.usageRow}>
+              <View style={styles.usageStat}>
+                <Text style={styles.usageValue}>{ordersUsed}{maxOrders > 0 ? `/${maxOrders}` : ''}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.ordersUsage')}</Text>
+              </View>
+              <View style={styles.usageDivider} />
+              <View style={styles.usageStat}>
+                <Text style={styles.usageValue}>{totalCustomers}{planLimits.maxCustomers > 0 ? `/${planLimits.maxCustomers}` : ''}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.customersUsage')}</Text>
+              </View>
+              <View style={styles.usageDivider} />
+              <View style={styles.usageStat}>
+                <Text style={styles.usageValue}>{totalStaff}{planLimits.maxStaff > 0 ? `/${planLimits.maxStaff}` : ''}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.staffUsage')}</Text>
+              </View>
             </View>
-            <View style={styles.usageDivider} />
-            <View style={styles.usageStat}>
-              <Text style={styles.usageValue}>{totalCustomers}</Text>
-              <Text style={styles.usageLabel}>{t('mobile.customersUsage')}</Text>
-            </View>
-            <View style={styles.usageDivider} />
-            <View style={styles.usageStat}>
-              <Text style={styles.usageValue}>{totalStaff}</Text>
-              <Text style={styles.usageLabel}>{t('mobile.staffUsage')}</Text>
-            </View>
-          </View>
 
-          {maxOrders > 0 && (
-            <View style={styles.usageBar}>
-              <View style={[styles.usageBarFill, { width: `${Math.min(100, (ordersUsed / maxOrders) * 100)}%` }]} />
-            </View>
-          )}
+            {/* Progress bar */}
+            {maxOrders > 0 && (
+              <View style={styles.usageBar}>
+                <View style={[styles.usageBarFill, { width: `${Math.min(100, (ordersUsed / maxOrders) * 100)}%` }]} />
+              </View>
+            )}
 
-          <View style={styles.promoFooter}>
-            <View>
-              {startDate ? <Text style={styles.promoExpiry}>{t('mobile.started')}: {startDate}</Text> : null}
-              {displayEndDate ? <Text style={styles.promoExpiry}>{t('mobile.expires')}: {displayEndDate}</Text> : null}
-              {billingCycle ? <Text style={styles.promoExpiry}>{t('mobile.billing')}: {billingCycle}</Text> : null}
+            {/* Footer: billing + upgrade */}
+            <View style={styles.promoFooter}>
+              <View>
+                {displayEndDate ? <Text style={styles.promoExpiry}>{t('mobile.expires')}: {displayEndDate}</Text> : null}
+                {billingCycle ? <Text style={styles.promoExpiry}>{t('mobile.billing')}: {billingCycle}</Text> : null}
+              </View>
+              <TouchableOpacity style={styles.upgradeBtn} onPress={onOpenSubscription}>
+                <Text style={styles.upgradeBtnText}>{t('common.upgradePlan')}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.upgradeBtn} onPress={onOpenSubscription}>
-              <Text style={styles.upgradeBtnText}>{t('common.upgradePlan')}</Text>
-            </TouchableOpacity>
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Services & Items */}
@@ -463,8 +587,13 @@ export default function SettingsScreen({
           <View style={styles.sectionCard}>
             <TouchableOpacity style={styles.listItem} onPress={onManageServices}>
               <View style={styles.listItemLeft}>
-                <MaterialIcons name="category" size={20} color="#00408f" />
-                <Text style={styles.listItemText}>{t('mobile.manageServices')}</Text>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="category" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.manageServices')}</Text>
+                  <Text style={styles.listItemSubtext}>Add/edit service categories & pricing</Text>
+                </View>
               </View>
               <View style={styles.listItemRight}>
                 {serviceCount > 0 && (
@@ -472,28 +601,137 @@ export default function SettingsScreen({
                     <Text style={styles.countText}>{serviceCount}</Text>
                   </View>
                 )}
-                <MaterialIcons name="chevron-right" size={20} color="#737685" />
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.listItemNoBorder} onPress={onManageItems}>
               <View style={styles.listItemLeft}>
-                <MaterialIcons name="checkroom" size={20} color="#00408f" />
-                <Text style={styles.listItemText}>{t('mobile.manageItems')}</Text>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
+                  <MaterialIcons name="checkroom" size={18} color={colors.warning} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.manageItems')}</Text>
+                  <Text style={styles.listItemSubtext}>Configure clothing items & prices</Text>
+                </View>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color="#737685" />
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Appearance */}
+        {/* Staff & Attendance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('mobile.staffSection', { defaultValue: 'Staff & Attendance' })}</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.listItem} onPress={onStaffList}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="groups" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.manageStaff', { defaultValue: 'Manage Staff' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.manageStaffDesc', { defaultValue: 'Add, edit & manage staff members' })}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.listItem} onPress={onAttendance}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                  <MaterialIcons name="event-available" size={18} color={colors.success} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.markAttendance', { defaultValue: 'Mark Attendance' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.markAttendanceDesc', { defaultValue: 'Daily attendance tracking for staff' })}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={onCreateStaffLogin}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
+                  <MaterialIcons name="vpn-key" size={18} color={colors.warning} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.createStaffLogin', { defaultValue: 'Create Staff Login' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.createStaffLoginDesc', { defaultValue: 'Staff App, Agent & Plant logins' })}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Finance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('mobile.financeSection', { defaultValue: 'Finance' })}</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={onExpenseList}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.errorBg }]}>
+                  <MaterialIcons name="receipt-long" size={18} color={colors.error} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.expensesList', { defaultValue: 'Manage Expenses' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.expensesListDesc', { defaultValue: 'Track & manage all expenses' })}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Business / Tax */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('mobile.businessSection')}</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.listItem}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="attach-money" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.chargeTax', { tax: taxName || 'GST' })}</Text>
+                  <Text style={styles.listItemSubtext}>Auto-apply taxes to new orders</Text>
+                </View>
+              </View>
+              <Switch
+                value={taxEnabled}
+                onValueChange={(val) => { void saveTaxEnabled(val); }}
+                trackColor={{ false: colors.border, true: colors.success }}
+                thumbColor={colors.surface}
+                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+              />
+            </View>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={openTaxEditor}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                  <MaterialIcons name="receipt" size={18} color={colors.success} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.taxDetails')}</Text>
+                  <Text style={styles.listItemSubtext}>{taxEnabled ? `${taxName} · ${taxRate}%` : 'Tax disabled'}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Appearance & Language */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.appearance')}</Text>
           <View style={styles.sectionCard}>
-            <View style={styles.listItemNoBorder}>
+            <View style={styles.listItem}>
               <View style={styles.listItemLeft}>
-                <MaterialIcons name={darkMode ? 'dark-mode' : 'light-mode'} size={20} color="#00408f" />
-                <Text style={styles.listItemText}>{t('mobile.darkMode')}</Text>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.surfaceMuted }]}>
+                  <MaterialIcons name={darkMode ? 'dark-mode' : 'light-mode'} size={18} color={colors.textSecondary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.darkMode')}</Text>
+                  <Text style={styles.listItemSubtext}>Switch between light & dark theme</Text>
+                </View>
               </View>
               <Switch
                 value={darkMode}
@@ -501,38 +739,34 @@ export default function SettingsScreen({
                   setDarkMode(val);
                   saveSetting('darkMode', val);
                 }}
-                trackColor={{ false: '#e1e2e4', true: '#00408f' }}
-                thumbColor={darkMode ? '#ffffff' : '#f8f9fb'}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.surface}
                 style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
               />
             </View>
-          </View>
-        </View>
-
-        {/* Language */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('mobile.languageSection')}</Text>
-          <View style={styles.sectionCard}>
             <TouchableOpacity style={styles.listItem} onPress={() => setShowCountryPicker(true)}>
               <View style={styles.listItemLeft}>
-                <MaterialIcons name="public" size={20} color="#00408f" />
-                <Text style={styles.listItemText}>
-                  {getCountry(countrySettings.countryCode).name} ({countrySettings.phoneCountryCode})
-                </Text>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
+                  <MaterialIcons name="public" size={18} color={colors.warning} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{getCountry(countrySettings.countryCode).name}</Text>
+                  <Text style={styles.listItemSubtext}>{countrySettings.phoneCountryCode} · {countrySettings.currency}</Text>
+                </View>
               </View>
-              <View style={styles.listItemRight}>
-                <Text style={styles.versionText}>{countrySettings.currency}</Text>
-                <MaterialIcons name="expand-more" size={20} color="#737685" />
-              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.listItemNoBorder} onPress={() => { if (isIndiaCountry) setShowLangPicker(true); }}>
               <View style={styles.listItemLeft}>
-                <MaterialIcons name="translate" size={20} color="#00408f" />
-                <Text style={styles.listItemText}>{nativeLabelForCode(languageCode)}</Text>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="translate" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>App Language</Text>
+                  <Text style={styles.listItemSubtext}>{nativeLabelForCode(languageCode)}</Text>
+                </View>
               </View>
-              <View style={styles.listItemRight}>
-                <MaterialIcons name={isIndiaCountry ? "expand-more" : "lock"} size={20} color="#737685" />
-              </View>
+              <MaterialIcons name={isIndiaCountry ? "chevron-right" : "lock"} size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -542,12 +776,30 @@ export default function SettingsScreen({
           <Text style={styles.sectionTitle}>{t('mobile.about')}</Text>
           <View style={styles.sectionCard}>
             <View style={styles.listItem}>
-              <Text style={styles.listItemTextNoIcon}>{t('mobile.appVersion')}</Text>
-              <Text style={styles.versionText}>v{appJson.expo.version} ({appJson.expo.android?.versionCode ?? ''})</Text>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.surfaceMuted }]}>
+                  <MaterialIcons name="info-outline" size={18} color={colors.textSecondary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.appVersion')}</Text>
+                  <Text style={styles.listItemSubtext}>v{appJson.expo.version} ({appJson.expo.android?.versionCode ?? ''})</Text>
+                </View>
+              </View>
+              <View style={{ backgroundColor: colors.primaryTint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: colors.primary }}>LATEST</Text>
+              </View>
             </View>
             <TouchableOpacity style={styles.listItem} onPress={() => Linking.openURL(platformSettings?.privacyPolicyUrl || 'https://laundrybill.com/privacy')}>
-              <Text style={styles.listItemTextNoIcon}>{t('mobile.privacyPolicy')}</Text>
-              <MaterialIcons name="open-in-new" size={16} color="#737685" />
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="shield" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.privacyPolicy')}</Text>
+                  <Text style={styles.listItemSubtext}>Privacy policy & terms</Text>
+                </View>
+              </View>
+              <MaterialIcons name="open-in-new" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.listItemNoBorder} onPress={() => {
               const email = platformSettings?.supportEmail || 'support@laundrybill.com';
@@ -559,8 +811,35 @@ export default function SettingsScreen({
                 Linking.openURL(`mailto:${email}`);
               }
             }}>
-              <Text style={styles.supportText}>{t('mobile.contactSupport')}</Text>
-              <MaterialIcons name="support-agent" size={16} color="#00408f" />
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                  <MaterialIcons name="support-agent" size={18} color={colors.success} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.contactSupport')}</Text>
+                  <Text style={styles.listItemSubtext}>WhatsApp chat & email support</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tutorial Videos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('mobile.tutorialVideos', { defaultValue: 'Learn & Help' })}</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => Linking.openURL('https://laundrybill.com/tutorials').catch(() => {})}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.errorBg }]}>
+                  <MaterialIcons name="play-circle-filled" size={18} color={colors.error} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.tutorialVideos', { defaultValue: 'Tutorial Videos' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.tutorialVideosDesc', { defaultValue: 'Watch step-by-step guides on YouTube' })}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -569,14 +848,56 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.accountSection')}</Text>
           <View style={styles.sectionCard}>
+            {onPreviewOnboarding && (
+              <TouchableOpacity style={styles.listItem} onPress={onPreviewOnboarding}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                    <MaterialIcons name="slideshow" size={18} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Preview Onboarding</Text>
+                    <Text style={styles.listItemSubtext}>View the welcome slides</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+            {onPreviewOnboarding && (
+              <TouchableOpacity style={styles.listItem} onPress={() => onEditProfile()}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
+                    <MaterialIcons name="storefront" size={18} color={colors.warning} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Preview Shop Setup</Text>
+                    <Text style={styles.listItemSubtext}>View the registration form</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+            {onPreviewSetupInit && (
+              <TouchableOpacity style={styles.listItem} onPress={onPreviewSetupInit}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                    <MaterialIcons name="hourglass-top" size={18} color={colors.success} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Preview Initializing</Text>
+                    <Text style={styles.listItemSubtext}>View the setup progress animation</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.logoutListItem} onPress={handleLogout}>
-              <MaterialIcons name="logout" size={18} color="#ba1a1a" />
+              <MaterialIcons name="logout" size={18} color={colors.error} />
               <Text style={styles.logoutText}>{t('mobile.logout')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.deleteListItem} onPress={handleDeleteAccount} disabled={deleting}>
-              <MaterialIcons name="delete-forever" size={18} color="#93000a" />
+              <MaterialIcons name="delete-forever" size={18} color={colors.error} />
               {deleting
-                ? <ActivityIndicator size="small" color="#93000a" />
+                ? <ActivityIndicator size="small" color={colors.error} />
                 : <Text style={styles.deleteText}>{t('mobile.deleteAccount')}</Text>
               }
             </TouchableOpacity>
@@ -605,10 +926,57 @@ export default function SettingsScreen({
                 <Text style={[styles.langOptionText, languageCode === opt.code && styles.langOptionTextActive]}>
                   {opt.native}
                 </Text>
-                {languageCode === opt.code && <MaterialIcons name="check" size={20} color="#00408f" />}
+                {languageCode === opt.code && <MaterialIcons name="check" size={20} color={colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+      </Modal>
+
+      {/* Tax Editor Modal */}
+      <Modal visible={showTaxEditor} transparent animationType="fade" onRequestClose={() => setShowTaxEditor(false)}>
+        <Pressable style={styles.modalDismiss} onPress={() => setShowTaxEditor(false)} />
+        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>{t('mobile.taxDetails')}</Text>
+
+          <Text style={styles.taxFieldLabel}>{t('mobile.taxNameLabel')}</Text>
+          <TextInput
+            style={styles.taxInput}
+            value={taxNameDraft}
+            onChangeText={setTaxNameDraft}
+            placeholder="GST"
+            autoCapitalize="characters"
+          />
+
+          <Text style={styles.taxFieldLabel}>{t('mobile.taxRateLabel')}</Text>
+          <TextInput
+            style={styles.taxInput}
+            value={taxRateDraft}
+            onChangeText={setTaxRateDraft}
+            placeholder="18"
+            keyboardType="decimal-pad"
+          />
+
+          <Text style={styles.taxFieldLabel}>{t('mobile.gstNumberLabel')}</Text>
+          <TextInput
+            style={styles.taxInput}
+            value={gstNumberDraft}
+            onChangeText={setGstNumberDraft}
+            placeholder="22AAAAA0000A1Z5"
+            autoCapitalize="characters"
+          />
+
+          <TouchableOpacity
+            style={[styles.taxSaveBtn, savingTax && { opacity: 0.6 }]}
+            onPress={saveTaxDetails}
+            disabled={savingTax}
+          >
+            {savingTax
+              ? <ActivityIndicator size="small" color={colors.surface} />
+              : <Text style={styles.taxSaveBtnText}>{t('common.save')}</Text>
+            }
+          </TouchableOpacity>
         </View>
       </Modal>
 
@@ -640,7 +1008,7 @@ export default function SettingsScreen({
                 <Text style={[styles.langOptionText, countrySettings.countryCode === country.code && styles.langOptionTextActive]}>
                   {country.name} ({country.phoneCode}) · {country.currencyCode}
                 </Text>
-                {countrySettings.countryCode === country.code && <MaterialIcons name="check" size={20} color="#00408f" />}
+                {countrySettings.countryCode === country.code && <MaterialIcons name="check" size={20} color={colors.primary} />}
               </TouchableOpacity>
             ))}
             </View>
@@ -654,37 +1022,38 @@ export default function SettingsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    height: 48,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#191c1e',
+    fontSize: 18,
+    fontFamily: fonts.bold,
+    color: colors.text,
+    textAlign: 'center',
   },
   scrollContent: {
     padding: 16,
     gap: 20,
   },
   profileCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    ...shadows.card,
+    ...shadows.cardBorder,
   },
   profileInfo: {
     flexDirection: 'row',
@@ -696,40 +1065,42 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#00408f',
+    backgroundColor: colors.darkBlue,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarText: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   storeName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
     marginBottom: 4,
   },
   ownerInfo: {
     fontSize: 12,
-    color: '#434654',
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
   },
   editProfileBtn: {
     padding: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 20,
   },
   promoBanner: {
-    backgroundColor: '#00408f',
-    borderRadius: 12,
+    borderRadius: radii.card,
     padding: 16,
     gap: 12,
-    shadowColor: '#00408f',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    overflow: 'hidden',
   },
   promoHeader: {
     flexDirection: 'row',
@@ -738,25 +1109,28 @@ const styles = StyleSheet.create({
   },
   promoOverline: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: 'rgba(255,255,255,0.7)',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   promoTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
     marginTop: 2,
   },
   promoBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   promoBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
+    color: colors.surface,
+    letterSpacing: 0.5,
   },
   usageRow: {
     flexDirection: 'row',
@@ -771,12 +1145,12 @@ const styles = StyleSheet.create({
   },
   usageValue: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   usageLabel: {
     fontSize: 9,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
     textTransform: 'uppercase',
@@ -796,7 +1170,7 @@ const styles = StyleSheet.create({
   usageBarFill: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#76f4e0',
+    backgroundColor: colors.mint,
   },
   promoFooter: {
     flexDirection: 'row',
@@ -809,47 +1183,50 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   upgradeBtn: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: radii.button,
   },
   upgradeBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
   section: {
     gap: 8,
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#434654',
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     paddingHorizontal: 8,
   },
   sectionCard: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     overflow: 'hidden',
+    ...shadows.card,
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 48,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.5)',
+    borderBottomColor: colors.border,
   },
   listItemNoBorder: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 48,
+    paddingVertical: 14,
   },
   listItemLeft: {
     flexDirection: 'row',
@@ -857,16 +1234,26 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
+  listItemIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
   listItemText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
     flex: 1,
+  },
+  listItemSubtext: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   listItemTextNoIcon: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.medium,
+    color: colors.text,
   },
   listItemRight: {
     flexDirection: 'row',
@@ -874,24 +1261,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   countBadge: {
-    backgroundColor: '#e1e2e4',
+    backgroundColor: colors.border,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: radii.badge,
   },
   countText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#434654',
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
   },
   versionText: {
     fontSize: 12,
-    color: '#434654',
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
   },
   supportText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
   logoutListItem: {
     flexDirection: 'row',
@@ -900,12 +1288,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 48,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.5)',
+    borderBottomColor: colors.border,
   },
   logoutText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#ba1a1a',
+    fontFamily: fonts.bold,
+    color: colors.error,
   },
   deleteListItem: {
     flexDirection: 'row',
@@ -916,25 +1304,26 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#93000a',
+    fontFamily: fonts.semibold,
+    color: colors.error,
   },
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 4 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
   countrySearchInput: {
     height: 44,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
+    borderColor: colors.border,
+    borderRadius: radii.input,
     paddingHorizontal: 12,
     marginTop: 8,
     marginBottom: 8,
     fontSize: 14,
-    color: '#191c1e',
-    backgroundColor: '#f8fafc',
+    fontFamily: fonts.medium,
+    color: colors.text,
+    backgroundColor: colors.surfaceMuted,
   },
   langOption: {
     flexDirection: 'row',
@@ -942,9 +1331,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: radii.input,
   },
-  langOptionActive: { backgroundColor: '#d8e2ff' },
-  langOptionText: { fontSize: 15, fontWeight: '600', color: '#434654' },
-  langOptionTextActive: { color: '#00408f', fontWeight: '700' },
+  langOptionActive: { backgroundColor: colors.primaryTint },
+  langOptionText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.textSecondary },
+  langOptionTextActive: { color: colors.primary, fontFamily: fonts.bold },
+  taxFieldLabel: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  taxInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.input,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: colors.text,
+    backgroundColor: colors.surfaceMuted,
+  },
+  taxSaveBtn: {
+    marginTop: 20,
+    height: 48,
+    borderRadius: radii.button,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taxSaveBtnText: {
+    color: colors.surface,
+    fontSize: 15,
+    fontFamily: fonts.bold,
+  },
 });

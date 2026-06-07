@@ -12,14 +12,14 @@ import { firestore } from '../lib/db';
 import { auth, getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 
-function unitSuffix(pricingType: string, t: TFunction): string {
-  if (pricingType === 'kg') return t('mobile.unitKg');
-  if (pricingType === 'sqft') return t('mobile.unitSqft');
-  if (pricingType === 'set') return t('mobile.unitSet');
-  return t('mobile.unitPc');
+import { getUnitLabel, getUnitsForCountry } from '../lib/country-config';
+
+function unitSuffix(pricingType: string): string {
+  return getUnitLabel(pricingType || 'piece');
 }
 
 interface Item {
@@ -77,15 +77,12 @@ export default function ServiceItemsScreen({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const pricingTypes = useMemo(
-    () => [
-      { value: 'piece', label: t('mobile.pricingPerPiece') },
-      { value: 'kg', label: t('mobile.pricingPerKg') },
-      { value: 'sqft', label: t('mobile.pricingPerSqft') },
-      { value: 'set', label: t('mobile.pricingPerSet') },
-    ],
-    [t],
-  );
+  const shopId = getShopId();
+  const countrySettings = useShopCountrySettings(shopId);
+  const pricingTypes = useMemo(() => {
+    const { units, labels } = getUnitsForCountry(countrySettings.countryCode);
+    return units.map(u => ({ value: u, label: labels[u].full }));
+  }, [countrySettings.countryCode]);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Item[]>([]);
 
@@ -105,8 +102,6 @@ export default function ServiceItemsScreen({
   const [editImageUri, setEditImageUri] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
-  const shopId = getShopId();
-  const countrySettings = useShopCountrySettings(shopId);
   const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
   // Load items for this category from Firestore
@@ -302,7 +297,7 @@ export default function ServiceItemsScreen({
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#00408f" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -314,7 +309,7 @@ export default function ServiceItemsScreen({
         <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-              <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('mobile.serviceItemsTitle', { category: categoryName })}</Text>
           </View>
@@ -330,14 +325,14 @@ export default function ServiceItemsScreen({
           <View style={styles.listHeader}>
             <Text style={styles.sectionLabel}>{t('mobile.inventoryCurrentSection', { count: activeItems.length })}</Text>
             <TouchableOpacity style={styles.addItemBtn} onPress={openAdd}>
-              <MaterialIcons name="add" size={16} color="#ffffff" />
+              <MaterialIcons name="add" size={16} color={colors.surface} />
               <Text style={styles.addItemBtnText}>{t('mobile.addItemBtn')}</Text>
             </TouchableOpacity>
           </View>
 
           {activeItems.length === 0 && (
             <View style={styles.emptyState}>
-              <MaterialIcons name="inventory-2" size={40} color="#c3c6d6" />
+              <MaterialIcons name="inventory-2" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>{t('mobile.noItemsYet')}</Text>
               <Text style={styles.emptySubtext}>{t('mobile.noItemsHint')}</Text>
             </View>
@@ -357,7 +352,7 @@ export default function ServiceItemsScreen({
                   <Image source={{ uri: item.imageUrl }} style={styles.itemThumb} />
                 ) : (
                   <View style={styles.itemThumbPlaceholder}>
-                    <MaterialIcons name="image" size={16} color="#c3c6d6" />
+                    <MaterialIcons name="image" size={16} color={colors.textMuted} />
                   </View>
                 )}
 
@@ -370,12 +365,12 @@ export default function ServiceItemsScreen({
                       ) : null}
                       <View style={styles.unitBadge}>
                         <Text style={styles.unitBadgeText}>
-                          {unitSuffix(item.pricingType || 'piece', t)}
+                          {unitSuffix(item.pricingType || 'piece')}
                         </Text>
                       </View>
                       {item.expressMultiplier > 1 && (
-                        <View style={[styles.unitBadge, { backgroundColor: '#fff3e0' }]}>
-                          <Text style={[styles.unitBadgeText, { color: '#e65100' }]}>
+                        <View style={[styles.unitBadge, { backgroundColor: colors.warningBg }]}>
+                          <Text style={[styles.unitBadgeText, { color: colors.warning }]}>
                             {t('mobile.expressBadgeX', { multiplier: item.expressMultiplier })}
                           </Text>
                         </View>
@@ -387,17 +382,17 @@ export default function ServiceItemsScreen({
 
                 <View style={styles.itemActions}>
                   <TouchableOpacity onPress={() => openEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <MaterialIcons name="edit" size={16} color="#737685" />
+                    <MaterialIcons name="edit" size={16} color={colors.textMuted} />
                   </TouchableOpacity>
                   <Switch
                     value={item.isActive}
                     onValueChange={() => toggleItemActive(item)}
-                    trackColor={{ false: '#e1e2e4', true: '#006b5f' }}
-                    thumbColor={item.isActive ? '#ffffff' : '#f8f9fb'}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={item.isActive ? colors.surface : colors.background}
                     style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
                   />
                   <TouchableOpacity onPress={() => handleDeleteItem(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <MaterialIcons name="delete" size={18} color="#ba1a1a" style={{ opacity: 0.5 }} />
+                    <MaterialIcons name="delete" size={18} color={colors.error} style={{ opacity: 0.5 }} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -419,7 +414,7 @@ export default function ServiceItemsScreen({
                     <Image source={{ uri: item.imageUrl }} style={styles.itemThumb} />
                   ) : (
                     <View style={styles.itemThumbPlaceholder}>
-                      <MaterialIcons name="image" size={16} color="#c3c6d6" />
+                      <MaterialIcons name="image" size={16} color={colors.textMuted} />
                     </View>
                   )}
                   <View style={styles.itemInfo}>
@@ -441,13 +436,13 @@ export default function ServiceItemsScreen({
         {/* Bulk Add */}
         <View style={styles.bulkAddCard}>
           <View style={styles.bulkHeaderRow}>
-            <MaterialIcons name="layers" size={20} color="#00408f" />
+            <MaterialIcons name="layers" size={20} color={colors.primary} />
             <Text style={styles.bulkTitle}>{t('mobile.bulkAddTitle')}</Text>
           </View>
           <TextInput
             style={styles.bulkTextArea}
             placeholder={t('mobile.bulkAddPlaceholder')}
-            placeholderTextColor="#737685"
+            placeholderTextColor={colors.textMuted}
             multiline
             numberOfLines={4}
             value={bulkText}
@@ -461,7 +456,7 @@ export default function ServiceItemsScreen({
               disabled={bulkAdding}
             >
               {bulkAdding ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.surface} size="small" />
               ) : (
                 <Text style={styles.parseBtnText}>{t('mobile.parseAndAdd')}</Text>
               )}
@@ -477,7 +472,7 @@ export default function ServiceItemsScreen({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editItem ? t('mobile.editItemModalTitle') : t('mobile.addItemModalTitle')}</Text>
               <TouchableOpacity onPress={() => setIsItemFormOpen(false)}>
-                <MaterialIcons name="close" size={24} color="#434654" />
+                <MaterialIcons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -487,7 +482,7 @@ export default function ServiceItemsScreen({
                 <Image source={{ uri: editImageUri }} style={styles.imagePreview} />
               ) : (
                 <View style={styles.imagePlaceholder}>
-                  <MaterialIcons name="add-photo-alternate" size={32} color="#737685" />
+                  <MaterialIcons name="add-photo-alternate" size={32} color={colors.textMuted} />
                   <Text style={styles.imagePickerText}>{t('mobile.addImageBtn')}</Text>
                 </View>
               )}
@@ -570,7 +565,7 @@ export default function ServiceItemsScreen({
               disabled={editSaving}
             >
               {editSaving ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.surface} />
               ) : (
                 <Text style={styles.modalSaveBtnText}>{editItem ? t('mobile.saveItemChanges') : t('mobile.addItemModalTitle')}</Text>
               )}
@@ -583,21 +578,23 @@ export default function ServiceItemsScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(195, 198, 214, 0.2)', zIndex: 10,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 10,
   },
   headerInner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     height: 56, paddingHorizontal: 8,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#191c1e' },
-  iconBtn: { padding: 8 },
+  headerTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  iconBtn: {
+    padding: 8, backgroundColor: colors.surfaceMuted, borderRadius: 20,
+  },
   scrollContent: { padding: 16, gap: 20 },
   sectionLabel: {
-    fontSize: 10, fontWeight: '700', color: '#434654',
+    fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 1,
   },
   // List
@@ -607,93 +604,96 @@ const styles = StyleSheet.create({
   },
   addItemBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#00408f', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+    backgroundColor: colors.primary, borderRadius: radii.button, paddingHorizontal: 10, paddingVertical: 7,
   },
-  addItemBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
+  addItemBtnText: { color: colors.surface, fontSize: 12, fontFamily: fonts.bold },
   listContainer: {
-    backgroundColor: '#ffffff', borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(195, 198, 214, 0.1)',
+    backgroundColor: colors.surface, borderRadius: radii.card, overflow: 'hidden',
+    ...shadows.card, ...shadows.cardBorder,
   },
   listItem: {
     flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 12, paddingVertical: 8,
   },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: 'rgba(195, 198, 214, 0.2)' },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: colors.border },
   // Item thumbnail
-  itemThumb: { width: 36, height: 36, borderRadius: 8, marginRight: 10, backgroundColor: '#f3f4f6' },
+  itemThumb: { width: 36, height: 36, borderRadius: 8, marginRight: 10, backgroundColor: colors.surfaceMuted },
   itemThumbPlaceholder: {
     width: 36, height: 36, borderRadius: 8, marginRight: 10,
-    backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center',
   },
   itemInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  itemName: { fontSize: 13, fontWeight: '700', color: '#191c1e' },
-  itemSubCat: { fontSize: 10, color: '#737685' },
+  itemName: { fontSize: 13, fontFamily: fonts.bold, color: colors.text },
+  itemSubCat: { fontSize: 10, fontFamily: fonts.medium, color: colors.textMuted },
   unitBadge: {
-    backgroundColor: '#e8eaf6', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
+    backgroundColor: colors.primaryTint, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
   },
-  unitBadgeText: { fontSize: 9, fontWeight: '700', color: '#3949ab' },
-  itemPrice: { fontSize: 13, fontWeight: '700', color: '#00408f', marginRight: 8 },
+  unitBadgeText: { fontSize: 9, fontFamily: fonts.bold, color: colors.primary },
+  itemPrice: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary, marginRight: 8 },
   itemActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  restoreBtn: { backgroundColor: '#00408f', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
-  restoreBtnText: { fontSize: 10, fontWeight: '700', color: '#ffffff' },
+  restoreBtn: { backgroundColor: colors.primary, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
+  restoreBtnText: { fontSize: 10, fontFamily: fonts.bold, color: colors.surface },
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 32, gap: 6 },
-  emptyText: { fontSize: 14, fontWeight: '700', color: '#434654' },
-  emptySubtext: { fontSize: 11, color: '#737685' },
+  emptyText: { fontSize: 14, fontFamily: fonts.bold, color: colors.textSecondary },
+  emptySubtext: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted },
   // Bulk add
-  bulkAddCard: { backgroundColor: '#edeef0', borderRadius: 12, padding: 16 },
+  bulkAddCard: {
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.card, padding: 16,
+    ...shadows.card, ...shadows.cardBorder,
+  },
   bulkHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  bulkTitle: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
+  bulkTitle: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
   bulkTextArea: {
-    backgroundColor: '#ffffff', borderRadius: 8, padding: 12,
-    fontSize: 14, fontWeight: '500', color: '#191c1e', minHeight: 100,
+    backgroundColor: colors.surface, borderRadius: radii.input, padding: 12,
+    fontSize: 14, fontFamily: fonts.medium, color: colors.text, minHeight: 100,
   },
   bulkFooter: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 },
   parseBtn: {
-    backgroundColor: '#00408f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8,
+    backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: radii.button,
   },
-  parseBtnText: { fontSize: 12, fontWeight: '700', color: '#ffffff', letterSpacing: 1 },
+  parseBtnText: { fontSize: 12, fontFamily: fonts.bold, color: colors.surface, letterSpacing: 1 },
   // Modal
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 20, maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#191c1e' },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
   modalLabel: {
-    fontSize: 10, fontWeight: '700', color: '#434654',
+    fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, marginTop: 12,
   },
   modalInput: {
-    backgroundColor: '#f3f4f6', borderRadius: 8, paddingHorizontal: 12,
-    paddingVertical: 10, fontSize: 14, fontWeight: '500', color: '#191c1e',
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 12,
+    paddingVertical: 10, fontSize: 14, fontFamily: fonts.medium, color: colors.text,
   },
   modalRow: { flexDirection: 'row', gap: 12 },
   pricingRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pricingChip: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
   },
-  pricingChipActive: { backgroundColor: '#00408f' },
-  pricingChipText: { fontSize: 11, fontWeight: '700', color: '#434654' },
-  pricingChipTextActive: { color: '#ffffff' },
-  expressHint: { fontSize: 10, color: '#e65100', marginTop: 4, fontWeight: '600' },
+  pricingChipActive: { backgroundColor: colors.primary },
+  pricingChipText: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary },
+  pricingChipTextActive: { color: colors.surface },
+  expressHint: { fontSize: 10, color: colors.warning, marginTop: 4, fontFamily: fonts.semibold },
   // Image picker
   imagePicker: { alignItems: 'center', marginVertical: 8 },
-  imagePreview: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' },
+  imagePreview: { width: 80, height: 80, borderRadius: radii.button, backgroundColor: colors.surfaceMuted },
   imagePlaceholder: {
-    width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6',
+    width: 80, height: 80, borderRadius: radii.button, backgroundColor: colors.surfaceMuted,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-    borderColor: '#e1e2e4', borderStyle: 'dashed',
+    borderColor: colors.border, borderStyle: 'dashed',
   },
-  imagePickerText: { fontSize: 10, color: '#737685', marginTop: 4 },
+  imagePickerText: { fontSize: 10, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 4 },
   modalSaveBtn: {
-    backgroundColor: '#00408f', borderRadius: 8, paddingVertical: 14,
+    backgroundColor: colors.primary, borderRadius: radii.button, paddingVertical: 14,
     alignItems: 'center', marginTop: 20,
   },
-  modalSaveBtnText: { fontSize: 15, fontWeight: '700', color: '#ffffff' },
+  modalSaveBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
 });

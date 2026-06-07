@@ -196,24 +196,34 @@ export function SubscriptionPage() {
                     {visiblePlans.map((plan) => {
                         const isCurrent = normalizePlanId(plan.id) === currentPlanId;
                         const isPopular = normalizePlanId(plan.id) === "pro";
+                        const isBusiness = normalizePlanId(plan.id) === "business";
                         return (
                             <div
                                 key={plan.id}
                                 className={cn(
                                     "relative rounded-xl border-2 transition-all duration-200 overflow-hidden flex flex-col",
                                     isCurrent ? "border-primary bg-primary/5" : "border-border bg-card",
-                                    isPopular && !isCurrent ? "border-purple-500 shadow-md" : ""
+                                    isPopular && !isCurrent ? "border-purple-500 shadow-md" : "",
+                                    isBusiness && !isCurrent ? "border-blue-800 shadow-md" : ""
                                 )}
                             >
                                 {isPopular && (
                                     <div className="absolute top-0 right-0 bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                                        MOST POPULAR
+                                        POPULAR
+                                    </div>
+                                )}
+                                {isBusiness && (
+                                    <div className="absolute top-0 right-0 bg-blue-800 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                                        BEST VALUE
                                     </div>
                                 )}
 
                                 <div className="p-6 flex-1">
                                     <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
                                     <div className="mb-4">
+                                        {plan.prices.monthly > 0 && (
+                                            <span className="text-xs text-muted-foreground block mb-1">Starting from</span>
+                                        )}
                                         <span className="text-3xl font-bold">{formatAmount(plan.prices.monthly)}</span>
                                         <span className="text-muted-foreground">/month</span>
                                     </div>
@@ -239,6 +249,10 @@ export function SubscriptionPage() {
                                         <PlanFeatureItem label="Staff Management" included={plan.features.staffManagement} />
                                         <PlanFeatureItem label="Payroll & Expenses" included={plan.features.payroll} />
                                         <PlanFeatureItem label="Reports & Analytics" included={plan.features.reports} />
+                                        <PlanFeatureItem label="Driver / Agent App" included={plan.features.driverApp} />
+                                        <PlanFeatureItem label="Plant Dashboard" included={plan.features.plantApp} />
+                                        <PlanFeatureItem label="Public Ordering Page" included={plan.features.publicOrderingPage} />
+                                        <PlanFeatureItem label="Web Dashboard Access" included={plan.features.webDashboard ?? false} />
                                     </ul>
                                 </div>
 

@@ -4,16 +4,20 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Keyboa
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
+let Location: typeof import('expo-location') | null = null;
+try { Location = require('expo-location'); } catch {}
 import { firestore } from '../lib/db';
 import { auth, getShopId, setResolvedShopId } from '../lib/auth';
 import { COUNTRIES, getCountry, getCountryCodeFromPhone } from '../lib/country-config';
 import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h = Math.floor(i / 2).toString().padStart(2, '0');
+  const h24 = Math.floor(i / 2);
   const m = i % 2 === 0 ? '00' : '30';
-  return `${h}:${m}`;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  return `${h12.toString().padStart(2, '0')}:${m} ${ampm}`;
 });
 
 async function uploadImageToR2(shopId: string, uri: string, fileName: string): Promise<{ key: string; publicUrl: string }> {
@@ -93,8 +97,10 @@ export default function RegisterShopScreen({
     state: '',
     pincode: '',
     gstNumber: '',
-    openTime: '09:00',
-    closeTime: '21:00',
+    taxEnabled: true,
+    taxRate: '18',
+    openTime: '09:00 AM',
+    closeTime: '09:00 PM',
     terms: isEditMode // auto check for edit mode
   });
 
@@ -104,6 +110,19 @@ export default function RegisterShopScreen({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
+
+  // Setup progress overlay (for new shops only)
+  const SETUP_STEPS = [
+    'Setting up shop profile...',
+    'Configuring business preferences...',
+    'Populating master services...',
+    'Adding clothing items & pricing...',
+    'Initializing staff directories...',
+    'Deploying financial ledgers...',
+  ];
+  const [showSetupOverlay, setShowSetupOverlay] = useState(false);
+  const [setupStep, setSetupStep] = useState(0);
+  const [setupDone, setSetupDone] = useState(false);
 
   // Always check for existing shop/user data — handles web-registered users logging in on mobile
   useEffect(() => {
@@ -132,8 +151,10 @@ export default function RegisterShopScreen({
             state: data.location?.state || '',
             pincode: data.location?.pincode || '',
             gstNumber: data.gstNumber || '',
-            openTime: data.businessHours?.openTime || '09:00',
-            closeTime: data.businessHours?.closeTime || '21:00',
+            taxEnabled: shopSettings.tax?.enabled !== false,
+            taxRate: String(shopSettings.tax?.rate ?? '18'),
+            openTime: data.businessHours?.openTime || '09:00 AM',
+            closeTime: data.businessHours?.closeTime || '09:00 PM',
             terms: isEditMode,
           });
           setLogoUri(data.logoUrl || '');
@@ -194,6 +215,10 @@ export default function RegisterShopScreen({
 
   const handleGetLocation = async () => {
     try {
+      if (!Location) {
+        Alert.alert('Location Unavailable', 'Location services are not available in this build. Please enter the address manually.');
+        return;
+      }
       setFetchingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -420,6 +445,7 @@ export default function RegisterShopScreen({
       };
 
       if (!isEditMode) {
+        // New shop — write full settings object
         Object.assign(shopData, {
           settings: {
             countryCode: selectedCountry.code,
@@ -428,7 +454,8 @@ export default function RegisterShopScreen({
             phoneCountryCode: selectedCountry.phoneCode,
             locale: selectedCountry.locale,
             timezone: selectedCountry.timezone,
-            tax: { enabled: true, name: selectedCountry.taxName, rate: selectedCountry.code === 'IN' ? 18 : 0 },
+            tax: { enabled: formData.taxEnabled, name: selectedCountry.taxName, rate: Number(formData.taxRate) || 0 },
+            taxName: selectedCountry.taxName,
             orderPrefix: "A",
             nextOrderNumber: 1,
             adsEnabled: true,
@@ -437,6 +464,20 @@ export default function RegisterShopScreen({
             smsNotifications: false,
           },
           createdAt: new Date(),
+        });
+      } else {
+        // Edit mode — update country-related settings (merge, preserves orderPrefix, nextOrderNumber, etc.)
+        Object.assign(shopData, {
+          settings: {
+            countryCode: selectedCountry.code,
+            currency: selectedCountry.currencyCode,
+            currencySymbol: selectedCountry.currencySymbol,
+            phoneCountryCode: selectedCountry.phoneCode,
+            locale: selectedCountry.locale,
+            timezone: selectedCountry.timezone,
+            taxName: selectedCountry.taxName,
+            tax: { enabled: formData.taxEnabled, name: selectedCountry.taxName, rate: Number(formData.taxRate) || 0 },
+          },
         });
       }
 
@@ -466,13 +507,52 @@ export default function RegisterShopScreen({
       // 3. Update resolved shopId so all screens use it immediately
       setResolvedShopId(saveId);
 
-      // 4. Seed default inventory for NEW shops (categories + items from platform defaults or hardcoded)
+      // 4. Seed default inventory for NEW shops with animated progress overlay
       if (!isEditMode) {
+        setShowSetupOverlay(true);
+        setSetupStep(0);
+
+        // Step 0: Setting up shop profile (already done above)
+        await new Promise(r => setTimeout(r, 600));
+        setSetupStep(1);
+
+        // Step 1: Configuring business preferences
+        await new Promise(r => setTimeout(r, 500));
+        setSetupStep(2);
+
+        // Step 2: Populating master services (categories)
         try {
           await seedDefaultInventory(saveId);
         } catch (seedErr) {
           console.warn('Default inventory seeding failed (non-fatal):', seedErr);
         }
+        setSetupStep(3);
+
+        // Step 3: Adding clothing items (already done inside seedDefaultInventory)
+        await new Promise(r => setTimeout(r, 400));
+        setSetupStep(4);
+
+        // Step 4: Initializing staff directories
+        // Create a default subscription doc for the free plan
+        try {
+          await firestore().collection('subscriptions').doc(saveId).set({
+            planId: 'free',
+            planName: 'Free',
+            status: 'active',
+            usage: { ordersThisMonth: 0, totalCustomers: 0, totalStaff: 0, totalServices: 0 },
+            createdAt: new Date(),
+          }, { merge: true });
+        } catch {}
+        await new Promise(r => setTimeout(r, 400));
+        setSetupStep(5);
+
+        // Step 5: Deploying financial ledgers
+        await new Promise(r => setTimeout(r, 500));
+
+        // All done — show success
+        setSetupDone(true);
+        await new Promise(r => setTimeout(r, 1500));
+        setShowSetupOverlay(false);
       }
 
       // Done! Redirect to dashboard.
@@ -489,7 +569,7 @@ export default function RegisterShopScreen({
 
   if (fetching) return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-      <ActivityIndicator size="large" color="#0056bd" />
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 
@@ -501,12 +581,12 @@ export default function RegisterShopScreen({
           <View style={styles.headerLeft}>
             {isEditMode && onBack && (
               <TouchableOpacity onPress={onBack} style={{ padding: 4, marginRight: 4 }}>
-                <MaterialIcons name="arrow-back" size={24} color="#191c1e" />
+                <MaterialIcons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
             )}
             <Text style={styles.headerTitle}>{isEditMode ? t('mobile.editShopProfile') : t('mobile.registerShop')}</Text>
           </View>
-          <MaterialIcons name="more-vert" size={24} color="#64748b" />
+          <MaterialIcons name="more-vert" size={24} color={colors.textMuted} />
         </View>
       </View>
 
@@ -522,10 +602,10 @@ export default function RegisterShopScreen({
               {logoUri ? (
                 <Image source={{ uri: logoUri }} style={styles.logoImage} />
               ) : (
-                <MaterialIcons name="storefront" size={40} color="#737685" />
+                <MaterialIcons name="storefront" size={40} color={colors.textMuted} />
               )}
               <View style={styles.cameraIconBadge}>
-                {uploadingLogo ? <ActivityIndicator size="small" color="#ffffff" /> : <MaterialIcons name="photo-camera" size={16} color="#ffffff" />}
+                {uploadingLogo ? <ActivityIndicator size="small" color={colors.surface} /> : <MaterialIcons name="photo-camera" size={16} color={colors.surface} />}
               </View>
             </TouchableOpacity>
             <Text style={styles.logoText}>{t('mobile.uploadShopLogo')}</Text>
@@ -534,23 +614,18 @@ export default function RegisterShopScreen({
           {/* Section 1: Shop Details */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('mobile.shopDetailsSection')}</Text>
-            
-            <Text style={styles.label}>{t('mobile.shopNameLabel')}</Text>
-            <TextInput style={styles.input} placeholder={t('mobile.phShopName')} value={formData.name} onChangeText={(t) => handleChange('name', t)} />
 
-            <View style={styles.row}>
-              <View style={styles.flex1Box}>
-                <Text style={styles.label}>{t('mobile.emailAddressLabel')}</Text>
-                <TextInput style={styles.input} placeholder={t('mobile.phEmail')} keyboardType="email-address" value={formData.email} onChangeText={(t) => handleChange('email', t)} />
-              </View>
-              <View style={styles.flex1Box}>
-                <Text style={styles.label}>Country</Text>
-                <TouchableOpacity style={styles.countrySelectBtn} onPress={() => setShowCountryPicker(true)}>
-                  <Text style={styles.countrySelectText}>{selectedCountry.name} ({selectedCountry.phoneCode})</Text>
-                  <MaterialIcons name="expand-more" size={18} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Text style={styles.label}>{t('mobile.shopNameLabel')}</Text>
+            <TextInput style={styles.input} placeholder="e.g. LaundryFlow Express" value={formData.name} onChangeText={(t) => handleChange('name', t)} />
+
+            <Text style={styles.label}>{t('mobile.emailAddressLabel')}</Text>
+            <TextInput style={styles.input} placeholder={t('mobile.phEmail')} keyboardType="email-address" autoCapitalize="none" value={formData.email} onChangeText={(t) => handleChange('email', t)} />
+
+            <Text style={styles.label}>Country</Text>
+            <TouchableOpacity style={styles.countrySelectBtn} onPress={() => setShowCountryPicker(true)}>
+              <Text style={styles.countrySelectText} numberOfLines={1}>{selectedCountry.name} ({selectedCountry.phoneCode})</Text>
+              <MaterialIcons name="expand-more" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
 
             <Text style={styles.label}>{t('mobile.mobileNumberLabel')}</Text>
             <View style={styles.phoneInputContainer}>
@@ -566,86 +641,120 @@ export default function RegisterShopScreen({
                 onChangeText={(t) => handleChange('phone', sanitizePhoneInput(t, countryCode))}
               />
             </View>
+
+            {/* Auto-detected settings from country */}
+            <View style={styles.autoDetectedRow}>
+              <View style={styles.autoDetectedChip}>
+                <MaterialIcons name="receipt" size={14} color={colors.primary} />
+                <Text style={styles.autoDetectedText}>Tax: {selectedCountry.taxName}</Text>
+              </View>
+              <View style={styles.autoDetectedChip}>
+                <MaterialIcons name="straighten" size={14} color={colors.primary} />
+                <Text style={styles.autoDetectedText}>Weight: {selectedCountry.weightUnit}</Text>
+              </View>
+              <View style={styles.autoDetectedChip}>
+                <MaterialIcons name="payments" size={14} color={colors.primary} />
+                <Text style={styles.autoDetectedText}>{selectedCountry.currencySymbol} {selectedCountry.currencyCode}</Text>
+              </View>
+            </View>
           </View>
 
           {/* Section 2: Location */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('mobile.locationSection')}</Text>
 
-            <TouchableOpacity
-              style={styles.locationBtn}
-              onPress={handleGetLocation}
-              disabled={fetchingLocation}
-            >
-              {fetchingLocation ? (
-                <ActivityIndicator size="small" color="#0056bd" />
-              ) : (
-                <MaterialIcons name="my-location" size={18} color="#0056bd" />
-              )}
-              <Text style={styles.locationBtnText}>
-                {fetchingLocation ? 'Getting location...' : gpsCoords ? 'Location captured — Update' : 'Use Current Location'}
-              </Text>
-            </TouchableOpacity>
-            {gpsCoords && (
-              <Text style={styles.locationCoords}>
-                GPS: {gpsCoords.lat.toFixed(5)}, {gpsCoords.lng.toFixed(5)}
-              </Text>
-            )}
-
             <Text style={styles.label}>{t('mobile.streetAddressLabel')}</Text>
-            <TextInput style={styles.input} placeholder={t('mobile.phStreet')} value={formData.street} onChangeText={(t) => handleChange('street', t)} />
+            <TextInput style={styles.input} placeholder="e.g. Plot 42, Main Street" value={formData.street} onChangeText={(t) => handleChange('street', t)} />
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
                 <Text style={styles.label}>{t('mobile.areaLocalityLabel')}</Text>
-                <TextInput style={styles.input} placeholder={t('mobile.phArea')} value={formData.area} onChangeText={(t) => handleChange('area', t)} />
+                <TextInput style={styles.input} placeholder="Area / Locality" value={formData.area} onChangeText={(t) => handleChange('area', t)} />
               </View>
               <View style={styles.flex1Box}>
                 <Text style={styles.label}>{t('mobile.cityLabel')}</Text>
-                <TextInput style={styles.input} placeholder={t('mobile.phCity')} value={formData.city} onChangeText={(t) => handleChange('city', t)} />
+                <TextInput style={styles.input} placeholder="City" value={formData.city} onChangeText={(t) => handleChange('city', t)} />
               </View>
             </View>
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
                 <Text style={styles.label}>{t('mobile.stateLabel')}</Text>
-                <TextInput style={styles.input} placeholder={t('mobile.phState')} value={formData.state} onChangeText={(t) => handleChange('state', t)} />
+                <TextInput style={styles.input} placeholder="State" value={formData.state} onChangeText={(t) => handleChange('state', t)} />
               </View>
               <View style={styles.flex1Box}>
                 <Text style={styles.label}>{t('mobile.pinCodeLabel')}</Text>
-                <TextInput style={styles.input} placeholder={t('mobile.phPin')} keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
+                <TextInput style={styles.input} placeholder="PIN / ZIP" keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
               </View>
             </View>
           </View>
 
-          {/* Section 3: Business Info */}
+          {/* Section 3: Business & Tax */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t('mobile.businessInfoSection')}</Text>
+            <Text style={styles.sectionTitle}>BUSINESS & TAX</Text>
 
-            <Text style={styles.label}>{`${selectedCountry.taxName} (Optional)`}</Text>
+            {/* Tax Enable Toggle */}
+            <View style={styles.taxToggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.taxToggleTitle}>Enable {selectedCountry.taxName}</Text>
+                <Text style={styles.taxToggleSubtitle}>Apply tax to all new orders</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.toggleSwitch, formData.taxEnabled && styles.toggleSwitchActive]}
+                onPress={() => handleChange('taxEnabled', !formData.taxEnabled)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnob, formData.taxEnabled && styles.toggleKnobActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {formData.taxEnabled && (
+              <View style={styles.row}>
+                <View style={{ flex: 1.2 }}>
+                  <Text style={styles.label}>Tax Type</Text>
+                  <View style={styles.taxTypeDisplay}>
+                    <MaterialIcons name="receipt" size={16} color={colors.primary} />
+                    <Text style={styles.taxTypeText}>{selectedCountry.taxName}</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 0.8 }}>
+                  <Text style={styles.label}>Tax Rate (%)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="18"
+                    keyboardType="number-pad"
+                    value={formData.taxRate}
+                    onChangeText={(t) => handleChange('taxRate', t.replace(/[^0-9]/g, ''))}
+                    maxLength={3}
+                  />
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.label}>{`${selectedCountry.taxName} Number (Optional)`}</Text>
             <TextInput
               style={styles.input}
-              placeholder={`${selectedCountry.taxName} number`}
+              placeholder={`e.g. ${selectedCountry.code === 'IN' ? '36AAAAA1111A1Z1' : 'Tax ID'}`}
               autoCapitalize="characters"
               value={formData.gstNumber}
               onChangeText={(t) => handleChange('gstNumber', t)}
             />
 
-            <Text style={styles.label}>{t('mobile.operatingHours')}</Text>
+            <Text style={styles.label}>Operating Hours</Text>
             <View style={styles.hoursRow}>
               <View style={styles.timeField}>
                 <Text style={styles.timeFieldLabel}>Open</Text>
                 <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowOpenTimePicker(true)}>
                   <Text style={styles.timeInput}>{formData.openTime}</Text>
-                  <MaterialIcons name="expand-more" size={18} color="#64748b" />
+                  <MaterialIcons name="expand-more" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.timeSpan}>{t('mobile.timeTo')}</Text>
+              <Text style={styles.timeSpan}>to</Text>
               <View style={styles.timeField}>
                 <Text style={styles.timeFieldLabel}>Close</Text>
                 <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowCloseTimePicker(true)}>
                   <Text style={styles.timeInput}>{formData.closeTime}</Text>
-                  <MaterialIcons name="expand-more" size={18} color="#64748b" />
+                  <MaterialIcons name="expand-more" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -654,7 +763,7 @@ export default function RegisterShopScreen({
           {/* Section 4: Legal */}
           <View style={styles.legalSection}>
             <TouchableOpacity onPress={() => handleChange('terms', !formData.terms)} style={styles.checkboxTouch}>
-              <MaterialIcons name={formData.terms ? "check-box" : "check-box-outline-blank"} size={22} color={formData.terms ? "#00408f" : "#737685"} />
+              <MaterialIcons name={formData.terms ? "check-box" : "check-box-outline-blank"} size={22} color={formData.terms ? colors.primary : colors.textMuted} />
             </TouchableOpacity>
             <Text style={styles.legalText}>{t('mobile.agreeTermsRegister')}</Text>
           </View>
@@ -742,14 +851,81 @@ export default function RegisterShopScreen({
       {/* Footer Action */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateShop} disabled={loading || uploadingLogo}>
-          {loading ? <ActivityIndicator color="#ffffff" /> : (
+          {loading && !showSetupOverlay ? <ActivityIndicator color={colors.surface} /> : (
             <View style={styles.btnContent}>
               <Text style={styles.primaryBtnText}>{isEditMode ? t('mobile.saveShopChanges') : t('mobile.createShopBtn')}</Text>
-              <MaterialIcons name={isEditMode ? "save" : "arrow-forward"} size={20} color="#ffffff" />
+              <MaterialIcons name={isEditMode ? "save" : "arrow-forward"} size={20} color={colors.surface} />
             </View>
           )}
         </TouchableOpacity>
       </View>
+
+      {/* ── Setup Progress Overlay (new shops only) ────────────────── */}
+      {showSetupOverlay && (
+        <View style={styles.setupOverlay}>
+          {!setupDone ? (
+            <>
+              {/* Logo */}
+              <View style={styles.setupLogoWrap}>
+                <View style={styles.setupLogoBadge}>
+                  <MaterialIcons name="local-laundry-service" size={38} color="#fff" />
+                </View>
+                <Text style={styles.setupBrand}>Laundry Bill</Text>
+                <Text style={styles.setupSubtitle}>Initializing Environment...</Text>
+              </View>
+
+              {/* Progress Card */}
+              <View style={styles.setupCard}>
+                {/* Progress bar */}
+                <View style={styles.setupProgressSection}>
+                  <View style={styles.setupProgressHeader}>
+                    <Text style={styles.setupProgressLabel}>{SETUP_STEPS[Math.min(setupStep, SETUP_STEPS.length - 1)]}</Text>
+                    <Text style={styles.setupProgressPct}>{Math.round(((setupStep + 1) / SETUP_STEPS.length) * 100)}%</Text>
+                  </View>
+                  <View style={styles.setupProgressTrack}>
+                    <View style={[styles.setupProgressFill, { width: `${((setupStep + 1) / SETUP_STEPS.length) * 100}%` }]} />
+                  </View>
+                </View>
+
+                {/* Task list */}
+                <View style={styles.setupTaskList}>
+                  {SETUP_STEPS.map((step, i) => {
+                    const isDone = i < setupStep;
+                    const isActive = i === setupStep;
+                    return (
+                      <View key={i} style={[styles.setupTaskRow, isDone && styles.setupTaskDone, isActive && styles.setupTaskActive, !isDone && !isActive && styles.setupTaskPending]}>
+                        <View style={styles.setupTaskIcon}>
+                          {isDone ? (
+                            <View style={styles.setupTaskCheckCircle}>
+                              <MaterialIcons name="check" size={12} color="#fff" />
+                            </View>
+                          ) : isActive ? (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                          ) : (
+                            <View style={styles.setupTaskDot} />
+                          )}
+                        </View>
+                        <Text style={[styles.setupTaskLabel, isActive && { color: colors.primary, fontFamily: fonts.bold }, isDone && { color: colors.textMuted }]}>
+                          {step}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </>
+          ) : (
+            /* Success state */
+            <View style={styles.setupSuccessWrap}>
+              <View style={styles.setupSuccessCircle}>
+                <MaterialIcons name="check" size={40} color="#fff" />
+              </View>
+              <Text style={styles.setupSuccessTitle}>Setup Complete!</Text>
+              <Text style={styles.setupSuccessDesc}>Redirecting to dashboard...</Text>
+            </View>
+          )}
+        </View>
+      )}
 
     </View>
   );
@@ -758,12 +934,12 @@ export default function RegisterShopScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.border,
   },
   headerInner: {
     flexDirection: 'row',
@@ -778,9 +954,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Inter',
-    fontWeight: '600',
-    color: '#191c1e',
+    fontFamily: fonts.semibold,
+    color: colors.text,
     marginLeft: 12,
   },
   scrollContent: {
@@ -796,12 +971,12 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#e7e8ea',
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#c3c6d6',
+    borderColor: colors.textMuted,
   },
   cameraIconBadge: {
     position: 'absolute',
@@ -810,20 +985,16 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#00408f',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    ...shadows.card,
   },
   logoText: {
     marginTop: 12,
     fontSize: 10,
-    fontWeight: '600',
-    color: '#434654',
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
     letterSpacing: 1,
   },
   logoImage: {
@@ -832,37 +1003,34 @@ const styles = StyleSheet.create({
     borderRadius: 48,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: radii.card,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    ...shadows.card,
+    ...shadows.cardBorder,
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
     letterSpacing: 1,
     marginBottom: 16,
   },
   label: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#434654',
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   input: {
     height: 48,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.badge,
     paddingHorizontal: 12,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.medium,
+    color: colors.text,
     marginBottom: 16,
   },
   row: {
@@ -875,15 +1043,15 @@ const styles = StyleSheet.create({
   phoneInputContainer: {
     flexDirection: 'row',
     height: 48,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.badge,
     alignItems: 'center',
     marginBottom: 16,
   },
   countrySelectBtn: {
     height: 44,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.badge,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
@@ -892,22 +1060,22 @@ const styles = StyleSheet.create({
   },
   countrySelectText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#191c1e',
+    fontFamily: fonts.semibold,
+    color: colors.text,
   },
   phonePrefix: {
     paddingHorizontal: 12,
     fontSize: 14,
-    color: '#737685',
+    color: colors.textMuted,
     borderRightWidth: 1,
-    borderRightColor: '#e1e2e4',
+    borderRightColor: colors.border,
   },
   phoneInput: {
     flex: 1,
     paddingHorizontal: 12,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.medium,
+    color: colors.text,
   },
   hoursRow: {
     flexDirection: 'row',
@@ -921,20 +1089,20 @@ const styles = StyleSheet.create({
   },
   timeFieldLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
+    fontFamily: fonts.semibold,
+    color: colors.textMuted,
   },
   timeInput: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
     textAlign: 'left',
   },
   timeSelectBtn: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    borderRadius: radii.badge,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -942,8 +1110,8 @@ const styles = StyleSheet.create({
   },
   timeSpan: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#737685',
+    fontFamily: fonts.bold,
+    color: colors.textMuted,
     marginBottom: 12,
   },
   legalSection: {
@@ -958,13 +1126,13 @@ const styles = StyleSheet.create({
   legalText: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '400',
-    color: '#434654',
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   linkText: {
-    color: '#00408f',
-    fontWeight: '600',
+    color: colors.primary,
+    fontFamily: fonts.semibold,
     textDecorationLine: 'underline',
   },
   footer: {
@@ -972,22 +1140,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     padding: 16,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 24,
-    elevation: 20,
+    ...shadows.elevated,
   },
   primaryBtn: {
     height: 56,
-    backgroundColor: '#0056bd',
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radii.badge,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00408f',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -1000,47 +1164,285 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 10 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 10 },
   countrySearchInput: {
     height: 44,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     marginBottom: 10,
     fontSize: 14,
-    color: '#191c1e',
-    backgroundColor: '#f8fafc',
+    fontFamily: fonts.medium,
+    color: colors.text,
+    backgroundColor: colors.background,
   },
   locationBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#eaf1ff',
-    borderRadius: 8,
+    backgroundColor: colors.primaryTint,
+    borderRadius: radii.badge,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 12,
   },
   locationBtnText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#0056bd',
+    fontFamily: fonts.semibold,
+    color: colors.primary,
   },
   locationCoords: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 12,
     marginTop: -6,
     paddingHorizontal: 4,
   },
-  countryOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 8 },
-  countryOptionActive: { backgroundColor: '#eaf1ff' },
-  countryOptionText: { fontSize: 14, fontWeight: '600', color: '#191c1e' },
+  taxToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.badge,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+  },
+  taxToggleTitle: {
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  taxToggleSubtitle: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  toggleSwitch: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  toggleSwitchActive: {
+    backgroundColor: colors.success,
+  },
+  toggleKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  taxTypeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 48,
+    backgroundColor: colors.primaryTint,
+    borderRadius: radii.badge,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  taxTypeText: {
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: colors.primary,
+  },
+  autoDetectedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: -4,
+  },
+  autoDetectedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.primaryTint,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  autoDetectedText: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.primary,
+  },
+  countryOption: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: radii.badge },
+  countryOptionActive: { backgroundColor: colors.primaryTint },
+  countryOptionText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
+
+  // ── Setup Progress Overlay ──────────────────────────────────
+  setupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.surface,
+    zIndex: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  setupLogoWrap: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  setupLogoBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 22,
+    backgroundColor: '#0F1E36',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#0C2340',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  setupBrand: {
+    fontSize: 22,
+    fontFamily: fonts.extrabold,
+    color: colors.text,
+  },
+  setupSubtitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  setupCard: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+    gap: 18,
+    shadowColor: '#141E3C',
+    shadowOpacity: 0.08,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  setupProgressSection: {
+    gap: 8,
+  },
+  setupProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  setupProgressLabel: {
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  setupProgressPct: {
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
+  },
+  setupProgressTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  setupProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  setupTaskList: {
+    gap: 14,
+  },
+  setupTaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  setupTaskDone: {
+    opacity: 0.8,
+  },
+  setupTaskActive: {
+    opacity: 1,
+  },
+  setupTaskPending: {
+    opacity: 0.3,
+  },
+  setupTaskIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setupTaskCheckCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setupTaskDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
+  setupTaskLabel: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
+  },
+  setupSuccessWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setupSuccessCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: colors.success,
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  setupSuccessTitle: {
+    fontSize: 22,
+    fontFamily: fonts.extrabold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  setupSuccessDesc: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
 });

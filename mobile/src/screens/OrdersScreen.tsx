@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Pressable, Alert, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -8,6 +8,7 @@ import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import { HelpButton } from '../components/HelpButton';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 function toDate(val: any): Date | null {
   if (!val) return null;
@@ -20,77 +21,76 @@ function toDate(val: any): Date | null {
 function getTimeRange(key: string): Date | null {
   const now = new Date();
   switch (key) {
-    case 'today': {
-      const d = new Date(now); d.setHours(0, 0, 0, 0); return d;
-    }
-    case 'week': {
-      const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay()); // start of week (Sunday)
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case 'month': {
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-    case '3months': {
-      return new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    }
-    case 'year': {
-      return new Date(now.getFullYear(), 0, 1);
-    }
+    case 'today': { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; }
+    case 'week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return d; }
+    case 'month': return new Date(now.getFullYear(), now.getMonth(), 1);
+    case '3months': return new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    case 'year': return new Date(now.getFullYear(), 0, 1);
     default: return null;
   }
 }
 
+const STATUS_COLORS: Record<string, { color: string; bg: string; accent: string }> = {
+  pending: { color: colors.warning, bg: colors.warningBg, accent: colors.warning },
+  confirmed: { color: colors.inProgress, bg: colors.inProgressBg, accent: colors.inProgress },
+  picked_up_from_customer: { color: colors.inProgress, bg: colors.inProgressBg, accent: colors.inProgress },
+  processing: { color: colors.inProgress, bg: colors.inProgressBg, accent: colors.inProgress },
+  ready: { color: '#84CC16', bg: '#F1FBE7', accent: '#84CC16' },
+  ready_for_pickup: { color: '#84CC16', bg: '#F1FBE7', accent: '#84CC16' },
+  ready_for_delivery: { color: '#84CC16', bg: '#F1FBE7', accent: '#84CC16' },
+  out_for_delivery: { color: colors.primary, bg: colors.primaryTint, accent: colors.primary },
+  delivered: { color: colors.success, bg: colors.successBg, accent: colors.success },
+  picked_up: { color: colors.success, bg: colors.successBg, accent: colors.success },
+  cancelled: { color: colors.error, bg: colors.errorBg, accent: colors.error },
+};
+
 export default function OrdersScreen({
   onNewOrder,
   onViewOrder,
+  onBack,
   initialFilter,
 }: {
   onNewOrder?: () => void;
   onViewOrder?: (id: string) => void;
+  onBack?: () => void;
   initialFilter?: string;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const countrySettings = useShopCountrySettings(shopId);
-  const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
-  const STATUS_CONFIG = useMemo((): Record<string, { label: string; bg: string; color: string }> => ({
-    pending: { label: t('mobile.orderStatusPending'), bg: '#fff3e0', color: '#e65100' },
-    confirmed: { label: t('mobile.orderStatusConfirmed'), bg: '#e3f2fd', color: '#1565c0' },
-    picked_up: { label: t('mobile.orderStatusPickedUp'), bg: '#e3f2fd', color: '#1565c0' },
-    processing: { label: t('mobile.orderStatusInProgress'), bg: '#fff8e1', color: '#f9a825' },
-    ready: { label: t('mobile.orderStatusReady'), bg: '#e8f5e9', color: '#2e7d32' },
-    out_for_delivery: { label: t('mobile.orderStatusOutForDelivery'), bg: '#e3f2fd', color: '#1565c0' },
-    delivered: { label: t('mobile.orderStatusCompleted'), bg: '#e8f5e9', color: '#2e7d32' },
-    cancelled: { label: t('mobile.orderStatusCancelled'), bg: '#fce4ec', color: '#c62828' },
+  const STATUS_LABELS = useMemo((): Record<string, string> => ({
+    pending: t('mobile.orderStatusPending'),
+    confirmed: t('mobile.orderStatusConfirmed'),
+    picked_up_from_customer: t('mobile.orderStatusPickedUp'),
+    processing: t('mobile.orderStatusInProgress'),
+    ready: t('mobile.orderStatusReady'),
+    ready_for_pickup: t('mobile.orderStatusReady'),
+    ready_for_delivery: t('mobile.orderStatusReady'),
+    out_for_delivery: t('mobile.orderStatusOutForDelivery'),
+    delivered: t('mobile.orderStatusCompleted'),
+    picked_up: t('mobile.orderStatusCompleted'),
+    cancelled: t('mobile.orderStatusCancelled'),
   }), [t]);
 
-  const STATUS_FILTERS = useMemo(
-    () => [
-      { key: 'all', label: t('mobile.ordersFilterAll') },
-      { key: 'pending', label: t('mobile.ordersFilterPending') },
-      { key: 'processing', label: t('mobile.ordersFilterProcessing') },
-      { key: 'ready', label: t('mobile.ordersFilterReady') },
-      { key: 'completed', label: t('mobile.ordersFilterCompleted') },
-      { key: 'due', label: t('mobile.ordersFilterDue') },
-    ],
-    [t]
-  );
+  const STATUS_FILTERS = useMemo(() => [
+    { key: 'all', label: t('mobile.ordersFilterAll') },
+    { key: 'pending', label: t('mobile.ordersFilterPending') },
+    { key: 'processing', label: t('mobile.ordersFilterProcessing') },
+    { key: 'ready', label: t('mobile.ordersFilterReady') },
+    { key: 'completed', label: t('mobile.ordersFilterCompleted') },
+    { key: 'due', label: t('mobile.ordersFilterDue') },
+  ], [t]);
 
-  const TIME_FILTERS = useMemo(
-    () => [
-      { key: 'today', label: t('mobile.timeFilterToday') },
-      { key: 'week', label: t('mobile.timeFilterWeek') },
-      { key: 'month', label: t('mobile.timeFilterMonth') },
-      { key: '3months', label: t('mobile.timeFilter3Months') },
-      { key: 'year', label: t('mobile.timeFilterYear') },
-      { key: 'all_time', label: t('mobile.timeFilterAll') },
-    ],
-    [t]
-  );
+  const TIME_FILTERS = useMemo(() => [
+    { key: 'today', label: t('mobile.timeFilterToday') },
+    { key: 'week', label: t('mobile.timeFilterWeek') },
+    { key: 'month', label: t('mobile.timeFilterMonth') },
+    { key: '3months', label: t('mobile.timeFilter3Months') },
+    { key: 'year', label: t('mobile.timeFilterYear') },
+    { key: 'all_time', label: t('mobile.timeFilterAll') },
+  ], [t]);
 
   const timeAgo = (date: Date | null): string => {
     if (!date) return '';
@@ -113,8 +113,8 @@ export default function OrdersScreen({
   const [timePeriod, setTimePeriod] = useState('all_time');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
-  // Sync initialFilter when it changes (e.g. navigating from due card)
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter);
   }, [initialFilter]);
@@ -127,8 +127,7 @@ export default function OrdersScreen({
       .limit(500)
       .onSnapshot(
         (snap: any) => {
-          const list = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-          setOrders(list);
+          setOrders(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
           setLoading(false);
         },
         () => setLoading(false)
@@ -136,224 +135,346 @@ export default function OrdersScreen({
     return unsub;
   }, [shopId]);
 
-  // Stats
   const stats = useMemo(() => {
-    let active = 0, pending = 0, processing = 0, dueCount = 0, dueAmount = 0, todayCollected = 0;
+    let active = 0, pending = 0, dueCount = 0, dueAmount = 0, todayCollected = 0;
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-
     orders.forEach((o) => {
-      const s = o.status || 'pending';
-      if (s !== 'delivered' && s !== 'cancelled') active++;
-      if (s === 'pending') pending++;
-      if (s === 'processing' || s === 'confirmed' || s === 'picked_up') processing++;
-      if (s !== 'cancelled') {
-        const balance = o.financials?.balance ?? ((o.financials?.total || 0) - (o.financials?.amountPaid || 0));
-        if (balance > 0) { dueCount++; dueAmount += Math.round(balance); }
+      const st = o.status || 'pending';
+      if (st !== 'delivered' && st !== 'picked_up' && st !== 'cancelled') active++;
+      if (st === 'pending') pending++;
+      if (st !== 'cancelled') {
+        const bal = o.financials?.balance ?? ((o.financials?.total || 0) - (o.financials?.amountPaid || 0));
+        if (bal > 0) { dueCount++; dueAmount += Math.round(bal); }
       }
       const created = toDate(o.createdAt);
-      if (created && created >= todayStart && s !== 'cancelled') {
-        todayCollected += (o.financials?.amountPaid || 0);
-      }
+      if (created && created >= todayStart && st !== 'cancelled') todayCollected += (o.financials?.amountPaid || 0);
     });
-    return { active, pending, processing, dueCount, dueAmount, todayCollected: Math.round(todayCollected) };
+    return { active, pending, dueCount, dueAmount, todayCollected: Math.round(todayCollected) };
   }, [orders]);
 
-  // Filtered & searched orders
   const filteredOrders = useMemo(() => {
     let list = orders;
-
-    // Time period filter
     const rangeStart = getTimeRange(timePeriod);
-    if (rangeStart) {
-      list = list.filter((o) => {
-        const created = toDate(o.createdAt);
-        return created && created >= rangeStart;
-      });
-    }
+    if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
 
-    // Status filter
     if (filter === 'pending') list = list.filter((o) => o.status === 'pending');
-    else if (filter === 'processing') list = list.filter((o) => ['confirmed', 'picked_up', 'processing'].includes(o.status));
-    else if (filter === 'ready') list = list.filter((o) => o.status === 'ready' || o.status === 'out_for_delivery');
-    else if (filter === 'completed') list = list.filter((o) => o.status === 'delivered');
+    else if (filter === 'processing') list = list.filter((o) => ['confirmed', 'picked_up_from_customer', 'processing'].includes(o.status));
+    else if (filter === 'ready') list = list.filter((o) => ['ready', 'ready_for_pickup', 'ready_for_delivery', 'out_for_delivery'].includes(o.status));
+    else if (filter === 'completed') list = list.filter((o) => ['delivered', 'picked_up'].includes(o.status));
     else if (filter === 'due') list = list.filter((o) => {
       if (o.status === 'cancelled') return false;
-      const balance = o.financials?.balance ?? ((o.financials?.total || 0) - (o.financials?.amountPaid || 0));
-      return balance > 0;
+      const bal = o.financials?.balance ?? ((o.financials?.total || 0) - (o.financials?.amountPaid || 0));
+      return bal > 0;
     });
 
-    // Search
     const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter((o) => {
-        const fields = [o.customerName, o.customerPhone, o.publicId, o.orderNumber].filter(Boolean).join(' ').toLowerCase();
-        return fields.includes(q);
-      });
-    }
+    if (q) list = list.filter((o) => {
+      return [o.customerName, o.customerPhone, o.publicId, o.orderNumber].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
 
     return list;
   }, [orders, filter, timePeriod, search]);
 
+  const handleQuickStatus = (order: any, nextStatus: string, label: string) => {
+    Alert.alert(
+      label,
+      `${order.customerName || t('mobile.guestCustomer')} — ${order.publicId || order.orderNumber}`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: label,
+          onPress: async () => {
+            try {
+              const docRef = firestore().collection(`shops/${shopId}/orders`).doc(order.id);
+              const currentTimeline = order.timeline || [];
+              const newEvent = {
+                id: `t-${Date.now()}`,
+                status: nextStatus,
+                timestamp: new Date(),
+                staffId: 'mobile',
+                staffName: 'Shop Owner',
+                notifiedCustomer: false,
+              };
+              const updateData: any = { status: nextStatus, updatedAt: new Date(), timeline: [...currentTimeline, newEvent] };
+              if (nextStatus === 'delivered' || nextStatus === 'picked_up') updateData.deliveredAt = new Date();
+              await docRef.update(updateData);
+            } catch (e: any) {
+              Alert.alert(t('mobile.errorTitle'), e.message || 'Failed');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleQuickCollect = (order: any) => {
+    const total = Math.round(order.financials?.total || 0);
+    const balance = Math.round(order.financials?.balance ?? (total - (order.financials?.amountPaid || 0)));
+    Alert.alert(
+      t('mobile.collectPaymentTitle', { defaultValue: 'Collect Payment' }),
+      `${formatCurrency(balance, countrySettings)} — ${order.customerName || t('mobile.guestCustomer')}`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('mobile.collectCash', { defaultValue: 'Collect Cash' }),
+          onPress: async () => {
+            try {
+              const docRef = firestore().collection(`shops/${shopId}/orders`).doc(order.id);
+              const currentPayments = order.payments || [];
+              await docRef.update({
+                'financials.amountPaid': total,
+                'financials.balance': 0,
+                paymentStatus: 'paid',
+                payments: [...currentPayments, { id: `p-${Date.now()}`, amount: balance, method: 'cash', collectedBy: 'Shop Owner', collectedAt: new Date() }],
+                updatedAt: new Date(),
+              });
+            } catch (e: any) {
+              Alert.alert(t('mobile.errorTitle'), e.message || 'Failed');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMessage = (order: any) => {
+    const phone = order.customerPhone;
+    if (phone) {
+      const cleaned = phone.replace(/\s+/g, '');
+      Linking.openURL(`https://wa.me/${cleaned.replace('+', '')}`).catch(() => {
+        Linking.openURL(`tel:${cleaned}`).catch(() => {});
+      });
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <HelpButton pageId="mobile_orders" />
-          <TouchableOpacity style={styles.timePicker} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
-            <Text style={styles.timePickerText}>{TIME_FILTERS.find((tf) => tf.key === timePeriod)?.label || t('mobile.timeFilterAll')}</Text>
-            <MaterialIcons name="expand-more" size={18} color="#00408f" />
-          </TouchableOpacity>
-        </View>
+      <View style={s.header}>
+        <TouchableOpacity style={s.iconBtn} onPress={onBack} activeOpacity={0.7}>
+          <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
+        <TouchableOpacity
+          style={[s.iconBtn, showSearch && { backgroundColor: colors.primaryTint }]}
+          onPress={() => { setShowSearch(!showSearch); if (showSearch) { setSearch(''); } }}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="search" size={20} color={showSearch ? colors.primary : colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#00408f" />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 + insets.bottom }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Compact Stats Row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>{t('mobile.ordersStatActive')}</Text>
-              <Text style={styles.statValue}>{stats.active}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>{t('mobile.ordersStatPending')}</Text>
-              <Text style={[styles.statValue, { color: '#e65100' }]}>{stats.pending}</Text>
-            </View>
-            <TouchableOpacity style={[styles.statCard, stats.dueCount > 0 && { backgroundColor: '#ffdad6' }]} onPress={() => setFilter(filter === 'due' ? 'all' : 'due')}>
-              <Text style={[styles.statLabel, stats.dueCount > 0 && { color: '#93000a' }]}>{t('mobile.ordersStatDue')}</Text>
-              <Text style={[styles.statValue, { color: stats.dueCount > 0 ? '#93000a' : '#00408f', fontSize: 14 }]}>
-                {stats.dueCount > 0 ? formatCurrency(stats.dueAmount, countrySettings) : formatCurrency(0, countrySettings)}
-              </Text>
-            </TouchableOpacity>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>{t('mobile.ordersStatToday')}</Text>
-              <Text style={[styles.statValue, { color: '#00408f', fontSize: 14 }]}>{formatCurrency(stats.todayCollected, countrySettings)}</Text>
-            </View>
-          </View>
-
-          {/* Status Filter Chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer} contentContainerStyle={styles.filterContent}>
-            {STATUS_FILTERS.map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                style={filter === f.key ? styles.filterChipActive : styles.filterChip}
-                onPress={() => setFilter(f.key)}
-              >
-                <Text style={filter === f.key ? styles.filterTextActive : styles.filterText}>{f.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Search */}
-          <View style={styles.searchContainer}>
-            <MaterialIcons name="search" size={20} color="#737685" style={{ marginRight: 8 }} />
+      <ScrollView
+        contentContainerStyle={[s.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Search Input (toggle) */}
+        {showSearch && (
+          <View style={s.searchWrapper}>
+            <MaterialIcons name="search" size={20} color={colors.textMuted} style={{ position: 'absolute', left: 16, zIndex: 1 }} />
             <TextInput
-              style={styles.searchInput}
+              style={s.searchInput}
               placeholder={t('mobile.ordersSearchPlaceholder')}
-              placeholderTextColor="#737685"
+              placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
+              autoFocus
             />
             {search ? (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <MaterialIcons name="close" size={18} color="#737685" />
+              <TouchableOpacity onPress={() => setSearch('')} style={{ position: 'absolute', right: 14 }}>
+                <MaterialIcons name="close" size={18} color={colors.textMuted} />
               </TouchableOpacity>
             ) : null}
           </View>
+        )}
 
-          {/* Section Header */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {filter === 'all' ? t('mobile.ordersSectionAll') : STATUS_FILTERS.find((f) => f.key === filter)?.label || t('mobile.ordersSectionFallback')}
-            </Text>
-            <Text style={styles.resultCount}>{t('mobile.ordersCountLabel', { count: filteredOrders.length })}</Text>
-          </View>
-
-          {/* Orders List */}
-          {filteredOrders.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="inbox" size={44} color="#c3c6d6" />
-              <Text style={styles.emptyText}>{t('mobile.ordersEmpty')}</Text>
+        {/* Stats Card — single card with dividers */}
+        {!loading && (
+          <View style={s.statsCard}>
+            <View style={s.statsCardRow}>
+              <View style={s.statCol}>
+                <Text style={s.statColLabel}>{t('mobile.ordersStatToday', { defaultValue: 'Today Rev' })}</Text>
+                <Text style={s.statColValue}>{formatCurrency(stats.todayCollected, countrySettings)}</Text>
+              </View>
+              <View style={s.statColDivider} />
+              <View style={s.statCol}>
+                <Text style={s.statColLabel}>{t('mobile.ordersStatActive', { defaultValue: 'Active' })}</Text>
+                <Text style={s.statColValue}>{stats.active}</Text>
+              </View>
+              <View style={s.statColDivider} />
+              <View style={s.statCol}>
+                <Text style={s.statColLabel}>{t('mobile.ordersStatPending', { defaultValue: 'Pending' })}</Text>
+                <Text style={s.statColValue}>{stats.pending}</Text>
+              </View>
+              <View style={s.statColDivider} />
+              <TouchableOpacity style={s.statCol} onPress={() => setFilter(filter === 'due' ? 'all' : 'due')}>
+                <Text style={s.statColLabel}>{t('mobile.ordersStatDue', { defaultValue: 'Due Amt' })}</Text>
+                <Text style={[s.statColValue, stats.dueAmount > 0 && { color: colors.error }]}>
+                  {formatCurrency(stats.dueAmount, countrySettings)}
+                </Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.orderStack}>
-              {filteredOrders.map((order) => {
-                const cfg = STATUS_CONFIG[order.status] || {
-                  label: t('mobile.orderStatusUnknown'),
-                  bg: '#f3f4f6',
-                  color: '#434654',
-                };
-                const created = toDate(order.createdAt);
-                const itemCount = (order.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
-                const total = Math.round(order.financials?.total || 0);
-                const balance = Math.round(order.financials?.balance ?? ((order.financials?.total || 0) - (order.financials?.amountPaid || 0)));
+          </View>
+        )}
 
-                return (
-                  <TouchableOpacity
-                    key={order.id}
-                    style={styles.orderCard}
-                    activeOpacity={0.7}
-                    onPress={() => onViewOrder?.(order.id)}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.orderTopRow}>
-                        <Text style={styles.orderId}>#{order.publicId || order.orderNumber}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          {balance > 0 && (
-                            <View style={styles.dueBadge}>
-                              <Text style={styles.dueBadgeText}>{withCurrencySymbol(t('mobile.orderDueShort', { amount: balance.toLocaleString() }) as string)}</Text>
-                            </View>
-                          )}
-                          <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-                            <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
-                          </View>
-                        </View>
-                      </View>
-                      <Text style={styles.orderCustomer} numberOfLines={1}>
-                        {order.customerName || t('mobile.guestCustomer')}
-                      </Text>
-                      <View style={styles.orderMeta}>
-                        <Text style={styles.orderMetaText}>{t('mobile.orderItemsCount', { count: itemCount })}</Text>
-                        <View style={styles.dot} />
-                        <Text style={styles.orderAmount}>{formatCurrency(total, countrySettings)}</Text>
-                        <View style={styles.dot} />
-                        <Text style={styles.orderTime}>{timeAgo(created)}</Text>
+        {/* Filter Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow}>
+          {STATUS_FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              style={[s.chip, filter === f.key && s.chipActive]}
+              onPress={() => setFilter(f.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.chipText, filter === f.key && s.chipTextActive]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Orders List */}
+        {loading ? (
+          <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={s.emptyState}>
+            <MaterialIcons name="search" size={40} color={colors.textMuted} />
+            <Text style={s.emptyTitle}>{t('mobile.ordersEmpty')}</Text>
+            <Text style={s.emptySubtitle}>{t('mobile.ordersEmptyHint', { defaultValue: 'Try searching for a different name, ID, or filter.' })}</Text>
+          </View>
+        ) : (
+          <View style={s.orderList}>
+            {filteredOrders.map((order) => {
+              const status = order.status || 'pending';
+              const sc = STATUS_COLORS[status] || { color: colors.textSecondary, bg: colors.surfaceMuted, accent: colors.textMuted };
+              const statusLabel = STATUS_LABELS[status] || status;
+              const created = toDate(order.createdAt);
+              const itemCount = (order.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
+              const itemSummary = (order.items || []).map((i: any) => i.serviceName || i.categoryName || '').filter(Boolean).slice(0, 2).join(', ');
+              const total = Math.round(order.financials?.total || 0);
+              const balance = Math.round(order.financials?.balance ?? ((order.financials?.total || 0) - (order.financials?.amountPaid || 0)));
+              const isPaid = balance <= 0;
+              const orderId = order.publicId || order.orderNumber || `ORD-${order.id?.slice(-4)}`;
+
+              return (
+                <TouchableOpacity key={order.id} style={s.orderCard} activeOpacity={0.7} onPress={() => onViewOrder?.(order.id)}>
+                  {/* Left accent bar */}
+                  <View style={[s.accentBar, { backgroundColor: sc.accent }]} />
+
+                  {/* Row 1: Order ID + Status + Price */}
+                  <View style={s.ocRow1}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={[s.ocOrderId, { color: sc.color }]}>{orderId}</Text>
+                      <View style={s.ocDot} />
+                      <View style={[s.ocStatusBadge, { backgroundColor: sc.bg }]}>
+                        <Text style={[s.ocStatusText, { color: sc.color }]}>{statusLabel.toUpperCase()}</Text>
                       </View>
                     </View>
-                    <MaterialIcons name="chevron-right" size={20} color="#c3c6d6" />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-      )}
+                    <Text style={s.ocPrice}>{formatCurrency(total, countrySettings)}</Text>
+                  </View>
 
-      {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { bottom: 56 + insets.bottom }]} activeOpacity={0.8} onPress={onNewOrder}>
-        <MaterialIcons name="add" size={28} color="#fff" />
+                  {/* Row 2: Customer name + item summary */}
+                  <View>
+                    <Text style={s.ocCustomer} numberOfLines={1}>{order.customerName || t('mobile.guestCustomer')}</Text>
+                    <Text style={s.ocItemSummary} numberOfLines={1}>
+                      {itemCount} {t('mobile.items', { defaultValue: 'items' })}
+                      {itemSummary ? ` · ${itemSummary}` : ''}
+                    </Text>
+                  </View>
+
+                  {/* Dashed separator */}
+                  <View style={s.dashedLine} />
+                  {/* Row 3: Badges + date */}
+                  <View style={s.ocRow3NoBorder}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <View style={[s.ocBadge, isPaid ? s.ocBadgePaid : s.ocBadgeUnpaid]}>
+                        <Text style={[s.ocBadgeText, { color: isPaid ? colors.success : colors.error }]}>
+                          {isPaid ? t('mobile.paid', { defaultValue: 'PAID' }) : t('mobile.unpaid', { defaultValue: 'UNPAID' })}
+                        </Text>
+                      </View>
+                      {order.deliveryType ? (
+                        <View style={s.ocBadgeDelivery}>
+                          <Text style={s.ocBadgeDeliveryText}>{order.deliveryType}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={s.ocDate}>{timeAgo(created)}</Text>
+                  </View>
+
+                  {/* Row 4: Smart Action Buttons */}
+                  {(status !== 'delivered' && status !== 'picked_up' && status !== 'cancelled') || !isPaid ? (
+                    <View style={s.cardActions}>
+                      {!isPaid && (
+                        <TouchableOpacity
+                          style={s.btnActionSecondary}
+                          activeOpacity={0.7}
+                          onPress={(e) => { e.stopPropagation?.(); handleQuickCollect(order); }}
+                        >
+                          <Text style={s.btnActionSecondaryText}>
+                            {t('mobile.collect', { defaultValue: 'Collect' })} {formatCurrency(balance, countrySettings)}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {status === 'pending' && (
+                        <TouchableOpacity
+                          style={s.btnActionPrimary}
+                          activeOpacity={0.7}
+                          onPress={(e) => { e.stopPropagation?.(); handleQuickStatus(order, 'processing', t('mobile.startProcessing', { defaultValue: 'Start Processing' })); }}
+                        >
+                          <Text style={s.btnActionPrimaryText}>{t('mobile.startProcessing', { defaultValue: 'Start Processing' })}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {(status === 'processing' || status === 'confirmed' || status === 'picked_up_from_customer') && (
+                        <TouchableOpacity
+                          style={s.btnActionSuccess}
+                          activeOpacity={0.7}
+                          onPress={(e) => { e.stopPropagation?.(); handleQuickStatus(order, 'ready', t('mobile.markReady', { defaultValue: 'Mark Ready' })); }}
+                        >
+                          <Text style={s.btnActionSuccessText}>{t('mobile.markReady', { defaultValue: 'Mark Ready' })}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {(status === 'ready' || status === 'ready_for_pickup' || status === 'ready_for_delivery') && (
+                        <TouchableOpacity
+                          style={s.btnActionPrimary}
+                          activeOpacity={0.7}
+                          onPress={(e) => { e.stopPropagation?.(); handleQuickStatus(order, 'delivered', t('mobile.deliverOrder', { defaultValue: 'Deliver Order' })); }}
+                        >
+                          <Text style={s.btnActionPrimaryText}>{t('mobile.deliverOrder', { defaultValue: 'Deliver Order' })}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={s.btnActionIcon}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation?.(); handleMessage(order); }}
+                      >
+                        <MaterialIcons name="chat-bubble-outline" size={16} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* FAB — positioned above bottom nav */}
+      <TouchableOpacity style={[s.fab, { bottom: 70 + insets.bottom }]} activeOpacity={0.85} onPress={onNewOrder}>
+        <MaterialIcons name="add" size={28} color={colors.surface} />
       </TouchableOpacity>
 
       {/* Time Period Dropdown */}
       <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
-        <Pressable style={styles.dropdownOverlay} onPress={() => setShowTimePicker(false)}>
-          <View style={styles.dropdownMenu}>
+        <Pressable style={s.dropdownOverlay} onPress={() => setShowTimePicker(false)}>
+          <View style={s.dropdownMenu}>
             {TIME_FILTERS.map((row) => (
               <TouchableOpacity
                 key={row.key}
-                style={[styles.dropdownItem, timePeriod === row.key && styles.dropdownItemActive]}
+                style={[s.dropdownItem, timePeriod === row.key && s.dropdownItemActive]}
                 onPress={() => { setTimePeriod(row.key); setShowTimePicker(false); }}
               >
-                <Text style={[styles.dropdownItemText, timePeriod === row.key && styles.dropdownItemTextActive]}>{row.label}</Text>
-                {timePeriod === row.key && <MaterialIcons name="check" size={16} color="#00408f" />}
+                <Text style={[s.dropdownItemText, timePeriod === row.key && s.dropdownItemTextActive]}>{row.label}</Text>
+                {timePeriod === row.key && <MaterialIcons name="check" size={16} color={colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -363,84 +484,141 @@ export default function OrdersScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+
+  // Header
   header: {
-    paddingHorizontal: 20, height: 48,
+    paddingHorizontal: 12, paddingTop: 0, paddingBottom: 6,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8f9fb',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#00408f' },
-  timePicker: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    backgroundColor: '#e3f2fd', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+  headerTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted,
+    alignItems: 'center', justifyContent: 'center',
   },
-  timePickerText: { fontSize: 12, fontWeight: '700', color: '#00408f' },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
 
-  // Stats
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  statCard: {
-    flex: 1, backgroundColor: '#ffffff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 6,
-    alignItems: 'center',
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
-  },
-  statLabel: { fontSize: 8, fontWeight: '700', color: '#737685', letterSpacing: 0.3, marginBottom: 2 },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#00408f' },
+  scrollContent: { padding: 16, gap: 12 },
 
-  // Status filters
-  filterContainer: { marginBottom: 10 },
-  filterContent: { gap: 8, paddingVertical: 2 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: '#e7e8ea' },
-  filterChipActive: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: '#00408f' },
-  filterText: { fontSize: 12, fontWeight: '600', color: '#434654' },
-  filterTextActive: { fontSize: 12, fontWeight: '700', color: '#ffffff' },
+  // Stats card
+  statsCard: {
+    backgroundColor: colors.surface, borderRadius: radii.card,
+    ...shadows.card, ...shadows.cardBorder,
+    paddingVertical: 10, paddingHorizontal: 8,
+  },
+  statsCardRow: { flexDirection: 'row', alignItems: 'center' },
+  statCol: { flex: 1, alignItems: 'center', gap: 2 },
+  statColDivider: { width: 1, backgroundColor: colors.border, alignSelf: 'stretch', marginHorizontal: 4 },
+  statColLabel: { fontSize: 9, fontFamily: fonts.bold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.3 },
+  statColValue: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
 
   // Search
-  searchContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff',
-    borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 12,
-    borderWidth: 1, borderColor: '#edeef0',
+  searchWrapper: { position: 'relative', justifyContent: 'center' },
+  searchInput: {
+    paddingVertical: 14, paddingLeft: 48, paddingRight: 40,
+    borderRadius: radii.input, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+    fontSize: 15, fontFamily: fonts.medium, color: colors.text,
   },
-  searchInput: { flex: 1, fontSize: 13, color: '#191c1e', fontWeight: '500' },
 
-  // Section
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8, paddingHorizontal: 2,
+  // Filter chips
+  chipsRow: { gap: 10, paddingBottom: 4 },
+  chip: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
   },
-  sectionTitle: { fontSize: 10, fontWeight: '800', color: '#434654', letterSpacing: 1.2 },
-  resultCount: { fontSize: 11, fontWeight: '600', color: '#737685' },
+  chipActive: {
+    backgroundColor: colors.primaryTint, borderColor: 'transparent',
+  },
+  chipText: { fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary },
+  chipTextActive: { color: colors.primary },
 
-  // Orders
-  orderStack: { gap: 8 },
+  // Order cards
+  orderList: { gap: 16 },
   orderCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    flexDirection: 'row', alignItems: 'center',
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card,
+    borderWidth: 1, borderColor: colors.border,
+    ...shadows.card,
+    overflow: 'hidden', padding: 12, paddingLeft: 16,
+    gap: 8,
   },
-  orderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  orderId: { fontSize: 12, fontWeight: '700', color: '#00408f' },
-  orderCustomer: { fontSize: 15, fontWeight: '700', color: '#191c1e', marginBottom: 3 },
-  orderMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  orderMetaText: { fontSize: 11, color: '#434654', fontWeight: '500' },
-  orderAmount: { fontSize: 11, fontWeight: '700', color: '#191c1e' },
-  orderTime: { fontSize: 11, color: '#737685' },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#c3c6d6' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
-  dueBadge: { backgroundColor: '#ffdad6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  dueBadgeText: { fontSize: 8, fontWeight: '800', color: '#93000a' },
+  accentBar: {
+    position: 'absolute', left: 0, top: 12, bottom: 12, width: 4,
+    borderTopRightRadius: 4, borderBottomRightRadius: 4,
+  },
+
+  // Row 1
+  ocRow1: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  ocOrderId: { fontSize: 11, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.8 },
+  ocDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textMuted },
+  ocStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  ocStatusText: { fontSize: 11, fontFamily: fonts.bold },
+  ocPrice: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+
+  // Row 2
+  ocCustomer: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
+  ocItemSummary: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
+
+  // Dashed separator
+  dashedLine: {
+    height: 1, borderStyle: 'dashed' as any, borderWidth: 1, borderColor: colors.border,
+    marginHorizontal: 0,
+  },
+  // Row 3
+  ocRow3NoBorder: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  ocBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  ocBadgePaid: { backgroundColor: colors.successBg },
+  ocBadgeUnpaid: { backgroundColor: colors.errorBg },
+  ocBadgeText: { fontSize: 11, fontFamily: fonts.bold },
+  ocBadgeDelivery: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border,
+  },
+  ocBadgeDeliveryText: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary },
+  ocDate: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary },
+
+  // Action buttons
+  cardActions: {
+    flexDirection: 'row', gap: 8,
+    borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 2,
+  },
+  btnActionPrimary: {
+    flex: 1, paddingVertical: 8, borderRadius: radii.button,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 6,
+  },
+  btnActionPrimaryText: { fontSize: 13, fontFamily: fonts.bold, color: colors.surface },
+  btnActionSecondary: {
+    flex: 1, paddingVertical: 8, borderRadius: radii.button,
+    backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, flexDirection: 'row', gap: 6,
+  },
+  btnActionSecondaryText: { fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary },
+  btnActionSuccess: {
+    flex: 1, paddingVertical: 8, borderRadius: radii.button,
+    backgroundColor: '#F1FBE7', alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 6,
+  },
+  btnActionSuccessText: { fontSize: 13, fontFamily: fonts.bold, color: '#84CC16' },
+  btnActionIcon: {
+    width: 34, height: 34, borderRadius: radii.button,
+    backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, flex: 0,
+  },
 
   // Empty
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 50 },
-  emptyText: { fontSize: 14, color: '#737685', marginTop: 10 },
+  emptyState: { alignItems: 'center', paddingVertical: 48, gap: 8 },
+  emptyTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.textSecondary, marginTop: 8 },
+  emptySubtitle: { fontFamily: fonts.medium, fontSize: 13, color: colors.textMuted, textAlign: 'center' },
 
   // FAB
   fab: {
-    position: 'absolute', right: 20, width: 54, height: 54, borderRadius: 16,
-    backgroundColor: '#00408f', justifyContent: 'center', alignItems: 'center',
-    elevation: 8, shadowColor: '#00408f', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
+    position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center',
+    ...shadows.fab,
   },
 
   // Dropdown
@@ -449,14 +627,14 @@ const styles = StyleSheet.create({
     paddingTop: 90, paddingRight: 16,
   },
   dropdownMenu: {
-    backgroundColor: '#ffffff', borderRadius: 12, paddingVertical: 6, minWidth: 160,
-    elevation: 8, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 6, minWidth: 160,
+    ...shadows.elevated,
   },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
   },
-  dropdownItemActive: { backgroundColor: '#e3f2fd' },
-  dropdownItemText: { fontSize: 13, fontWeight: '600', color: '#191c1e' },
-  dropdownItemTextActive: { fontSize: 13, fontWeight: '700', color: '#00408f' },
+  dropdownItemActive: { backgroundColor: colors.primaryTint },
+  dropdownItemText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text },
+  dropdownItemTextActive: { fontFamily: fonts.bold, color: colors.primary },
 });

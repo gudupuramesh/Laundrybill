@@ -465,7 +465,13 @@
     "pricingTypes": {
       "piece": "Per Piece",
       "kg": "Per Kg",
-      "sqft": "Per Sq. Ft."
+      "lb": "Per Pound",
+      "sqft": "Per Sq. Ft.",
+      "sqm": "Per Sq. Meter",
+      "set": "Per Set",
+      "pair": "Per Pair",
+      "load": "Per Load",
+      "bag": "Per Bag"
     }
   },
   "checkout": {
@@ -1247,9 +1253,13 @@
     "units": {
       "piece": "pc",
       "kg": "kg",
+      "lb": "lb",
       "sqft": "sq.ft",
+      "sqm": "m²",
       "set": "set",
-      "pair": "pair"
+      "pair": "pair",
+      "load": "load",
+      "bag": "bag"
     }
   },
   "expense": {

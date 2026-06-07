@@ -1,11 +1,13 @@
 import React, { useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
+import { useFonts, Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts } from './src/theme';
 import HomeScreen from './src/screens/HomeScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import CreateOrderScreen, { CreateOrderScreenRef } from './src/screens/CreateOrderScreen';
@@ -24,6 +26,11 @@ import ScanScreen from './src/screens/ScanScreen';
 import AddCustomerScreen from './src/screens/AddCustomerScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import StaffListScreen from './src/screens/StaffListScreen';
+import AttendanceScreen from './src/screens/AttendanceScreen';
+import CreateStaffLoginScreen from './src/screens/CreateStaffLoginScreen';
+import ExpenseListScreen from './src/screens/ExpenseListScreen';
+import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
@@ -43,6 +50,92 @@ const FORCE_SETUP_UID_KEY = 'force_setup_uid_v1';
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
 
+/** Standalone preview of the "Initializing Environment" setup animation. */
+function SetupInitPreview({ onDone }: { onDone: () => void }) {
+  const STEPS = [
+    'Setting up shop profile...',
+    'Configuring business preferences...',
+    'Populating master services...',
+    'Adding clothing items & pricing...',
+    'Initializing staff directories...',
+    'Deploying financial ledgers...',
+  ];
+  const [step, setStep] = React.useState(0);
+  const [done, setDone] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      for (let i = 0; i < STEPS.length; i++) {
+        if (cancelled) return;
+        setStep(i);
+        await new Promise(r => setTimeout(r, 800));
+      }
+      if (!cancelled) { setDone(true); await new Promise(r => setTimeout(r, 1800)); onDone(); }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []);
+
+  const pct = Math.round(((step + 1) / STEPS.length) * 100);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+      {!done ? (
+        <>
+          <View style={{ alignItems: 'center', marginBottom: 32 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 22, backgroundColor: '#0F1E36', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <MaterialIcons name="local-laundry-service" size={38} color="#fff" />
+            </View>
+            <Text style={{ fontSize: 22, fontFamily: fonts.bold, color: colors.text }}>Laundry Bill</Text>
+            <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: colors.textSecondary, marginTop: 4 }}>Initializing Environment...</Text>
+          </View>
+          <View style={{ width: '100%', backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 18, elevation: 6 }}>
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary, flex: 1 }}>{STEPS[step]}</Text>
+                <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary }}>{pct}%</Text>
+              </View>
+              <View style={{ width: '100%', height: 6, backgroundColor: colors.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
+                <View style={{ height: '100%', width: `${pct}%`, backgroundColor: colors.primary, borderRadius: 3 }} />
+              </View>
+            </View>
+            <View style={{ gap: 14 }}>
+              {STEPS.map((s, i) => {
+                const isDone = i < step; const isActive = i === step; const isPending = i > step;
+                return (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: isPending ? 0.3 : isDone ? 0.8 : 1 }}>
+                    <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                      {isDone ? (
+                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
+                          <MaterialIcons name="check" size={12} color="#fff" />
+                        </View>
+                      ) : isActive ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border }} />
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 14, fontFamily: isActive ? fonts.bold : fonts.semibold, color: isActive ? colors.primary : colors.textSecondary }}>{s}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </>
+      ) : (
+        <View style={{ alignItems: 'center' }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <MaterialIcons name="check" size={40} color="#fff" />
+          </View>
+          <Text style={{ fontSize: 22, fontFamily: fonts.bold, color: colors.text }}>Setup Complete!</Text>
+          <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary, marginTop: 6 }}>Redirecting to dashboard...</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function App() {
   return (
     <I18nextProvider i18n={i18n}>
@@ -57,6 +150,13 @@ function MainLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const launchStartedAt = useRef(Date.now());
+  const [fontsLoaded] = useFonts({
+    Quicksand_300Light,
+    Quicksand_400Regular,
+    Quicksand_500Medium,
+    Quicksand_600SemiBold,
+    Quicksand_700Bold,
+  });
   const [activeTab, setActiveTab] = useState('HOME');
   const [activeScreen, setActiveScreen] = useState<string | null>('LOGIN'); // Start with auth flow
   const [orderDraft, setOrderDraft] = useState<DraftOrderPayload | null>(null);
@@ -272,7 +372,7 @@ function MainLayout() {
     }
   }, []);
 
-  const bootstrapReady = !initializing && onboardingDone !== null;
+  const bootstrapReady = !initializing && onboardingDone !== null && fontsLoaded;
 
   React.useEffect(() => {
     if (!bootstrapReady) return;
@@ -361,10 +461,14 @@ function MainLayout() {
         return <OrdersScreen
                  onNewOrder={openCreateOrder}
                  onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
+                 onBack={() => setActiveTab('HOME')}
                  initialFilter={ordersInitialFilter}
                />;
       case 'EXPENSES':
-        return <ExpensesScreen />;
+        return <ExpensesScreen
+                 onStaffAttendance={() => setActiveScreen('ATTENDANCE')}
+                 onStaffList={() => setActiveScreen('STAFF_LIST')}
+               />;
       case 'CUSTOMERS':
         return <CustomerListScreen
                  onViewCustomer={(id: string) => setActiveScreen(`CUSTOMER_DETAILS_${id}`)}
@@ -376,6 +480,12 @@ function MainLayout() {
                  onManageItems={() => setActiveScreen('ADD_SERVICE')}
                  onEditProfile={() => setActiveScreen('EDIT_SHOP')}
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
+                 onStaffList={() => setActiveScreen('STAFF_LIST')}
+                 onAttendance={() => setActiveScreen('ATTENDANCE')}
+                 onCreateStaffLogin={() => setActiveScreen('CREATE_STAFF_LOGIN')}
+                 onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
+                 onPreviewOnboarding={() => setActiveScreen('PREVIEW_ONBOARDING')}
+                 onPreviewSetupInit={() => setActiveScreen('PREVIEW_SETUP_INIT')}
                />;
       default:
         return <HomeScreen
@@ -393,7 +503,7 @@ function MainLayout() {
   if (!user && onboardingDone === false) {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <OnboardingScreen
           onDone={async () => {
             await AsyncStorage.setItem(ONBOARDING_DONE_KEY, '1');
@@ -408,7 +518,7 @@ function MainLayout() {
   if (activeScreen === 'LOGIN') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <LoginScreen 
           onEmailSignIn={() => {}}
           onOpenCreateAccount={() => setActiveScreen('CREATE_ACCOUNT')}
@@ -420,7 +530,7 @@ function MainLayout() {
   if (activeScreen === 'CREATE_ACCOUNT') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <CreateAccountScreen
           onBack={() => setActiveScreen('LOGIN')}
           onCreate={async ({ email, password }) => {
@@ -453,7 +563,7 @@ function MainLayout() {
   if (activeScreen === 'REGISTER_SHOP') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <RegisterShopScreen 
           onComplete={() => {
             setPendingRegistration(null);
@@ -474,7 +584,7 @@ function MainLayout() {
   if (activeScreen === 'EDIT_SHOP') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <RegisterShopScreen
           onComplete={() => setActiveScreen(null)}
           onBack={() => setActiveScreen(null)}
@@ -484,10 +594,28 @@ function MainLayout() {
     );
   }
 
+  if (activeScreen === 'PREVIEW_ONBOARDING') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F1E36" />
+        <OnboardingScreen onDone={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'PREVIEW_SETUP_INIT') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <SetupInitPreview onDone={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
   if (activeScreen === 'SUBSCRIPTION') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <SubscriptionScreen onBack={() => setActiveScreen(null)} />
       </View>
     );
@@ -499,7 +627,7 @@ function MainLayout() {
   if (activeScreen === 'ADD_SERVICE') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <AddServiceScreen
           onBack={() => setActiveScreen(null)}
           onSave={() => setActiveScreen(null)}
@@ -517,12 +645,65 @@ function MainLayout() {
     const categoryName = parts[2] || '';
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <ServiceItemsScreen
           onBack={() => setActiveScreen('ADD_SERVICE')}
           categoryId={categoryId}
           categoryName={categoryName}
         />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'STAFF_LIST') {
+    return (
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <StaffListScreen
+          onBack={() => setActiveScreen(null)}
+          onViewStaff={(id: string) => setActiveScreen(`STAFF_DETAIL_${id}`)}
+          onAddStaff={() => {/* TODO: CreateStaffScreen */}}
+        />
+      </View>
+    );
+  }
+
+  if (activeScreen?.startsWith('STAFF_DETAIL_')) {
+    const sid = activeScreen.replace('STAFF_DETAIL_', '');
+    return (
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <StaffDetailScreen
+          onBack={() => setActiveScreen('STAFF_LIST')}
+          staffId={sid}
+        />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'EXPENSE_LIST') {
+    return (
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <ExpenseListScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'CREATE_STAFF_LOGIN') {
+    return (
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <CreateStaffLoginScreen onBack={() => setActiveScreen('STAFF_LIST')} />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'ATTENDANCE') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <AttendanceScreen onBack={() => setActiveScreen(null)} />
       </View>
     );
   }
@@ -543,7 +724,7 @@ function MainLayout() {
     const orderId = activeScreen.replace('ORDER_DETAILS_', '');
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <OrderDetailsScreen
           onBack={() => {
             setActiveScreen(null);
@@ -559,7 +740,7 @@ function MainLayout() {
   if (activeScreen === 'ADD_CUSTOMER') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <AddCustomerScreen
           onBack={() => setActiveScreen(null)}
           onCreated={(id: string) => setActiveScreen(`CUSTOMER_DETAILS_${id}`)}
@@ -572,7 +753,7 @@ function MainLayout() {
   if (activeScreen === 'ADD_CUSTOMER_FROM_ORDER') {
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <AddCustomerScreen
           onBack={() => setActiveScreen('CREATE_ORDER')}
           onCreated={() => setActiveScreen('CREATE_ORDER')}
@@ -586,7 +767,7 @@ function MainLayout() {
     const customerId = activeScreen.replace('EDIT_CUSTOMER_FROM_ORDER_', '');
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <CustomerDetailScreen
           onBack={() => setActiveScreen('CREATE_ORDER')}
           customerId={customerId}
@@ -600,7 +781,7 @@ function MainLayout() {
     const customerId = activeScreen.replace('CUSTOMER_DETAILS_', '');
     return (
       <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fb" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <CustomerDetailScreen
           onBack={() => setActiveScreen(null)}
           customerId={customerId}
@@ -614,7 +795,7 @@ function MainLayout() {
 
   return (
     <View style={[styles.safeArea, { paddingTop: isOrderScreenActive ? 0 : insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={activeScreen === 'ORDER_REVIEW' || activeScreen === 'ORDER_SUCCESS' ? '#f8f9fb' : isOrderScreenActive ? '#ffffff' : '#f8f9fb'} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
 
       {/* Dynamic Screen Content */}
       <View style={styles.content}>
@@ -624,44 +805,49 @@ function MainLayout() {
       {/* BottomNavBar — hidden when order screen is active */}
       {!isOrderScreenActive && (
         <View style={[styles.bottomNav, { paddingBottom: 4 + insets.bottom }]}>
+          {/* 1. Home */}
           <TouchableOpacity
             style={activeTab === 'HOME' ? styles.navItemActive : styles.navItem}
             onPress={() => setActiveTab('HOME')}
           >
-            <MaterialIcons name="home" size={20} color={activeTab === 'HOME' ? "#006f63" : "#94a3b8"} />
-            <Text style={activeTab === 'HOME' ? styles.navItemTextActive : styles.navItemText}>{t('common.home')}</Text>
+            <MaterialIcons name="home" size={22} color={activeTab === 'HOME' ? colors.navActive : colors.navInactive} />
+            <Text style={activeTab === 'HOME' ? styles.navItemTextActive : styles.navItemText}>Home</Text>
           </TouchableOpacity>
 
+          {/* 2. Orders */}
           <TouchableOpacity
             style={activeTab === 'ORDERS' ? styles.navItemActive : styles.navItem}
             onPress={() => { setOrdersInitialFilter(undefined); setActiveTab('ORDERS'); }}
           >
-            <MaterialIcons name="receipt-long" size={20} color={activeTab === 'ORDERS' ? "#006f63" : "#94a3b8"} />
-            <Text style={activeTab === 'ORDERS' ? styles.navItemTextActive : styles.navItemText}>{t('common.orders')}</Text>
+            <MaterialIcons name="receipt-long" size={22} color={activeTab === 'ORDERS' ? colors.navActive : colors.navInactive} />
+            <Text style={activeTab === 'ORDERS' ? styles.navItemTextActive : styles.navItemText}>Orders</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={activeTab === 'EXPENSES' ? styles.navItemActive : styles.navItem}
-            onPress={() => setActiveTab('EXPENSES')}
-          >
-            <MaterialIcons name="payments" size={20} color={activeTab === 'EXPENSES' ? "#006f63" : "#94a3b8"} />
-            <Text style={activeTab === 'EXPENSES' ? styles.navItemTextActive : styles.navItemText}>{t('mobile.tabFinance')}</Text>
-          </TouchableOpacity>
-
+          {/* 3. Customers */}
           <TouchableOpacity
             style={activeTab === 'CUSTOMERS' ? styles.navItemActive : styles.navItem}
             onPress={() => setActiveTab('CUSTOMERS')}
           >
-            <MaterialIcons name="groups" size={20} color={activeTab === 'CUSTOMERS' ? "#006f63" : "#94a3b8"} />
-            <Text style={activeTab === 'CUSTOMERS' ? styles.navItemTextActive : styles.navItemText}>{t('mobile.tabClients')}</Text>
+            <MaterialIcons name="people" size={22} color={activeTab === 'CUSTOMERS' ? colors.navActive : colors.navInactive} />
+            <Text style={activeTab === 'CUSTOMERS' ? styles.navItemTextActive : styles.navItemText}>Customers</Text>
           </TouchableOpacity>
 
+          {/* 4. Finances */}
+          <TouchableOpacity
+            style={activeTab === 'EXPENSES' ? styles.navItemActive : styles.navItem}
+            onPress={() => setActiveTab('EXPENSES')}
+          >
+            <MaterialIcons name="account-balance-wallet" size={22} color={activeTab === 'EXPENSES' ? colors.navActive : colors.navInactive} />
+            <Text style={activeTab === 'EXPENSES' ? styles.navItemTextActive : styles.navItemText}>Finances</Text>
+          </TouchableOpacity>
+
+          {/* 5. Settings */}
           <TouchableOpacity
             style={activeTab === 'SETTINGS' ? styles.navItemActive : styles.navItem}
             onPress={() => setActiveTab('SETTINGS')}
           >
-            <MaterialIcons name="settings" size={20} color={activeTab === 'SETTINGS' ? "#006f63" : "#94a3b8"} />
-            <Text style={activeTab === 'SETTINGS' ? styles.navItemTextActive : styles.navItemText}>{t('common.settings')}</Text>
+            <MaterialIcons name="settings" size={22} color={activeTab === 'SETTINGS' ? colors.navActive : colors.navInactive} />
+            <Text style={activeTab === 'SETTINGS' ? styles.navItemTextActive : styles.navItemText}>Settings</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -674,7 +860,7 @@ function MainLayout() {
       {/* CreateOrderScreen overlay — stays mounted while order is in progress */}
       {orderInProgress && (
         <View style={[
-          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#ffffff' },
+          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.surface },
           !isOrderScreenActive && { opacity: 0, pointerEvents: 'none' as const },
         ]}>
           <CreateOrderScreen
@@ -689,7 +875,7 @@ function MainLayout() {
             onEditCustomerDetail={(id) => setActiveScreen(`EDIT_CUSTOMER_FROM_ORDER_${id}`)}
           />
           {activeScreen === 'ORDER_REVIEW' && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#f8f9fb' }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background }}>
               <OrderReviewScreen
                 onBack={() => setActiveScreen('CREATE_ORDER')}
                 draftOrder={orderDraft}
@@ -708,7 +894,7 @@ function MainLayout() {
             </View>
           )}
           {activeScreen === 'ORDER_SUCCESS' && placedOrder && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#f8f9fb' }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background }}>
               <OrderSuccessScreen
                 order={placedOrder}
                 onViewOrder={() => {
@@ -735,7 +921,7 @@ function MainLayout() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,
@@ -745,44 +931,44 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 10,
     paddingBottom: 4,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: colors.border,
     elevation: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: -2 },
   },
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    minWidth: 56,
   },
   navItemActive: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-    backgroundColor: '#e0faf5',
-    paddingHorizontal: 14,
+    gap: 3,
+    paddingHorizontal: 6,
     paddingVertical: 4,
-    borderRadius: 16,
+    minWidth: 56,
   },
   navItemText: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#94a3b8',
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.navInactive,
   },
   navItemTextActive: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#006f63',
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.navActive,
   },
 });

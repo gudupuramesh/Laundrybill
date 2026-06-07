@@ -36,6 +36,7 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
     plantApp: "Plant Dashboard",
     qrScans: "QR Code System",
     publicOrderingPage: "Public Ordering Page",
+    webDashboard: "Web Dashboard Access",
 };
 
 export function PlanEditorSheet({

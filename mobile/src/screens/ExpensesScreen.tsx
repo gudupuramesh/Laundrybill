@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { formatCurrency } from '../lib/currency-format';
@@ -44,12 +46,12 @@ const CAT_DEF_MAP: Record<string, { labelEn: string; icon: string; group: string
 EXPENSE_CATEGORY_DEFS.forEach((c) => { CAT_DEF_MAP[c.key] = { labelEn: c.labelEn, icon: c.icon, group: c.group }; });
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Utilities: '#e65100',
-  Supplies: '#006b5f',
-  Equipment: '#1565c0',
+  Utilities: colors.warning,
+  Supplies: colors.success,
+  Equipment: colors.primary,
   Operations: '#5e3c00',
   Business: '#7b1fa2',
-  Other: '#434654',
+  Other: colors.textSecondary,
 };
 
 type TimePeriod = 'day' | 'week' | 'month' | 'year' | 'custom';
@@ -321,7 +323,13 @@ function buildFinancialReportHtml(
 
 // ─── Component ────────────────────────────────────────────────────────
 
-export default function ExpensesScreen() {
+export default function ExpensesScreen({
+  onStaffAttendance,
+  onStaffList,
+}: {
+  onStaffAttendance?: () => void;
+  onStaffList?: () => void;
+} = {}) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
@@ -569,7 +577,7 @@ export default function ExpensesScreen() {
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#00408f" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <ScrollView
@@ -585,10 +593,10 @@ export default function ExpensesScreen() {
               activeOpacity={0.7}
             >
               {generatingReport ? (
-                <ActivityIndicator size="small" color="#00408f" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <>
-                  <MaterialIcons name="description" size={14} color="#00408f" />
+                  <MaterialIcons name="description" size={14} color={colors.primary} />
                   <Text style={styles.toolbarReportText}>{t('mobile.financeToolbarReport')}</Text>
                 </>
               )}
@@ -602,12 +610,12 @@ export default function ExpensesScreen() {
               <MaterialIcons
                 name={(PERIOD_OPTIONS.find((p) => p.key === timePeriod)?.icon as any) || 'calendar-month'}
                 size={14}
-                color="#00408f"
+                color={colors.primary}
               />
               <Text style={styles.toolbarPeriodText} numberOfLines={1}>
                 {PERIOD_OPTIONS.find((p) => p.key === timePeriod)?.label || t('mobile.periodMonthFallback')}
               </Text>
-              <MaterialIcons name="expand-more" size={16} color="#00408f" />
+              <MaterialIcons name="expand-more" size={16} color={colors.primary} />
             </TouchableOpacity>
 
             {timePeriod !== 'custom' ? (
@@ -617,7 +625,7 @@ export default function ExpensesScreen() {
                   style={styles.toolbarNavBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <MaterialIcons name="chevron-left" size={22} color="#00408f" />
+                  <MaterialIcons name="chevron-left" size={22} color={colors.primary} />
                 </TouchableOpacity>
                 <Text style={styles.toolbarDateLabel} numberOfLines={1}>
                   {periodLabel}
@@ -627,7 +635,7 @@ export default function ExpensesScreen() {
                   style={styles.toolbarNavBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <MaterialIcons name="chevron-right" size={22} color="#00408f" />
+                  <MaterialIcons name="chevron-right" size={22} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -643,51 +651,49 @@ export default function ExpensesScreen() {
                 <Text style={styles.toolbarDateLabel} numberOfLines={1}>
                   {periodLabel}
                 </Text>
-                <MaterialIcons name="edit" size={14} color="#00408f" />
+                <MaterialIcons name="edit" size={14} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* ─── Summary Cards ──────────────────────────────────── */}
-          <View style={styles.summaryGrid}>
-            <View style={[styles.summaryCard, { backgroundColor: '#e8f5e9' }]}>
-              <Text style={styles.summaryLabel}>{t('mobile.finSummaryIncome')}</Text>
-              <Text style={[styles.summaryValue, { color: '#2e7d32' }]}>{formatCurrency(Math.round(financials.totalRevenue), countrySettings)}</Text>
+          {/* ─── Blue Gradient Net Profit Card ──────────────────── */}
+          <LinearGradient
+            colors={['#1B61E5', '#124BB8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.profitCard}
+          >
+            <Text style={styles.profitLabel}>{t('mobile.estimatedNetProfit', { defaultValue: 'ESTIMATED NET PROFIT' })}</Text>
+            <Text style={styles.profitValue}>
+              {financials.netProfit < 0 ? '-' : ''}{formatCurrency(Math.abs(Math.round(financials.netProfit)), countrySettings)}
+            </Text>
+            <View style={styles.profitRow}>
+              <View style={styles.profitCol}>
+                <Text style={styles.profitColLabel}>{t('mobile.monthlyIncome', { defaultValue: 'Monthly Income' })}</Text>
+                <Text style={styles.profitColValue}>{formatCurrency(Math.round(financials.totalRevenue), countrySettings)}</Text>
+              </View>
+              <View style={styles.profitDivider} />
+              <View style={styles.profitCol}>
+                <Text style={styles.profitColLabel}>{t('mobile.monthlyExpenses', { defaultValue: 'Monthly Expenses' })}</Text>
+                <Text style={styles.profitColValue}>{formatCurrency(Math.round(financials.totalExpenses), countrySettings)}</Text>
+              </View>
             </View>
-            <View style={[styles.summaryCard, { backgroundColor: '#fce4ec' }]}>
-              <Text style={styles.summaryLabel}>{t('mobile.finSummaryExpenses')}</Text>
-              <Text style={[styles.summaryValue, { color: '#c62828' }]}>{formatCurrency(Math.round(financials.totalExpenses), countrySettings)}</Text>
-            </View>
-            <View style={[styles.summaryCard, { backgroundColor: '#fff3e0' }]}>
-              <Text style={styles.summaryLabel}>{t('mobile.finSummaryPending')}</Text>
-              <Text style={[styles.summaryValue, { color: '#e65100' }]}>{formatCurrency(Math.round(financials.pending), countrySettings)}</Text>
-            </View>
-            <View style={[styles.summaryCard, { backgroundColor: financials.netProfit >= 0 ? '#e3f2fd' : '#ffdad6' }]}>
-              <Text style={styles.summaryLabel}>{t('mobile.finSummaryNetProfit')}</Text>
-              <Text style={[styles.summaryValue, { color: financials.netProfit >= 0 ? '#00408f' : '#93000a' }]}>
-                {financials.netProfit < 0 ? '-' : ''}{formatCurrency(Math.abs(Math.round(financials.netProfit)), countrySettings)}
-              </Text>
-            </View>
+          </LinearGradient>
+
+          {/* ─── Quick Action Buttons ──────────────────────────── */}
+          <View style={styles.quickActionRow}>
+            <TouchableOpacity style={styles.qaSecondary} activeOpacity={0.7} onPress={onStaffAttendance}>
+              <MaterialIcons name="groups" size={18} color={colors.primary} />
+              <Text style={styles.qaSecondaryText}>{t('mobile.staffAttendance', { defaultValue: 'Staff Attendance' })}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.qaPrimary} activeOpacity={0.8} onPress={() => { resetForm(); setAddModal(true); }}>
+              <MaterialIcons name="add" size={18} color={colors.surface} />
+              <Text style={styles.qaPrimaryText}>{t('mobile.quickExpense', { defaultValue: 'Quick Expense' })}</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* ─── View Mode Tabs ─────────────────────────────────── */}
-          <View style={styles.tabRow}>
-            {(['overview', 'revenue', 'expenses'] as const).map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={[styles.tab, viewMode === mode && styles.tabActive]}
-                onPress={() => setViewMode(mode)}
-              >
-                <Text style={[styles.tabText, viewMode === mode && styles.tabTextActive]}>
-                  {mode === 'overview' ? t('mobile.finTabOverview') : mode === 'revenue' ? t('mobile.finTabRevenue') : t('mobile.finTabExpenses')}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* ─── OVERVIEW TAB ───────────────────────────────────── */}
-          {viewMode === 'overview' && (
-            <>
+          {/* ─── All sections in single scroll (no tabs) ────────── */}
+          <>
               {/* Revenue by Order Type */}
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>{t('mobile.finCardRevenueByType')}</Text>
@@ -701,7 +707,7 @@ export default function ExpensesScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.breakdownLabel}>{deliveryTypeLabelT(type, t)}</Text>
                           <View style={styles.barBg}>
-                            <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: '#00408f' }]} />
+                            <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: colors.primary }]} />
                           </View>
                         </View>
                         <Text style={styles.breakdownValue}>{formatCurrency(Math.round(amount), countrySettings)}</Text>
@@ -719,7 +725,7 @@ export default function ExpensesScreen() {
                   .sort(([, a], [, b]) => b - a)
                   .map(([group, amount]) => {
                     const pct = financials.totalExpenses > 0 ? Math.round((amount / financials.totalExpenses) * 100) : 0;
-                    const color = CATEGORY_COLORS[group] || '#434654';
+                    const color = CATEGORY_COLORS[group] || colors.textSecondary;
                     return (
                       <View key={group} style={styles.breakdownRow}>
                         <View style={{ flex: 1 }}>
@@ -742,12 +748,12 @@ export default function ExpensesScreen() {
                 <View style={styles.collectionRow}>
                   <View style={styles.collectionItem}>
                     <Text style={styles.collectionLabel}>{t('mobile.finCollected')}</Text>
-                    <Text style={[styles.collectionValue, { color: '#2e7d32' }]}>{formatCurrency(Math.round(financials.collected), countrySettings)}</Text>
+                    <Text style={[styles.collectionValue, { color: colors.success }]}>{formatCurrency(Math.round(financials.collected), countrySettings)}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
                     <Text style={styles.collectionLabel}>{t('mobile.finPending')}</Text>
-                    <Text style={[styles.collectionValue, { color: '#e65100' }]}>{formatCurrency(Math.round(financials.pending), countrySettings)}</Text>
+                    <Text style={[styles.collectionValue, { color: colors.warning }]}>{formatCurrency(Math.round(financials.pending), countrySettings)}</Text>
                   </View>
                   <View style={styles.collectionDivider} />
                   <View style={styles.collectionItem}>
@@ -757,99 +763,8 @@ export default function ExpensesScreen() {
                 </View>
               </View>
             </>
-          )}
 
-          {/* ─── REVENUE TAB ────────────────────────────────────── */}
-          {viewMode === 'revenue' && (
-            <>
-              {orders.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <MaterialIcons name="receipt-long" size={44} color="#c3c6d6" />
-                  <Text style={styles.emptyText}>{t('mobile.finNoOrdersPeriod')}</Text>
-                </View>
-              ) : (
-                <View style={styles.listGap}>
-                  {orders.filter((o) => o.status !== 'cancelled').map((order) => {
-                    const total = Math.round(order.financials?.total || 0);
-                    const paid = Math.round(order.financials?.amountPaid || 0);
-                    const balance = Math.round(order.financials?.balance || 0);
-                    const created = toDate(order.createdAt);
-                    const publicId = order.publicId || order.orderNumber || order.id?.slice(-4) || '';
-                    const dType = order.deliveryType || 'pickup_store';
-                    return (
-                      <View key={order.id} style={styles.revenueCard}>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.revenueTopRow}>
-                            <Text style={styles.revenueOrderId}>#{publicId}</Text>
-                            <Text style={styles.revenueDate}>{formatDateLocale(created, i18n.language)}</Text>
-                          </View>
-                          <Text style={styles.revenueName}>{order.customerName || t('mobile.guestLabel')}</Text>
-                          <View style={styles.revenueMeta}>
-                            <Text style={styles.revenueType}>{deliveryTypeLabelT(dType, t)}</Text>
-                            {balance > 0 ? (
-                              <Text style={styles.revenueDue}>{withCurrencySymbol(t('mobile.orderDueLabel', { amount: balance }) as string)}</Text>
-                            ) : (
-                              <Text style={styles.revenuePaid}>{t('mobile.paidLabel')}</Text>
-                            )}
-                          </View>
-                        </View>
-                        <Text style={styles.revenueAmount}>{formatCurrency(total, countrySettings)}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </>
-          )}
-
-          {/* ─── EXPENSES TAB ───────────────────────────────────── */}
-          {viewMode === 'expenses' && (
-            <>
-              {expenses.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <MaterialIcons name="account-balance-wallet" size={44} color="#c3c6d6" />
-                  <Text style={styles.emptyText}>{t('mobile.finNoExpensesEmpty')}</Text>
-                  <TouchableOpacity style={styles.addBtnInline} onPress={() => setAddModal(true)}>
-                    <MaterialIcons name="add" size={18} color="#fff" />
-                    <Text style={styles.addBtnInlineText}>{t('mobile.finAddExpense')}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.listGap}>
-                  {expenses.map((exp) => {
-                    const cat = CAT_DEF_MAP[exp.category] || { labelEn: exp.category || 'Other', icon: 'more-horiz', group: 'Other' };
-                    const color = CATEGORY_COLORS[cat.group] || '#434654';
-                    const created = toDate(exp.date);
-                    return (
-                      <View key={exp.id} style={styles.expenseCard}>
-                        <View style={[styles.expenseIcon, { backgroundColor: color + '18' }]}>
-                          <MaterialIcons name={cat.icon as any} size={18} color={color} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.expenseName}>{exp.description || catLabelT(exp.category || 'miscellaneous', t)}</Text>
-                          <View style={styles.expenseMeta}>
-                            <Text style={styles.expenseMetaText}>{catLabelT(exp.category || 'miscellaneous', t)}</Text>
-                            <View style={styles.dot} />
-                            <Text style={styles.expenseMetaText}>{formatDateLocale(created, i18n.language)}</Text>
-                            {exp.vendor ? (
-                              <>
-                                <View style={styles.dot} />
-                                <Text style={styles.expenseMetaText}>{exp.vendor}</Text>
-                              </>
-                            ) : null}
-                          </View>
-                        </View>
-                        <Text style={styles.expenseAmount}>-{formatCurrency(Math.round(exp.amount), countrySettings)}</Text>
-                        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteExpense(exp.id)}>
-                          <MaterialIcons name="delete-outline" size={18} color="#c62828" />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </>
-          )}
+          {/* Individual order/expense lists removed — use dedicated screens */}
         </ScrollView>
       )}
 
@@ -859,7 +774,7 @@ export default function ExpensesScreen() {
         activeOpacity={0.8}
         onPress={() => { resetForm(); setAddModal(true); }}
       >
-        <MaterialIcons name="add" size={28} color="#fff" />
+        <MaterialIcons name="add" size={28} color={colors.surface} />
       </TouchableOpacity>
 
       {/* ═══ Time Period Picker Modal ═══ */}
@@ -887,9 +802,9 @@ export default function ExpensesScreen() {
                   }
                 }}
               >
-                <MaterialIcons name={opt.icon as any} size={20} color={timePeriod === opt.key ? '#00408f' : '#434654'} />
+                <MaterialIcons name={opt.icon as any} size={20} color={timePeriod === opt.key ? colors.primary : colors.textSecondary} />
                 <Text style={[styles.periodOptionText, timePeriod === opt.key && styles.periodOptionTextActive]}>{opt.label}</Text>
-                {timePeriod === opt.key && <MaterialIcons name="check" size={20} color="#00408f" />}
+                {timePeriod === opt.key && <MaterialIcons name="check" size={20} color={colors.primary} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -909,7 +824,7 @@ export default function ExpensesScreen() {
               value={customStartText}
               onChangeText={setCustomStartText}
               placeholder={t('mobile.finPlaceholderStart')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numbers-and-punctuation"
               autoFocus
             />
@@ -919,7 +834,7 @@ export default function ExpensesScreen() {
               value={customEndText}
               onChangeText={setCustomEndText}
               placeholder={t('mobile.finPlaceholderEnd')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numbers-and-punctuation"
             />
             <View style={styles.modalActions}>
@@ -943,7 +858,7 @@ export default function ExpensesScreen() {
             <Text style={styles.modalTitle}>{t('mobile.finAddExpenseTitle')}</Text>
 
             {/* Amount */}
-            <Text style={styles.fieldLabel}>{t('mobile.finAmountLabel')} <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finAmountLabel')} <Text style={{ color: colors.error }}>*</Text></Text>
             <View style={styles.amountRow}>
               <Text style={styles.currencySign}>{countrySettings.currencySymbol || '$'}</Text>
               <TextInput
@@ -951,26 +866,26 @@ export default function ExpensesScreen() {
                 value={expAmount}
                 onChangeText={setExpAmount}
                 placeholder="0"
-                placeholderTextColor="#c3c6d6"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
                 autoFocus
               />
             </View>
 
             {/* Category */}
-            <Text style={styles.fieldLabel}>{t('mobile.finCategoryLabel')} <Text style={{ color: '#c62828' }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.finCategoryLabel')} <Text style={{ color: colors.error }}>*</Text></Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
               {EXPENSE_CATEGORY_DEFS.map((cat) => {
                 const isSelected = expCategory === cat.key;
-                const color = CATEGORY_COLORS[cat.group] || '#434654';
+                const color = CATEGORY_COLORS[cat.group] || colors.textSecondary;
                 return (
                   <TouchableOpacity
                     key={cat.key}
                     style={[styles.catChip, isSelected && { backgroundColor: color, borderColor: color }]}
                     onPress={() => setExpCategory(cat.key)}
                   >
-                    <MaterialIcons name={cat.icon as any} size={14} color={isSelected ? '#fff' : color} />
-                    <Text style={[styles.catChipText, isSelected && { color: '#fff' }]}>{catLabelT(cat.key, t)}</Text>
+                    <MaterialIcons name={cat.icon as any} size={14} color={isSelected ? colors.surface : color} />
+                    <Text style={[styles.catChipText, isSelected && { color: colors.surface }]}>{catLabelT(cat.key, t)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -983,7 +898,7 @@ export default function ExpensesScreen() {
               value={expDescription}
               onChangeText={setExpDescription}
               placeholder={t('mobile.expenseWhatPlaceholder')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
             />
 
             {/* Vendor */}
@@ -993,7 +908,7 @@ export default function ExpensesScreen() {
               value={expVendor}
               onChangeText={setExpVendor}
               placeholder={t('mobile.phOptional')}
-              placeholderTextColor="#c3c6d6"
+              placeholderTextColor={colors.textMuted}
             />
 
             {/* Actions */}
@@ -1006,7 +921,7 @@ export default function ExpensesScreen() {
                 onPress={handleAddExpense}
                 disabled={saving || !expAmount || !expCategory}
               >
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : (
+                {saving ? <ActivityIndicator size="small" color={colors.surface} /> : (
                   <Text style={styles.primaryBtnText}>{t('mobile.finAddExpense')}</Text>
                 )}
               </TouchableOpacity>
@@ -1021,166 +936,179 @@ export default function ExpensesScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: 20, height: 48,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8f9fb',
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#00408f' },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
+  headerTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text },
+  scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
   // Toolbar: Report + period preset + month navigation (single row)
   toolbarRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md,
   },
   toolbarReportBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8,
-    borderWidth: 1, borderColor: '#00408f', flexShrink: 0,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.badge,
+    borderWidth: 1, borderColor: colors.primary, flexShrink: 0,
   },
-  toolbarReportText: { fontSize: 11, fontWeight: '700', color: '#00408f' },
+  toolbarReportText: { fontSize: 11, fontFamily: fonts.bold, color: colors.primary },
   toolbarPeriodChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     maxWidth: 118,
-    paddingHorizontal: 8, paddingVertical: 6, borderRadius: 16,
-    backgroundColor: '#d8e2ff', flexShrink: 0,
+    paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.chip,
+    backgroundColor: colors.primaryTint, flexShrink: 0,
   },
-  toolbarPeriodText: { fontSize: 11, fontWeight: '700', color: '#00408f', flexShrink: 1 },
+  toolbarPeriodText: { fontSize: 11, fontFamily: fonts.bold, color: colors.primary, flexShrink: 1 },
   toolbarDateNav: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
     minWidth: 0, gap: 2,
   },
   toolbarNavBtn: { padding: 2 },
   toolbarDateLabel: {
-    flex: 1, fontSize: 12, fontWeight: '700', color: '#191c1e', textAlign: 'center',
+    flex: 1, fontSize: 12, fontFamily: fonts.bold, color: colors.text, textAlign: 'center',
     minWidth: 0,
   },
   toolbarCustomSummary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
-    gap: 4, minWidth: 0, paddingVertical: 4, paddingHorizontal: 6,
+    gap: spacing.xs, minWidth: 0, paddingVertical: spacing.xs, paddingHorizontal: 6,
   },
 
-  // Summary
-  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  summaryCard: {
-    width: '48%' as any, flexGrow: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12,
+  // Blue Gradient Profit Card
+  profitCard: {
+    borderRadius: radii.card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: spacing.sm,
+    gap: 8, overflow: 'hidden',
   },
-  summaryLabel: { fontSize: 8, fontWeight: '700', color: '#434654', letterSpacing: 0.5, marginBottom: 2 },
-  summaryValue: { fontSize: 18, fontWeight: '800' },
+  profitLabel: { fontSize: 10, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.8, textTransform: 'uppercase' },
+  profitValue: { fontSize: 26, fontFamily: fonts.bold, color: colors.surface },
+  profitRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)', paddingTop: 10 },
+  profitCol: { flex: 1 },
+  profitColLabel: { fontSize: 10, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.7)' },
+  profitColValue: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface, marginTop: 1 },
+  profitDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 12 },
 
-  // Tabs
-  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  tab: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#e7e8ea', alignItems: 'center' },
-  tabActive: { backgroundColor: '#00408f' },
-  tabText: { fontSize: 12, fontWeight: '600', color: '#434654' },
-  tabTextActive: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  // Quick Action Buttons
+  quickActionRow: { flexDirection: 'row', gap: 12, marginBottom: spacing.lg },
+  qaSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: radii.input,
+    backgroundColor: colors.primaryTint,
+  },
+  qaSecondaryText: { fontSize: 14, fontFamily: fonts.bold, color: colors.primary },
+  qaPrimary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: radii.input,
+    backgroundColor: colors.primary,
+  },
+  qaPrimaryText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 
   // Card
   card: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 14, marginBottom: 12, gap: 10,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 14, marginBottom: spacing.md, gap: 10,
+    ...shadows.card, ...shadows.cardBorder,
   },
-  cardTitle: { fontSize: 12, fontWeight: '700', color: '#434654', letterSpacing: 0.5 },
+  cardTitle: { fontSize: 12, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5 },
 
   // Breakdown rows
   breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  breakdownLabel: { fontSize: 13, fontWeight: '600', color: '#191c1e', marginBottom: 4 },
-  breakdownValue: { fontSize: 13, fontWeight: '700', color: '#191c1e', width: 70, textAlign: 'right' },
-  breakdownPct: { fontSize: 11, fontWeight: '600', color: '#737685', width: 32, textAlign: 'right' },
-  barBg: { height: 6, borderRadius: 3, backgroundColor: '#f3f4f6', overflow: 'hidden' },
+  breakdownLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text, marginBottom: 4 },
+  breakdownValue: { fontSize: 13, fontFamily: fonts.bold, color: colors.text, width: 70, textAlign: 'right' },
+  breakdownPct: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textMuted, width: 32, textAlign: 'right' },
+  barBg: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
 
   // Collection
   collectionRow: { flexDirection: 'row', alignItems: 'center' },
   collectionItem: { flex: 1, alignItems: 'center' },
-  collectionDivider: { width: 1, height: 32, backgroundColor: '#edeef0' },
-  collectionLabel: { fontSize: 10, fontWeight: '600', color: '#737685', marginBottom: 2 },
-  collectionValue: { fontSize: 16, fontWeight: '800', color: '#191c1e' },
+  collectionDivider: { width: 1, height: 32, backgroundColor: colors.border },
+  collectionLabel: { fontSize: 10, fontFamily: fonts.semibold, color: colors.textMuted, marginBottom: 2 },
+  collectionValue: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
 
   // Revenue list
-  listGap: { gap: 8 },
+  listGap: { gap: spacing.sm },
   revenueCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: colors.surface, borderRadius: radii.card, paddingHorizontal: 14, paddingVertical: spacing.md,
     flexDirection: 'row', alignItems: 'center',
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    ...shadows.card, ...shadows.cardBorder,
   },
   revenueTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  revenueOrderId: { fontSize: 12, fontWeight: '700', color: '#00408f' },
-  revenueDate: { fontSize: 11, color: '#737685' },
-  revenueName: { fontSize: 14, fontWeight: '600', color: '#191c1e', marginBottom: 2 },
-  revenueMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  revenueType: { fontSize: 11, fontWeight: '500', color: '#434654' },
-  revenueDue: { fontSize: 10, fontWeight: '700', color: '#93000a' },
-  revenuePaid: { fontSize: 10, fontWeight: '700', color: '#006b5f' },
-  revenueAmount: { fontSize: 15, fontWeight: '800', color: '#2e7d32', marginLeft: 12 },
+  revenueOrderId: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary },
+  revenueDate: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted },
+  revenueName: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text, marginBottom: 2 },
+  revenueMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  revenueType: { fontSize: 11, fontFamily: fonts.medium, color: colors.textSecondary },
+  revenueDue: { fontSize: 10, fontFamily: fonts.bold, color: colors.error },
+  revenuePaid: { fontSize: 10, fontFamily: fonts.bold, color: colors.success },
+  revenueAmount: { fontSize: 15, fontFamily: fonts.bold, color: colors.success, marginLeft: spacing.md },
 
   // Expense list
   expenseCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: colors.surface, borderRadius: radii.card, paddingHorizontal: 14, paddingVertical: spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+    ...shadows.card, ...shadows.cardBorder,
   },
   expenseIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  expenseName: { fontSize: 14, fontWeight: '600', color: '#191c1e', marginBottom: 2 },
+  expenseName: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text, marginBottom: 2 },
   expenseMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  expenseMetaText: { fontSize: 11, color: '#737685' },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#c3c6d6' },
-  expenseAmount: { fontSize: 14, fontWeight: '700', color: '#c62828' },
-  deleteBtn: { padding: 6, marginLeft: 4 },
+  expenseMetaText: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted },
+  expenseAmount: { fontSize: 14, fontFamily: fonts.bold, color: colors.error },
+  deleteBtn: { padding: 6, marginLeft: spacing.xs },
 
   // Empty
-  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
-  emptyText: { fontSize: 14, color: '#737685' },
-  emptySmall: { fontSize: 12, color: '#737685', textAlign: 'center' },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: spacing.sm },
+  emptyText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textMuted },
+  emptySmall: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, textAlign: 'center' },
   addBtnInline: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#00408f',
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radii.button, backgroundColor: colors.primary,
   },
-  addBtnInlineText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  addBtnInlineText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.surface },
 
   // FAB
   fab: {
-    position: 'absolute', right: 20, width: 54, height: 54, borderRadius: 16,
-    backgroundColor: '#00408f', justifyContent: 'center', alignItems: 'center',
-    elevation: 8, shadowColor: '#00408f', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
+    position: 'absolute', right: 20, width: 54, height: 54, borderRadius: radii.button,
+    backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center',
+    ...shadows.fab,
   },
 
   // Period picker
   periodOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 14, borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.lg, paddingVertical: 14, borderRadius: 10,
   },
-  periodOptionActive: { backgroundColor: '#d8e2ff' },
-  periodOptionText: { fontSize: 15, fontWeight: '600', color: '#434654', flex: 1 },
-  periodOptionTextActive: { color: '#00408f', fontWeight: '700' },
+  periodOptionActive: { backgroundColor: colors.primaryTint },
+  periodOptionText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.textSecondary, flex: 1 },
+  periodOptionTextActive: { color: colors.primary, fontFamily: fonts.bold },
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#191c1e', marginBottom: 8 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#434654', letterSpacing: 0.3, marginTop: 12, marginBottom: 4 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.md },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: spacing.sm },
+  fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.3, marginTop: spacing.md, marginBottom: spacing.xs },
   modalInput: {
-    backgroundColor: '#f8f9fb', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#191c1e', borderWidth: 1, borderColor: '#edeef0',
+    backgroundColor: colors.background, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 14, fontFamily: fonts.semibold, color: colors.text, borderWidth: 1, borderColor: colors.border,
   },
-  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fb', borderRadius: 10, borderWidth: 1, borderColor: '#edeef0', paddingHorizontal: 14 },
-  currencySign: { fontSize: 20, fontWeight: '800', color: '#434654', marginRight: 4 },
-  amountInput: { flex: 1, fontSize: 24, fontWeight: '800', color: '#191c1e', paddingVertical: 10 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, borderRadius: radii.input, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14 },
+  currencySign: { fontSize: 20, fontFamily: fonts.bold, color: colors.textSecondary, marginRight: spacing.xs },
+  amountInput: { flex: 1, fontSize: 24, fontFamily: fonts.bold, color: colors.text, paddingVertical: 10 },
 
   // Category chips
   catChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    borderWidth: 1, borderColor: '#edeef0', backgroundColor: '#fff',
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.badge,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
   },
-  catChipText: { fontSize: 11, fontWeight: '600', color: '#434654' },
+  catChipText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textSecondary },
 
   // Modal actions
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalCancelBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#edeef0' },
-  modalCancelText: { fontSize: 14, fontWeight: '600', color: '#434654' },
-  primaryBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: 12, backgroundColor: '#00408f' },
-  primaryBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: spacing.lg },
+  modalCancelBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: radii.button, borderWidth: 1, borderColor: colors.border },
+  modalCancelText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
+  primaryBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: radii.button, backgroundColor: colors.primary },
+  primaryBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 });

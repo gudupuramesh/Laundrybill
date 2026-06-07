@@ -35,7 +35,13 @@ interface ServiceFormSheetProps {
 const pricingTypeOptions = [
     { value: "piece", label: "piece" },
     { value: "kg", label: "kg" },
+    { value: "lb", label: "lb" },
     { value: "sqft", label: "sqft" },
+    { value: "sqm", label: "m²" },
+    { value: "set", label: "set" },
+    { value: "pair", label: "pair" },
+    { value: "load", label: "load" },
+    { value: "bag", label: "bag" },
 ];
 
 /** Subcategory options (must match grouping on Items page). */

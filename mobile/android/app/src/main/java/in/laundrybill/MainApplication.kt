@@ -1,10 +1,7 @@
 package `in`.laundrybill
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.res.Configuration
-import android.os.Build
 
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -43,7 +40,6 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
-    createNotificationChannels()
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {
@@ -51,24 +47,6 @@ class MainApplication : Application(), ReactApplication {
     }
     loadReactNative(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
-  }
-
-  private fun createNotificationChannels() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val manager = getSystemService(NotificationManager::class.java)
-      val channels = listOf(
-        NotificationChannel("order_updates", "Order Updates", NotificationManager.IMPORTANCE_HIGH).apply {
-          description = "New orders, status changes, and delivery updates"
-        },
-        NotificationChannel("admin_notifications", "Announcements", NotificationManager.IMPORTANCE_HIGH).apply {
-          description = "Important announcements from LaundryBill"
-        },
-        NotificationChannel("upgrade_reminders", "Upgrade Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
-          description = "Pro plan upgrade reminders"
-        },
-      )
-      channels.forEach { manager.createNotificationChannel(it) }
-    }
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

@@ -5,11 +5,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 const ICONS = ['iron', 'local-laundry-service', 'dry-cleaning', 'air', 'brush', 'checkroom', 'home', 'star'];
 const COLORS = [
-  '#00408f', '#006b5f', '#ffb950', '#ba1a1a',
-  '#10b981', '#6366f1', '#fb7185', '#94a3b8'
+  colors.primary, '#006b5f', '#ffb950', colors.error,
+  '#10b981', '#6366f1', '#fb7185', colors.textMuted
 ];
 
 interface Category {
@@ -188,7 +189,7 @@ export default function AddServiceScreen({
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#00408f" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -200,12 +201,12 @@ export default function AddServiceScreen({
         <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-              <MaterialIcons name="arrow-back" size={24} color="#00408f" />
+              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('mobile.manageServicesTitle')}</Text>
           </View>
           <TouchableOpacity onPress={() => { resetForm(); setShowForm(true); }}>
-            <MaterialIcons name="add-circle" size={28} color="#00408f" />
+            <MaterialIcons name="add-circle" size={28} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -220,7 +221,7 @@ export default function AddServiceScreen({
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>{editingId ? t('mobile.editServiceTitle') : t('mobile.newServiceTitle')}</Text>
               <TouchableOpacity onPress={resetForm}>
-                <MaterialIcons name="close" size={22} color="#737685" />
+                <MaterialIcons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -228,7 +229,7 @@ export default function AddServiceScreen({
             <TextInput
               style={styles.input}
               placeholder={t('mobile.phServiceName')}
-              placeholderTextColor="#737685"
+              placeholderTextColor={colors.textMuted}
               value={serviceName}
               onChangeText={setServiceName}
             />
@@ -240,14 +241,14 @@ export default function AddServiceScreen({
                   key={icon}
                   style={[
                     styles.iconOption,
-                    selectedIcon === icon && { backgroundColor: '#00408f' }
+                    selectedIcon === icon && { backgroundColor: colors.primary }
                   ]}
                   onPress={() => setSelectedIcon(icon)}
                 >
                   <MaterialIcons
                     name={icon as any}
                     size={22}
-                    color={selectedIcon === icon ? '#ffffff' : '#434654'}
+                    color={selectedIcon === icon ? colors.surface : colors.textSecondary}
                   />
                 </TouchableOpacity>
               ))}
@@ -266,7 +267,7 @@ export default function AddServiceScreen({
                   onPress={() => setSelectedColor(color)}
                 >
                   {selectedColor === color && (
-                    <MaterialIcons name="check" size={14} color="#fff" />
+                    <MaterialIcons name="check" size={14} color={colors.surface} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -288,8 +289,8 @@ export default function AddServiceScreen({
                 <Switch
                   value={isActive}
                   onValueChange={setIsActive}
-                  trackColor={{ false: '#e1e2e4', true: '#d8e2ff' }}
-                  thumbColor={isActive ? '#00408f' : '#f8f9fb'}
+                  trackColor={{ false: colors.border, true: colors.primaryTint }}
+                  thumbColor={isActive ? colors.primary : colors.background}
                 />
               </View>
             </View>
@@ -300,7 +301,7 @@ export default function AddServiceScreen({
               disabled={saving}
             >
               {saving ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.surface} size="small" />
               ) : (
                 <Text style={styles.saveBtnText}>{editingId ? t('mobile.updateServiceBtn') : t('mobile.addServiceBtn')}</Text>
               )}
@@ -316,7 +317,7 @@ export default function AddServiceScreen({
 
         {categories.filter(c => c.isActive).length === 0 && (
           <View style={styles.emptyState}>
-            <MaterialIcons name="local-laundry-service" size={48} color="#c3c6d6" />
+            <MaterialIcons name="local-laundry-service" size={48} color={colors.textMuted} />
             <Text style={styles.emptyText}>{t('mobile.noServicesYet')}</Text>
             <Text style={styles.emptySubtext}>{t('mobile.noServicesHint')}</Text>
           </View>
@@ -325,10 +326,11 @@ export default function AddServiceScreen({
         {categories.filter(c => c.isActive).map((cat) => (
           <TouchableOpacity
             key={cat.id}
-            style={[styles.serviceCard, { borderLeftColor: cat.color || COLORS[0] }]}
+            style={styles.serviceCard}
             onPress={() => onViewItems?.(cat.id, cat.name)}
             activeOpacity={0.7}
           >
+            <View style={[styles.serviceAccentBar, { backgroundColor: cat.color || COLORS[0] }]} />
             <View style={styles.serviceCardLeft}>
               <View style={[styles.serviceIconWrap, { backgroundColor: (cat.color || COLORS[0]) + '18' }]}>
                 <MaterialIcons
@@ -346,12 +348,12 @@ export default function AddServiceScreen({
             </View>
             <View style={styles.serviceActions}>
               <TouchableOpacity onPress={() => openEditForm(cat)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <MaterialIcons name="edit" size={18} color="#737685" />
+                <MaterialIcons name="edit" size={18} color={colors.textMuted} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDelete(cat)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <MaterialIcons name="delete" size={18} color="#ba1a1a" style={{ opacity: 0.6 }} />
+                <MaterialIcons name="delete" size={18} color={colors.error} style={{ opacity: 0.6 }} />
               </TouchableOpacity>
-              <MaterialIcons name="chevron-right" size={22} color="#c3c6d6" />
+              <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
         ))}
@@ -363,10 +365,11 @@ export default function AddServiceScreen({
               {t('mobile.inactiveSection', { count: categories.filter(c => !c.isActive).length })}
             </Text>
             {categories.filter(c => !c.isActive).map((cat) => (
-              <View key={cat.id} style={[styles.serviceCard, { opacity: 0.5, borderLeftColor: '#94a3b8' }]}>
+              <View key={cat.id} style={[styles.serviceCard, { opacity: 0.5 }]}>
+                <View style={[styles.serviceAccentBar, { backgroundColor: colors.textMuted }]} />
                 <View style={styles.serviceCardLeft}>
-                  <View style={[styles.serviceIconWrap, { backgroundColor: '#f3f4f6' }]}>
-                    <MaterialIcons name={iconForCategory(cat.icon)} size={24} color="#94a3b8" />
+                  <View style={[styles.serviceIconWrap, { backgroundColor: colors.surfaceMuted }]}>
+                    <MaterialIcons name={iconForCategory(cat.icon)} size={24} color={colors.textMuted} />
                   </View>
                   <Text style={styles.serviceName}>{cat.name}</Text>
                 </View>
@@ -386,47 +389,47 @@ export default function AddServiceScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(195, 198, 214, 0.2)', zIndex: 10,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 10,
   },
   headerInner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     height: 56, paddingHorizontal: 8,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#00408f' },
-  iconBtn: { padding: 8 },
+  headerTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  iconBtn: {
+    padding: 8, backgroundColor: colors.surfaceMuted, borderRadius: 20,
+  },
   scrollContent: { padding: 16, gap: 12 },
   sectionHeader: { marginTop: 4, marginBottom: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#191c1e' },
-  sectionSubtitle: { fontSize: 12, color: '#434654', marginTop: 2 },
+  sectionTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  sectionSubtitle: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
   sectionLabel: {
-    fontSize: 10, fontWeight: '700', color: '#434654',
+    fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 4, marginBottom: 8,
   },
   // Form
   formCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 12,
-    borderWidth: 1, borderColor: 'rgba(0, 64, 143, 0.15)',
-    shadowColor: '#00408f', shadowOpacity: 0.06, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, gap: 12,
+    ...shadows.card, ...shadows.cardBorder,
   },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  formTitle: { fontSize: 14, fontWeight: '700', color: '#00408f' },
+  formTitle: { fontSize: 14, fontFamily: fonts.bold, color: colors.primary },
   formRow: { flexDirection: 'row', gap: 16, alignItems: 'center' },
   label: {
-    fontSize: 10, fontWeight: '700', color: '#434654',
+    fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6,
   },
   input: {
-    backgroundColor: '#f3f4f6', borderRadius: 8, paddingHorizontal: 12,
-    paddingVertical: 10, fontSize: 14, fontWeight: '500', color: '#191c1e',
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 12,
+    paddingVertical: 10, fontSize: 14, fontFamily: fonts.medium, color: colors.text,
   },
   iconRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-    backgroundColor: '#f3f4f6', borderRadius: 12, padding: 6,
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.button, padding: 6,
   },
   iconOption: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -434,34 +437,39 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
   },
   colorOptionSelected: {
-    borderWidth: 2, borderColor: '#ffffff',
+    borderWidth: 2, borderColor: colors.surface,
     shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 }, elevation: 4,
   },
   saveBtn: {
-    backgroundColor: '#00408f', borderRadius: 8, paddingVertical: 12,
+    backgroundColor: colors.primary, borderRadius: radii.button, paddingVertical: 12,
     alignItems: 'center', marginTop: 4,
   },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  saveBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
   // Service Cards
   serviceCard: {
-    backgroundColor: '#ffffff', borderRadius: 12, padding: 14,
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 14,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderLeftWidth: 4, borderWidth: 1, borderColor: 'rgba(195, 198, 214, 0.1)',
+    ...shadows.card, ...shadows.cardBorder,
+    overflow: 'hidden', position: 'relative',
+  },
+  serviceAccentBar: {
+    position: 'absolute', left: 0, top: 12, bottom: 12, width: 4,
+    borderTopRightRadius: 4, borderBottomRightRadius: 4,
   },
   serviceCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   serviceIconWrap: {
-    width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: radii.button, alignItems: 'center', justifyContent: 'center',
   },
-  serviceName: { fontSize: 14, fontWeight: '700', color: '#191c1e' },
-  serviceMeta: { fontSize: 11, color: '#737685', marginTop: 2 },
+  serviceName: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  serviceMeta: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 2 },
   serviceActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   restoreBtn: {
-    backgroundColor: '#00408f', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: colors.primary, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6,
   },
-  restoreBtnText: { fontSize: 11, fontWeight: '700', color: '#ffffff' },
+  restoreBtnText: { fontSize: 11, fontFamily: fonts.bold, color: colors.surface },
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 48, gap: 8 },
-  emptyText: { fontSize: 16, fontWeight: '700', color: '#434654' },
-  emptySubtext: { fontSize: 12, color: '#737685' },
+  emptyText: { fontSize: 16, fontFamily: fonts.bold, color: colors.textSecondary },
+  emptySubtext: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted },
 });

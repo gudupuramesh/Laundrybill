@@ -11,6 +11,7 @@ import { formatCurrency } from '../lib/currency-format';
 import i18n from '../lib/i18n';
 import { DraftOrderPayload } from '../types/orderDraft';
 import { HelpButton } from '../components/HelpButton';
+import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 interface Customer {
   id: string;
@@ -52,12 +53,12 @@ interface CartState {
   unitPriceOverride?: number;
 }
 
-const pricingTypeToUnit = (pricingType?: string) => {
-  if (pricingType === 'kg') return 'kg';
-  if (pricingType === 'sqft') return 'sqft';
-  if (pricingType === 'set') return 'set';
-  return 'piece';
-};
+import { getUnitLabel, getUnitsForCountry } from '../lib/country-config';
+
+const pricingTypeToUnit = (pricingType?: string) => getUnitLabel(pricingType || 'piece');
+
+// Units that need decimal/weight input (not integer stepper)
+const DECIMAL_UNITS = ['kg', 'lb', 'sqft', 'sqm', 'load', 'bag'];
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '').slice(-10);
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
@@ -133,7 +134,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [editPriceValue, setEditPriceValue] = useState('');
-  const [editUnitValue, setEditUnitValue] = useState<'piece' | 'kg' | 'sqft' | 'set'>('piece');
+  const [editUnitValue, setEditUnitValue] = useState<string>('piece');
   const [editSubCategoryValue, setEditSubCategoryValue] = useState('');
   const [editExpressMultiplierValue, setEditExpressMultiplierValue] = useState('1.5');
   const [editTurnaroundDaysValue, setEditTurnaroundDaysValue] = useState('2');
@@ -144,7 +145,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   const [customSaving, setCustomSaving] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
-  const [customUnit, setCustomUnit] = useState<'piece' | 'kg' | 'sqft' | 'set'>('piece');
+  const [customUnit, setCustomUnit] = useState<string>('piece');
   const [customExpressMultiplier, setCustomExpressMultiplier] = useState('1.5');
   const [customImageUri, setCustomImageUri] = useState<string | null>(null);
   const [customCategoryId, setCustomCategoryId] = useState('');
@@ -331,7 +332,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
     setEditItem(item);
     setEditNameValue(item.name || '');
     setEditPriceValue(String(item.basePrice || 0));
-    setEditUnitValue((item.pricingType as 'piece' | 'kg' | 'sqft' | 'set') || 'piece');
+    setEditUnitValue(item.pricingType || 'piece');
     setEditSubCategoryValue(item.subCategory || '');
     setEditExpressMultiplierValue(String(item.expressMultiplier || 1.5));
     setEditTurnaroundDaysValue(String(item.turnaroundDays || 2));
@@ -544,7 +545,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#00408f" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -556,7 +557,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-              <MaterialIcons name={step === 'customer' ? 'close' : 'arrow-back'} size={24} color="#434654" />
+              <MaterialIcons name={step === 'customer' ? 'close' : 'arrow-back'} size={24} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{editOrder ? t('mobile.editOrderTitle') : t('mobile.newOrderTitle')}</Text>
           </View>
@@ -565,11 +566,11 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               <TouchableOpacity style={styles.iconBtn} onPress={() => {
                 setCart({});
               }}>
-                <MaterialIcons name="refresh" size={24} color="#00408f" />
+                <MaterialIcons name="refresh" size={24} color={colors.primary} />
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity style={styles.iconBtn}>
-              <MaterialIcons name="history" size={24} color="#00408f" />
+              <MaterialIcons name="history" size={24} color={colors.primary} />
             </TouchableOpacity>
             <HelpButton pageId="mobile_newOrder" />
           </View>
@@ -581,12 +582,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={{ flex: 1, padding: 16 }}>
           {/* Add New Customer button */}
           <TouchableOpacity style={styles.addNewCustomerBtn} onPress={onAddCustomer} activeOpacity={0.7}>
-            <MaterialIcons name="person-add" size={20} color="#00408f" />
+            <MaterialIcons name="person-add" size={20} color={colors.primary} />
             <Text style={styles.addNewCustomerBtnText}>{t('mobile.addNewCustomer')}</Text>
           </TouchableOpacity>
 
           <View style={styles.searchContainer}>
-            <MaterialIcons name="search" size={20} color="#737685" style={styles.searchIcon} />
+            <MaterialIcons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder={t('mobile.searchCustomerPlaceholder')}
@@ -617,7 +618,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     onPress={() => onEditCustomerDetail?.(c.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <MaterialIcons name="edit" size={16} color="#00408f" />
+                    <MaterialIcons name="edit" size={16} color={colors.primary} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))
@@ -634,7 +635,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.selectedCustomerCard}>
           <View style={styles.selectedCustomerLeft}>
             <View style={styles.selectedCustomerAvatar}>
-              <MaterialIcons name="person" size={18} color="#ffffff" />
+              <MaterialIcons name="person" size={18} color={colors.surface} />
             </View>
             <View>
               <Text style={styles.selectedCustomerName}>{selectedCustomer?.name || t('mobile.noCustomerSelected')}</Text>
@@ -647,8 +648,8 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             </TouchableOpacity>
           )}
           {editOrder && (
-            <View style={{ backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-              <Text style={{ fontSize: 9, fontWeight: '700', color: '#737685' }}>{t('mobile.locked')}</Text>
+            <View style={{ backgroundColor: colors.surfaceMuted, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+              <Text style={{ fontSize: 9, fontFamily: fonts.bold, color: colors.textMuted }}>{t('mobile.locked')}</Text>
             </View>
           )}
         </View>
@@ -701,7 +702,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     <Image source={{ uri: item.imageUrl }} style={{ width: 32, height: 32, borderRadius: 6, marginRight: 10 }} />
                   ) : (
                     <View style={styles.itemThumbPlaceholder}>
-                      <MaterialIcons name="image" size={14} color="#c3c6d6" />
+                      <MaterialIcons name="image" size={14} color={colors.textMuted} />
                     </View>
                   )}
                   <View style={styles.itemInfoCol}>
@@ -709,28 +710,28 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     <View style={styles.unitRow}>
                       <Text style={styles.itemPriceUnselected}>{formatCurrency(unitPrice, countrySettings)}/{pricingTypeToUnit(item.pricingType)}</Text>
                       <TouchableOpacity onPress={() => openEditItem(item)} style={{ padding: 2 }}>
-                        <MaterialIcons name="edit" size={13} color="#737685" />
+                        <MaterialIcons name="edit" size={13} color={colors.textMuted} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.expressRow}>
                       <Switch
                         value={state.express}
                         onValueChange={() => toggleExpress(item.id)}
-                        trackColor={{ false: '#e1e2e4', true: '#d8e2ff' }}
-                        thumbColor={state.express ? '#00408f' : '#f8f9fb'}
+                        trackColor={{ false: colors.border, true: colors.primaryTint }}
+                        thumbColor={state.express ? colors.primary : colors.background}
                         style={{ transform: [{ scaleX: 0.7 }, { scaleY: 0.7 }] }}
                       />
-                      <Text style={{ fontSize: 10, color: '#434654' }}>{t('mobile.expressLabel')}</Text>
+                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>{t('mobile.expressLabel')}</Text>
                     </View>
                   </View>
                 </View>
                 <View style={styles.itemActions}>
-                  {item.pricingType === 'kg' || item.pricingType === 'sqft' ? (
+                  {DECIMAL_UNITS.includes(item.pricingType || '') ? (
                     <View style={styles.weightInputWrap}>
                       <TextInput
                         style={styles.weightInput}
                         keyboardType="decimal-pad"
-                        placeholder={item.pricingType === 'kg' ? t('mobile.placeholderKg') : t('mobile.placeholderSqft')}
+                        placeholder={`Enter ${pricingTypeToUnit(item.pricingType)}`}
                         value={weightText[item.id] !== undefined ? weightText[item.id] : (state.quantity > 0 ? String(state.quantity) : '')}
                         onChangeText={(val) => setQtyFromText(item.id, val)}
                       />
@@ -738,11 +739,11 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                   ) : (
                     <View style={selected ? styles.stepperCompact : styles.stepperUnselectedCompact}>
                       <TouchableOpacity style={styles.stepperBtn} onPress={() => setQty(item.id, state.quantity - 1)}>
-                        <MaterialIcons name="remove" size={18} color="#191c1e" />
+                        <MaterialIcons name="remove" size={18} color={colors.text} />
                       </TouchableOpacity>
                       <Text style={selected ? styles.stepperValue : styles.stepperValueUnselected}>{state.quantity}</Text>
                       <TouchableOpacity style={styles.stepperBtn} onPress={() => setQty(item.id, state.quantity + 1)}>
-                        <MaterialIcons name="add" size={18} color="#191c1e" />
+                        <MaterialIcons name="add" size={18} color={colors.text} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -763,7 +764,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               setShowCustomModal(true);
             }}
           >
-            <MaterialIcons name="add-box" size={20} color="#00408f" />
+            <MaterialIcons name="add-box" size={20} color={colors.primary} />
             <Text style={styles.addCustomText}>{t('mobile.addCustomItem')}</Text>
           </TouchableOpacity>
         </View>
@@ -780,7 +781,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
           </View>
           <TouchableOpacity style={styles.reviewBtn} onPress={handleReviewOrder}>
             <Text style={styles.reviewBtnText}>{t('mobile.reviewOrder')}</Text>
-            <MaterialIcons name="arrow-forward" size={20} color="#00408f" />
+            <MaterialIcons name="arrow-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -795,12 +796,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 <View style={styles.editImageWrap}>
                   <Image source={{ uri: editImageUri }} style={styles.imagePreview} />
                   <View style={styles.imageEditIconBadge}>
-                    <MaterialIcons name="edit" size={12} color="#fff" />
+                    <MaterialIcons name="edit" size={12} color={colors.surface} />
                   </View>
                 </View>
               ) : (
                 <View style={styles.imagePlaceholder}>
-                  <MaterialIcons name="add-photo-alternate" size={28} color="#737685" />
+                  <MaterialIcons name="add-photo-alternate" size={28} color={colors.textMuted} />
                 </View>
               )}
             </TouchableOpacity>
@@ -819,13 +820,13 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             />
             <Text style={styles.modalLabel}>{t('mobile.pricingTypeLabel')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {(['piece', 'kg', 'sqft', 'set'] as const).map((u) => (
+              {getUnitsForCountry(countrySettings.countryCode).units.map((u) => (
                 <TouchableOpacity
                   key={u}
                   onPress={() => setEditUnitValue(u)}
                   style={editUnitValue === u ? styles.categoryTabActive : styles.categoryTab}
                 >
-                  <Text style={editUnitValue === u ? styles.categoryTabTextActive : styles.categoryTabText}>{t(PRICING_UNIT_TKEY[u])}</Text>
+                  <Text style={editUnitValue === u ? styles.categoryTabTextActive : styles.categoryTabText}>{getUnitLabel(u)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -861,7 +862,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setShowEditItemModal(false)}><Text style={styles.modalCancel}>{t('common.cancel')}</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveEditItem} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>{t('common.save')}</Text>}
+                {editSaving ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.modalSave}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -879,12 +880,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 <View style={styles.editImageWrap}>
                   <Image source={{ uri: customImageUri }} style={styles.imagePreview} />
                   <View style={styles.imageEditIconBadge}>
-                    <MaterialIcons name="edit" size={12} color="#fff" />
+                    <MaterialIcons name="edit" size={12} color={colors.surface} />
                   </View>
                 </View>
               ) : (
                 <View style={styles.imagePlaceholder}>
-                  <MaterialIcons name="add-photo-alternate" size={24} color="#737685" />
+                  <MaterialIcons name="add-photo-alternate" size={24} color={colors.textMuted} />
                 </View>
               )}
             </TouchableOpacity>
@@ -906,7 +907,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               <Text style={styles.searchInput}>
                 {categories.find((c) => c.id === customCategoryId)?.name || t('mobile.selectCategory')}
               </Text>
-              <MaterialIcons name={showCustomCategoryList ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={20} color="#737685" />
+              <MaterialIcons name={showCustomCategoryList ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={20} color={colors.textMuted} />
             </TouchableOpacity>
             {showCustomCategoryList ? (
               <ScrollView style={{ maxHeight: 160 }}>
@@ -920,26 +921,26 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     }}
                   >
                     <Text style={styles.resultName}>{cat.name}</Text>
-                    {customCategoryId === cat.id ? <MaterialIcons name="check" size={16} color="#00408f" /> : null}
+                    {customCategoryId === cat.id ? <MaterialIcons name="check" size={16} color={colors.primary} /> : null}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             ) : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {(['piece', 'kg', 'sqft', 'set'] as const).map((u) => (
+              {getUnitsForCountry(countrySettings.countryCode).units.map((u) => (
                 <TouchableOpacity
                   key={u}
                   onPress={() => setCustomUnit(u)}
                   style={customUnit === u ? styles.categoryTabActive : styles.categoryTab}
                 >
-                  <Text style={customUnit === u ? styles.categoryTabTextActive : styles.categoryTabText}>{t(PRICING_UNIT_TKEY[u])}</Text>
+                  <Text style={customUnit === u ? styles.categoryTabTextActive : styles.categoryTabText}>{getUnitLabel(u)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setShowCustomModal(false)}><Text style={styles.modalCancel}>{t('common.cancel')}</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleAddCustomItem} disabled={customSaving}>
-                {customSaving ? <ActivityIndicator color="#00408f" /> : <Text style={styles.modalSave}>{t('common.add')}</Text>}
+                {customSaving ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.modalSave}>{t('common.add')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -955,10 +956,10 @@ export default CreateOrderScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
   header: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
   headerInner: {
     flexDirection: 'row',
@@ -974,8 +975,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#191c1e',
+    fontFamily: fonts.semibold,
+    color: colors.text,
   },
   headerRight: {
     flexDirection: 'row',
@@ -986,19 +987,19 @@ const styles = StyleSheet.create({
   },
   headerDivider: {
     height: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
   },
   scrollContent: {
     paddingTop: 0,
   },
   customerSection: {
     padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#edeef0',
+    backgroundColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
@@ -1007,8 +1008,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: '#0b4ea2',
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    borderRadius: radii.input,
     paddingHorizontal: 14,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -1030,19 +1031,19 @@ const styles = StyleSheet.create({
   },
   selectedCustomerName: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   selectedCustomerPhone: {
     fontSize: 11,
-    fontWeight: '500',
-    color: '#d8e2ff',
+    fontFamily: fonts.medium,
+    color: colors.primaryTint,
     marginTop: 1,
   },
   selectedCustomerEditBtn: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#d8e2ff',
+    fontFamily: fonts.bold,
+    color: colors.primaryTint,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -1055,11 +1056,11 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#191c1e',
+    color: colors.text,
   },
   searchResults: {
     marginTop: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -1073,23 +1074,23 @@ const styles = StyleSheet.create({
   },
   resultName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#191c1e',
+    fontFamily: fonts.semibold,
+    color: colors.text,
   },
   resultPhone: {
     fontSize: 12,
-    color: '#434654',
+    color: colors.textSecondary,
   },
   customerEditBtn: {
-    width: 30, height: 30, borderRadius: 8, backgroundColor: '#d8e2ff',
+    width: 30, height: 30, borderRadius: 8, backgroundColor: colors.primaryTint,
     alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
   addNewCustomerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#e3f2fd', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 12, borderWidth: 1, borderColor: '#bbdefb', borderStyle: 'dashed',
+    backgroundColor: colors.primaryTint, borderRadius: radii.input, paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 12, borderWidth: 1, borderColor: colors.primaryTint, borderStyle: 'dashed',
   },
-  addNewCustomerBtnText: { fontSize: 14, fontWeight: '700', color: '#00408f' },
+  addNewCustomerBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.primary },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1099,14 +1100,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#434654',
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
     letterSpacing: 1,
   },
   seeAllText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#00408f',
+    fontFamily: fonts.semibold,
+    color: colors.primary,
   },
   horizontalScroll: {
     paddingHorizontal: 16,
@@ -1117,62 +1118,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e1e2e4',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
+    borderRadius: radii.chip,
+    ...shadows.card, ...shadows.cardBorder,
   },
   itemChipText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.medium,
+    color: colors.text,
   },
   itemChipMeta: {
     fontSize: 10,
-    color: '#737685',
+    color: colors.textMuted,
     marginLeft: 2,
   },
   itemChipPrice: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
   categoryTab: {
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#e7e8ea',
+    borderRadius: radii.chip,
+    backgroundColor: colors.border,
   },
   categoryTabActive: {
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#00408f',
+    borderRadius: radii.chip,
+    backgroundColor: colors.primary,
     elevation: 2,
-    shadowColor: '#00408f',
+    shadowColor: colors.primary,
     shadowOpacity: 0.2,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
   categoryTabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#434654',
+    fontFamily: fonts.semibold,
+    color: colors.textSecondary,
   },
   categoryTabTextActive: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   itemsListContainer: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
   itemDivider: {
     height: 1,
@@ -1202,7 +1197,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
   },
   itemInfoCol: {
     flex: 1,
@@ -1222,19 +1217,19 @@ const styles = StyleSheet.create({
   },
   itemRowSelected: {
     backgroundColor: 'rgba(0, 64, 143, 0.05)',
-    borderLeftColor: '#00408f',
+    borderLeftColor: colors.primary,
   },
   itemName: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#191c1e',
+    fontFamily: fonts.medium,
+    color: colors.text,
   },
   itemNameUnselected: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#434654',
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
   },
   itemActions: {
     flexDirection: 'row',
@@ -1244,7 +1239,7 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e1e2e4',
+    backgroundColor: colors.border,
     borderRadius: 8,
     height: 32,
     overflow: 'hidden',
@@ -1252,7 +1247,7 @@ const styles = StyleSheet.create({
   stepperUnselected: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#edeef0',
+    backgroundColor: colors.border,
     borderRadius: 8,
     height: 32,
     overflow: 'hidden',
@@ -1260,7 +1255,7 @@ const styles = StyleSheet.create({
   stepperCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e1e2e4',
+    backgroundColor: colors.border,
     borderRadius: 8,
     height: 34,
     width: 104,
@@ -1269,7 +1264,7 @@ const styles = StyleSheet.create({
   stepperUnselectedCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#edeef0',
+    backgroundColor: colors.border,
     borderRadius: 8,
     height: 34,
     width: 104,
@@ -1285,15 +1280,15 @@ const styles = StyleSheet.create({
     width: 32,
     textAlign: 'center',
     fontSize: 14,
-    fontWeight: '700',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
   },
   stepperValueUnselected: {
     width: 32,
     textAlign: 'center',
     fontSize: 14,
-    fontWeight: '500',
-    color: '#434654',
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
   },
   priceCol: {
     flexDirection: 'row',
@@ -1311,25 +1306,25 @@ const styles = StyleSheet.create({
     width: 104,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#edeef0',
+    backgroundColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
   weightInput: {
     fontSize: 13,
-    color: '#191c1e',
-    fontWeight: '600',
+    color: colors.text,
+    fontFamily: fonts.semibold,
     paddingVertical: 0,
   },
   itemPriceSelected: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
   },
   itemPriceUnselected: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#434654',
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
   },
   addCustomItem: {
     flexDirection: 'row',
@@ -1340,8 +1335,8 @@ const styles = StyleSheet.create({
   },
   addCustomText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#00408f',
+    fontFamily: fonts.semibold,
+    color: colors.primary,
   },
   modalBackdrop: {
     flex: 1,
@@ -1350,37 +1345,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   modalCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     padding: 16,
     gap: 12,
   },
   modalCardLarge: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     padding: 16,
     gap: 12,
     maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#191c1e',
+    fontFamily: fonts.bold,
+    color: colors.text,
   },
   modalLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#434654',
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   modalInput: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#191c1e',
+    color: colors.text,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1394,16 +1389,16 @@ const styles = StyleSheet.create({
   },
   modalCancel: {
     fontSize: 14,
-    color: '#737685',
-    fontWeight: '600',
+    color: colors.textMuted,
+    fontFamily: fonts.semibold,
   },
   modalSave: {
     fontSize: 14,
-    color: '#00408f',
-    fontWeight: '700',
+    color: colors.primary,
+    fontFamily: fonts.bold,
   },
   imagePicker: { alignItems: 'center', marginVertical: 4 },
-  imagePreview: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' },
+  imagePreview: { width: 80, height: 80, borderRadius: radii.button, backgroundColor: colors.surfaceMuted },
   editImageWrap: {
     width: 80,
     height: 80,
@@ -1415,16 +1410,16 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#00408f',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: colors.surface,
   },
   imagePlaceholder: {
-    width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6',
+    width: 80, height: 80, borderRadius: radii.button, backgroundColor: colors.surfaceMuted,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-    borderColor: '#e1e2e4', borderStyle: 'dashed',
+    borderColor: colors.border, borderStyle: 'dashed',
   },
   bottomSummary: {
     position: 'absolute',
@@ -1441,7 +1436,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
   },
   summaryCard: {
-    backgroundColor: '#00408f',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1450,7 +1445,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     height: 64,
     elevation: 8,
-    shadowColor: '#00408f',
+    shadowColor: colors.primary,
     shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -1460,28 +1455,28 @@ const styles = StyleSheet.create({
   },
   summaryCount: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: 'rgba(216, 226, 255, 0.6)',
     letterSpacing: 1,
     marginBottom: 2,
   },
   summaryPrice: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontFamily: fonts.bold,
+    color: colors.surface,
   },
   reviewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 20,
     height: 44,
-    borderRadius: 12,
+    borderRadius: radii.button,
   },
   reviewBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#00408f',
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
 });

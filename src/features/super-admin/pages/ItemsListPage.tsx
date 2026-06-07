@@ -64,8 +64,13 @@ function imageMetadataFromUrl(url: string): ImageMetadata {
 const PRICING_OPTIONS = [
   { value: "piece", label: "Piece" },
   { value: "kg", label: "Kg" },
-  { value: "sqft", label: "Sqft" },
+  { value: "lb", label: "Pound (lb)" },
+  { value: "sqft", label: "Sq. Foot" },
+  { value: "sqm", label: "Sq. Meter (m²)" },
   { value: "set", label: "Set" },
+  { value: "pair", label: "Pair" },
+  { value: "load", label: "Per Load" },
+  { value: "bag", label: "Per Bag" },
 ];
 
 export function ItemsListPage() {

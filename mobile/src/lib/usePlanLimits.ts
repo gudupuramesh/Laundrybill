@@ -38,11 +38,13 @@ export function usePlanLimits(subscriptionData: any): PlanLimits {
     if (!subscriptionData) return;
 
     const planId = subscriptionData.planId || subscriptionData.planName || 'free';
-    const normalized = String(planId).toLowerCase().replace(/[_\s]/g, '');
+    const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
 
-    // Normalize legacy plan ids to canonical "pro"
-    const isPro = normalized.includes('pro') || normalized.includes('premium') || normalized.includes('business');
-    const candidates = [planId, normalized, isPro ? 'pro' : 'free'].filter(
+    // Normalize legacy plan ids to canonical tiers: free / pro / business
+    const isBusiness = normalized === 'business' || normalized === 'enterprise' || normalized === 'proplus' || normalized === 'premium';
+    const isPro = !isBusiness && (normalized === 'pro' || normalized === 'starter');
+    const canonicalId = isBusiness ? 'business' : isPro ? 'pro' : 'free';
+    const candidates = [planId, normalized, canonicalId].filter(
       (v, i, a) => a.indexOf(v) === i // dedupe
     );
 
