@@ -47,6 +47,60 @@ export async function signInWithGoogleIdToken(idToken: string) {
   return auth().signInWithCredential(googleCredential);
 }
 
+/**
+ * Sign in with Apple (iOS only) → Firebase.
+ *
+ * Uses a SHA-256-hashed nonce: Apple embeds the hash in the identity token, and
+ * Firebase verifies it against the raw nonce we pass to the credential. The Apple
+ * provider must be enabled in the Firebase console for this to succeed.
+ *
+ * Throws 'APPLE_SIGNIN_CANCELLED' if the user dismisses the sheet, and
+ * 'APPLE_SIGNIN_UNAVAILABLE' if the native module isn't present (e.g. Expo Go).
+ */
+export async function signInWithApple() {
+  let AppleAuthentication: typeof import('expo-apple-authentication');
+  let Crypto: typeof import('expo-crypto');
+  try {
+    AppleAuthentication = require('expo-apple-authentication');
+    Crypto = require('expo-crypto');
+  } catch {
+    throw new Error('APPLE_SIGNIN_UNAVAILABLE');
+  }
+
+  if (!(await AppleAuthentication.isAvailableAsync())) {
+    throw new Error('APPLE_SIGNIN_UNAVAILABLE');
+  }
+
+  // 1. Generate a raw nonce and its SHA-256 hash.
+  const rawNonce = Crypto.randomUUID() + Crypto.randomUUID();
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce,
+  );
+
+  // 2. Native Apple sign-in with the hashed nonce.
+  let appleCredential: import('expo-apple-authentication').AppleAuthenticationCredential;
+  try {
+    appleCredential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+      nonce: hashedNonce,
+    });
+  } catch (e: any) {
+    if (e?.code === 'ERR_REQUEST_CANCELED') throw new Error('APPLE_SIGNIN_CANCELLED');
+    throw e;
+  }
+
+  const { identityToken } = appleCredential;
+  if (!identityToken) throw new Error('No identity token returned from Apple');
+
+  // 3. Exchange for a Firebase credential using the raw nonce.
+  const firebaseCredential = auth.AppleAuthProvider.credential(identityToken, rawNonce);
+  return auth().signInWithCredential(firebaseCredential);
+}
+
 export async function signInWithEmailPassword(email: string, password: string) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   return auth().signInWithEmailAndPassword(normalizedEmail, password);

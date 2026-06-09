@@ -25,6 +25,7 @@ import {
   createUserWithEmailAndPassword as mCreateUserWithEmailAndPassword,
   sendPasswordResetEmail as mSendPasswordResetEmail,
   GoogleAuthProvider as MGoogleAuthProvider,
+  OAuthProvider as MOAuthProvider,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -269,12 +270,19 @@ const _authFacade = {
 
 type AuthFn = (() => typeof _authFacade) & {
   GoogleAuthProvider: { credential: (idToken: string | null, accessToken?: string) => any };
+  AppleAuthProvider: { credential: (idToken: string, rawNonce?: string) => any };
 };
 
 const auth = (() => _authFacade) as AuthFn;
 auth.GoogleAuthProvider = {
   credential: (idToken: string | null, accessToken?: string) =>
     MGoogleAuthProvider.credential(idToken, accessToken),
+};
+auth.AppleAuthProvider = {
+  // Sign in with Apple → Firebase. The identity token is verified against the
+  // rawNonce (its SHA-256 must match the token's `nonce` claim).
+  credential: (idToken: string, rawNonce?: string) =>
+    new MOAuthProvider('apple.com').credential({ idToken, rawNonce }),
 };
 
 export { auth };

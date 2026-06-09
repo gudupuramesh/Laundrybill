@@ -20,6 +20,7 @@
     "country-to-currency": "^2.0.3",
     "currency-symbol-map": "^5.1.0",
     "expo": "^54.0.33",
+    "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",

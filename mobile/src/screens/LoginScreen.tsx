@@ -15,7 +15,7 @@ import {
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { sendPasswordReset, signInWithEmailPassword, signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
+import { sendPasswordReset, signInWithApple, signInWithEmailPassword, signInWithGoogle, signInWithGoogleIdToken } from '../lib/auth';
 import * as Google from 'expo-auth-session/providers/google';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 
@@ -87,9 +87,16 @@ export default function LoginScreen({
   const handleAppleLogin = async () => {
     try {
       setLoading(true);
-      alert('Apple sign-in is coming soon.');
-    } catch (e) {
-      console.error(e);
+      await signInWithApple();
+      // Auth state listener in App.tsx handles navigation on success.
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (msg === 'APPLE_SIGNIN_CANCELLED') return; // user dismissed — silent
+      if (msg === 'APPLE_SIGNIN_UNAVAILABLE') {
+        alert('Apple sign-in is not available on this device.');
+        return;
+      }
+      console.error('Apple sign-in error:', e);
       alert('Apple sign-in failed. Please try again.');
     } finally {
       setLoading(false);
