@@ -1,47 +1,51 @@
 "use strict";
 /**
- * Order notification helpers: get FCM tokens and send order-related push notifications
- * to shop (main app) and/or assigned agent (driver app).
+ * Order notification helpers: collect device tokens and send order-related push
+ * notifications to the shop (main app) and/or assigned agent (driver app).
+ *
+ * Tokens are routed through {@link sendPush}, which delivers Expo push tokens via
+ * the Expo push service and FCM tokens via Firebase Cloud Messaging.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendOrderNotification = exports.getAgentFcmToken = exports.getShopFcmTokens = void 0;
+exports.sendOrderNotification = void 0;
 const admin = require("firebase-admin");
+const push_sender_1 = require("./push-sender");
 const db = admin.firestore();
-/** Get all FCM tokens for the shop (main app users). */
-async function getShopFcmTokens(shopId) {
+/** Collect all push targets for the shop (main app users). */
+async function getShopPushTargets(shopId) {
     const snapshot = await db
         .collection("shops")
         .doc(shopId)
         .collection("notificationTokens")
         .get();
-    const tokens = [];
+    const targets = [];
     snapshot.docs.forEach((d) => {
-        const t = d.data().token;
-        if (t && typeof t === "string")
-            tokens.push(t);
+        const data = d.data();
+        const token = data.token;
+        if (token && typeof token === "string") {
+            targets.push({ token, tokenType: data.tokenType, ref: d.ref });
+        }
     });
-    return tokens;
+    return targets;
 }
-exports.getShopFcmTokens = getShopFcmTokens;
-/** Get FCM tokens for an agent (driver app). Returns web + android tokens. */
-async function getAgentFcmToken(shopId, agentId) {
-    var _a, _b;
-    const tokens = [];
+/** Collect push targets for an agent (driver app). Returns web + android tokens. */
+async function getAgentPushTargets(shopId, agentId) {
     const col = db.collection("shops").doc(shopId).collection("agentNotificationTokens");
     // Fetch web token ({agentId}) and android token ({agentId}_android) in parallel
     const [webSnap, androidSnap] = await Promise.all([
         col.doc(agentId).get(),
         col.doc(`${agentId}_android`).get(),
     ]);
-    const webToken = (_a = webSnap.data()) === null || _a === void 0 ? void 0 : _a.token;
-    if (webToken && typeof webToken === "string")
-        tokens.push(webToken);
-    const androidToken = (_b = androidSnap.data()) === null || _b === void 0 ? void 0 : _b.token;
-    if (androidToken && typeof androidToken === "string")
-        tokens.push(androidToken);
-    return tokens;
+    const targets = [];
+    for (const snap of [webSnap, androidSnap]) {
+        const data = snap.data();
+        const token = data === null || data === void 0 ? void 0 : data.token;
+        if (token && typeof token === "string") {
+            targets.push({ token, tokenType: data === null || data === void 0 ? void 0 : data.tokenType, ref: snap.ref });
+        }
+    }
+    return targets;
 }
-exports.getAgentFcmToken = getAgentFcmToken;
 function buildNotification(type, publicId, customerName) {
     switch (type) {
         case "new_online_order":
@@ -62,7 +66,7 @@ function buildNotification(type, publicId, customerName) {
             return { title: "Order Update", body: `Order #${publicId}` };
     }
 }
-/** Send order notification to shop and/or assigned agent. Invalid tokens are not removed (caller can handle). */
+/** Send order notification to shop and/or assigned agent. Invalid tokens are pruned. */
 async function sendOrderNotification(payload) {
     const { shopId, orderId, publicId, orderNumber, customerName, type, recipient, assignedAgentId } = payload;
     const data = {
@@ -72,45 +76,29 @@ async function sendOrderNotification(payload) {
         publicId: publicId || orderNumber || orderId,
     };
     const { title, body } = buildNotification(type, publicId || orderNumber || orderId, customerName);
-    const messaging = admin.messaging();
-    const toSend = [];
+    const targets = [];
     if (recipient === "shop" || recipient === "both") {
-        const shopTokens = await getShopFcmTokens(shopId);
-        shopTokens.forEach((token) => toSend.push({ token, isAgent: false }));
+        targets.push(...(await getShopPushTargets(shopId)));
     }
     if ((recipient === "agent" || recipient === "both") && assignedAgentId) {
-        const agentTokens = await getAgentFcmToken(shopId, assignedAgentId);
-        agentTokens.forEach((token) => toSend.push({ token, isAgent: true }));
+        targets.push(...(await getAgentPushTargets(shopId, assignedAgentId)));
     }
-    const results = await Promise.allSettled(toSend.map(({ token }) => messaging.send({
-        token,
-        notification: { title, body },
-        data: Object.assign({}, data),
-        android: {
-            priority: "high",
-            notification: {
-                channelId: "order_updates",
-                icon: "ic_launcher",
-            },
-        },
-    })));
-    let sent = 0;
-    results.forEach((r, i) => {
-        var _a, _b, _c, _d;
-        if (r.status === "fulfilled")
-            sent++;
-        if (r.status === "rejected") {
-            const err = r.reason;
-            const code = (_b = (_a = err === null || err === void 0 ? void 0 : err.code) !== null && _a !== void 0 ? _a : err === null || err === void 0 ? void 0 : err.message) !== null && _b !== void 0 ? _b : "";
-            if (String(code).includes("registration-token-not-registered") ||
-                String(code).includes("invalid-registration-token")) {
-                // Optionally remove invalid token (would need tokenId for shop; agentId for agent)
-                console.warn("Invalid FCM token, consider removing:", ((_d = (_c = toSend[i]) === null || _c === void 0 ? void 0 : _c.token) === null || _d === void 0 ? void 0 : _d.slice(0, 20)) + "...");
-            }
-        }
+    if (targets.length === 0)
+        return;
+    const result = await (0, push_sender_1.sendPush)(targets, {
+        title,
+        body,
+        data,
+        channelId: "order_updates",
+        priority: "high",
     });
-    if (sent > 0) {
-        console.log(`Order notification "${type}" sent to ${sent} device(s) for shop ${shopId}`);
+    // Prune invalid/expired tokens.
+    if (result.invalidTokens.length > 0) {
+        const invalid = new Set(result.invalidTokens);
+        await Promise.allSettled(targets.filter((t) => invalid.has(t.token)).map((t) => t.ref.delete()));
+    }
+    if (result.successCount > 0) {
+        console.log(`Order notification "${type}" sent to ${result.successCount} device(s) for shop ${shopId}`);
     }
 }
 exports.sendOrderNotification = sendOrderNotification;

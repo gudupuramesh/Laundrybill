@@ -16,7 +16,8 @@
       "appleTeamId": "QWW8YD6KZV",
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "2"
     },
     "android": {
       "package": "in.laundrybill",
@@ -69,7 +70,8 @@
           "locationWhenInUsePermission": "Laundrybill uses your location to auto-fill your shop address during registration and to show your shop on the map for customers."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/withApsEnvironmentProduction"
     ],
     "extra": {
       "eas": {

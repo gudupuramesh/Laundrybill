@@ -72,6 +72,29 @@ const STATIC_PRICES = Platform.OS === 'ios'
   ? { pro: { monthly: '₹499', yearly: '₹4,999', monthlyNum: 499 }, business: { monthly: '₹1,499', yearly: '₹14,999', monthlyNum: 1499 } }
   : { pro: { monthly: '₹299', yearly: '₹2,999', monthlyNum: 299 }, business: { monthly: '₹1,299', yearly: '₹12,999', monthlyNum: 1299 } };
 
+/**
+ * Format an amount in the live product's currency (so the savings line matches
+ * the headline price for every App Store / Play storefront — ₹ for India, $ for
+ * the US, etc.). Falls back to the symbol parsed from the product's priceString
+ * if Intl currency formatting isn't available at runtime.
+ */
+function fmtCurrency(amount: number, currencyCode?: string, sampleStr?: string): string {
+  if (currencyCode) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currencyCode,
+        maximumFractionDigits: amount >= 100 ? 0 : 2,
+      }).format(amount);
+    } catch {
+      // fall through to symbol parsing
+    }
+  }
+  const symbol = (sampleStr || '').replace(/[\d.,\s ]/g, '');
+  const n = amount >= 100 ? String(Math.round(amount)) : amount.toFixed(2);
+  return symbol ? `${symbol}${n}` : `${n}${currencyCode ? ' ' + currencyCode : ''}`;
+}
+
 export default function SubscriptionScreen({
   onBack,
 }: {
@@ -302,7 +325,11 @@ export default function SubscriptionScreen({
     const fullYear = m.product.price * 12;
     const saved = fullYear - a.product.price;
     if (saved <= 0) return null;
-    return { pct: Math.round((saved / fullYear) * 100), perMonth: Math.round(a.product.price / 12), monthsSaved: Math.round(saved / m.product.price) };
+    return {
+      pct: Math.round((saved / fullYear) * 100),
+      perMonth: fmtCurrency(a.product.price / 12, a.product.currencyCode, a.product.priceString),
+      monthsSaved: Math.round(saved / m.product.price),
+    };
   };
 
   const proSavings = calcSavings(hasSeparateBizProducts ? proPackages : packages);
@@ -470,7 +497,7 @@ export default function SubscriptionScreen({
               <View style={s.savingsRow}>
                 <MaterialIcons name="local-offer" size={14} color={colors.success} />
                 <Text style={s.savingsText}>
-                  Save {proSavings.monthsSaved} month{proSavings.monthsSaved > 1 ? 's' : ''} — just ₹{proSavings.perMonth}/mo
+                  Save {proSavings.monthsSaved} month{proSavings.monthsSaved > 1 ? 's' : ''} — just {proSavings.perMonth}/mo
                 </Text>
               </View>
             )}

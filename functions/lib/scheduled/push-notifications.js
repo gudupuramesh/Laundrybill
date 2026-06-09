@@ -9,7 +9,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendAdminNotification = exports.sendUpgradeReminders = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const push_sender_1 = require("../services/push-sender");
 const db = admin.firestore();
+/** Collect push targets (token + tokenType) from a shop's notificationTokens. */
+async function collectShopTargets(shopId) {
+    const snap = await db.collection(`shops/${shopId}/notificationTokens`).get();
+    const targets = [];
+    const refByToken = new Map();
+    snap.docs.forEach((d) => {
+        const data = d.data();
+        const token = data.token;
+        if (token && typeof token === "string") {
+            targets.push({ token, tokenType: data.tokenType });
+            refByToken.set(token, d.ref);
+        }
+    });
+    return { targets, refByToken };
+}
 // ────────────────────────────────────────────────────────────────────────
 // 1. SCHEDULED: Upgrade Reminders
 //    Runs every day at 10:00 AM IST (04:30 UTC)
@@ -52,49 +68,25 @@ exports.sendUpgradeReminders = functions.pubsub
                     continue;
                 }
             }
-            // Get all FCM tokens for this shop
-            const tokensSnap = await db.collection(`shops/${shopId}/notificationTokens`).get();
-            const tokens = [];
-            tokensSnap.docs.forEach((d) => {
-                const t = d.data().token;
-                if (t && typeof t === "string")
-                    tokens.push(t);
-            });
-            if (tokens.length === 0) {
+            // Get all device tokens (Expo + FCM) for this shop
+            const { targets, refByToken } = await collectShopTargets(shopId);
+            if (targets.length === 0) {
                 skipCount++;
                 continue;
             }
-            // Send push notification
+            // Send push notification (routed to Expo / FCM per token)
             try {
-                const response = await admin.messaging().sendEachForMulticast({
-                    tokens,
-                    notification: {
-                        title: reminderTitle,
-                        body: reminderBody,
-                    },
-                    data: {
-                        type: "upgrade_reminder",
-                        shopId,
-                    },
-                    android: {
-                        priority: "normal",
-                        notification: {
-                            channelId: "upgrade_reminders",
-                            icon: "ic_launcher",
-                        },
-                    },
+                const response = await (0, push_sender_1.sendPush)(targets, {
+                    title: reminderTitle,
+                    body: reminderBody,
+                    data: { type: "upgrade_reminder", shopId },
+                    channelId: "upgrade_reminders",
+                    priority: "normal",
                 });
                 // Clean up invalid tokens
-                response.responses.forEach((resp, idx) => {
+                response.invalidTokens.forEach((invalidToken) => {
                     var _a;
-                    if (!resp.success && ((_a = resp.error) === null || _a === void 0 ? void 0 : _a.code) === "messaging/registration-token-not-registered") {
-                        const invalidToken = tokens[idx];
-                        tokensSnap.docs.forEach((d) => {
-                            if (d.data().token === invalidToken) {
-                                d.ref.delete().catch(() => { });
-                            }
-                        });
-                    }
+                    (_a = refByToken.get(invalidToken)) === null || _a === void 0 ? void 0 : _a.delete().catch(() => { });
                 });
                 // Update last reminder timestamp
                 await subDoc.ref.update({ lastUpgradeReminder: admin.firestore.FieldValue.serverTimestamp() });
@@ -154,46 +146,29 @@ exports.sendAdminNotification = functions.https.onCall(async (data, context) => 
     for (let i = 0; i < shopIds.length; i += batchSize) {
         const batch = shopIds.slice(i, i + batchSize);
         await Promise.all(batch.map(async (sid) => {
-            const tokensSnap = await db.collection(`shops/${sid}/notificationTokens`).get();
-            const tokens = [];
-            tokensSnap.docs.forEach((d) => {
-                const t = d.data().token;
-                if (t && typeof t === "string")
-                    tokens.push(t);
-            });
-            if (tokens.length === 0)
+            const { targets, refByToken } = await collectShopTargets(sid);
+            if (targets.length === 0)
                 return;
             try {
-                const msg = {
-                    tokens,
-                    notification: Object.assign({ title, body }, (imageUrl ? { imageUrl } : {})),
+                const response = await (0, push_sender_1.sendPush)(targets, {
+                    title,
+                    body,
                     data: { type: "admin_notification" },
-                    android: {
-                        priority: "high",
-                        notification: {
-                            channelId: "admin_notifications",
-                            icon: "ic_launcher",
-                        },
-                    },
-                };
-                const response = await admin.messaging().sendEachForMulticast(msg);
+                    imageUrl,
+                    channelId: "admin_notifications",
+                    priority: "high",
+                });
                 totalSent += response.successCount;
                 totalFailed += response.failureCount;
                 // Clean invalid tokens
-                response.responses.forEach((resp, idx) => {
+                response.invalidTokens.forEach((invalidToken) => {
                     var _a;
-                    if (!resp.success && ((_a = resp.error) === null || _a === void 0 ? void 0 : _a.code) === "messaging/registration-token-not-registered") {
-                        const invalidToken = tokens[idx];
-                        tokensSnap.docs.forEach((d) => {
-                            if (d.data().token === invalidToken)
-                                d.ref.delete().catch(() => { });
-                        });
-                    }
+                    (_a = refByToken.get(invalidToken)) === null || _a === void 0 ? void 0 : _a.delete().catch(() => { });
                 });
             }
             catch (e) {
                 console.error(`Failed to send to shop ${sid}:`, e);
-                totalFailed += tokens.length;
+                totalFailed += targets.length;
             }
         }));
     }
