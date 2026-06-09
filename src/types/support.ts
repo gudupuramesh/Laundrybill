@@ -15,12 +15,22 @@ export interface SupportDoc {
   url: string;
 }
 
-/** Per-page help: video + doc link for each app page (New Order, Staff, etc.) */
+/** A single titled tutorial video (YouTube link + heading). */
+export interface TutorialVideo {
+  id: string;
+  title: string;
+  url: string;
+}
+
+/** Per-page help: a list of titled videos + optional doc link for each app page. */
 export interface PageHelpEntry {
   pageId: string;
   pageTitle: string;
+  /** Legacy single video URL (kept for backward compatibility). */
   videoUrl: string;
   docUrl: string;
+  /** List of titled tutorial videos for this page. */
+  videos?: TutorialVideo[];
 }
 
 /** Fixed list of app pages that can have their own video + doc links */
@@ -42,6 +52,8 @@ export const SUPPORT_PAGE_IDS: PageHelpEntry["pageId"][] = [
   "mobile_subscription",
   "mobile_expenses",
   "mobile_scan",
+  "mobile_staff",
+  "mobile_attendance",
 ];
 
 export const SUPPORT_PAGE_TITLES: Record<PageHelpEntry["pageId"], string> = {
@@ -62,6 +74,8 @@ export const SUPPORT_PAGE_TITLES: Record<PageHelpEntry["pageId"], string> = {
   mobile_subscription: "Mobile — Subscription",
   mobile_expenses: "Mobile — Expenses",
   mobile_scan: "Mobile — QR Scan",
+  mobile_staff: "Mobile — Staff",
+  mobile_attendance: "Mobile — Attendance",
 };
 
 export interface SupportSettings {

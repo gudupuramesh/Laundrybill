@@ -103,6 +103,7 @@ export default function CustomerListScreen({
           >
             <MaterialIcons name="search" size={20} color={showSearch ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
+          <HelpButton pageId="mobile_customers" />
         </View>
       </View>
 

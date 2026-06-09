@@ -1,5 +1,5 @@
-import { getApp } from "@react-native-firebase/app";
-import { getFunctions } from "@react-native-firebase/functions";
+import { httpsCallable } from "firebase/functions";
+import { getFunctionsInstance } from "./firebase";
 
 type Jsonish = string | number | boolean | null | Jsonish[] | { [k: string]: Jsonish };
 
@@ -38,22 +38,11 @@ const region =
     : undefined;
 
 /**
- * Named HTTPS callable with correct Functions instance (region) and safe payload encoding.
- *
- * Uses the instance's own httpsCallable method directly rather than the modular
- * re-export, which goes through a Proxy wrapper that can throw "undefined is
- * not a function" on some RN/Hermes + Firebase SDK version combinations.
+ * Named HTTPS callable (JS Firebase SDK) with region + safe payload encoding.
+ * Returns a function `(data) => Promise<{ data }>` matching the prior surface.
  */
 export function createNamedHttpsCallable(name: string) {
-  const app = getApp();
-  const instance = region ? getFunctions(app, region) : getFunctions(app);
-  const fn = (instance as { httpsCallable?: (n: string, o?: object) => (d: unknown) => Promise<unknown> })
-    .httpsCallable;
-  if (typeof fn !== "function") {
-    throw new Error(
-      "Cloud Functions native module is missing httpsCallable. Rebuild the Android/iOS app with @react-native-firebase/functions linked.",
-    );
-  }
-  const call = fn.call(instance, name);
+  const instance = getFunctionsInstance(region);
+  const call = httpsCallable(instance, name);
   return (data: Record<string, unknown>) => call(callableData(data));
 }

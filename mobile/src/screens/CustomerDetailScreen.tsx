@@ -436,10 +436,11 @@ export default function CustomerDetailScreen({
 
       {/* ═══ Edit Customer Modal ═══ */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => setEditModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('mobile.editCustomerModalTitle')}</Text>
 
             <Text style={styles.fieldLabel}>{t('mobile.fieldName')} <Text style={{ color: '#c62828' }}>*</Text></Text>
@@ -502,6 +503,7 @@ export default function CustomerDetailScreen({
                 )}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -627,7 +629,7 @@ const styles = StyleSheet.create({
 
   // Edit modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(26,29,46,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 8 },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },

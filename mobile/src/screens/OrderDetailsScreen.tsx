@@ -788,14 +788,14 @@ export default function OrderDetailsScreen({
 
       {/* ─── STATUS UPDATE — shows ALL statuses ──────────────────── */}
       <Modal visible={statusModal} transparent animationType="slide" onRequestClose={() => setStatusModal(false)}>
-        <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => { setStatusModal(false); setSelectedStatus(''); setStatusNotes(''); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{t('mobile.updateStatusModalTitle')}</Text>
             <Text style={styles.modalSubtitle}>{t('mobile.deliveryFlowSubtitle', { type: t(deliveryLabelKey(deliveryType)) })}</Text>
 
-            <ScrollView style={{ maxHeight: 340, marginTop: 16 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 340, marginTop: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {flow.map((s, i) => {
                 const sc = STATUS_COLORS[s] || STATUS_COLORS.pending;
                 const isCompleted = currentFlowIndex >= 0 && i < currentFlowIndex;
@@ -896,15 +896,16 @@ export default function OrderDetailsScreen({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ─── PAYMENT ─────────────────────────────────────────────── */}
       <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => { setPaymentModal(false); setPayAmount(''); setPayRef(''); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('mobile.collectPaymentTitle')}</Text>
             <Text style={styles.modalSubtitle}>{withCurrencySymbol(t('mobile.balanceSubtitle', { amount: Math.round(fin.balance || 0) }) as string)}</Text>
             <Text style={styles.fieldLabel}>{t('mobile.amountField')}</Text>
@@ -936,6 +937,7 @@ export default function OrderDetailsScreen({
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{withCurrencySymbol(t('mobile.collectBtn', { amount: payAmount || '0' }) as string)}</Text>}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1059,10 +1061,11 @@ export default function OrderDetailsScreen({
 
       {/* ─── EDIT ────────────────────────────────────────────────── */}
       <Modal visible={editModal} transparent animationType="slide" onRequestClose={() => setEditModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => setEditModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('mobile.editOrderModalTitle')}</Text>
             <Text style={styles.fieldLabel}>{t('mobile.deliveryTypeField')}</Text>
             <View style={styles.methodRow}>
@@ -1082,6 +1085,7 @@ export default function OrderDetailsScreen({
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

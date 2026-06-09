@@ -329,38 +329,40 @@ export default function StaffDetailScreen({
 
       {/* Edit Modal */}
       <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={s.modalDismiss} onPress={() => setShowEdit(false)} />
           <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHandle} />
-            <Text style={s.modalTitle}>Edit Staff</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={s.modalTitle}>Edit Staff</Text>
 
-            <Text style={s.fieldLabel}>NAME *</Text>
-            <TextInput style={s.modalInput} value={editName} onChangeText={setEditName} placeholder="Staff name" placeholderTextColor={colors.textMuted} />
+              <Text style={s.fieldLabel}>NAME *</Text>
+              <TextInput style={s.modalInput} value={editName} onChangeText={setEditName} placeholder="Staff name" placeholderTextColor={colors.textMuted} />
 
-            <Text style={s.fieldLabel}>PHONE</Text>
-            <TextInput style={s.modalInput} value={editPhone} onChangeText={setEditPhone} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+              <Text style={s.fieldLabel}>PHONE</Text>
+              <TextInput style={s.modalInput} value={editPhone} onChangeText={setEditPhone} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
 
-            <Text style={s.fieldLabel}>ROLE</Text>
-            <View style={s.chipRow}>
-              {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                <TouchableOpacity key={key} style={[s.chip, editRole === key && s.chipActive]} onPress={() => setEditRole(key)}>
-                  <Text style={[s.chipText, editRole === key && s.chipTextActive]}>{label}</Text>
+              <Text style={s.fieldLabel}>ROLE</Text>
+              <View style={s.chipRow}>
+                {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                  <TouchableOpacity key={key} style={[s.chip, editRole === key && s.chipActive]} onPress={() => setEditRole(key)}>
+                    <Text style={[s.chipText, editRole === key && s.chipTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.fieldLabel}>BASE SALARY</Text>
+              <TextInput style={s.modalInput} value={editSalary} onChangeText={setEditSalary} placeholder="Salary" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
+
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.cancelBtn} onPress={() => setShowEdit(false)}>
+                  <Text style={s.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={s.fieldLabel}>BASE SALARY</Text>
-            <TextInput style={s.modalInput} value={editSalary} onChangeText={setEditSalary} placeholder="Salary" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowEdit(false)}>
-                <Text style={s.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.saveBtn} onPress={handleSaveEdit} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Save</Text>}
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity style={s.saveBtn} onPress={handleSaveEdit} disabled={editSaving}>
+                  {editSaving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -442,7 +444,7 @@ const s = StyleSheet.create({
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(26,29,46,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text, marginBottom: 8 },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },

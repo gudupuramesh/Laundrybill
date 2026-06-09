@@ -204,7 +204,7 @@ export default function AddCustomerScreen({
         </View>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
@@ -310,7 +310,7 @@ export default function AddCustomerScreen({
 
       {/* ═══ Contact Picker Modal ═══ */}
       <Modal visible={contactModal} transparent animationType="slide" onRequestClose={() => setContactModal(false)}>
-        <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => setContactModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16, maxHeight: '85%' }]}>
             <View style={styles.modalHandle} />
@@ -402,7 +402,7 @@ export default function AddCustomerScreen({
               </>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

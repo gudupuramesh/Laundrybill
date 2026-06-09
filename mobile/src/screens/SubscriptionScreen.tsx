@@ -269,9 +269,26 @@ export default function SubscriptionScreen({
   // treat them as a single tier — split monthly/annual
   const hasSeparateBizProducts = bizPackages.length > 0;
 
+  // Robust monthly/annual detection — works for standard ($rc_monthly/$rc_annual)
+  // AND custom identifiers like "$rc_monthly_bus", "business_yearly", etc.
+  const isAnnual = (p: PurchasesPackage) => {
+    if (p.packageType === 'ANNUAL') return true;
+    const id = (p.identifier || '').toLowerCase();
+    const prodId = (p.product?.identifier || '').toLowerCase();
+    const period = (p.product as any)?.subscriptionPeriod || '';
+    return id.includes('annual') || id.includes('year') || prodId.includes('year') || period === 'P1Y';
+  };
+  const isMonthly = (p: PurchasesPackage) => {
+    if (p.packageType === 'MONTHLY') return true;
+    const id = (p.identifier || '').toLowerCase();
+    const prodId = (p.product?.identifier || '').toLowerCase();
+    const period = (p.product as any)?.subscriptionPeriod || '';
+    return id.includes('month') || prodId.includes('month') || period === 'P1M';
+  };
+
   const getSelectedPkg = (pkgs: PurchasesPackage[]) => {
-    const monthly = pkgs.find((p) => p.packageType === 'MONTHLY');
-    const annual = pkgs.find((p) => p.packageType === 'ANNUAL');
+    const monthly = pkgs.find(isMonthly);
+    const annual = pkgs.find(isAnnual);
     return billingCycle === 'yearly' ? (annual || monthly) : (monthly || annual);
   };
 
@@ -279,8 +296,8 @@ export default function SubscriptionScreen({
   const bizSelectedPkg = hasSeparateBizProducts ? getSelectedPkg(bizPackages) : null;
 
   const calcSavings = (pkgs: PurchasesPackage[]) => {
-    const m = pkgs.find((p) => p.packageType === 'MONTHLY');
-    const a = pkgs.find((p) => p.packageType === 'ANNUAL');
+    const m = pkgs.find(isMonthly);
+    const a = pkgs.find(isAnnual);
     if (!m || !a) return null;
     const fullYear = m.product.price * 12;
     const saved = fullYear - a.product.price;

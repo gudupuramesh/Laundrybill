@@ -49,11 +49,15 @@ export default function OrdersScreen({
   onViewOrder,
   onBack,
   initialFilter,
+  initialSearchOpen,
+  onSearchConsumed,
 }: {
   onNewOrder?: () => void;
   onViewOrder?: (id: string) => void;
   onBack?: () => void;
   initialFilter?: string;
+  initialSearchOpen?: boolean;
+  onSearchConsumed?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -83,15 +87,6 @@ export default function OrdersScreen({
     { key: 'due', label: t('mobile.ordersFilterDue') },
   ], [t]);
 
-  const TIME_FILTERS = useMemo(() => [
-    { key: 'today', label: t('mobile.timeFilterToday') },
-    { key: 'week', label: t('mobile.timeFilterWeek') },
-    { key: 'month', label: t('mobile.timeFilterMonth') },
-    { key: '3months', label: t('mobile.timeFilter3Months') },
-    { key: 'year', label: t('mobile.timeFilterYear') },
-    { key: 'all_time', label: t('mobile.timeFilterAll') },
-  ], [t]);
-
   const timeAgo = (date: Date | null): string => {
     if (!date) return '';
     const now = Date.now();
@@ -112,12 +107,22 @@ export default function OrdersScreen({
   const [filter, setFilter] = useState(initialFilter || 'all');
   const [timePeriod, setTimePeriod] = useState('all_time');
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+  const [calMonth, setCalMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
   const [search, setSearch] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(!!initialSearchOpen);
 
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter);
   }, [initialFilter]);
+
+  useEffect(() => {
+    if (initialSearchOpen) {
+      setShowSearch(true);
+      onSearchConsumed?.();
+    }
+  }, [initialSearchOpen]);
 
   useEffect(() => {
     if (!shopId) { setLoading(false); return; }
@@ -154,8 +159,15 @@ export default function OrdersScreen({
 
   const filteredOrders = useMemo(() => {
     let list = orders;
-    const rangeStart = getTimeRange(timePeriod);
-    if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
+    if (timePeriod === 'custom') {
+      const start = customStart ? new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate(), 0, 0, 0, 0) : null;
+      const end = customEnd ? new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate(), 23, 59, 59, 999) : null;
+      if (start) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= start; });
+      if (end) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c <= end; });
+    } else {
+      const rangeStart = getTimeRange(timePeriod);
+      if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
+    }
 
     if (filter === 'pending') list = list.filter((o) => o.status === 'pending');
     else if (filter === 'processing') list = list.filter((o) => ['confirmed', 'picked_up_from_customer', 'processing'].includes(o.status));
@@ -169,11 +181,76 @@ export default function OrdersScreen({
 
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((o) => {
-      return [o.customerName, o.customerPhone, o.publicId, o.orderNumber].filter(Boolean).join(' ').toLowerCase().includes(q);
+      return [o.customerName, o.customerPhone, o.customerEmail, o.publicId, o.orderNumber].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
 
     return list;
-  }, [orders, filter, timePeriod, search]);
+  }, [orders, filter, timePeriod, customStart, customEnd, search]);
+
+  // Label for the date filter chip
+  const dateChipLabel = useMemo(() => {
+    const fmt = (d: Date) => d.toLocaleDateString(i18n.language || 'en-IN', { day: 'numeric', month: 'short' });
+    switch (timePeriod) {
+      case 'today': return t('mobile.timeFilterToday', { defaultValue: 'Today' });
+      case 'week': return t('mobile.timeFilterWeek', { defaultValue: 'This Week' });
+      case 'month': return t('mobile.timeFilterMonth', { defaultValue: 'This Month' });
+      case 'year': return t('mobile.timeFilterYear', { defaultValue: 'This Year' });
+      case '3months': return t('mobile.timeFilter3Months', { defaultValue: '3 Months' });
+      case 'custom':
+        if (customStart && customEnd) return `${fmt(customStart)} – ${fmt(customEnd)}`;
+        if (customStart) return `From ${fmt(customStart)}`;
+        return t('mobile.timeFilterCustom', { defaultValue: 'Date Range' });
+      default: return t('mobile.timeFilterAll', { defaultValue: 'All Time' });
+    }
+  }, [timePeriod, customStart, customEnd, t, i18n.language]);
+
+  const dateFilterActive = timePeriod !== 'all_time';
+
+  // --- Custom-range calendar helpers ---
+  const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const calendarCells = useMemo(() => {
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    return cells;
+  }, [calMonth]);
+
+  const sameDay = (a: Date | null, b: Date | null) =>
+    !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const inRange = (d: Date) =>
+    customStart && customEnd && d >= new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate()) &&
+    d <= new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate());
+
+  const handleDayPress = (d: Date) => {
+    setTimePeriod('custom');
+    if (!customStart || (customStart && customEnd)) {
+      // start fresh selection
+      setCustomStart(d);
+      setCustomEnd(null);
+    } else {
+      // we have a start, set end (swap if before start)
+      if (d < customStart) {
+        setCustomEnd(customStart);
+        setCustomStart(d);
+      } else {
+        setCustomEnd(d);
+      }
+    }
+  };
+
+  const applyQuickPeriod = (key: string) => {
+    setTimePeriod(key);
+    setCustomStart(null);
+    setCustomEnd(null);
+    setShowTimePicker(false);
+  };
+
+  const monthTitle = calMonth.toLocaleDateString(i18n.language || 'en-IN', { month: 'long', year: 'numeric' });
 
   const handleQuickStatus = (order: any, nextStatus: string, label: string) => {
     Alert.alert(
@@ -255,13 +332,16 @@ export default function OrdersScreen({
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
-        <TouchableOpacity
-          style={[s.iconBtn, showSearch && { backgroundColor: colors.primaryTint }]}
-          onPress={() => { setShowSearch(!showSearch); if (showSearch) { setSearch(''); } }}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="search" size={20} color={showSearch ? colors.primary : colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[s.iconBtn, showSearch && { backgroundColor: colors.primaryTint }]}
+            onPress={() => { setShowSearch(!showSearch); if (showSearch) { setSearch(''); } }}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="search" size={20} color={showSearch ? colors.primary : colors.textSecondary} />
+          </TouchableOpacity>
+          <HelpButton pageId="mobile_orders" />
+        </View>
       </View>
 
       <ScrollView
@@ -274,7 +354,7 @@ export default function OrdersScreen({
             <MaterialIcons name="search" size={20} color={colors.textMuted} style={{ position: 'absolute', left: 16, zIndex: 1 }} />
             <TextInput
               style={s.searchInput}
-              placeholder={t('mobile.ordersSearchPlaceholder')}
+              placeholder={t('mobile.ordersSearchPlaceholder', { defaultValue: 'Name, phone, email or order ID...' })}
               placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
@@ -319,6 +399,17 @@ export default function OrdersScreen({
 
         {/* Filter Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow}>
+          {/* Date / time-period filter chip */}
+          <TouchableOpacity
+            style={[s.dateChip, dateFilterActive && s.dateChipActive]}
+            onPress={() => setShowTimePicker(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="event" size={15} color={dateFilterActive ? colors.primary : colors.textSecondary} />
+            <Text style={[s.dateChipText, dateFilterActive && s.dateChipTextActive]} numberOfLines={1}>{dateChipLabel}</Text>
+            <MaterialIcons name="expand-more" size={16} color={dateFilterActive ? colors.primary : colors.textMuted} />
+          </TouchableOpacity>
+
           {STATUS_FILTERS.map((f) => (
             <TouchableOpacity
               key={f.key}
@@ -463,22 +554,116 @@ export default function OrdersScreen({
         <MaterialIcons name="add" size={28} color={colors.surface} />
       </TouchableOpacity>
 
-      {/* Time Period Dropdown */}
-      <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
-        <Pressable style={s.dropdownOverlay} onPress={() => setShowTimePicker(false)}>
-          <View style={s.dropdownMenu}>
-            {TIME_FILTERS.map((row) => (
-              <TouchableOpacity
-                key={row.key}
-                style={[s.dropdownItem, timePeriod === row.key && s.dropdownItemActive]}
-                onPress={() => { setTimePeriod(row.key); setShowTimePicker(false); }}
-              >
-                <Text style={[s.dropdownItemText, timePeriod === row.key && s.dropdownItemTextActive]}>{row.label}</Text>
-                {timePeriod === row.key && <MaterialIcons name="check" size={16} color={colors.primary} />}
-              </TouchableOpacity>
-            ))}
+      {/* Date / Time-period Filter Bottom Sheet */}
+      <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
+        <Pressable style={s.sheetOverlay} onPress={() => setShowTimePicker(false)} />
+        <View style={[s.filterSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={s.sheetHandle} />
+          <View style={s.sheetHeaderRow}>
+            <Text style={s.sheetTitle}>{t('mobile.filterByDate', { defaultValue: 'Filter by Date' })}</Text>
+            <TouchableOpacity onPress={() => setShowTimePicker(false)} hitSlop={8}>
+              <MaterialIcons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
-        </Pressable>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+            {/* Quick options */}
+            <View style={s.quickGrid}>
+              {[
+                { key: 'today', label: t('mobile.timeFilterToday', { defaultValue: 'Today' }) },
+                { key: 'week', label: t('mobile.timeFilterWeek', { defaultValue: 'This Week' }) },
+                { key: 'month', label: t('mobile.timeFilterMonth', { defaultValue: 'This Month' }) },
+                { key: 'year', label: t('mobile.timeFilterYear', { defaultValue: 'This Year' }) },
+                { key: 'all_time', label: t('mobile.timeFilterAll', { defaultValue: 'All Time' }) },
+              ].map((opt) => {
+                const active = timePeriod === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[s.quickChip, active && s.quickChipActive]}
+                    onPress={() => applyQuickPeriod(opt.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.quickChipText, active && s.quickChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Custom date range */}
+            <Text style={s.sheetSectionLabel}>{t('mobile.customDateRange', { defaultValue: 'CUSTOM DATE RANGE' })}</Text>
+
+            {/* From – To summary */}
+            <View style={s.rangeSummary}>
+              <View style={[s.rangeBox, timePeriod === 'custom' && customStart && s.rangeBoxActive]}>
+                <Text style={s.rangeBoxLabel}>From</Text>
+                <Text style={s.rangeBoxValue}>{customStart ? customStart.toLocaleDateString(i18n.language || 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Text>
+              </View>
+              <MaterialIcons name="arrow-forward" size={18} color={colors.textMuted} />
+              <View style={[s.rangeBox, timePeriod === 'custom' && customEnd && s.rangeBoxActive]}>
+                <Text style={s.rangeBoxLabel}>To</Text>
+                <Text style={s.rangeBoxValue}>{customEnd ? customEnd.toLocaleDateString(i18n.language || 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Text>
+              </View>
+            </View>
+
+            {/* Calendar */}
+            <View style={s.calCard}>
+              <View style={s.calHeader}>
+                <TouchableOpacity onPress={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))} style={s.calNavBtn} hitSlop={8}>
+                  <MaterialIcons name="chevron-left" size={22} color={colors.text} />
+                </TouchableOpacity>
+                <Text style={s.calTitle}>{monthTitle}</Text>
+                <TouchableOpacity onPress={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))} style={s.calNavBtn} hitSlop={8}>
+                  <MaterialIcons name="chevron-right" size={22} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <View style={s.calWeekRow}>
+                {WEEKDAYS.map((w, i) => (
+                  <Text key={i} style={s.calWeekday}>{w}</Text>
+                ))}
+              </View>
+              <View style={s.calGrid}>
+                {calendarCells.map((d, i) => {
+                  if (!d) return <View key={`e-${i}`} style={s.calCell} />;
+                  const isStart = sameDay(d, customStart);
+                  const isEnd = sameDay(d, customEnd);
+                  const isMid = !!inRange(d) && !isStart && !isEnd;
+                  const isFuture = d > new Date();
+                  return (
+                    <TouchableOpacity
+                      key={d.toISOString()}
+                      style={[s.calCell, isMid && s.calCellMid]}
+                      disabled={isFuture}
+                      onPress={() => handleDayPress(d)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[s.calDay, (isStart || isEnd) && s.calDaySelected]}>
+                        <Text style={[s.calDayText, (isStart || isEnd) && s.calDayTextSelected, isFuture && s.calDayTextDisabled]}>
+                          {d.getDate()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Apply / Clear */}
+            <View style={s.sheetActions}>
+              <TouchableOpacity style={s.clearBtn} onPress={() => { setCustomStart(null); setCustomEnd(null); applyQuickPeriod('all_time'); }} activeOpacity={0.8}>
+                <Text style={s.clearBtnText}>{t('common.clear', { defaultValue: 'Clear' })}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.applyBtn, !(customStart) && { opacity: 0.5 }]}
+                disabled={!customStart}
+                onPress={() => { setTimePeriod('custom'); if (customStart && !customEnd) setCustomEnd(customStart); setShowTimePicker(false); }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.applyBtnText}>{t('common.apply', { defaultValue: 'Apply Range' })}</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
@@ -533,6 +718,70 @@ const s = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary },
   chipTextActive: { color: colors.primary },
+
+  // Date filter chip
+  dateChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, maxWidth: 180,
+  },
+  dateChipActive: { backgroundColor: colors.primaryTint, borderColor: 'transparent' },
+  dateChipText: { fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary, flexShrink: 1 },
+  dateChipTextActive: { color: colors.primary },
+
+  // Filter bottom sheet
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(26,29,46,0.45)' },
+  filterSheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 16, paddingTop: 10,
+  },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  sheetTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickChip: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted,
+  },
+  quickChipActive: { backgroundColor: colors.primaryTint, borderColor: colors.primary },
+  quickChipText: { fontSize: 14, fontFamily: fonts.bold, color: colors.textSecondary },
+  quickChipTextActive: { color: colors.primary },
+  sheetSectionLabel: {
+    fontSize: 11, fontFamily: fonts.bold, color: colors.textMuted, letterSpacing: 0.8,
+    textTransform: 'uppercase', marginTop: 20, marginBottom: 10,
+  },
+  rangeSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  rangeBox: {
+    flex: 1, backgroundColor: colors.surfaceMuted, borderRadius: 12, padding: 10,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  rangeBoxActive: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  rangeBoxLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textMuted, textTransform: 'uppercase' },
+  rangeBoxValue: { fontSize: 14, fontFamily: fonts.bold, color: colors.text, marginTop: 2 },
+
+  // Calendar
+  calCard: { backgroundColor: colors.surfaceMuted, borderRadius: 16, padding: 10, borderWidth: 1, borderColor: colors.border },
+  calHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  calNavBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  calTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
+  calWeekRow: { flexDirection: 'row' },
+  calWeekday: { flex: 1, textAlign: 'center', fontSize: 11, fontFamily: fonts.bold, color: colors.textMuted, paddingVertical: 4 },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },
+  calCellMid: { backgroundColor: colors.primaryTint },
+  calDay: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  calDaySelected: { backgroundColor: colors.primary },
+  calDayText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
+  calDayTextSelected: { color: colors.surface, fontFamily: fonts.bold },
+  calDayTextDisabled: { color: colors.border },
+
+  // Sheet actions
+  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  clearBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  clearBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.textSecondary },
+  applyBtn: { flex: 2, height: 48, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  applyBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
 
   // Order cards
   orderList: { gap: 16 },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable, Linking, Image } from 'react-native';
+import { StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Modal, Pressable, Linking, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -9,7 +9,7 @@ import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { COUNTRIES, getCountry } from '../lib/country-config';
 import appJson from '../../app.json';
-import { HelpButton } from '../components/HelpButton';
+import { HelpButton, TutorialVideosSheet } from '../components/HelpButton';
 import { usePlanLimits } from '../lib/usePlanLimits';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,8 +29,6 @@ export default function SettingsScreen({
   onAttendance,
   onCreateStaffLogin,
   onExpenseList,
-  onPreviewOnboarding,
-  onPreviewSetupInit,
 }: {
   onManageServices: () => void,
   onManageItems: () => void,
@@ -40,8 +38,6 @@ export default function SettingsScreen({
   onAttendance?: () => void,
   onCreateStaffLogin?: () => void,
   onExpenseList?: () => void,
-  onPreviewOnboarding?: () => void,
-  onPreviewSetupInit?: () => void,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -62,6 +58,7 @@ export default function SettingsScreen({
   const [countrySearch, setCountrySearch] = useState('');
   const [platformSettings, setPlatformSettings] = useState<{ supportEmail?: string; supportPhone?: string; whatsappNumber?: string; privacyPolicyUrl?: string; websiteUrl?: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showTutorials, setShowTutorials] = useState(false);
 
   // Tax / GST settings
   const [taxEnabled, setTaxEnabled] = useState(false);
@@ -829,14 +826,14 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.tutorialVideos', { defaultValue: 'Learn & Help' })}</Text>
           <View style={styles.sectionCard}>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => Linking.openURL('https://laundrybill.com/tutorials').catch(() => {})}>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={() => setShowTutorials(true)}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.errorBg }]}>
                   <MaterialIcons name="play-circle-filled" size={18} color={colors.error} />
                 </View>
                 <View>
                   <Text style={styles.listItemText}>{t('mobile.tutorialVideos', { defaultValue: 'Tutorial Videos' })}</Text>
-                  <Text style={styles.listItemSubtext}>{t('mobile.tutorialVideosDesc', { defaultValue: 'Watch step-by-step guides on YouTube' })}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.tutorialVideosDesc', { defaultValue: 'Watch step-by-step guides in the app' })}</Text>
                 </View>
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
@@ -848,48 +845,6 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.accountSection')}</Text>
           <View style={styles.sectionCard}>
-            {onPreviewOnboarding && (
-              <TouchableOpacity style={styles.listItem} onPress={onPreviewOnboarding}>
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
-                    <MaterialIcons name="slideshow" size={18} color={colors.primary} />
-                  </View>
-                  <View>
-                    <Text style={styles.listItemText}>Preview Onboarding</Text>
-                    <Text style={styles.listItemSubtext}>View the welcome slides</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
-            {onPreviewOnboarding && (
-              <TouchableOpacity style={styles.listItem} onPress={() => onEditProfile()}>
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
-                    <MaterialIcons name="storefront" size={18} color={colors.warning} />
-                  </View>
-                  <View>
-                    <Text style={styles.listItemText}>Preview Shop Setup</Text>
-                    <Text style={styles.listItemSubtext}>View the registration form</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
-            {onPreviewSetupInit && (
-              <TouchableOpacity style={styles.listItem} onPress={onPreviewSetupInit}>
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
-                    <MaterialIcons name="hourglass-top" size={18} color={colors.success} />
-                  </View>
-                  <View>
-                    <Text style={styles.listItemText}>Preview Initializing</Text>
-                    <Text style={styles.listItemSubtext}>View the setup progress animation</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
             <TouchableOpacity style={styles.logoutListItem} onPress={handleLogout}>
               <MaterialIcons name="logout" size={18} color={colors.error} />
               <Text style={styles.logoutText}>{t('mobile.logout')}</Text>
@@ -935,53 +890,58 @@ export default function SettingsScreen({
 
       {/* Tax Editor Modal */}
       <Modal visible={showTaxEditor} transparent animationType="fade" onRequestClose={() => setShowTaxEditor(false)}>
-        <Pressable style={styles.modalDismiss} onPress={() => setShowTaxEditor(false)} />
-        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>{t('mobile.taxDetails')}</Text>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <Pressable style={styles.modalDismiss} onPress={() => setShowTaxEditor(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>{t('mobile.taxDetails')}</Text>
 
-          <Text style={styles.taxFieldLabel}>{t('mobile.taxNameLabel')}</Text>
-          <TextInput
-            style={styles.taxInput}
-            value={taxNameDraft}
-            onChangeText={setTaxNameDraft}
-            placeholder="GST"
-            autoCapitalize="characters"
-          />
+              <Text style={styles.taxFieldLabel}>{t('mobile.taxNameLabel')}</Text>
+              <TextInput
+                style={styles.taxInput}
+                value={taxNameDraft}
+                onChangeText={setTaxNameDraft}
+                placeholder="GST"
+                autoCapitalize="characters"
+              />
 
-          <Text style={styles.taxFieldLabel}>{t('mobile.taxRateLabel')}</Text>
-          <TextInput
-            style={styles.taxInput}
-            value={taxRateDraft}
-            onChangeText={setTaxRateDraft}
-            placeholder="18"
-            keyboardType="decimal-pad"
-          />
+              <Text style={styles.taxFieldLabel}>{t('mobile.taxRateLabel')}</Text>
+              <TextInput
+                style={styles.taxInput}
+                value={taxRateDraft}
+                onChangeText={setTaxRateDraft}
+                placeholder="18"
+                keyboardType="decimal-pad"
+              />
 
-          <Text style={styles.taxFieldLabel}>{t('mobile.gstNumberLabel')}</Text>
-          <TextInput
-            style={styles.taxInput}
-            value={gstNumberDraft}
-            onChangeText={setGstNumberDraft}
-            placeholder="22AAAAA0000A1Z5"
-            autoCapitalize="characters"
-          />
+              <Text style={styles.taxFieldLabel}>{t('mobile.gstNumberLabel')}</Text>
+              <TextInput
+                style={styles.taxInput}
+                value={gstNumberDraft}
+                onChangeText={setGstNumberDraft}
+                placeholder="22AAAAA0000A1Z5"
+                autoCapitalize="characters"
+              />
 
-          <TouchableOpacity
-            style={[styles.taxSaveBtn, savingTax && { opacity: 0.6 }]}
-            onPress={saveTaxDetails}
-            disabled={savingTax}
-          >
-            {savingTax
-              ? <ActivityIndicator size="small" color={colors.surface} />
-              : <Text style={styles.taxSaveBtnText}>{t('common.save')}</Text>
-            }
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={[styles.taxSaveBtn, savingTax && { opacity: 0.6 }]}
+                onPress={saveTaxDetails}
+                disabled={savingTax}
+              >
+                {savingTax
+                  ? <ActivityIndicator size="small" color={colors.surface} />
+                  : <Text style={styles.taxSaveBtnText}>{t('common.save')}</Text>
+                }
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Country Picker Modal */}
       <Modal visible={showCountryPicker} transparent animationType="fade" onRequestClose={() => setShowCountryPicker(false)}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable style={styles.modalDismiss} onPress={() => setShowCountryPicker(false)} />
         <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.modalHandle} />
@@ -993,7 +953,7 @@ export default function SettingsScreen({
             onChangeText={setCountrySearch}
             autoCapitalize="none"
           />
-          <ScrollView style={{ maxHeight: 360 }}>
+          <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
             <View style={{ gap: 2, marginTop: 8 }}>
             {filteredCountries.map((country) => (
               <TouchableOpacity
@@ -1014,7 +974,15 @@ export default function SettingsScreen({
             </View>
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
+
+      {/* Tutorial Videos — full in-app list */}
+      <TutorialVideosSheet
+        visible={showTutorials}
+        onClose={() => setShowTutorials(false)}
+        allMode
+      />
     </View>
   );
 }
@@ -1026,8 +994,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 2,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1036,14 +1004,16 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: fonts.bold,
     color: colors.text,
     textAlign: 'center',
   },
   scrollContent: {
-    padding: 16,
-    gap: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 16,
   },
   profileCard: {
     backgroundColor: colors.surface,
@@ -1309,7 +1279,7 @@ const styles = StyleSheet.create({
   },
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
   countrySearchInput: {

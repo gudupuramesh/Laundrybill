@@ -7,6 +7,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
+import { HelpButton } from '../components/HelpButton';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -98,9 +99,12 @@ export default function StaffListScreen({
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t('mobile.staffTitle', { defaultValue: 'Staff' })}</Text>
-        <TouchableOpacity style={s.iconBtn} onPress={() => { resetForm(); setShowAddModal(true); }} activeOpacity={0.7}>
-          <MaterialIcons name="person-add" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={s.iconBtn} onPress={() => { resetForm(); setShowAddModal(true); }} activeOpacity={0.7}>
+            <MaterialIcons name="person-add" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <HelpButton pageId="mobile_staff" />
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={[s.scrollContent, { paddingBottom: 120 + insets.bottom }]} showsVerticalScrollIndicator={false}>
@@ -178,48 +182,50 @@ export default function StaffListScreen({
 
       {/* Add Staff Modal */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={s.modalDismiss} onPress={() => setShowAddModal(false)} />
           <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHandle} />
-            <Text style={s.modalTitle}>Add Staff Member</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={s.modalTitle}>Add Staff Member</Text>
 
-            <Text style={s.fieldLabel}>NAME *</Text>
-            <TextInput style={s.modalInput} placeholder="Staff name" placeholderTextColor={colors.textMuted} value={formName} onChangeText={setFormName} autoCapitalize="words" />
+              <Text style={s.fieldLabel}>NAME *</Text>
+              <TextInput style={s.modalInput} placeholder="Staff name" placeholderTextColor={colors.textMuted} value={formName} onChangeText={setFormName} autoCapitalize="words" />
 
-            <Text style={s.fieldLabel}>PHONE</Text>
-            <TextInput style={s.modalInput} placeholder="Phone number" placeholderTextColor={colors.textMuted} value={formPhone} onChangeText={setFormPhone} keyboardType="phone-pad" />
+              <Text style={s.fieldLabel}>PHONE</Text>
+              <TextInput style={s.modalInput} placeholder="Phone number" placeholderTextColor={colors.textMuted} value={formPhone} onChangeText={setFormPhone} keyboardType="phone-pad" />
 
-            <Text style={s.fieldLabel}>ROLE</Text>
-            <View style={s.chipRow}>
-              {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                <TouchableOpacity key={key} style={[s.roleChip, formRole === key && s.roleChipActive]} onPress={() => setFormRole(key)}>
-                  <Text style={[s.roleChipText, formRole === key && s.roleChipTextActive]}>{label}</Text>
+              <Text style={s.fieldLabel}>ROLE</Text>
+              <View style={s.chipRow}>
+                {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                  <TouchableOpacity key={key} style={[s.roleChip, formRole === key && s.roleChipActive]} onPress={() => setFormRole(key)}>
+                    <Text style={[s.roleChipText, formRole === key && s.roleChipTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.fieldLabel}>PAY TYPE</Text>
+              <View style={s.chipRow}>
+                <TouchableOpacity style={[s.roleChip, formPayType === 'monthly' && s.roleChipActive]} onPress={() => setFormPayType('monthly')}>
+                  <Text style={[s.roleChipText, formPayType === 'monthly' && s.roleChipTextActive]}>Monthly</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
+                <TouchableOpacity style={[s.roleChip, formPayType === 'daily' && s.roleChipActive]} onPress={() => setFormPayType('daily')}>
+                  <Text style={[s.roleChipText, formPayType === 'daily' && s.roleChipTextActive]}>Daily</Text>
+                </TouchableOpacity>
+              </View>
 
-            <Text style={s.fieldLabel}>PAY TYPE</Text>
-            <View style={s.chipRow}>
-              <TouchableOpacity style={[s.roleChip, formPayType === 'monthly' && s.roleChipActive]} onPress={() => setFormPayType('monthly')}>
-                <Text style={[s.roleChipText, formPayType === 'monthly' && s.roleChipTextActive]}>Monthly</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.roleChip, formPayType === 'daily' && s.roleChipActive]} onPress={() => setFormPayType('daily')}>
-                <Text style={[s.roleChipText, formPayType === 'daily' && s.roleChipTextActive]}>Daily</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={s.fieldLabel}>BASE SALARY</Text>
+              <TextInput style={s.modalInput} placeholder="e.g. 15000" placeholderTextColor={colors.textMuted} value={formSalary} onChangeText={setFormSalary} keyboardType="numeric" />
 
-            <Text style={s.fieldLabel}>BASE SALARY</Text>
-            <TextInput style={s.modalInput} placeholder="e.g. 15000" placeholderTextColor={colors.textMuted} value={formSalary} onChangeText={setFormSalary} keyboardType="numeric" />
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowAddModal(false)}>
-                <Text style={s.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.saveBtn, (!formName.trim()) && { opacity: 0.5 }]} onPress={handleAddStaff} disabled={saving || !formName.trim()}>
-                {saving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Add Staff</Text>}
-              </TouchableOpacity>
-            </View>
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.cancelBtn} onPress={() => setShowAddModal(false)}>
+                  <Text style={s.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.saveBtn, (!formName.trim()) && { opacity: 0.5 }]} onPress={handleAddStaff} disabled={saving || !formName.trim()}>
+                  {saving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Add Staff</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -280,7 +286,7 @@ const s = StyleSheet.create({
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(26,29,46,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text, marginBottom: 16 },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },

@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { ActivityIndicator, StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './src/theme';
@@ -50,92 +50,6 @@ const FORCE_SETUP_UID_KEY = 'force_setup_uid_v1';
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
 
-/** Standalone preview of the "Initializing Environment" setup animation. */
-function SetupInitPreview({ onDone }: { onDone: () => void }) {
-  const STEPS = [
-    'Setting up shop profile...',
-    'Configuring business preferences...',
-    'Populating master services...',
-    'Adding clothing items & pricing...',
-    'Initializing staff directories...',
-    'Deploying financial ledgers...',
-  ];
-  const [step, setStep] = React.useState(0);
-  const [done, setDone] = React.useState(false);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      for (let i = 0; i < STEPS.length; i++) {
-        if (cancelled) return;
-        setStep(i);
-        await new Promise(r => setTimeout(r, 800));
-      }
-      if (!cancelled) { setDone(true); await new Promise(r => setTimeout(r, 1800)); onDone(); }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, []);
-
-  const pct = Math.round(((step + 1) / STEPS.length) * 100);
-
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-      {!done ? (
-        <>
-          <View style={{ alignItems: 'center', marginBottom: 32 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 22, backgroundColor: '#0F1E36', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <MaterialIcons name="local-laundry-service" size={38} color="#fff" />
-            </View>
-            <Text style={{ fontSize: 22, fontFamily: fonts.bold, color: colors.text }}>Laundry Bill</Text>
-            <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: colors.textSecondary, marginTop: 4 }}>Initializing Environment...</Text>
-          </View>
-          <View style={{ width: '100%', backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 18, elevation: 6 }}>
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary, flex: 1 }}>{STEPS[step]}</Text>
-                <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.textSecondary }}>{pct}%</Text>
-              </View>
-              <View style={{ width: '100%', height: 6, backgroundColor: colors.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
-                <View style={{ height: '100%', width: `${pct}%`, backgroundColor: colors.primary, borderRadius: 3 }} />
-              </View>
-            </View>
-            <View style={{ gap: 14 }}>
-              {STEPS.map((s, i) => {
-                const isDone = i < step; const isActive = i === step; const isPending = i > step;
-                return (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: isPending ? 0.3 : isDone ? 0.8 : 1 }}>
-                    <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
-                      {isDone ? (
-                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-                          <MaterialIcons name="check" size={12} color="#fff" />
-                        </View>
-                      ) : isActive ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border }} />
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 14, fontFamily: isActive ? fonts.bold : fonts.semibold, color: isActive ? colors.primary : colors.textSecondary }}>{s}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        </>
-      ) : (
-        <View style={{ alignItems: 'center' }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-            <MaterialIcons name="check" size={40} color="#fff" />
-          </View>
-          <Text style={{ fontSize: 22, fontFamily: fonts.bold, color: colors.text }}>Setup Complete!</Text>
-          <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary, marginTop: 6 }}>Redirecting to dashboard...</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function App() {
   return (
     <I18nextProvider i18n={i18n}>
@@ -162,6 +76,7 @@ function MainLayout() {
   const [orderDraft, setOrderDraft] = useState<DraftOrderPayload | null>(null);
   const [orderInProgress, setOrderInProgress] = useState(false); // keeps CreateOrderScreen mounted across tabs
   const [ordersInitialFilter, setOrdersInitialFilter] = useState<string | undefined>(undefined);
+  const [ordersOpenSearch, setOrdersOpenSearch] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<any>(null); // holds the order after placement for success screen
   const [editingOrder, setEditingOrder] = useState<any>(null); // order being edited
   const [pendingRegistration, setPendingRegistration] = useState<{ email: string } | null>(null);
@@ -451,9 +366,11 @@ function MainLayout() {
         return <HomeScreen
                  onNewOrder={openCreateOrder}
                  onScanQR={() => setActiveScreen('SCAN_QR')}
-                 onExpense={() => setActiveTab('EXPENSES')}
+                 onExpense={() => setActiveScreen('EXPENSE_LIST')}
+                 onAttendance={() => setActiveScreen('ATTENDANCE')}
                  onDueOrders={() => { setOrdersInitialFilter('due'); setActiveTab('ORDERS'); }}
                  onViewOrders={() => { setOrdersInitialFilter(undefined); setActiveTab('ORDERS'); }}
+                 onSearchOrders={() => { setOrdersInitialFilter(undefined); setOrdersOpenSearch(true); setActiveTab('ORDERS'); }}
                  onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                />;
@@ -463,6 +380,8 @@ function MainLayout() {
                  onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
                  onBack={() => setActiveTab('HOME')}
                  initialFilter={ordersInitialFilter}
+                 initialSearchOpen={ordersOpenSearch}
+                 onSearchConsumed={() => setOrdersOpenSearch(false)}
                />;
       case 'EXPENSES':
         return <ExpensesScreen
@@ -484,8 +403,6 @@ function MainLayout() {
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
                  onCreateStaffLogin={() => setActiveScreen('CREATE_STAFF_LOGIN')}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
-                 onPreviewOnboarding={() => setActiveScreen('PREVIEW_ONBOARDING')}
-                 onPreviewSetupInit={() => setActiveScreen('PREVIEW_SETUP_INIT')}
                />;
       default:
         return <HomeScreen
@@ -594,24 +511,6 @@ function MainLayout() {
     );
   }
 
-  if (activeScreen === 'PREVIEW_ONBOARDING') {
-    return (
-      <View style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F1E36" />
-        <OnboardingScreen onDone={() => setActiveScreen(null)} />
-      </View>
-    );
-  }
-
-  if (activeScreen === 'PREVIEW_SETUP_INIT') {
-    return (
-      <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-        <SetupInitPreview onDone={() => setActiveScreen(null)} />
-      </View>
-    );
-  }
-
   if (activeScreen === 'SUBSCRIPTION') {
     return (
       <View style={styles.safeArea}>
@@ -703,7 +602,10 @@ function MainLayout() {
     return (
       <View style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-        <AttendanceScreen onBack={() => setActiveScreen(null)} />
+        <AttendanceScreen
+          onBack={() => setActiveScreen(null)}
+          onAddStaff={() => setActiveScreen('STAFF_LIST')}
+        />
       </View>
     );
   }

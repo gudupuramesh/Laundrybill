@@ -14,6 +14,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
+import { HelpButton } from '../components/HelpButton';
 
 // ---------------------------------------------------------------------------
 // Types & constants
@@ -68,7 +69,7 @@ function monthLabel(d: Date): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function AttendanceScreen({ onBack }: { onBack: () => void }) {
+export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () => void; onAddStaff?: () => void }) {
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
@@ -258,7 +259,7 @@ export default function AttendanceScreen({ onBack }: { onBack: () => void }) {
           <MaterialIcons name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Staff Attendance</Text>
-        <View style={{ width: 40 }} />
+        <HelpButton pageId="mobile_attendance" />
       </View>
 
       {/* ---- Segmented Control ---- */}
@@ -308,6 +309,13 @@ export default function AttendanceScreen({ onBack }: { onBack: () => void }) {
               <View style={s.emptyState}>
                 <MaterialIcons name="groups" size={48} color={colors.textMuted} />
                 <Text style={s.emptyTitle}>No staff added yet</Text>
+                <Text style={s.emptySubtitle}>Add a staff member to start tracking attendance.</Text>
+                {onAddStaff && (
+                  <TouchableOpacity style={s.emptyAddBtn} onPress={onAddStaff} activeOpacity={0.85}>
+                    <MaterialIcons name="person-add" size={18} color={colors.surface} />
+                    <Text style={s.emptyAddBtnText}>Add Staff Member</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               staff.map((member) => {
@@ -414,6 +422,13 @@ export default function AttendanceScreen({ onBack }: { onBack: () => void }) {
               <View style={s.emptyState}>
                 <MaterialIcons name="groups" size={48} color={colors.textMuted} />
                 <Text style={s.emptyTitle}>No staff added yet</Text>
+                <Text style={s.emptySubtitle}>Add a staff member to start tracking attendance.</Text>
+                {onAddStaff && (
+                  <TouchableOpacity style={s.emptyAddBtn} onPress={onAddStaff} activeOpacity={0.85}>
+                    <MaterialIcons name="person-add" size={18} color={colors.surface} />
+                    <Text style={s.emptyAddBtnText}>Add Staff Member</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               staff.map((member) => {
@@ -725,5 +740,28 @@ const s = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  emptySubtitle: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    marginTop: -2,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: radii.button,
+    marginTop: 12,
+  },
+  emptyAddBtnText: {
+    color: colors.surface,
+    fontFamily: fonts.bold,
+    fontSize: 14,
   },
 });

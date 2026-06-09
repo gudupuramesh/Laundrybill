@@ -36,6 +36,7 @@ import type {
   SupportVideo,
   SupportDoc,
   PageHelpEntry,
+  TutorialVideo,
 } from "@/types/support";
 import {
   SUPPORT_PAGE_IDS,
@@ -59,6 +60,7 @@ const DEFAULT_PAGE_HELP: PageHelpEntry[] = SUPPORT_PAGE_IDS.map((pageId) => ({
   pageTitle: SUPPORT_PAGE_TITLES[pageId],
   videoUrl: "",
   docUrl: "",
+  videos: [],
 }));
 
 const DEFAULT_STATE: SupportHelpState = {
@@ -97,11 +99,17 @@ export function SupportHelpPage() {
           const existing = Array.isArray(supportData?.pageHelp)
             ? supportData.pageHelp.find((p: PageHelpEntry) => p.pageId === pageId)
             : null;
+          // Migrate legacy single videoUrl into the videos[] list if needed
+          let videos: TutorialVideo[] = Array.isArray(existing?.videos) ? existing!.videos! : [];
+          if (videos.length === 0 && existing?.videoUrl) {
+            videos = [{ id: crypto.randomUUID(), title: "Tutorial", url: existing.videoUrl }];
+          }
           return {
             pageId,
             pageTitle: SUPPORT_PAGE_TITLES[pageId],
             videoUrl: existing?.videoUrl ?? "",
             docUrl: existing?.docUrl ?? "",
+            videos,
           };
         });
 
@@ -167,6 +175,38 @@ export function SupportHelpPage() {
       ...prev,
       pageHelp: prev.pageHelp.map((p, i) =>
         i === index ? { ...p, [field]: value } : p
+      ),
+    }));
+  };
+
+  // --- Per-page tutorial videos (list) ---
+  const addPageVideo = (pageIndex: number) => {
+    setState((prev) => ({
+      ...prev,
+      pageHelp: prev.pageHelp.map((p, i) =>
+        i === pageIndex
+          ? { ...p, videos: [...(p.videos ?? []), { id: crypto.randomUUID(), title: "", url: "" }] }
+          : p
+      ),
+    }));
+  };
+  const updatePageVideo = (pageIndex: number, videoIndex: number, field: "title" | "url", value: string) => {
+    setState((prev) => ({
+      ...prev,
+      pageHelp: prev.pageHelp.map((p, i) =>
+        i === pageIndex
+          ? { ...p, videos: (p.videos ?? []).map((v, vi) => (vi === videoIndex ? { ...v, [field]: value } : v)) }
+          : p
+      ),
+    }));
+  };
+  const removePageVideo = (pageIndex: number, videoIndex: number) => {
+    setState((prev) => ({
+      ...prev,
+      pageHelp: prev.pageHelp.map((p, i) =>
+        i === pageIndex
+          ? { ...p, videos: (p.videos ?? []).filter((_, vi) => vi !== videoIndex) }
+          : p
       ),
     }));
   };
@@ -312,62 +352,79 @@ export function SupportHelpPage() {
         </div>
       </LCard>
 
-      {/* Per-page video + doc */}
+      {/* Per-page tutorial videos */}
       <LCard className="p-6">
         <h2 className="text-lg font-semibold text-foreground mb-2 flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
-          Per-page help (video + documentation link)
+          <Video className="h-5 w-5 text-primary" />
+          Per-page tutorial videos
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Each app page can have its own YouTube link and doc link. Users see these when they open Help or click the help icon on that page.
+          Add one or more YouTube tutorial videos (with a heading) for each app page.
+          When a user taps the <span className="font-semibold">?</span> help icon on that page, these videos open in the app.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 font-medium text-foreground">
-                  Page
-                </th>
-                <th className="text-left py-2 pr-4 font-medium text-foreground">
-                  Video URL (e.g. YouTube)
-                </th>
-                <th className="text-left py-2 font-medium text-foreground">
-                  Documentation URL
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.pageHelp.map((entry, index) => (
-                <tr key={entry.pageId} className="border-b border-border/70">
-                  <td className="py-3 pr-4 font-medium text-foreground align-top pt-3">
-                    {entry.pageTitle}
-                  </td>
-                  <td className="py-2 pr-4 align-top">
+        <div className="space-y-4">
+          {state.pageHelp.map((entry, index) => (
+            <div key={entry.pageId} className="rounded-xl border border-border p-4 bg-background/40">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-foreground">{entry.pageTitle}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {(entry.videos?.length ?? 0)} video{(entry.videos?.length ?? 0) === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              {/* Video list */}
+              <div className="space-y-2">
+                {(entry.videos ?? []).map((v, vi) => (
+                  <div key={v.id} className="flex gap-2 items-center flex-wrap">
+                    <input
+                      type="text"
+                      placeholder="Video heading (e.g. How to create an order)"
+                      value={v.title}
+                      onChange={(e) => updatePageVideo(index, vi, "title", e.target.value)}
+                      className="flex-1 min-w-[180px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
                     <input
                       type="url"
-                      placeholder="https://youtube.com/..."
-                      value={entry.videoUrl}
-                      onChange={(e) =>
-                        updatePageHelp(index, "videoUrl", e.target.value)
-                      }
-                      className="w-full min-w-[200px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={v.url}
+                      onChange={(e) => updatePageVideo(index, vi, "url", e.target.value)}
+                      className="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
                     />
-                  </td>
-                  <td className="py-2 align-top">
-                    <input
-                      type="url"
-                      placeholder="https://docs..."
-                      value={entry.docUrl}
-                      onChange={(e) =>
-                        updatePageHelp(index, "docUrl", e.target.value)
-                      }
-                      className="w-full min-w-[200px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <LButton
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePageVideo(index, vi)}
+                      className="text-destructive shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </LButton>
+                  </div>
+                ))}
+                {(entry.videos?.length ?? 0) === 0 && (
+                  <p className="text-xs text-muted-foreground italic">No videos yet for this page.</p>
+                )}
+              </div>
+
+              {/* Doc link (optional) + add video */}
+              <div className="flex items-center justify-between gap-2 mt-3 flex-wrap">
+                <LButton
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={() => addPageVideo(index)}
+                >
+                  Add video
+                </LButton>
+                <input
+                  type="url"
+                  placeholder="Optional documentation URL"
+                  value={entry.docUrl}
+                  onChange={(e) => updatePageHelp(index, "docUrl", e.target.value)}
+                  className="flex-1 min-w-[200px] h-9 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </LCard>
 

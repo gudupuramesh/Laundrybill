@@ -12,7 +12,7 @@ import Purchases, {
  * iOS (App Store) key — add your Apple API key from RevenueCat dashboard here.
  */
 const GOOGLE_API_KEY = "goog_EpIUjfFfLhTOWhqUuuGJQcLANxw";
-const APPLE_API_KEY = ""; // TODO: Add your Apple RevenueCat API key (appl_XXXX)
+const APPLE_API_KEY = "appl_GWvwUmmHjKBSGXfIXmNEllZRoLX"; // App Store (iOS) public SDK key
 
 const ENTITLEMENT_ID = "Laundrybill Pro";
 

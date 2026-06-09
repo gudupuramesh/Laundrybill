@@ -32,16 +32,20 @@ export default function HomeScreen({
   onNewOrder,
   onScanQR,
   onExpense,
+  onAttendance,
   onDueOrders,
   onViewOrders,
+  onSearchOrders,
   onViewOrder,
   onOpenSubscription,
 }: {
   onNewOrder?: () => void;
   onScanQR?: () => void;
   onExpense?: () => void;
+  onAttendance?: () => void;
   onDueOrders?: () => void;
   onViewOrders?: () => void;
+  onSearchOrders?: () => void;
   onViewOrder?: (id: string) => void;
   onOpenSubscription?: () => void;
 }) {
@@ -174,6 +178,7 @@ export default function HomeScreen({
               )}
             </SubBadgeWrap>
           )}
+          <HelpButton pageId="mobile_home" />
           <TouchableOpacity style={s.gearBtn} onPress={onOpenSubscription} activeOpacity={0.7}>
             <MaterialIcons name="settings" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -191,7 +196,7 @@ export default function HomeScreen({
               placeholder={t('mobile.searchPlaceholder', { defaultValue: 'Search order or phone...' })}
               placeholderTextColor={colors.textMuted}
               editable={false}
-              onPressIn={onViewOrders}
+              onPressIn={onSearchOrders || onViewOrders}
             />
           </View>
           <View style={s.actionRow}>
@@ -260,7 +265,7 @@ export default function HomeScreen({
                   <Text style={s.qaPlusText}>+</Text>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={s.qaTile} activeOpacity={0.7}>
+              <TouchableOpacity style={s.qaTile} activeOpacity={0.7} onPress={onAttendance}>
                 <View style={s.qaContent}>
                   <View style={[s.qaIcon, { backgroundColor: colors.primaryTint }]}>
                     <MaterialIcons name="groups" size={16} color={colors.primary} />
@@ -352,22 +357,22 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  brandSection: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
+  brandSection: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
   appIcon: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: colors.darkBlue,
+    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.darkBlue,
     alignItems: 'center', justifyContent: 'center',
     ...shadows.card,
   },
-  appIconInitial: { fontSize: 20, fontFamily: fonts.bold, color: colors.surface },
-  appIconImage: { width: 44, height: 44, borderRadius: 12 },
-  brandTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text },
-  brandSubtitle: { fontSize: 12, fontFamily: fonts.semibold, color: colors.textSecondary },
+  appIconInitial: { fontSize: 17, fontFamily: fonts.bold, color: colors.surface },
+  appIconImage: { width: 36, height: 36, borderRadius: 10 },
+  brandTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  brandSubtitle: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textSecondary },
   gearBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceMuted,
     alignItems: 'center', justifyContent: 'center',
   },
 

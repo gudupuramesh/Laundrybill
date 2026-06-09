@@ -249,6 +249,8 @@ export default function OrderReviewScreen({
         customerId: draftOrder.customer.id || null,
         customerName: draftOrder.customer.name || 'Guest',
         customerPhone: draftOrder.customer.phone || '',
+        customerEmail: draftOrder.customer.email || null,
+        customerAddress: draftOrder.customer.address || null,
         isGuest: draftOrder.customer.isGuest || false,
         items: draftOrder.items.map((item, idx) => ({
           id: item.id || `i-${Date.now()}-${idx}`,

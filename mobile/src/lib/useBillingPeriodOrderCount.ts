@@ -18,12 +18,6 @@ export function getBillingPeriodStart(subscriptionData: any | null): Date {
 
 function timestampFromDate(d: Date): any {
   try {
-    const mod = require('@react-native-firebase/firestore').default;
-    if (mod?.Timestamp?.fromDate) return mod.Timestamp.fromDate(d);
-  } catch {
-    /* use web SDK below */
-  }
-  try {
     const { Timestamp } = require('firebase/firestore');
     return Timestamp.fromDate(d);
   } catch {

@@ -595,7 +595,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               onChangeText={setCustomerModalSearch}
             />
           </View>
-          <ScrollView style={{ marginTop: 10 }}>
+          <ScrollView style={{ marginTop: 10 }} keyboardShouldPersistTaps="handled">
             {filteredCustomers.length === 0 ? (
               <View style={styles.searchResultItem}><Text style={styles.resultPhone}>{t('mobile.noCustomersFound')}</Text></View>
             ) : (
@@ -790,6 +790,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.modalBackdrop}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
           <View style={styles.modalCard}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
             <Text style={styles.modalTitle}>{t('mobile.editItem')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickEditImage}>
               {editImageUri ? (
@@ -865,6 +866,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 {editSaving ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.modalSave}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
           </KeyboardAvoidingView>
         </View>
@@ -874,6 +876,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         <View style={styles.modalBackdrop}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
           <View style={styles.modalCard}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
             <Text style={styles.modalTitle}>{t('mobile.addCustomItemTitle')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickCustomImage}>
               {customImageUri ? (
@@ -910,7 +913,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
               <MaterialIcons name={showCustomCategoryList ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={20} color={colors.textMuted} />
             </TouchableOpacity>
             {showCustomCategoryList ? (
-              <ScrollView style={{ maxHeight: 160 }}>
+              <ScrollView style={{ maxHeight: 160 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                 {categories.map((cat) => (
                   <TouchableOpacity
                     key={cat.id}
@@ -943,6 +946,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 {customSaving ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.modalSave}>{t('common.add')}</Text>}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
           </KeyboardAvoidingView>
         </View>
@@ -1349,6 +1353,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     padding: 16,
     gap: 12,
+    maxHeight: '88%',
   },
   modalCardLarge: {
     backgroundColor: colors.surface,

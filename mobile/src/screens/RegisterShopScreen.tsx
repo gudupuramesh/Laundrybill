@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable, Image, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -548,6 +549,9 @@ export default function RegisterShopScreen({
 
         // Step 5: Deploying financial ledgers
         await new Promise(r => setTimeout(r, 500));
+
+        // Enable first-time tutorial auto-popups so the new user sees each page's video once
+        try { await AsyncStorage.setItem('tutorials_autoshow_enabled', '1'); } catch {}
 
         // All done — show success
         setSetupDone(true);

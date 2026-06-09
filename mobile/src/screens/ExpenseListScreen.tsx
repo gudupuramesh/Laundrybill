@@ -11,6 +11,7 @@ import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import { colors, fonts, radii, shadows } from '../theme';
+import { HelpButton } from '../components/HelpButton';
 
 // Category config matching web
 const CATEGORIES = [
@@ -166,9 +167,12 @@ export default function ExpenseListScreen({
       <View style={s.header}>
         <TouchableOpacity style={s.iconBtn} onPress={onBack}><MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} /></TouchableOpacity>
         <Text style={s.headerTitle}>Expenses</Text>
-        <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.primaryTint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
-          <MaterialIcons name="add" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.primaryTint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
+            <MaterialIcons name="add" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <HelpButton pageId="mobile_expenses" />
+        </View>
       </View>
 
       {/* Month Nav */}
@@ -237,43 +241,45 @@ export default function ExpenseListScreen({
 
       {/* Add Expense Modal */}
       <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={s.modalDismiss} onPress={() => setShowAdd(false)} />
           <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHandle} />
-            <Text style={s.modalTitle}>Add Expense</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={s.modalTitle}>Add Expense</Text>
 
-            <Text style={s.fieldLabel}>AMOUNT *</Text>
-            <TextInput style={s.modalInput} placeholder="e.g. 500" placeholderTextColor={colors.textMuted} value={formAmount} onChangeText={setFormAmount} keyboardType="numeric" autoFocus />
+              <Text style={s.fieldLabel}>AMOUNT *</Text>
+              <TextInput style={s.modalInput} placeholder="e.g. 500" placeholderTextColor={colors.textMuted} value={formAmount} onChangeText={setFormAmount} keyboardType="numeric" autoFocus />
 
-            <Text style={s.fieldLabel}>CATEGORY</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }} contentContainerStyle={{ gap: 6 }}>
-              {CATEGORIES.map((cat) => {
-                const color = GROUP_COLORS[cat.group] || colors.textSecondary;
-                const isActive = formCategory === cat.key;
-                return (
-                  <TouchableOpacity key={cat.key} style={[s.catChip, isActive && { backgroundColor: color + '18', borderColor: color }]} onPress={() => setFormCategory(cat.key)}>
-                    <MaterialIcons name={cat.icon as any} size={14} color={isActive ? color : colors.textMuted} />
-                    <Text style={[s.catChipText, isActive && { color }]}>{cat.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <Text style={s.fieldLabel}>CATEGORY</Text>
+              <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }} contentContainerStyle={{ gap: 6 }}>
+                {CATEGORIES.map((cat) => {
+                  const color = GROUP_COLORS[cat.group] || colors.textSecondary;
+                  const isActive = formCategory === cat.key;
+                  return (
+                    <TouchableOpacity key={cat.key} style={[s.catChip, isActive && { backgroundColor: color + '18', borderColor: color }]} onPress={() => setFormCategory(cat.key)}>
+                      <MaterialIcons name={cat.icon as any} size={14} color={isActive ? color : colors.textMuted} />
+                      <Text style={[s.catChipText, isActive && { color }]}>{cat.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={s.fieldLabel}>DESCRIPTION</Text>
+              <TextInput style={s.modalInput} placeholder="What was this for?" placeholderTextColor={colors.textMuted} value={formDesc} onChangeText={setFormDesc} />
+
+              <Text style={s.fieldLabel}>VENDOR</Text>
+              <TextInput style={s.modalInput} placeholder="Shop/vendor name (optional)" placeholderTextColor={colors.textMuted} value={formVendor} onChangeText={setFormVendor} />
+
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.cancelBtn} onPress={() => setShowAdd(false)}>
+                  <Text style={s.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.saveBtn, !formAmount && { opacity: 0.5 }]} onPress={handleAdd} disabled={saving || !formAmount}>
+                  {saving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Add Expense</Text>}
+                </TouchableOpacity>
+              </View>
             </ScrollView>
-
-            <Text style={s.fieldLabel}>DESCRIPTION</Text>
-            <TextInput style={s.modalInput} placeholder="What was this for?" placeholderTextColor={colors.textMuted} value={formDesc} onChangeText={setFormDesc} />
-
-            <Text style={s.fieldLabel}>VENDOR</Text>
-            <TextInput style={s.modalInput} placeholder="Shop/vendor name (optional)" placeholderTextColor={colors.textMuted} value={formVendor} onChangeText={setFormVendor} />
-
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowAdd(false)}>
-                <Text style={s.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.saveBtn, !formAmount && { opacity: 0.5 }]} onPress={handleAdd} disabled={saving || !formAmount}>
-                {saving ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={s.saveBtnText}>Add Expense</Text>}
-              </TouchableOpacity>
-            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -331,7 +337,7 @@ const s = StyleSheet.create({
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(26,29,46,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
-  Switch, ActivityIndicator, Alert, Image, Modal, Platform,
+  Switch, ActivityIndicator, Alert, Image, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -467,7 +467,7 @@ export default function ServiceItemsScreen({
 
       {/* Add/Edit Item Modal */}
       <Modal visible={isItemFormOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView style={[styles.modalContent, { paddingBottom: insets.bottom + 16 }]} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editItem ? t('mobile.editItemModalTitle') : t('mobile.addItemModalTitle')}</Text>
@@ -571,7 +571,7 @@ export default function ServiceItemsScreen({
               )}
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

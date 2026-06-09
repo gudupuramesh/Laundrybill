@@ -813,10 +813,11 @@ export default function ExpensesScreen({
 
       {/* ═══ Custom Date Range Modal ═══ */}
       <Modal visible={showCustomDateModal} transparent animationType="slide" onRequestClose={() => setShowCustomDateModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => setShowCustomDateModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('mobile.finCustomRangeTitle')}</Text>
             <Text style={styles.fieldLabel}>{t('mobile.finStartDateLabel')}</Text>
             <TextInput
@@ -845,16 +846,18 @@ export default function ExpensesScreen({
                 <Text style={styles.primaryBtnText}>{t('mobile.finApply')}</Text>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══ Add Expense Modal ═══ */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={styles.modalDismiss} onPress={() => setAddModal(false)} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('mobile.finAddExpenseTitle')}</Text>
 
             {/* Amount */}
@@ -874,7 +877,7 @@ export default function ExpensesScreen({
 
             {/* Category */}
             <Text style={styles.fieldLabel}>{t('mobile.finCategoryLabel')} <Text style={{ color: colors.error }}>*</Text></Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+            <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
               {EXPENSE_CATEGORY_DEFS.map((cat) => {
                 const isSelected = expCategory === cat.key;
                 const color = CATEGORY_COLORS[cat.group] || colors.textSecondary;
@@ -926,6 +929,7 @@ export default function ExpensesScreen({
                 )}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1085,7 +1089,7 @@ const styles = StyleSheet.create({
 
   // Modal
   modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.md },
   modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: spacing.sm },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.3, marginTop: spacing.md, marginBottom: spacing.xs },

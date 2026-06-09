@@ -1,68 +1,111 @@
 /**
- * Push Notification Registration & Handling for Mobile App
- * - Requests permission
- * - Gets FCM token and saves to Firestore
- * - Handles foreground & background messages
+ * Push notifications via expo-notifications (Expo push tokens).
+ *
+ * Replaces the previous FCM (@react-native-firebase/messaging) implementation,
+ * which required native Firebase. The Expo push token is saved to
+ * `shops/{shopId}/notificationTokens/{uid}_mobile` with tokenType:'expo'.
+ *
+ * NOTE: the backend Cloud Functions must send to these via the Expo push
+ * service (https://exp.host/--/api/v2/push/send) for `tokenType:'expo'` tokens.
+ *
+ * expo-notifications is dynamically imported — Expo Go (SDK 53+) removed Android
+ * remote push, so we skip there. Use a development/release build for real push.
  */
-import { useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
-import messaging from '@react-native-firebase/messaging';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { firestore } from './db';
 import { auth, getShopId } from './auth';
 
+function isExpoGo(): boolean {
+  return Constants.appOwnership === 'expo';
+}
+
+function getProjectId(): string | undefined {
+  return (
+    (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ??
+    (Constants as any).easConfig?.projectId
+  );
+}
+
+let handlerInstalled = false;
+
 /**
- * Registers FCM token and listens for push notifications.
- * Call this once in your root App component.
+ * Registers an Expo push token and listens for notification taps.
+ * Call once in the root App component.
  */
 export function usePushNotifications(onNotificationTap?: (data: any) => void) {
-  const tokenSaved = useRef(false);
-
   useEffect(() => {
-    let unsubOnMessage: (() => void) | undefined;
+    let subTap: { remove: () => void } | undefined;
+    let cancelled = false;
 
     const setup = async () => {
-      try {
-        // 1. Request permission (iOS needs explicit, Android auto-grants)
-        const authStatus = await messaging().requestPermission();
-        const enabled =
-          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      if (Platform.OS === 'web') return;
+      if (isExpoGo()) {
+        console.warn('[push] Remote push unavailable in Expo Go. Use a dev/release build.');
+        return;
+      }
 
-        if (!enabled) {
+      let Notifications: typeof import('expo-notifications');
+      try {
+        Notifications = await import('expo-notifications');
+      } catch (err) {
+        console.warn('[push] expo-notifications unavailable:', err);
+        return;
+      }
+
+      if (!handlerInstalled) {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+        handlerInstalled = true;
+      }
+
+      try {
+        // 1. Permission
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let final = existing;
+        if (existing !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          final = status;
+        }
+        if (final !== 'granted') {
           console.log('Push notification permission denied');
           return;
         }
 
-        // 2. Get FCM token
-        const token = await messaging().getToken();
-        if (token) {
-          await saveTokenToFirestore(token);
+        // 2. Android channel
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'Default',
+            importance: Notifications.AndroidImportance.DEFAULT,
+          });
         }
 
-        // 3. Listen for token refresh
-        messaging().onTokenRefresh(async (newToken) => {
-          await saveTokenToFirestore(newToken);
+        // 3. Expo push token
+        const projectId = getProjectId();
+        const tokenData = await Notifications.getExpoPushTokenAsync(
+          projectId ? { projectId } : undefined,
+        );
+        const token = tokenData.data;
+        if (token && !cancelled) await saveTokenToFirestore(token);
+
+        // 4. Notification tap (background / killed)
+        subTap = Notifications.addNotificationResponseReceivedListener((response) => {
+          const data = response.notification.request.content.data;
+          if (onNotificationTap && data) onNotificationTap(data);
         });
 
-        // 4. Handle foreground messages (app open)
-        unsubOnMessage = messaging().onMessage(async (remoteMessage) => {
-          // Show a local alert for foreground notifications
-          const title = remoteMessage.notification?.title || 'LaundryBill';
-          const body = remoteMessage.notification?.body || '';
-          Alert.alert(title, body);
-        });
-
-        // 5. Handle notification tap when app was in background
-        messaging().onNotificationOpenedApp((remoteMessage) => {
-          if (onNotificationTap && remoteMessage.data) {
-            onNotificationTap(remoteMessage.data);
-          }
-        });
-
-        // 6. Check if app was opened from a killed state notification
-        const initialNotification = await messaging().getInitialNotification();
-        if (initialNotification && onNotificationTap && initialNotification.data) {
-          onNotificationTap(initialNotification.data);
+        // 5. Opened from a killed state
+        const last = await Notifications.getLastNotificationResponseAsync();
+        if (last && onNotificationTap && last.notification.request.content.data) {
+          onNotificationTap(last.notification.request.content.data);
         }
       } catch (e) {
         console.error('Push notification setup error:', e);
@@ -72,16 +115,15 @@ export function usePushNotifications(onNotificationTap?: (data: any) => void) {
     setup();
 
     return () => {
-      unsubOnMessage?.();
+      cancelled = true;
+      subTap?.remove();
     };
   }, []);
 
   return null;
 }
 
-/**
- * Save FCM token to Firestore under the shop's notification tokens
- */
+/** Save the Expo push token to Firestore. */
 async function saveTokenToFirestore(token: string) {
   try {
     const shopId = getShopId();
@@ -94,26 +136,24 @@ async function saveTokenToFirestore(token: string) {
       .set(
         {
           token,
-          platform: Platform.OS, // 'android' or 'ios'
+          tokenType: 'expo',
+          platform: Platform.OS,
           device: 'mobile_app',
           updatedAt: new Date(),
           userId: uid,
         },
-        { merge: true }
+        { merge: true },
       );
   } catch (e) {
-    console.error('Failed to save FCM token:', e);
+    console.error('Failed to save Expo push token:', e);
   }
 }
 
 /**
- * Background message handler — must be called at top level (outside components)
- * Call this in index.js or App.tsx outside of any component.
+ * No-op: expo-notifications handles background notifications via the OS.
+ * Kept for API compatibility with the previous FCM background handler.
  */
 export function registerBackgroundHandler() {
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    // Background messages are handled by the system notification tray automatically
-    // This handler is for any additional processing (e.g., data-only messages)
-    console.log('Background message:', remoteMessage.messageId);
-  });
+  // expo-notifications delivers background/killed notifications through the
+  // system tray automatically; no top-level handler registration needed.
 }
