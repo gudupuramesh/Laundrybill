@@ -1,10 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert, BackHandler, PanResponder } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './src/theme';
@@ -46,6 +46,11 @@ registerBackgroundHandler();
 const ONBOARDING_DONE_KEY = 'onboarding_completed_v1';
 const PENDING_REGISTRATION_KEY = 'pending_registration_v1';
 const FORCE_SETUP_UID_KEY = 'force_setup_uid_v1';
+// Per-user cache of the resolved shopId. The JS Firebase SDK has no offline
+// disk cache on React Native, so without this every launch blocks the splash on
+// a live Firestore read (slow on weak/dual-SIM networks). With it, a returning
+// user lands on the dashboard instantly and we validate in the background.
+const RESOLVED_SHOPID_KEY = (uid: string) => `resolved_shopid_v1_${uid}`;
 
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
@@ -58,11 +63,49 @@ const MIN_SPLASH_MS = 720;
  */
 const SHOW_STAFF_LOGINS = false;
 
+// Auth-flow screens manage their own back behaviour and are excluded from the
+// back-gesture history so a swipe on the dashboard never lands back on login.
+const AUTH_SCREENS = ['LOGIN', 'CREATE_ACCOUNT', 'REGISTER_SHOP'];
+
+// Bridges the global left-edge swipe overlay to MainLayout's goBack(). Set by
+// MainLayout; returns true when it handled the back, false to ignore the swipe.
+const navBackRef: { current: () => boolean } = { current: () => false };
+
+/**
+ * Transparent strip down the left edge that turns a rightward swipe into a
+ * "back" action — gives the iOS-style swipe-back gesture without React
+ * Navigation. Taps pass through (it only claims the responder on a horizontal
+ * drag), so on-screen back buttons and controls still work.
+ */
+function EdgeSwipeBack() {
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (e, g) =>
+        e.nativeEvent.pageX - g.dx < 32 && g.dx > 12 && Math.abs(g.dy) < 24,
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx > 60 && Math.abs(g.dy) < 80) navBackRef.current();
+      },
+      onPanResponderTerminationRequest: () => true,
+    }),
+  ).current;
+
+  return (
+    <View
+      style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 32 }}
+      {...responder.panHandlers}
+    />
+  );
+}
+
 export default function App() {
   return (
     <I18nextProvider i18n={i18n}>
       <SafeAreaProvider>
-        <MainLayout />
+        <View style={{ flex: 1 }}>
+          <MainLayout />
+          <EdgeSwipeBack />
+        </View>
       </SafeAreaProvider>
     </I18nextProvider>
   );
@@ -97,6 +140,61 @@ function MainLayout() {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<any>(null); // from @react-native-firebase/auth
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+
+  // ── Back navigation (Android system back + left-edge swipe) ──────────
+  // The app uses manual state navigation, so we maintain a lightweight screen
+  // history and expose goBack() to the hardware back button and the edge swipe.
+  const navStackRef = useRef<(string | null)[]>([]);
+  const prevScreenRef = useRef<string | null>(activeScreen);
+  const poppingRef = useRef(false);
+
+  useEffect(() => {
+    if (activeScreen === prevScreenRef.current) return;
+    if (poppingRef.current) {
+      poppingRef.current = false;
+    } else {
+      const stack = navStackRef.current;
+      const top = stack.length ? stack[stack.length - 1] : undefined;
+      if (top !== undefined && top === activeScreen) {
+        // A back-button tap navigated to where we came from → consume history
+        // so a follow-up swipe doesn't push us forward again.
+        stack.pop();
+      } else if (!AUTH_SCREENS.includes(prevScreenRef.current ?? '')) {
+        stack.push(prevScreenRef.current); // forward navigation
+      }
+    }
+    prevScreenRef.current = activeScreen;
+  }, [activeScreen]);
+
+  const goBack = useCallback((): boolean => {
+    // Auth flow handles its own back; don't intercept.
+    if (AUTH_SCREENS.includes(activeScreen ?? '')) return false;
+    if (navStackRef.current.length > 0) {
+      poppingRef.current = true;
+      const prev = navStackRef.current.pop() ?? null;
+      setActiveScreen(prev);
+      return true;
+    }
+    if (activeScreen !== null) {
+      poppingRef.current = true;
+      setActiveScreen(null); // dismiss overlay back to its tab
+      return true;
+    }
+    if (activeTab !== 'HOME') {
+      setActiveTab('HOME');
+      return true;
+    }
+    return false; // nothing to go back to → let Android exit the app
+  }, [activeScreen, activeTab]);
+
+  useEffect(() => {
+    navBackRef.current = goBack;
+  }, [goBack]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => goBack());
+    return () => sub.remove();
+  }, [goBack]);
 
   React.useEffect(() => {
     void initStoredLanguage();
@@ -188,6 +286,34 @@ function MainLayout() {
             const shouldForceSetupNow = forceSetupFlowRef.current || isForcedSetupForCurrentUser;
 
             const pendingReg = pendingRegistrationRef.current;
+
+            // ── FAST PATH: cached shopId → dashboard instantly ───────────
+            // Returning, signed-in user we've resolved before: show the
+            // dashboard immediately from the cache and validate in the
+            // background. Avoids the slow splash-on-network-read.
+            if (!pendingReg && !shouldForceSetupNow) {
+              const cachedShopId = await AsyncStorage.getItem(RESOLVED_SHOPID_KEY(uid));
+              if (cachedShopId) {
+                setResolvedShopId(cachedShopId);
+                setActiveScreen(null);
+                setInitializing(false);
+                console.log('[auth-route]', 'fast_path_cached_shopid', { uid, shopId: cachedShopId });
+                // Background check: only re-route on a CONFIRMED deletion (a
+                // successful read that finds no shop), never on a network error.
+                void (async () => {
+                  try {
+                    const stillExists = (await firestore().collection('shops').doc(cachedShopId).get()).exists;
+                    if (!stillExists) {
+                      await AsyncStorage.removeItem(RESOLVED_SHOPID_KEY(uid));
+                      setResolvedShopId(null);
+                      setActiveScreen('REGISTER_SHOP');
+                    }
+                  } catch { /* transient error — keep the cached shop */ }
+                })();
+                return;
+              }
+            }
+
             // Fresh signup path: if pending registration exists, always force setup
             // until we can prove a valid shop exists for this uid.
             if (pendingReg || shouldForceSetupNow) {
@@ -267,8 +393,11 @@ function MainLayout() {
               }
             }
 
-            // Store resolved shopId for all screens to use
+            // Store resolved shopId for all screens to use + cache it so the
+            // next launch can take the fast path above.
             setResolvedShopId(foundShopId);
+            if (foundShopId) void AsyncStorage.setItem(RESOLVED_SHOPID_KEY(uid), foundShopId);
+            else void AsyncStorage.removeItem(RESOLVED_SHOPID_KEY(uid));
 
             if (foundShopId) {
               console.log('[auth-route]', routingReason, { uid, shopId: foundShopId });
