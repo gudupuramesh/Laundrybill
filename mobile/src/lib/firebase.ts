@@ -89,7 +89,13 @@ try {
   _auth = getAuth(app);
 }
 
-const _firestore: Firestore = initializeFirestore(app, {});
+// React Native's network stack does not reliably support Firestore's default
+// WebChannel streaming transport — reads intermittently fail with "client is
+// offline" even on a healthy connection. Long-polling is the documented,
+// required transport for the Firebase JS SDK on React Native.
+const _firestore: Firestore = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 const _functions: Functions = getFunctions(app);
 
 // Legacy exports (kept for any direct consumers)

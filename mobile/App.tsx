@@ -280,7 +280,12 @@ function MainLayout() {
             }
           } catch (e) {
             console.error("Error during auth resolution:", e);
-            setActiveScreen('REGISTER_SHOP');
+            // A FAILED read does NOT mean the user has no shop. Never force a
+            // signed-in user into shop registration on a transient error — that
+            // is the "register for a shop I already have" bug. Go to the
+            // dashboard; getShopId() falls back to the uid (the shop is usually
+            // shops/{uid}) and the live listeners load data once reads succeed.
+            setActiveScreen(null);
           }
         } else {
           setResolvedShopId(null);
