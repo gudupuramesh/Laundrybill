@@ -50,6 +50,14 @@ const FORCE_SETUP_UID_KEY = 'force_setup_uid_v1';
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
 
+/**
+ * Staff App / Agent / Plant logins are a Business-tier feature. Kept OFF until
+ * the Business plan and its in-app-purchase products go live (showing a feature
+ * tied to an unavailable plan risks App Store / Play review rejection). Flip to
+ * true together with SHOW_BUSINESS_PLAN in SubscriptionScreen when Business launches.
+ */
+const SHOW_STAFF_LOGINS = false;
+
 export default function App() {
   return (
     <I18nextProvider i18n={i18n}>
@@ -401,7 +409,7 @@ function MainLayout() {
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                  onStaffList={() => setActiveScreen('STAFF_LIST')}
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
-                 onCreateStaffLogin={() => setActiveScreen('CREATE_STAFF_LOGIN')}
+                 onCreateStaffLogin={SHOW_STAFF_LOGINS ? () => setActiveScreen('CREATE_STAFF_LOGIN') : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
                />;
       default:

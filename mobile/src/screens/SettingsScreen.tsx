@@ -645,18 +645,22 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={onCreateStaffLogin}>
-              <View style={styles.listItemLeft}>
-                <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
-                  <MaterialIcons name="vpn-key" size={18} color={colors.warning} />
+            {/* Staff App / Agent / Plant logins are a Business-tier feature.
+                Hidden until the Business plan + its IAP products go live. */}
+            {onCreateStaffLogin && (
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={onCreateStaffLogin}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
+                    <MaterialIcons name="vpn-key" size={18} color={colors.warning} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>{t('mobile.createStaffLogin', { defaultValue: 'Create Staff Login' })}</Text>
+                    <Text style={styles.listItemSubtext}>{t('mobile.createStaffLoginDesc', { defaultValue: 'Staff App, Agent & Plant logins' })}</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.listItemText}>{t('mobile.createStaffLogin', { defaultValue: 'Create Staff Login' })}</Text>
-                  <Text style={styles.listItemSubtext}>{t('mobile.createStaffLoginDesc', { defaultValue: 'Staff App, Agent & Plant logins' })}</Text>
-                </View>
-              </View>
-              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

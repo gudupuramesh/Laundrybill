@@ -514,7 +514,6 @@ export default function SubscriptionScreen({
             <View style={s.featureHighlights}>
               <HighlightItem icon="all-inclusive" text="Unlimited orders" color={colors.success} />
               <HighlightItem icon="all-inclusive" text="Unlimited customers" color={colors.success} />
-              <HighlightItem icon="check-circle" text="1 staff app login" />
               <HighlightItem icon="check-circle" text="Staff, attendance & payroll" />
               <HighlightItem icon="check-circle" text="Reports, QR & WhatsApp receipts" />
               <HighlightItem icon="check-circle" text="Order tracking & analytics" />
