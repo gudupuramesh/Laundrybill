@@ -73,6 +73,14 @@ const STATIC_PRICES = Platform.OS === 'ios'
   : { pro: { monthly: '₹299', yearly: '₹2,999', monthlyNum: 299 }, business: { monthly: '₹1,299', yearly: '₹12,999', monthlyNum: 1299 } };
 
 /**
+ * Show the Business plan card. Kept OFF until Business in-app-purchase products
+ * exist on BOTH stores (App Store Connect + Play) and are attached to the
+ * RevenueCat offering — displaying a non-purchasable plan can fail store review.
+ * Flip to true once those products exist.
+ */
+const SHOW_BUSINESS_PLAN = false;
+
+/**
  * Format an amount in the live product's currency (so the savings line matches
  * the headline price for every App Store / Play storefront — ₹ for India, $ for
  * the US, etc.). Falls back to the symbol parsed from the product's priceString
@@ -536,7 +544,9 @@ export default function SubscriptionScreen({
         )}
 
         {/* ── Business Plan Card (Multi-branch / Enterprise) ─────────── */}
-        {!isPaidPlan && (
+        {/* Hidden until Business IAP products exist on both stores. Showing a
+            non-purchasable plan risks App Store/Play review rejection. */}
+        {!isPaidPlan && SHOW_BUSINESS_PLAN && (
           <View style={[s.planCard, s.businessCard]}>
             <View style={[s.bestValueRibbon, { backgroundColor: '#0D47A1' }]}>
               <Text style={s.bestValueRibbonText}>ENTERPRISE</Text>
