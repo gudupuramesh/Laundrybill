@@ -189,16 +189,20 @@ export default function HomeScreen({
 
         {/* Card 1: Search + Actions */}
         <View style={s.card}>
-          <View style={s.searchWrapper}>
+          <TouchableOpacity
+            style={s.searchWrapper}
+            activeOpacity={0.7}
+            onPress={onSearchOrders || onViewOrders}
+          >
             <MaterialIcons name="search" size={20} color={colors.primary} style={s.searchIcon} />
             <TextInput
               style={s.searchInput}
               placeholder={t('mobile.searchPlaceholder', { defaultValue: 'Search order or phone...' })}
               placeholderTextColor={colors.textMuted}
               editable={false}
-              onPressIn={onSearchOrders || onViewOrders}
+              pointerEvents="none"
             />
-          </View>
+          </TouchableOpacity>
           <View style={s.actionRow}>
             <TouchableOpacity style={s.btnSecondary} activeOpacity={0.7} onPress={onScanQR}>
               <MaterialIcons name="qr-code-scanner" size={18} color={colors.primary} />

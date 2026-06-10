@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert, BackHandler, PanResponder } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert, BackHandler, PanResponder, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './src/theme';
@@ -89,6 +89,11 @@ function EdgeSwipeBack() {
       onPanResponderTerminationRequest: () => true,
     }),
   ).current;
+
+  // Android already provides a system back gesture (handled via BackHandler), so
+  // the in-app left-edge overlay is only needed on iOS. Keeping it off Android
+  // also guarantees it can never interfere with taps near the left edge.
+  if (Platform.OS !== 'ios') return null;
 
   return (
     <View
@@ -553,6 +558,7 @@ function MainLayout() {
                  onExpense={() => setActiveTab('EXPENSES')}
                  onDueOrders={() => { setOrdersInitialFilter('due'); setActiveTab('ORDERS'); }}
                  onViewOrders={() => { setOrdersInitialFilter(undefined); setActiveTab('ORDERS'); }}
+                 onSearchOrders={() => { setOrdersInitialFilter(undefined); setOrdersOpenSearch(true); setActiveTab('ORDERS'); }}
                  onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                />;
