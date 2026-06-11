@@ -711,16 +711,19 @@ export default function SubscriptionScreen({
         {/* ── Footer ────────────────────────────────────────────────── */}
         <View style={s.footer}>
           <Text style={s.footerText}>
-            Subscriptions are managed through {storeName}. Prices may vary by region.
-            {Platform.OS === 'ios' ? ' Charged to your Apple ID.' : ' Charged to your Google account.'}
+            Subscriptions automatically renew unless canceled at least 24 hours before the
+            end of the current period. Payment is charged to your{' '}
+            {Platform.OS === 'ios' ? 'Apple ID' : 'Google account'} at confirmation of
+            purchase. Manage or cancel anytime in your account settings. Prices may vary by
+            region.
           </Text>
           <View style={s.footerLinks}>
-            <TouchableOpacity onPress={() => Linking.openURL('https://laundrybill.in/terms')}>
-              <Text style={s.footerLink}>Terms</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}>
+              <Text style={s.footerLink}>Terms of Use (EULA)</Text>
             </TouchableOpacity>
             <Text style={s.footerDot}>·</Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://laundrybill.in/privacy')}>
-              <Text style={s.footerLink}>Privacy</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://laundrybill.com/privacy.html')}>
+              <Text style={s.footerLink}>Privacy Policy</Text>
             </TouchableOpacity>
           </View>
         </View>

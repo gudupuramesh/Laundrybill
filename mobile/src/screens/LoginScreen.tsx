@@ -25,8 +25,8 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '28
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
 const APP_LOGO = require('../../assets/login-logo.png');
 
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://laundrybill.com/terms';
-const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? 'https://laundrybill.com/privacy-policy';
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? 'https://laundrybill.com/privacy.html';
 
 export default function LoginScreen({
   onEmailSignIn,
