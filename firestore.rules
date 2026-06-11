@@ -311,5 +311,12 @@ service cloud.firestore {
     match /coupons/{code} {
       allow read, write: if isSuperAdmin();
     }
+
+    // Feedback / issue reports — any signed-in user can submit their own;
+    // only super admins can read, resolve, or delete.
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSuperAdmin();
+    }
   }
 }

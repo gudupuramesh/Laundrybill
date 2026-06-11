@@ -29,6 +29,7 @@ export default function SettingsScreen({
   onAttendance,
   onCreateStaffLogin,
   onExpenseList,
+  onFeedback,
 }: {
   onManageServices: () => void,
   onManageItems: () => void,
@@ -38,6 +39,7 @@ export default function SettingsScreen({
   onAttendance?: () => void,
   onCreateStaffLogin?: () => void,
   onExpenseList?: () => void,
+  onFeedback?: () => void,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -823,6 +825,20 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
+            {onFeedback ? (
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={onFeedback}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                    <MaterialIcons name="feedback" size={18} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Send Feedback</Text>
+                    <Text style={styles.listItemSubtext}>Report an issue or share a suggestion</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 

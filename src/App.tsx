@@ -35,6 +35,7 @@ import {
   PaymentsPage,
   PlatformSettingsPage,
   SupportHelpPage,
+  FeedbackPage,
   ItemsListPage,
   NotificationsPage,
 } from "@/features/super-admin";
@@ -204,6 +205,7 @@ function App() {
                       <Route path="items-list" element={<ItemsListPage />} />
                       <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="support" element={<SupportHelpPage />} />
+                      <Route path="feedback" element={<FeedbackPage />} />
                     </Route>
                   </Routes>
                 </SuperAdminAuthProvider>

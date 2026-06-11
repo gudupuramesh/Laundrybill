@@ -32,6 +32,7 @@ import CreateStaffLoginScreen from './src/screens/CreateStaffLoginScreen';
 import ExpenseListScreen from './src/screens/ExpenseListScreen';
 import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
+import FeedbackScreen from './src/screens/FeedbackScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -579,6 +580,7 @@ function MainLayout() {
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
                  onCreateStaffLogin={SHOW_STAFF_LOGINS ? () => setActiveScreen('CREATE_STAFF_LOGIN') : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
+                 onFeedback={() => setActiveScreen('FEEDBACK')}
                />;
       default:
         return <HomeScreen
@@ -762,6 +764,15 @@ function MainLayout() {
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <ExpenseListScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'FEEDBACK') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <FeedbackScreen onBack={() => setActiveScreen(null)} />
       </View>
     );
   }

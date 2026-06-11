@@ -22,6 +22,7 @@ export { PlatformSettingsPage } from "./pages/PlatformSettingsPage";
 export { SupportHelpPage } from "./pages/SupportHelpPage";
 export { ItemsListPage } from "./pages/ItemsListPage";
 export { NotificationsPage } from "./pages/NotificationsPage";
+export { FeedbackPage } from "./pages/FeedbackPage";
 
 // Components
 export { ShopDetailSheet } from "./components/ShopDetailSheet";

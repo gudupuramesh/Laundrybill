@@ -25,6 +25,7 @@ import {
     HelpCircle,
     MapPin,
     Bell,
+    MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
     { id: "payments", label: "Payments", path: "/super-admin/payments", icon: Users },
     { id: "notifications", label: "Notifications", path: "/super-admin/notifications", icon: Bell },
     { id: "support", label: "Support & Help", path: "/super-admin/support", icon: HelpCircle },
+    { id: "feedback", label: "Feedback", path: "/super-admin/feedback", icon: MessageSquare },
     { id: "settings", label: "Settings", path: "/super-admin/settings", icon: Settings },
 ];
 
