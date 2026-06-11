@@ -28,17 +28,20 @@ import { cn } from "@/lib/utils";
 const PLAN_COLORS: Record<PlanType, string> = {
     free: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     pro: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    business: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
 };
 
 const PLAN_LABELS: Record<PlanType, string> = {
     free: "Free",
     pro: "Pro",
+    business: "Business",
 };
 
 const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [
     { value: "all", label: "All Plans" },
     { value: "free", label: "Free" },
     { value: "pro", label: "Pro" },
+    { value: "business", label: "Business" },
 ];
 
 export function ShopsPage() {
