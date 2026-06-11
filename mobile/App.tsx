@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n, { initStoredLanguage, setAppLanguageFromDisplayName } from './src/lib/i18n';
-import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert, BackHandler, PanResponder, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar, Alert, BackHandler, PanResponder, Platform, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './src/theme';
@@ -54,6 +54,14 @@ const RESOLVED_SHOPID_KEY = (uid: string) => `resolved_shopid_v1_${uid}`;
 
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
+
+/**
+ * The designed full-bleed splash (icon + "Laundry Bill" on the blue gradient).
+ * iOS shows it natively (ios.splash). Android 12+ system splash only allows an
+ * icon + flat color, so after its brief flash we render this SAME image in-app
+ * until bootstrap finishes — both platforms end up with the identical splash.
+ */
+const SPLASH_FULL = require('./assets/splash-ios.png');
 
 /**
  * Staff App / Agent / Plant logins are a Business-tier feature. Kept OFF until
@@ -435,6 +443,17 @@ function MainLayout() {
   }, []);
 
   const bootstrapReady = !initializing && onboardingDone !== null && fontsLoaded;
+  const [minSplashDone, setMinSplashDone] = useState(false);
+
+  React.useEffect(() => {
+    // Android 12+ can't show a custom splash image natively — hand off from the
+    // brief system splash (icon on blue) to the identical in-app SPLASH_FULL
+    // image rendered below while !bootstrapReady. iOS keeps the native splash
+    // (same artwork) until bootstrapReady.
+    if (Platform.OS === 'android') void SplashScreen.hideAsync();
+    const id = setTimeout(() => setMinSplashDone(true), MIN_SPLASH_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   React.useEffect(() => {
     if (!bootstrapReady) return;
@@ -482,7 +501,17 @@ function MainLayout() {
   const orderLimitReached = !isPaidPlan && appPlanLimits.maxOrders > 0 && appOrdersUsed >= appPlanLimits.maxOrders;
 
   /** Native splash stays up until bootstrapReady; avoid painting login/dashboard underneath early */
-  if (!bootstrapReady) return null;
+  if (!bootstrapReady || !minSplashDone) {
+    // Full-bleed designed splash — identical on both platforms. On iOS the
+    // native splash (same image) covers this; on Android the system splash has
+    // already handed off to it.
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0148A2' }}>
+        <StatusBar barStyle="light-content" backgroundColor="#0148A2" />
+        <Image source={SPLASH_FULL} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+      </View>
+    );
+  }
 
   const openCreateOrder = () => {
     if (orderLimitReached) {
