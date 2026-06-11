@@ -46,7 +46,6 @@
         "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
@@ -73,7 +72,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Laundrybill needs camera access to scan QR codes printed on order bags and item tags for quick order tracking and pickup verification."
+          "cameraPermission": "Laundrybill uses the camera only to scan the QR codes and barcodes on order tags and bags. Nothing is photographed, recorded, or saved — the camera is used live just to read the code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [

@@ -189,11 +189,13 @@ export default function HomeScreen({
                 <Text style={s.subBadgeUpgradeHint} numberOfLines={1}>
                   {t('mobile.subscriptionUpgradeLimit')}
                 </Text>
-              ) : (
+              ) : orderLimit > 0 ? (
+                // Only show the count once the real limit has loaded — never a
+                // confusing "x/0" while plan limits are still being fetched.
                 <Text style={s.subBadgeUsageText}>
                   {ordersUsed}/{orderLimit}
                 </Text>
-              )}
+              ) : null}
             </SubBadgeWrap>
           )}
           <HelpButton pageId="mobile_home" />
