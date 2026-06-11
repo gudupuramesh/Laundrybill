@@ -17,15 +17,15 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
       "splash": {
-        "image": "./assets/splash-icon-ios.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#13253d"
+        "image": "./assets/splash-ios.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#02326A"
       }
     },
     "android": {
