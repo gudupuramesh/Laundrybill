@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -238,35 +239,42 @@ export default function HomeScreen({
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         ) : (
-          <TouchableOpacity style={s.statsCard} activeOpacity={0.7} onPress={onDueOrders}>
-            <View style={s.statsHeader}>
-              <View style={s.statsTitle}>
-                <MaterialIcons name="calendar-today" size={16} color={colors.textSecondary} />
-                <Text style={s.statsTitleText}>{t('mobile.thisMonth', { defaultValue: 'This Month' })}</Text>
-              </View>
-              <View style={s.statsBadge}>
-                <Text style={s.statsBadgeText}>
-                  {pendingOrderCount} {t('mobile.ordersPending', { defaultValue: 'orders pending' })}
-                </Text>
-              </View>
-            </View>
-            <View style={s.statsRow}>
-              <View style={s.statCol}>
-                <View style={s.statLabel}>
-                  <MaterialIcons name="south" size={14} color={colors.success} />
-                  <Text style={s.statLabelText}>{t('mobile.statsCollected')}</Text>
+          <TouchableOpacity activeOpacity={0.85} onPress={onDueOrders}>
+            <LinearGradient
+              colors={['#1B61E5', '#124BB8']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.statsCard}
+            >
+              <View style={s.statsHeader}>
+                <View style={s.statsTitle}>
+                  <MaterialIcons name="calendar-today" size={15} color="rgba(255,255,255,0.85)" />
+                  <Text style={s.statsTitleText}>{t('mobile.thisMonth', { defaultValue: 'This Month' })}</Text>
                 </View>
-                <Text style={s.statValue}>{formatCurrency(stats.collected, countrySettings)}</Text>
-              </View>
-              <View style={s.statColDivider} />
-              <View style={s.statCol}>
-                <View style={s.statLabel}>
-                  <MaterialIcons name="lock-outline" size={14} color={colors.error} />
-                  <Text style={s.statLabelText}>{t('mobile.outstanding', { defaultValue: 'Outstanding' })}</Text>
+                <View style={s.statsBadge}>
+                  <Text style={s.statsBadgeText}>
+                    {pendingOrderCount} {t('mobile.ordersPending', { defaultValue: 'orders pending' })}
+                  </Text>
                 </View>
-                <Text style={s.statValue}>{formatCurrency(stats.dueAmount, countrySettings)}</Text>
               </View>
-            </View>
+              <View style={s.statsRow}>
+                <View style={s.statCol}>
+                  <View style={s.statLabel}>
+                    <MaterialIcons name="south" size={13} color="#86EFAC" />
+                    <Text style={s.statLabelText}>{t('mobile.statsCollected')}</Text>
+                  </View>
+                  <Text style={s.statValue}>{formatCurrency(stats.collected, countrySettings)}</Text>
+                </View>
+                <View style={s.statColDivider} />
+                <View style={s.statCol}>
+                  <View style={s.statLabel}>
+                    <MaterialIcons name="lock-outline" size={13} color="#FCA5A5" />
+                    <Text style={s.statLabelText}>{t('mobile.outstanding', { defaultValue: 'Outstanding' })}</Text>
+                  </View>
+                  <Text style={s.statValue}>{formatCurrency(stats.dueAmount, countrySettings)}</Text>
+                </View>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
@@ -463,29 +471,34 @@ const s = StyleSheet.create({
   },
   btnPrimaryText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 
-  // Stats Card
+  // Stats Card — highlighted blue gradient hero (matches the Finances net-profit card)
   statsCard: {
-    backgroundColor: colors.surface, borderRadius: radii.card,
-    paddingHorizontal: 12, paddingVertical: 8,
-    ...shadows.card, ...shadows.cardBorder,
-    gap: 6,
+    borderRadius: radii.card,
+    paddingHorizontal: 14, paddingVertical: 12,
+    ...shadows.card,
+    gap: 10, overflow: 'hidden',
   },
   statsHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6,
   },
   statsTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statsTitleText: { fontSize: 13, fontFamily: fonts.bold, color: colors.text },
-  statsBadge: {
-    backgroundColor: colors.border, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999,
+  statsTitleText: {
+    fontSize: 11, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.6, textTransform: 'uppercase',
   },
-  statsBadgeText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textSecondary },
-  statsRow: { flexDirection: 'row', paddingTop: 0 },
-  statCol: { flex: 1, gap: 0 },
-  statColDivider: { width: 1, backgroundColor: colors.border, marginHorizontal: 12 },
+  statsBadge: {
+    backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+  },
+  statsBadgeText: { fontSize: 10, fontFamily: fonts.bold, color: colors.surface },
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)', paddingTop: 10,
+  },
+  statCol: { flex: 1, gap: 2 },
+  statColDivider: { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 12 },
   statLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statLabelText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.textSecondary },
-  statValue: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  statLabelText: { fontSize: 10, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.7)' },
+  statValue: { fontSize: 22, fontFamily: fonts.bold, color: colors.surface },
 
   // Overline
   overline: {
