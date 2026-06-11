@@ -1,0 +1,13 @@
+<resources>
+  <!-- Android 12+ system splash: same theme as values/styles.xml plus the
+       branding image (Laundrybill wordmark at the bottom of the splash).
+       Regenerated res are overwritten by `expo prebuild` — re-add this file
+       (and drawable-*/splashscreen_branding.png) if prebuild is ever re-run. -->
+  <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
+    <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
+    <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>
+    <item name="android:windowSplashScreenBrandingImage">@drawable/splashscreen_branding</item>
+    <item name="postSplashScreenTheme">@style/AppTheme</item>
+    <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+  </style>
+</resources>

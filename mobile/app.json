@@ -21,6 +21,11 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "splash": {
+        "image": "./assets/splash-icon-ios.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#13253d"
       }
     },
     "android": {
