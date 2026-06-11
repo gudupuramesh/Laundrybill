@@ -54,6 +54,10 @@ export const SUPPORT_PAGE_IDS: PageHelpEntry["pageId"][] = [
   "mobile_scan",
   "mobile_staff",
   "mobile_attendance",
+  "mobile_orderDetails",
+  "mobile_services",
+  "mobile_serviceItems",
+  "mobile_shopProfile",
 ];
 
 export const SUPPORT_PAGE_TITLES: Record<PageHelpEntry["pageId"], string> = {
@@ -76,6 +80,10 @@ export const SUPPORT_PAGE_TITLES: Record<PageHelpEntry["pageId"], string> = {
   mobile_scan: "Mobile — QR Scan",
   mobile_staff: "Mobile — Staff",
   mobile_attendance: "Mobile — Attendance",
+  mobile_orderDetails: "Mobile — Order Details",
+  mobile_services: "Mobile — Manage Services",
+  mobile_serviceItems: "Mobile — Manage Items",
+  mobile_shopProfile: "Mobile — Shop Profile",
 };
 
 export interface SupportSettings {

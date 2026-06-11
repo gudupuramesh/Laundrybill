@@ -14,6 +14,7 @@ import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { colors, fonts, radii, shadows } from '../theme';
+import { HelpButton } from '../components/HelpButton';
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -609,6 +610,7 @@ export default function OrderDetailsScreen({
               <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
             </View>
           </View>
+          <HelpButton pageId="mobile_orderDetails" />
           {!isTerminal && (
             <TouchableOpacity style={styles.iconBtn} onPress={() => onEditOrder ? onEditOrder(order) : (() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); })()}>
               <MaterialIcons name="edit" size={22} color="#00408f" />

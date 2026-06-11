@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
+import { HelpButton } from '../components/HelpButton';
 
 const ICONS = ['iron', 'local-laundry-service', 'dry-cleaning', 'air', 'brush', 'checkroom', 'home', 'star'];
 const COLORS = [
@@ -205,9 +206,12 @@ export default function AddServiceScreen({
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('mobile.manageServicesTitle')}</Text>
           </View>
-          <TouchableOpacity onPress={() => { resetForm(); setShowForm(true); }}>
-            <MaterialIcons name="add-circle" size={28} color={colors.primary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <HelpButton pageId="mobile_services" />
+            <TouchableOpacity onPress={() => { resetForm(); setShowForm(true); }}>
+              <MaterialIcons name="add-circle" size={28} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 

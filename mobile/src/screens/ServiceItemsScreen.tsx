@@ -13,6 +13,7 @@ import { auth, getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { formatCurrency } from '../lib/currency-format';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
+import { HelpButton } from '../components/HelpButton';
 
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 
@@ -307,12 +308,13 @@ export default function ServiceItemsScreen({
       {/* TopAppBar */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerInner}>
-          <View style={styles.headerLeft}>
+          <View style={[styles.headerLeft, { flex: 1, minWidth: 0 }]}>
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('mobile.serviceItemsTitle', { category: categoryName })}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.serviceItemsTitle', { category: categoryName })}</Text>
           </View>
+          <HelpButton pageId="mobile_serviceItems" />
         </View>
       </View>
 

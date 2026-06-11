@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
+import { HelpButton } from '../components/HelpButton';
 let Location: typeof import('expo-location') | null = null;
 try { Location = require('expo-location'); } catch {}
 import { firestore } from '../lib/db';
@@ -590,7 +591,7 @@ export default function RegisterShopScreen({
             )}
             <Text style={styles.headerTitle}>{isEditMode ? t('mobile.editShopProfile') : t('mobile.registerShop')}</Text>
           </View>
-          <MaterialIcons name="more-vert" size={24} color={colors.textMuted} />
+          <HelpButton pageId="mobile_shopProfile" />
         </View>
       </View>
 
