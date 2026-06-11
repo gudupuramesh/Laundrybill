@@ -79,13 +79,20 @@ export default function StaffDetailScreen({
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-01`;
     const monthEnd = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-31`;
+    // Query by staffId only (single-field equality, auto-indexed) and filter the
+    // current month client-side. Combining `staffId ==` with a `date` range needs
+    // a composite index — without it the query fails and the summary silently
+    // shows 0. This avoids that dependency entirely.
     const unsub = firestore().collection(`shops/${shopId}/attendance`)
       .where('staffId', '==', staffId)
-      .where('date', '>=', monthStart)
-      .where('date', '<=', monthEnd)
       .onSnapshot(
-        (snap: any) => setAttendance(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))),
-        () => {},
+        (snap: any) => {
+          const rows = snap.docs
+            .map((d: any) => ({ id: d.id, ...d.data() }))
+            .filter((r: any) => r.date >= monthStart && r.date <= monthEnd);
+          setAttendance(rows);
+        },
+        (err: any) => console.warn('Attendance read failed:', err?.message || err),
       );
     return unsub;
   }, [shopId, staffId]);

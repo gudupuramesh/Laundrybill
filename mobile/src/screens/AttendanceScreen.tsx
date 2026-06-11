@@ -79,10 +79,10 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
   const [staff, setStaff] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
 
-  // daily attendance (local draft until saved)
+  // daily attendance — each tap saves immediately to Firestore (optimistic)
   const [dailyMap, setDailyMap] = useState<Record<string, AttendanceStatus>>({});
   const [loadingAtt, setLoadingAtt] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   // monthly attendance docs
   const [monthlyDocs, setMonthlyDocs] = useState<any[]>([]);
@@ -184,49 +184,36 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
     setSelectedDate(d);
   };
 
-  const toggleStatus = (staffId: string, status: AttendanceStatus) => {
-    setDailyMap((prev) => ({ ...prev, [staffId]: status }));
-  };
-
-  const saveAttendance = useCallback(async () => {
-    if (!shopId || saving) return;
-    setSaving(true);
-    try {
-      const batch = firestore().batch();
-      const collRef = firestore().collection(`shops/${shopId}/attendance`);
-
-      // fetch existing docs for this date to update/create
-      const existingSnap = await collRef.where('date', '==', dk).get();
-      const existingByStaff: Record<string, any> = {};
-      existingSnap.docs.forEach((d: any) => {
-        const data = d.data();
-        if (data.staffId) existingByStaff[data.staffId] = d.ref;
-      });
-
-      const now = new Date();
-      for (const member of staff) {
-        const status = dailyMap[member.id];
-        if (!status) continue;
-        const docData = {
-          staffId: member.id,
-          date: dk,
-          status,
-          markedBy: 'mobile',
-          updatedAt: now,
-        };
-        if (existingByStaff[member.id]) {
-          batch.update(existingByStaff[member.id], docData);
-        } else {
-          batch.set(collRef.doc(), { ...docData, createdAt: now });
-        }
+  // Mark a status and persist it immediately (optimistic UI). Using a
+  // deterministic doc id (`date__staffId`) makes each write an idempotent
+  // upsert — no read-before-write, and a staff member can never end up with
+  // duplicate rows for the same day.
+  const markStatus = useCallback(
+    async (staffId: string, status: AttendanceStatus) => {
+      if (!shopId) return;
+      const prev = dailyMap[staffId];
+      if (prev === status) return; // no change
+      setDailyMap((m) => ({ ...m, [staffId]: status })); // instant feedback
+      setSavingId(staffId);
+      try {
+        const docId = `${dk}__${staffId}`;
+        await firestore()
+          .collection(`shops/${shopId}/attendance`)
+          .doc(docId)
+          .set(
+            { staffId, date: dk, status, markedBy: 'mobile', updatedAt: new Date() },
+            { merge: true },
+          );
+      } catch (e: any) {
+        // revert optimistic change and tell the user
+        setDailyMap((m) => ({ ...m, [staffId]: prev }));
+        Alert.alert('Could not save', e?.message || 'Please check your connection and try again.');
+      } finally {
+        setSavingId((id) => (id === staffId ? null : id));
       }
-      await batch.commit();
-      Alert.alert('Saved', `Attendance for ${formatDisplay(selectedDate)} saved.`);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save attendance');
-    }
-    setSaving(false);
-  }, [shopId, saving, dk, staff, dailyMap, selectedDate]);
+    },
+    [shopId, dk, dailyMap],
+  );
 
   // --- monthly stats computation ---
   const monthlyStats = useMemo(() => {
@@ -300,7 +287,7 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
           </View>
 
           <ScrollView
-            contentContainerStyle={[s.scrollContent, { paddingBottom: 100 + insets.bottom }]}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: 30 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
@@ -318,7 +305,12 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
                 )}
               </View>
             ) : (
-              staff.map((member) => {
+              <>
+                <View style={s.autosaveHint}>
+                  <MaterialIcons name="bolt" size={14} color={colors.textMuted} />
+                  <Text style={s.autosaveHintText}>Tap a status — it saves automatically</Text>
+                </View>
+                {staff.map((member) => {
                 const currentStatus = dailyMap[member.id];
                 return (
                   <View key={member.id} style={s.staffCard}>
@@ -329,6 +321,11 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
                         <Text style={s.staffName}>{member.name}</Text>
                         {member.role ? <Text style={s.staffRole}>{member.role}</Text> : null}
                       </View>
+                      {savingId === member.id ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : currentStatus ? (
+                        <MaterialIcons name="check-circle" size={20} color={colors.success} />
+                      ) : null}
                     </View>
 
                     {/* 4-column attendance grid */}
@@ -346,7 +343,7 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
                                 borderColor: cfg.bg,
                               },
                             ]}
-                            onPress={() => toggleStatus(member.id, status)}
+                            onPress={() => markStatus(member.id, status)}
                             activeOpacity={0.7}
                           >
                             <Text
@@ -371,27 +368,10 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
                     </View>
                   </View>
                 );
-              })
+                })}
+              </>
             )}
           </ScrollView>
-
-          {/* Bottom bar save button */}
-          {!loading && staff.length > 0 && (
-            <View style={[s.bottomBar, { paddingBottom: 16 + insets.bottom }]}>
-              <TouchableOpacity
-                style={s.btnPrimary}
-                onPress={saveAttendance}
-                activeOpacity={0.85}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={s.btnPrimaryText}>Save Today's Attendance</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
         </>
       )}
 
@@ -608,6 +588,20 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
 
+  /* Auto-save hint */
+  autosaveHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginBottom: 12,
+  },
+  autosaveHintText: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.textMuted,
+  },
+
   /* Staff card */
   staffCard: {
     backgroundColor: colors.surface,
@@ -692,42 +686,6 @@ const s = StyleSheet.create({
   statPillText: {
     fontSize: 12,
     fontFamily: fonts.bold,
-  },
-
-  /* Bottom bar */
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.02,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 4,
-  },
-  btnPrimary: {
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: radii.button,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1B61E5',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  btnPrimaryText: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: '#FFFFFF',
   },
 
   /* Empty state */
