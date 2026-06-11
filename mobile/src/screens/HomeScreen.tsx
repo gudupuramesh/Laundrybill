@@ -13,6 +13,23 @@ import { formatCurrency } from '../lib/currency-format';
 import { HelpButton } from '../components/HelpButton';
 import { colors, fonts, radii, shadows, spacing, typography } from '../theme';
 
+// Status palette — matches the order list on the customer detail screen.
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  pending: { bg: colors.warningBg, text: colors.warning },
+  confirmed: { bg: colors.primaryTint, text: colors.primary },
+  processing: { bg: colors.inProgressBg, text: colors.inProgress },
+  ready: { bg: '#F1FBE7', text: '#84CC16' },
+  out_for_delivery: { bg: colors.primaryTint, text: colors.primary },
+  delivered: { bg: colors.successBg, text: colors.success },
+  picked_up: { bg: colors.successBg, text: colors.success },
+  cancelled: { bg: colors.errorBg, text: colors.error },
+};
+
+function orderStatusLabel(status: string, t: TFunction): string {
+  const tr = t(`mobile.odStatus_${status}` as any);
+  return tr || status;
+}
+
 function formatTimeAgo(date: any, t: TFunction, locale: string): string {
   if (!date) return '';
   const now = new Date();
@@ -308,41 +325,49 @@ export default function HomeScreen({
                 <Text style={s.emptySubtitle}>{t('mobile.recentOrdersEmptyHint')}</Text>
               </View>
             ) : (
-              <View style={s.orderList}>
-                {recentOrders.map((order: any) => {
+              <View style={s.orderListCard}>
+                {recentOrders.map((order: any, index: number) => {
+                  const cfg = STATUS_COLORS[order.status] || STATUS_COLORS.pending;
+                  const statusLabel = order.status ? orderStatusLabel(order.status, t) : '';
                   const orderId = order.publicId || `ORD-${order.id?.slice(-4) || '??'}`;
                   const itemCount = (order.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
                   const total = Math.round(order.financials?.total || 0);
                   const balance = Math.round(order.financials?.balance ?? ((order.financials?.total || 0) - (order.financials?.amountPaid || 0)));
                   const isPaid = balance <= 0;
-                  const paymentLabel = isPaid ? t('mobile.paid', { defaultValue: 'PAID' }) : t('mobile.unpaid', { defaultValue: 'UNPAID' });
                   const dateStr = formatTimeAgo(order.createdAt, t, i18n.language);
 
                   return (
                     <TouchableOpacity
                       key={order.id}
-                      style={s.orderCard}
+                      style={[s.historyRow, index < recentOrders.length - 1 && s.historyRowBorder]}
                       activeOpacity={0.7}
                       onPress={() => onViewOrder?.(order.id)}
                     >
-                      <View style={[s.accentBar, { backgroundColor: isPaid ? colors.primary : colors.error }]} />
+                      <View style={[s.accentBar, { backgroundColor: cfg.text }]} />
                       <View style={{ flex: 1, paddingLeft: 12 }}>
-                        <View style={s.ocHeader}>
-                          <Text style={[s.ocId, { color: isPaid ? colors.primary : colors.error }]}>
-                            {orderId} • {paymentLabel}
-                          </Text>
-                          <Text style={s.ocPrice}>{formatCurrency(total, countrySettings)}</Text>
+                        <View style={s.orderTopRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                            <Text style={s.orderId}>{orderId}</Text>
+                            {!!statusLabel && (
+                              <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
+                                <Text style={[s.statusText, { color: cfg.text }]}>{statusLabel.toUpperCase()}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={s.orderAmount}>{formatCurrency(total, countrySettings)}</Text>
                         </View>
-                        <Text style={s.ocCustomer} numberOfLines={1}>{order.customerName || t('mobile.guestCustomer')}</Text>
-                        <View style={s.ocMeta}>
-                          <Text style={s.ocMetaText}>{itemCount} {t('mobile.items', { defaultValue: 'Items' })}</Text>
-                          <Text style={s.ocMetaText}>{dateStr}</Text>
-                        </View>
-                        {!isPaid && (
-                          <Text style={s.ocFooter}>
-                            {t('mobile.dueLabel', { defaultValue: 'Due' })}: {formatCurrency(balance, countrySettings)}
+                        <Text style={s.orderMeta} numberOfLines={1}>
+                          {(order.customerName || t('mobile.guestCustomer'))} · {itemCount} {t('mobile.items', { defaultValue: 'items' })} · {dateStr}
+                          {!isPaid ? ` · ${t('mobile.dueLabel', { defaultValue: 'Due' })} ${formatCurrency(balance, countrySettings)}` : ''}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 8 }}>
+                        <View style={[s.payBadge, isPaid ? s.payBadgePaid : s.payBadgeUnpaid]}>
+                          <Text style={[s.payBadgeText, { color: isPaid ? colors.success : colors.error }]}>
+                            {isPaid ? t('mobile.paid', { defaultValue: 'PAID' }) : t('mobile.unpaid', { defaultValue: 'UNPAID' })}
                           </Text>
-                        )}
+                        </View>
+                        <MaterialIcons name="chevron-right" size={16} color={colors.textMuted} />
                       </View>
                     </TouchableOpacity>
                   );
@@ -367,7 +392,7 @@ const s = StyleSheet.create({
   },
   brandSection: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
   appIcon: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.darkBlue,
+    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
     ...shadows.card,
   },
@@ -407,36 +432,36 @@ const s = StyleSheet.create({
 
   scrollContent: { padding: 16, gap: 24 },
 
-  // Card
+  // Card (compact)
   card: {
-    backgroundColor: colors.surface, borderRadius: radii.card, padding: 16,
+    backgroundColor: colors.surface, borderRadius: radii.card, padding: 12,
     ...shadows.card, ...shadows.cardBorder,
-    gap: 16,
+    gap: 10,
   },
 
   // Search
   searchWrapper: { position: 'relative', justifyContent: 'center' },
   searchIcon: { position: 'absolute', left: 14, zIndex: 1 },
   searchInput: {
-    paddingVertical: 14, paddingLeft: 44, paddingRight: 14,
+    paddingVertical: 9, paddingLeft: 44, paddingRight: 14,
     borderRadius: radii.input, borderWidth: 1, borderColor: colors.border,
-    fontSize: 15, fontFamily: fonts.semibold, color: colors.text,
+    fontSize: 14, fontFamily: fonts.semibold, color: colors.text,
   },
 
   // Action buttons
-  actionRow: { flexDirection: 'row', gap: 12 },
+  actionRow: { flexDirection: 'row', gap: 10 },
   btnSecondary: {
-    flex: 1, paddingVertical: 14, borderRadius: radii.input,
+    flex: 1, paddingVertical: 10, borderRadius: radii.input,
     backgroundColor: colors.primaryTint,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  btnSecondaryText: { fontSize: 15, fontFamily: fonts.bold, color: colors.primary },
+  btnSecondaryText: { fontSize: 14, fontFamily: fonts.bold, color: colors.primary },
   btnPrimary: {
-    flex: 1, paddingVertical: 14, borderRadius: radii.input,
+    flex: 1, paddingVertical: 10, borderRadius: radii.input,
     backgroundColor: colors.primary,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  btnPrimaryText: { fontSize: 15, fontFamily: fonts.bold, color: colors.surface },
+  btnPrimaryText: { fontSize: 14, fontFamily: fonts.bold, color: colors.surface },
 
   // Stats Card
   statsCard: {
@@ -496,27 +521,31 @@ const s = StyleSheet.create({
   countBadgeText: { fontSize: 11, fontFamily: fonts.bold, color: colors.primary },
   viewAll: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary, textTransform: 'uppercase' },
 
-  // Order Cards
-  orderList: { gap: 12 },
-  orderCard: {
+  // Recent orders — compact rows in one card (same look as customer detail)
+  orderListCard: {
     backgroundColor: colors.surface, borderRadius: radii.card,
-    borderWidth: 1, borderColor: colors.border,
-    ...shadows.card,
-    overflow: 'hidden', flexDirection: 'row',
-    padding: 14, paddingLeft: 0,
+    borderWidth: 1, borderColor: colors.border, ...shadows.card,
+    paddingHorizontal: 0,
   },
+  historyRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingRight: 12, paddingLeft: 0,
+  },
+  historyRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   accentBar: {
-    width: 4, borderTopLeftRadius: radii.card, borderBottomLeftRadius: radii.card,
-    position: 'absolute', left: 0, top: 12, bottom: 12,
+    position: 'absolute', left: 0, top: 10, bottom: 10, width: 4,
     borderTopRightRadius: 4, borderBottomRightRadius: 4,
   },
-  ocHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  ocId: { fontSize: 12, fontFamily: fonts.bold, flexDirection: 'row', alignItems: 'center' },
-  ocPrice: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
-  ocCustomer: { fontSize: 16, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
-  ocMeta: { flexDirection: 'row', justifyContent: 'space-between' },
-  ocMetaText: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary },
-  ocFooter: { fontSize: 13, fontFamily: fonts.semibold, color: colors.error, marginTop: 4 },
+  orderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 },
+  orderId: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  orderAmount: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  orderMeta: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary },
+  statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  statusText: { fontSize: 9, fontFamily: fonts.bold },
+  payBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  payBadgePaid: { backgroundColor: colors.successBg },
+  payBadgeUnpaid: { backgroundColor: colors.errorBg },
+  payBadgeText: { fontSize: 10, fontFamily: fonts.bold },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
