@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -32,7 +32,7 @@
     "android": {
       "package": "in.laundrybill",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 29,
+      "versionCode": 30,
       "adaptiveIcon": {
         "backgroundColor": "#13253d",
         "foregroundImage": "./assets/android-icon-foreground.png",
