@@ -12,8 +12,15 @@ import { colors, fonts, radii, shadows } from '../theme';
 import { Avatar } from '../components/ui';
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin', manager: 'Manager', staff: 'Staff', plant_operator: 'Plant Operator',
+  manager: 'Manager', staff: 'Staff', plant_operator: 'Plant Operator', agent: 'Delivery Agent',
 };
+
+/** Map a staff roster role to the login member type for the Create-Login form. */
+function roleToMemberType(role?: string): 'staff' | 'agent' | 'plant' {
+  if (role === 'plant_operator') return 'plant';
+  if (role === 'agent') return 'agent';
+  return 'staff';
+}
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   present: { label: 'Present', color: colors.success, bg: colors.successBg },
@@ -29,9 +36,11 @@ function formatDateKey(d: Date): string {
 export default function StaffDetailScreen({
   onBack,
   staffId,
+  onCreateLogin,
 }: {
   onBack: () => void;
   staffId: string;
+  onCreateLogin?: (prefill: { name?: string; phone?: string; email?: string; memberType?: 'staff' | 'agent' | 'plant'; linkedStaffId?: string }) => void;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -45,6 +54,7 @@ export default function StaffDetailScreen({
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState('staff');
   const [editSalary, setEditSalary] = useState('');
   const [editSaving, setEditSaving] = useState(false);
@@ -113,6 +123,7 @@ export default function StaffDetailScreen({
     if (!staff) return;
     setEditName(staff.name || '');
     setEditPhone(staff.phone || '');
+    setEditEmail(staff.email || '');
     setEditRole(staff.role || 'staff');
     setEditSalary(String(staff.baseSalary || ''));
     setShowEdit(true);
@@ -125,6 +136,7 @@ export default function StaffDetailScreen({
       await firestore().collection(`shops/${shopId}/staff`).doc(staffId).update({
         name: editName.trim(),
         phone: editPhone.trim(),
+        email: editEmail.trim().toLowerCase(),
         role: editRole,
         baseSalary: parseFloat(editSalary) || 0,
         updatedAt: new Date(),
@@ -317,6 +329,33 @@ export default function StaffDetailScreen({
           </>
         )}
 
+        {/* Create Login — only when this staff member has no app login yet */}
+        {!teamMember && onCreateLogin && (
+          <>
+            <Text style={s.sectionLabel}>APP LOGIN</Text>
+            <TouchableOpacity
+              style={s.createLoginBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                onCreateLogin({
+                  name: staff.name,
+                  phone: staff.phone,
+                  email: staff.email,
+                  memberType: roleToMemberType(staff.role),
+                  linkedStaffId: staffId,
+                })
+              }
+            >
+              <MaterialIcons name="vpn-key" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.createLoginText}>Create Login</Text>
+                <Text style={s.createLoginSub}>Give {staff.name?.split(' ')[0] || 'this member'} app access — details pre-filled</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </>
+        )}
+
         {/* Actions */}
         <Text style={s.sectionLabel}>ACTIONS</Text>
         <View style={s.actionsCard}>
@@ -348,6 +387,9 @@ export default function StaffDetailScreen({
 
               <Text style={s.fieldLabel}>PHONE</Text>
               <TextInput style={s.modalInput} value={editPhone} onChangeText={setEditPhone} placeholder="Phone" placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+
+              <Text style={s.fieldLabel}>EMAIL</Text>
+              <TextInput style={s.modalInput} value={editEmail} onChangeText={setEditEmail} placeholder="Email (needed for app login)" placeholderTextColor={colors.textMuted} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
 
               <Text style={s.fieldLabel}>ROLE</Text>
               <View style={s.chipRow}>
@@ -437,6 +479,15 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.error + '20', marginTop: 4,
   },
   revokeBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.error },
+
+  // Create login
+  createLoginBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14,
+    backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: 1, borderColor: colors.primary + '33',
+    ...shadows.card,
+  },
+  createLoginText: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  createLoginSub: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 1 },
 
   // Actions
   actionsCard: {

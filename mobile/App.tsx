@@ -28,11 +28,12 @@ import ExpensesScreen from './src/screens/ExpensesScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import StaffListScreen from './src/screens/StaffListScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
-import CreateStaffLoginScreen from './src/screens/CreateStaffLoginScreen';
+import CreateStaffLoginScreen, { StaffLoginPrefill } from './src/screens/CreateStaffLoginScreen';
 import ExpenseListScreen from './src/screens/ExpenseListScreen';
 import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import FeedbackScreen from './src/screens/FeedbackScreen';
+import ServiceAreasScreen from './src/screens/ServiceAreasScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -70,7 +71,7 @@ const SPLASH_FULL = require('./assets/splash-ios.png');
  * tied to an unavailable plan risks App Store / Play review rejection). Flip to
  * true together with SHOW_BUSINESS_PLAN in SubscriptionScreen when Business launches.
  */
-const SHOW_STAFF_LOGINS = false;
+const SHOW_STAFF_LOGINS = true;
 
 // Auth-flow screens manage their own back behaviour and are excluded from the
 // back-gesture history so a swipe on the dashboard never lands back on login.
@@ -144,6 +145,7 @@ function MainLayout() {
   const [ordersOpenSearch, setOrdersOpenSearch] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<any>(null); // holds the order after placement for success screen
   const [editingOrder, setEditingOrder] = useState<any>(null); // order being edited
+  const [staffLoginPrefill, setStaffLoginPrefill] = useState<StaffLoginPrefill | null>(null); // prefill for Create Login from a staff profile
   const [pendingRegistration, setPendingRegistration] = useState<{ email: string } | null>(null);
   const [forceSetupFlow, setForceSetupFlow] = useState(false);
   const pendingRegistrationRef = useRef<{ email: string } | null>(null);
@@ -578,8 +580,9 @@ function MainLayout() {
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                  onStaffList={() => setActiveScreen('STAFF_LIST')}
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
-                 onCreateStaffLogin={SHOW_STAFF_LOGINS ? () => setActiveScreen('CREATE_STAFF_LOGIN') : undefined}
+                 onCreateStaffLogin={SHOW_STAFF_LOGINS ? () => { setStaffLoginPrefill(null); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
+                 onServiceAreas={() => setActiveScreen('SERVICE_AREAS')}
                  onFeedback={() => setActiveScreen('FEEDBACK')}
                />;
       default:
@@ -754,6 +757,7 @@ function MainLayout() {
         <StaffDetailScreen
           onBack={() => setActiveScreen('STAFF_LIST')}
           staffId={sid}
+          onCreateLogin={(prefill) => { setStaffLoginPrefill(prefill); setActiveScreen('CREATE_STAFF_LOGIN'); }}
         />
       </View>
     );
@@ -777,11 +781,23 @@ function MainLayout() {
     );
   }
 
+  if (activeScreen === 'SERVICE_AREAS') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <ServiceAreasScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
   if (activeScreen === 'CREATE_STAFF_LOGIN') {
     return (
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-        <CreateStaffLoginScreen onBack={() => setActiveScreen('STAFF_LIST')} />
+        <CreateStaffLoginScreen
+          prefill={staffLoginPrefill}
+          onBack={() => setActiveScreen(staffLoginPrefill?.linkedStaffId ? `STAFF_DETAIL_${staffLoginPrefill.linkedStaffId}` : 'STAFF_LIST')}
+        />
       </View>
     );
   }

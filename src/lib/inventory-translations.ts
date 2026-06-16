@@ -321,3 +321,14 @@ export function getTranslatedUnit(unit: string): string {
 
     return fallbackUnits[unit] || unit;
 }
+
+/**
+ * Units measured by weight/area/bulk → entered as a decimal (e.g. 2.5 kg) via a
+ * text input, not an integer stepper. Shared definition for the weight-vs-stepper
+ * decision (mirrors the shop app's DECIMAL_UNITS).
+ */
+export const DECIMAL_UNITS = ['kg', 'lb', 'sqft', 'sqm', 'load', 'bag'] as const;
+
+export function isWeightUnit(pricingType?: string): boolean {
+    return !!pricingType && (DECIMAL_UNITS as readonly string[]).includes(pricingType);
+}

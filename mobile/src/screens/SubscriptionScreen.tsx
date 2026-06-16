@@ -78,7 +78,7 @@ const STATIC_PRICES = Platform.OS === 'ios'
  * RevenueCat offering — displaying a non-purchasable plan can fail store review.
  * Flip to true once those products exist.
  */
-const SHOW_BUSINESS_PLAN = false;
+const SHOW_BUSINESS_PLAN = true;
 
 /**
  * Format an amount in the live product's currency (so the savings line matches

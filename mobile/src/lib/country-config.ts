@@ -132,6 +132,17 @@ export function getUnitsForCountry(countryCode?: string): { units: PricingType[]
   };
 }
 
+/**
+ * Units measured by weight/area/bulk → entered as a decimal (e.g. 2.5 kg) via a
+ * text input, not an integer +/- stepper. Shared definition for the weight-vs-
+ * stepper decision across all apps.
+ */
+export const DECIMAL_UNITS: PricingType[] = ['kg', 'lb', 'sqft', 'sqm', 'load', 'bag'];
+
+export function isWeightUnit(pricingType?: string): boolean {
+  return !!pricingType && (DECIMAL_UNITS as string[]).includes(pricingType);
+}
+
 /** Get unit label (short form) for display */
 export function getUnitLabel(pricingType: string): string {
   return UNIT_LABELS[pricingType as PricingType]?.short || pricingType;

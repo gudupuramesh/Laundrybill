@@ -1,0 +1,114 @@
+{
+  "project_info": {
+    "project_number": "285945951840",
+    "project_id": "laundryos",
+    "storage_bucket": "laundryos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285945951840:android:85aab7138c5d713871f505",
+        "android_client_info": {
+          "package_name": "in.laundrybill"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "285945951840-k9eakf868r52hsftvp7r7u7edd35gj1q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.laundrybill",
+            "certificate_hash": "265f9fc5eb63401201b9a5e73d04a9df68cfe28f"
+          }
+        },
+        {
+          "client_id": "285945951840-onhfc5oofdj06aj0fna3rmtelssr1n3k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.laundrybill",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "285945951840-sijn0ddh9e67tcl3cobvsgaf8fo7b8o8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.laundrybill",
+            "certificate_hash": "c6e862f4f3b45268866431f62b1dab2a49b8329a"
+          }
+        },
+        {
+          "client_id": "285945951840-slnndecl20ujm1klnid5l5fu7sq60b8b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.laundrybill",
+            "certificate_hash": "02cf1f931b424b0594923c2c36ce1ee2ff092edd"
+          }
+        },
+        {
+          "client_id": "285945951840-91cmr666jkghgdd234p0h2607gphr2g7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBj4dMHH-Mu8Wr3KmhckwgSecvw1IMPl9Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "285945951840-91cmr666jkghgdd234p0h2607gphr2g7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "285945951840-u41ng9cag09hfck6sk6dgnlh9no7givr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "in.laundrybill"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285945951840:android:ebb5de75ea8d823471f505",
+        "android_client_info": {
+          "package_name": "in.laundrybill.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "285945951840-91cmr666jkghgdd234p0h2607gphr2g7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBj4dMHH-Mu8Wr3KmhckwgSecvw1IMPl9Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "285945951840-91cmr666jkghgdd234p0h2607gphr2g7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "285945951840-u41ng9cag09hfck6sk6dgnlh9no7givr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "in.laundrybill"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

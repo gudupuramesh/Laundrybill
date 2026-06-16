@@ -28,6 +28,7 @@ import { ItemDetailSheet } from "./ItemDetailSheet";
 import { CheckoutSheet } from "./CheckoutSheet";
 import { OrderSuccessSheet } from "./OrderSuccessSheet";
 import type { InventoryItem } from "@/types/inventory";
+import { isWeightUnit } from "@/lib/inventory-translations";
 import { ShoppingCart, User, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -129,9 +130,14 @@ export function NewOrderPage() {
         return true;
     });
 
-    // Handle service selection
+    // Handle service selection. Weight-priced items (kg/lb/sqft/…) open the detail
+    // sheet so the user can enter an actual weight; count items add directly.
     const handleServiceClick = (service: InventoryItem) => {
-        cart.addItem(service);
+        if (isWeightUnit(service.pricingType)) {
+            setItemDetailSheet({ open: true, item: service });
+        } else {
+            cart.addItem(service);
+        }
     };
 
     const handleServiceLongPress = (service: InventoryItem) => {

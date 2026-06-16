@@ -7,6 +7,11 @@ import { DraftOrderPayload } from '../types/orderDraft';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { useAgents } from '../lib/useAgents';
+import { getDeliveryCharge, type DeliveryChargeSettings } from '../lib/delivery-charge';
+import { uploadImageToR2 } from '../lib/uploadR2';
+import { DamagePhotos } from '../components/DamagePhotos';
+import { Dropdown } from '../components/Dropdown';
 import { formatCurrency } from '../lib/currency-format';
 import { usePlanLimits } from '../lib/usePlanLimits';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
@@ -66,13 +71,63 @@ export default function OrderReviewScreen({
   const [taxName, setTaxName] = useState('GST');
   const [shopName, setShopName] = useState('');
   const [shopPhone, setShopPhone] = useState('');
+  const [deliverySettings, setDeliverySettings] = useState<DeliveryChargeSettings | undefined>(undefined);
 
   // User inputs
   const [discountText, setDiscountText] = useState('');
   const [notes, setNotes] = useState('');
-  const [deliveryType, setDeliveryType] = useState<'pickup_store' | 'delivery_home'>('pickup_store');
+  const [deliveryType, setDeliveryType] = useState<'pickup_store' | 'delivery_home' | 'pickup_home'>('pickup_store');
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'paid'>('unpaid');
+  const [assignedAgentId, setAssignedAgentId] = useState<string | null>(null);
+  const [damagePhotos, setDamagePhotos] = useState<string[]>([]);
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+  const [selectedArea, setSelectedArea] = useState<string>('');
   const [placing, setPlacing] = useState(false);
+
+  // Delivery agents for assignment (shown for home delivery / pickup).
+  const { agents } = useAgents(shopId);
+  const isHomeType = deliveryType === 'delivery_home' || deliveryType === 'pickup_home';
+  // Master switch (shop owner's Service Areas toggle). When OFF, the area picker
+  // and agent assignment are hidden — store orders never need them either.
+  const serviceAreasEnabled = !!(deliverySettings as any)?.enableServiceAreas;
+
+  // Agents serving the selected area (agents with no areas serve everywhere).
+  const areaAgents = useMemo(() => {
+    if (!selectedArea) return agents;
+    const na = selectedArea.toLowerCase().trim();
+    return agents.filter((a) => {
+      if (!a.serviceAreas || a.serviceAreas.length === 0) return true;
+      return a.serviceAreas.some((sa) => {
+        const n = (sa || '').toLowerCase().trim();
+        return n === na || (n.length > 3 && na.includes(n));
+      });
+    });
+  }, [agents, selectedArea]);
+  // If agents serve the area show those; otherwise fall back to all available agents.
+  const displayAgents = areaAgents.length > 0 ? areaAgents : agents;
+
+  // Auto-select the first configured service area (only when the feature is on).
+  useEffect(() => {
+    if (serviceAreasEnabled && serviceAreas.length > 0 && !selectedArea) setSelectedArea(serviceAreas[0]);
+  }, [serviceAreasEnabled, serviceAreas, selectedArea]);
+
+  // When the area changes, auto-assign an agent explicitly serving that area (if any).
+  useEffect(() => {
+    if (!serviceAreasEnabled || !isHomeType || !selectedArea) return;
+    const na = selectedArea.toLowerCase().trim();
+    const explicit = agents.filter(
+      (a) =>
+        a.serviceAreas &&
+        a.serviceAreas.length > 0 &&
+        a.serviceAreas.some((sa) => {
+          const n = (sa || '').toLowerCase().trim();
+          return n === na || (n.length > 3 && na.includes(n));
+        }),
+    );
+    if (explicit.length > 0) {
+      setAssignedAgentId((prev) => (prev && explicit.some((a) => a.id === prev) ? prev : explicit[0].id));
+    }
+  }, [serviceAreasEnabled, selectedArea, agents, isHomeType]);
 
   // Fetch shop settings for tax
   useEffect(() => {
@@ -92,6 +147,11 @@ export default function OrderReviewScreen({
           }
           setShopName(data?.name || '');
           setShopPhone(data?.phone || '');
+          setDeliverySettings(data?.settings?.delivery);
+          const areas = (data?.settings?.delivery?.serviceAreas || [])
+            .filter((a: any) => a && a.isActive !== false && a.value)
+            .map((a: any) => a.value as string);
+          setServiceAreas(areas);
         },
         () => {}
       );
@@ -111,7 +171,7 @@ export default function OrderReviewScreen({
 
   // Calculate financials with discount and tax
   const computed = useMemo(() => {
-    if (!draftOrder) return { subtotal: 0, discountAmount: 0, taxAmount: 0, total: 0, expressCharge: 0 };
+    if (!draftOrder) return { subtotal: 0, discountAmount: 0, taxAmount: 0, deliveryCharge: 0, total: 0, expressCharge: 0 };
     const subtotal = draftOrder.financials.subtotal;
     const expressCharge = draftOrder.financials.expressCharge;
 
@@ -125,10 +185,11 @@ export default function OrderReviewScreen({
 
     const afterDiscount = Math.max(0, subtotal - discountAmount);
     const taxAmount = taxEnabled ? Math.round(afterDiscount * (taxRate / 100)) : 0;
-    const total = afterDiscount + taxAmount;
+    const deliveryCharge = getDeliveryCharge(deliverySettings, afterDiscount, deliveryType);
+    const total = afterDiscount + taxAmount + deliveryCharge;
 
-    return { subtotal, discountAmount, taxAmount, total, expressCharge };
-  }, [draftOrder, discountText, taxEnabled, taxRate]);
+    return { subtotal, discountAmount, taxAmount, deliveryCharge, total, expressCharge };
+  }, [draftOrder, discountText, taxEnabled, taxRate, deliverySettings, deliveryType]);
 
   // Expected delivery: today + max turnaround days (editable)
   const [expectedDelivery, setExpectedDelivery] = useState<Date>(() => {
@@ -163,9 +224,15 @@ export default function OrderReviewScreen({
       }
     }
     if (editOrder.deliveryNotes) setNotes(editOrder.deliveryNotes);
-    if (editOrder.deliveryType === 'delivery_home' || editOrder.deliveryType === 'pickup_store') {
+    if (
+      editOrder.deliveryType === 'delivery_home' ||
+      editOrder.deliveryType === 'pickup_store' ||
+      editOrder.deliveryType === 'pickup_home'
+    ) {
       setDeliveryType(editOrder.deliveryType);
     }
+    if (editOrder.assignedAgentId) setAssignedAgentId(editOrder.assignedAgentId);
+    if (Array.isArray(editOrder.damagePhotoUrls)) setDamagePhotos(editOrder.damagePhotoUrls);
     if (editOrder.paymentStatus === 'paid' || (fin.amountPaid > 0 && fin.balance <= 0)) {
       setPaymentStatus('paid');
     }
@@ -199,6 +266,21 @@ export default function OrderReviewScreen({
     }
     setPlacing(true);
     try {
+      // Upload any new damage photos (keep already-uploaded https URLs as-is).
+      let damagePhotoUrls: string[] = [];
+      if (damagePhotos.length > 0) {
+        const remote = damagePhotos.filter((u) => /^https?:/.test(u));
+        const local = damagePhotos.filter((u) => !/^https?:/.test(u));
+        const uploaded = await Promise.all(
+          local.map((uri) =>
+            uploadImageToR2(shopId, uri, 'damage-photos')
+              .then((r) => r.publicUrl)
+              .catch(() => null),
+          ),
+        );
+        damagePhotoUrls = [...remote, ...(uploaded.filter(Boolean) as string[])];
+      }
+
       // Get shop doc for shopCode and nextOrderNumber (skip for edits)
       let orderNumber = '';
       const shopDoc = await firestore().collection('shops').doc(shopId).get();
@@ -231,7 +313,7 @@ export default function OrderReviewScreen({
         discountValue: discountVal,
         discountAmount: computed.discountAmount,
         expressCharge: computed.expressCharge,
-        deliveryCharge: 0,
+        deliveryCharge: computed.deliveryCharge,
         taxAmount: computed.taxAmount,
         taxRate: taxEnabled ? taxRate : 0,
         taxName: taxName,
@@ -271,9 +353,13 @@ export default function OrderReviewScreen({
         paymentMethod: 'cash',
         paymentStatus: paymentStatus,
         deliveryType,
-        deliveryAddress: null,
+        deliveryAddress: deliveryType === 'pickup_store' ? null : draftOrder.customer.address || null,
         deliveryNotes: notes.trim() || null,
         expectedDelivery: deliveryDate,
+        assignedAgentId: isHomeType ? assignedAgentId : null,
+        assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
+        assignedAt: isHomeType && assignedAgentId ? new Date() : null,
+        damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
         staffId: 'mobile',
         staffName: 'Mobile App',
         orderSource: 'pos',
@@ -303,6 +389,17 @@ export default function OrderReviewScreen({
           deliveryNotes: notes.trim() || null,
           expectedDelivery: deliveryDate,
           paymentStatus,
+          assignedAgentId: isHomeType ? assignedAgentId : null,
+          assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
+          // Keep the original assignment time when the agent is unchanged; only
+          // stamp a new one when the agent actually changes (avoids refreshing
+          // assignedAt on unrelated edits like item/price changes).
+          assignedAt: isHomeType && assignedAgentId
+            ? (existingData.assignedAgentId === assignedAgentId && existingData.assignedAt
+                ? existingData.assignedAt
+                : new Date())
+            : null,
+          damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
           updatedAt: new Date(),
           timeline: [...(existingData.timeline || []), {
             id: `t-${Date.now()}`,
@@ -521,6 +618,17 @@ export default function OrderReviewScreen({
             </View>
           ) : null}
 
+          {/* Delivery charge */}
+          {computed.deliveryCharge > 0 ? (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryRowLabel}>
+                <MaterialIcons name="local-shipping" size={18} color={colors.textSecondary} />
+                <Text style={styles.summaryLabel}>{t('mobile.deliveryChargeLabel', 'Delivery')}</Text>
+              </View>
+              <Text style={styles.summaryValue}>+{formatCurrency(computed.deliveryCharge, countrySettings)}</Text>
+            </View>
+          ) : null}
+
           {/* Divider before Grand Total */}
           <View style={styles.summaryDivider} />
 
@@ -541,6 +649,12 @@ export default function OrderReviewScreen({
             value={notes}
             onChangeText={setNotes}
           />
+        </View>
+
+        {/* Damage / stain photos — optional */}
+        <View style={styles.damageCard}>
+          <Text style={styles.damageLabel}>{t('mobile.damagePhotosLabel', 'Damage / stain photos (optional)')}</Text>
+          <DamagePhotos value={damagePhotos} onChange={setDamagePhotos} />
         </View>
 
         {/* Expected Delivery — editable */}
@@ -592,8 +706,49 @@ export default function OrderReviewScreen({
               >
                 <Text style={deliveryType === 'delivery_home' ? styles.segmentTextActive : styles.segmentTextInactive}>{t('mobile.delivery_delivery_home')}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={deliveryType === 'pickup_home' ? styles.segmentActive : styles.segmentInactive}
+                onPress={() => setDeliveryType('pickup_home')}
+              >
+                <Text style={deliveryType === 'pickup_home' ? styles.segmentTextActive : styles.segmentTextInactive}>{t('mobile.delivery_pickup_home', 'Pickup & Delivery')}</Text>
+              </TouchableOpacity>
             </View>
           </View>
+
+          {serviceAreasEnabled && isHomeType && serviceAreas.length > 0 && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.serviceAreaLabel', 'Service area')}</Text>
+              <Dropdown
+                title={t('mobile.serviceAreaLabel', 'Service area')}
+                value={selectedArea}
+                placeholder={t('mobile.selectArea', 'Select area')}
+                options={serviceAreas.map((a) => ({ key: a, label: a }))}
+                onSelect={setSelectedArea}
+              />
+            </View>
+          )}
+
+          {serviceAreasEnabled && isHomeType && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.assignAgentLabel', 'Assign delivery agent')}</Text>
+              {agents.length === 0 ? (
+                <Text style={styles.agentEmpty}>
+                  {t('mobile.noAgents', 'No delivery agents yet. Create one in Settings → Team.')}
+                </Text>
+              ) : (
+                <Dropdown
+                  title={t('mobile.assignAgentLabel', 'Assign delivery agent')}
+                  value={assignedAgentId || ''}
+                  placeholder={t('mobile.noAgent', 'No agent')}
+                  options={[
+                    { key: '', label: t('mobile.noAgent', 'No agent') },
+                    ...displayAgents.map((a) => ({ key: a.id, label: a.name, online: !!a.isOnline })),
+                  ]}
+                  onSelect={(k) => setAssignedAgentId(k || null)}
+                />
+              )}
+            </View>
+          )}
 
           <View style={styles.toggleGroup}>
             <Text style={styles.toggleLabel}>{t('mobile.paymentStatusLabel')}</Text>
@@ -711,6 +866,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   notesInput: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.text, padding: 0 },
+  damageCard: {
+    backgroundColor: colors.surface, borderRadius: radii.card, paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: colors.border, gap: 10,
+  },
+  damageLabel: { fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 1, textTransform: 'uppercase' },
   expressBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.successBg,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.button, marginBottom: 4,
@@ -742,6 +902,16 @@ const styles = StyleSheet.create({
   segmentTextActive: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary },
   segmentTextInactive: { fontSize: 12, fontFamily: fonts.bold, color: colors.textSecondary },
   segmentTextError: { fontSize: 12, fontFamily: fonts.bold, color: colors.error },
+  agentWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  agentChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: radii.chip,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  agentChipActive: { backgroundColor: colors.primaryTint, borderColor: 'transparent' },
+  agentChipText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.textSecondary },
+  agentChipTextActive: { color: colors.primary },
+  agentEmpty: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, paddingHorizontal: 4, lineHeight: 18 },
   bottomAction: {
     position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 16,
     backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,

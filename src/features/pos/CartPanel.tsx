@@ -21,7 +21,8 @@ import type { DeliveryType } from "@/types/order";
 import { ShoppingCart, Trash2, Zap, StickyNote, Store, Truck, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { getTranslatedItemName, getTranslatedCategoryName } from "@/lib/inventory-translations";
+import { getTranslatedItemName, getTranslatedCategoryName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
+import { useState } from "react";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { useCurrency } from "@/hooks/use-currency";
 
@@ -302,9 +303,20 @@ interface CartItemCardProps {
 
 function CartItemCard({ item, onQuantityChange, onRemove, onClick }: CartItemCardProps) {
     const { t } = useTranslation();
+    const weighed = isWeightUnit(item.service.pricingType);
+    const unitLabel = getTranslatedUnit(item.service.pricingType);
+    const [weightText, setWeightText] = useState(String(item.quantity));
     const turnaroundDays = item.express
         ? Math.ceil(item.service.turnaroundDays / 2)
         : item.service.turnaroundDays;
+
+    const onWeightChange = (raw: string) => {
+        const normalized = raw.replace(",", ".");
+        if (normalized !== "" && !/^\d*\.?\d*$/.test(normalized)) return;
+        setWeightText(normalized);
+        const parsed = parseFloat(normalized);
+        if (!Number.isNaN(parsed) && parsed > 0) onQuantityChange(parsed);
+    };
 
     // Get translated names
     const translatedName = getTranslatedItemName(item.service.name);
@@ -333,7 +345,7 @@ function CartItemCard({ item, onQuantityChange, onRemove, onClick }: CartItemCar
                     </div>
 
                     <p className="text-sm text-muted-foreground mt-1">
-                        <LAmount value={item.unitPrice} size="sm" /> × {item.quantity}
+                        <LAmount value={item.unitPrice} size="sm" />{weighed ? `/${unitLabel} × ${item.quantity} ${unitLabel}` : ` × ${item.quantity}`}
                     </p>
 
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -353,13 +365,26 @@ function CartItemCard({ item, onQuantityChange, onRemove, onClick }: CartItemCar
                     <LAmount value={item.total} size="md" className="font-semibold" />
 
                     <div className="flex items-center gap-2">
-                        <LQuantityStepper
-                            value={item.quantity}
-                            onChange={onQuantityChange}
-                            min={1}
-                            max={99}
-                            size="sm"
-                        />
+                        {weighed ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={weightText}
+                                    onChange={(e) => onWeightChange(e.target.value)}
+                                    className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-right text-sm font-semibold text-foreground focus:border-primary focus:outline-none"
+                                />
+                                <span className="text-xs text-muted-foreground">{unitLabel}</span>
+                            </div>
+                        ) : (
+                            <LQuantityStepper
+                                value={item.quantity}
+                                onChange={onQuantityChange}
+                                min={1}
+                                max={99}
+                                size="sm"
+                            />
+                        )}
 
                         <button
                             onClick={onRemove}

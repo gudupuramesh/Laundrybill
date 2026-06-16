@@ -79,6 +79,8 @@ export function useTeamMemberMutations() {
         data: {
             email: string;
             memberType: MemberType;
+            /** Roster role — distinguishes a manager from plain staff (both memberType 'staff'). */
+            role?: string;
             staffId?: string;
             name?: string;
             vehicle?: { type: string; number?: string };
@@ -125,6 +127,7 @@ export function useTeamMemberMutations() {
             email: emailLower,
             inviteCode,
             memberType: data.memberType,
+            role: data.role || (data.memberType === "plant" ? "plant_operator" : data.memberType === "agent" ? "agent" : "staff"),
             staffId: data.staffId || null,
             name: data.name || null,
             vehicle: data.vehicle || null,

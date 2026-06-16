@@ -29,6 +29,7 @@ export default function SettingsScreen({
   onAttendance,
   onCreateStaffLogin,
   onExpenseList,
+  onServiceAreas,
   onFeedback,
 }: {
   onManageServices: () => void,
@@ -39,6 +40,7 @@ export default function SettingsScreen({
   onAttendance?: () => void,
   onCreateStaffLogin?: () => void,
   onExpenseList?: () => void,
+  onServiceAreas?: () => void,
   onFeedback?: () => void,
 }) {
   const { t } = useTranslation();
@@ -604,7 +606,7 @@ export default function SettingsScreen({
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={onManageItems}>
+            <TouchableOpacity style={onServiceAreas ? styles.listItem : styles.listItemNoBorder} onPress={onManageItems}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
                   <MaterialIcons name="checkroom" size={18} color={colors.warning} />
@@ -616,6 +618,21 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
+
+            {onServiceAreas ? (
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={onServiceAreas}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                    <MaterialIcons name="place" size={18} color={colors.success} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Service Areas</Text>
+                    <Text style={styles.listItemSubtext}>Delivery areas & per-area agents</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 

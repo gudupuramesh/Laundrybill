@@ -1,20 +1,32 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch, Share } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { reconcileTeamMembersToRoster } from '../lib/reconcileRoster';
+import { createTeamLogin, LoginMemberType } from '../lib/createTeamLogin';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
 import { HelpButton } from '../components/HelpButton';
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin',
   manager: 'Manager',
   staff: 'Staff',
   plant_operator: 'Plant',
+  agent: 'Agent',
 };
+
+type LoginTypeKey = 'staff' | 'manager' | 'agent' | 'plant';
+// A Manager login is a Staff-App login (memberType 'staff') tagged with the
+// manager roster role — there's no separate manager app.
+const LOGIN_TYPES: { key: LoginTypeKey; label: string; memberType: LoginMemberType; role: string }[] = [
+  { key: 'staff', label: 'Staff App', memberType: 'staff', role: 'staff' },
+  { key: 'manager', label: 'Manager', memberType: 'staff', role: 'manager' },
+  { key: 'agent', label: 'Delivery Agent', memberType: 'agent', role: 'agent' },
+  { key: 'plant', label: 'Plant', memberType: 'plant', role: 'plant_operator' },
+];
 
 export default function StaffListScreen({
   onBack,
@@ -35,26 +47,37 @@ export default function StaffListScreen({
   const [showAddModal, setShowAddModal] = useState(false);
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
+  const [formEmail, setFormEmail] = useState('');
   const [formRole, setFormRole] = useState('staff');
   const [formPayType, setFormPayType] = useState('monthly');
   const [formSalary, setFormSalary] = useState('');
+  const [formCreateLogin, setFormCreateLogin] = useState(false);
+  const [formLoginType, setFormLoginType] = useState<LoginTypeKey>('staff');
   const [saving, setSaving] = useState(false);
 
   const resetForm = () => {
-    setFormName(''); setFormPhone(''); setFormRole('staff');
+    setFormName(''); setFormPhone(''); setFormEmail(''); setFormRole('staff');
     setFormPayType('monthly'); setFormSalary('');
+    setFormCreateLogin(false); setFormLoginType('staff');
   };
 
   const handleAddStaff = async () => {
     const name = formName.trim();
     if (!name) { Alert.alert('Required', 'Staff name is required'); return; }
     if (!shopId || saving) return;
+    // App login needs an email.
+    if (formCreateLogin && !formEmail.trim()) {
+      Alert.alert('Email required', 'Enter an email to create an app login for this person.');
+      return;
+    }
+    const loginMeta = LOGIN_TYPES.find((l) => l.key === formLoginType) || LOGIN_TYPES[0];
     setSaving(true);
     try {
-      await firestore().collection(`shops/${shopId}/staff`).add({
+      const ref = await firestore().collection(`shops/${shopId}/staff`).add({
         name,
         phone: formPhone.trim(),
-        role: formRole,
+        email: formEmail.trim().toLowerCase(),
+        role: formCreateLogin ? loginMeta.role : formRole,
         payType: formPayType,
         baseSalary: parseFloat(formSalary) || 0,
         isActive: true,
@@ -62,13 +85,60 @@ export default function StaffListScreen({
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
+      // Optionally create the app login and link it to the new roster row.
+      if (formCreateLogin) {
+        try {
+          const { inviteCode } = await createTeamLogin({
+            shopId,
+            name,
+            email: formEmail,
+            phone: formPhone,
+            memberType: loginMeta.memberType,
+            role: loginMeta.role,
+            linkedStaffId: ref.id,
+          });
+          resetForm();
+          setShowAddModal(false);
+          Alert.alert(
+            'Login created',
+            `Invite code for ${name}: ${inviteCode}`,
+            [
+              { text: 'Share', onPress: () => Share.share({ message: `Your Laundrybill login invite code is: ${inviteCode}\n\nDownload the app and use this code to sign up.` }).catch(() => {}) },
+              { text: 'Done', style: 'cancel' },
+            ],
+          );
+          return;
+        } catch (e: any) {
+          // Roster row is saved; surface why the login part failed.
+          const msg = e?.message === 'EMAIL_ALREADY_USED'
+            ? 'That email already has a login. The staff member was still added.'
+            : 'Staff added, but the login could not be created.';
+          resetForm();
+          setShowAddModal(false);
+          Alert.alert('Heads up', msg);
+          return;
+        }
+      }
+
       resetForm();
       setShowAddModal(false);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to add staff');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
+
+  // Once per open: mirror any login (teamMembers) that has no roster row into
+  // `staff`, so previously-created logins (incl. agents) appear here & in
+  // Attendance. Idempotent — dedupes by email, so it never creates doubles.
+  const reconciledRef = useRef(false);
+  useEffect(() => {
+    if (!shopId || reconciledRef.current) return;
+    reconciledRef.current = true;
+    void reconcileTeamMembersToRoster(shopId);
+  }, [shopId]);
 
   useEffect(() => {
     if (!shopId) { setLoading(false); return; }
@@ -195,14 +265,46 @@ export default function StaffListScreen({
               <Text style={s.fieldLabel}>PHONE</Text>
               <TextInput style={s.modalInput} placeholder="Phone number" placeholderTextColor={colors.textMuted} value={formPhone} onChangeText={setFormPhone} keyboardType="phone-pad" />
 
-              <Text style={s.fieldLabel}>ROLE</Text>
-              <View style={s.chipRow}>
-                {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                  <TouchableOpacity key={key} style={[s.roleChip, formRole === key && s.roleChipActive]} onPress={() => setFormRole(key)}>
-                    <Text style={[s.roleChipText, formRole === key && s.roleChipTextActive]}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={s.fieldLabel}>EMAIL</Text>
+              <TextInput style={s.modalInput} placeholder="Email (needed for app login)" placeholderTextColor={colors.textMuted} value={formEmail} onChangeText={setFormEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+
+              {/* App login toggle */}
+              <View style={s.loginToggleRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={s.loginToggleTitle}>Create app login?</Text>
+                  <Text style={s.loginToggleSub}>Give them access to the Staff, Agent, or Plant app via an invite code.</Text>
+                </View>
+                <Switch
+                  value={formCreateLogin}
+                  onValueChange={setFormCreateLogin}
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                  thumbColor="#fff"
+                />
               </View>
+
+              {formCreateLogin ? (
+                <>
+                  <Text style={s.fieldLabel}>LOGIN TYPE</Text>
+                  <View style={s.chipRow}>
+                    {LOGIN_TYPES.map((lt) => (
+                      <TouchableOpacity key={lt.key} style={[s.roleChip, formLoginType === lt.key && s.roleChipActive]} onPress={() => setFormLoginType(lt.key)}>
+                        <Text style={[s.roleChipText, formLoginType === lt.key && s.roleChipTextActive]}>{lt.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={s.fieldLabel}>ROLE</Text>
+                  <View style={s.chipRow}>
+                    {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                      <TouchableOpacity key={key} style={[s.roleChip, formRole === key && s.roleChipActive]} onPress={() => setFormRole(key)}>
+                        <Text style={[s.roleChipText, formRole === key && s.roleChipTextActive]}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
 
               <Text style={s.fieldLabel}>PAY TYPE</Text>
               <View style={s.chipRow}>
@@ -295,6 +397,13 @@ const s = StyleSheet.create({
     fontSize: 15, fontFamily: fonts.medium, color: colors.text, borderWidth: 1, borderColor: colors.border,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  loginToggleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 16, paddingVertical: 12, paddingHorizontal: 12,
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, borderWidth: 1, borderColor: colors.border,
+  },
+  loginToggleTitle: { fontSize: 14, fontFamily: fonts.bold, color: colors.text },
+  loginToggleSub: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2, lineHeight: 16 },
   roleChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.button,
     backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border,

@@ -1,0 +1,82 @@
+{
+  "expo": {
+    "name": "Laundrybill Team",
+    "slug": "laundrybill-driver",
+    "scheme": "laundrybilldriver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-team.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0058D8"
+    },
+    "ios": {
+      "appleTeamId": "QWW8YD6KZV",
+      "supportsTablet": true,
+      "bundleIdentifier": "in.laundrybill.driver",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Laundrybill Team uses your photos to attach pickup and delivery proof to orders."
+      },
+      "splash": {
+        "image": "./assets/splash-team.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#0058D8"
+      }
+    },
+    "android": {
+      "package": "in.laundrybill.driver",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0F1E36",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "splash": {
+        "image": "./assets/splash-team.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#0058D8"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-web-browser",
+      "expo-notifications",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Laundrybill Team uses the camera to scan order QR codes and to take pickup/delivery proof photos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Laundrybill Team uses your location to navigate to pickup and delivery addresses."
+        }
+      ],
+      "expo-font",
+      "./plugins/withApsEnvironmentProduction"
+    ],
+    "owner": "gudupuramesh"
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { reconcileTeamMembersToRoster } from '../lib/reconcileRoster';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
 import { HelpButton } from '../components/HelpButton';
@@ -89,6 +90,15 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
   const [loadingMonthly, setLoadingMonthly] = useState(true);
 
   const dk = dateKey(selectedDate);
+
+  // Mirror any login without a roster row into `staff` once, so all logins
+  // (incl. agents created earlier) are markable here. Idempotent (dedupes by email).
+  const reconciledRef = useRef(false);
+  useEffect(() => {
+    if (!shopId || reconciledRef.current) return;
+    reconciledRef.current = true;
+    void reconcileTeamMembersToRoster(shopId);
+  }, [shopId]);
 
   // --- Firestore: staff ---
   useEffect(() => {

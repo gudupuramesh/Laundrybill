@@ -18,6 +18,7 @@ import {
 import type { InventoryItem } from "@/types/inventory";
 import { Zap, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isWeightUnit, getTranslatedUnit } from "@/lib/inventory-translations";
 
 interface ItemDetailSheetProps {
     open: boolean;
@@ -45,19 +46,34 @@ export function ItemDetailSheet({
 }: ItemDetailSheetProps) {
     const { t } = useTranslation();
     const [quantity, setQuantity] = useState(1);
+    const [weightText, setWeightText] = useState("1");
     const [express, setExpress] = useState(false);
     const [notes, setNotes] = useState("");
 
     // Reset state when item changes
     useEffect(() => {
         if (open) {
-            setQuantity(initialValues?.quantity || 1);
+            const q = initialValues?.quantity || 1;
+            setQuantity(q);
+            setWeightText(String(q));
             setExpress(initialValues?.express || false);
             setNotes(initialValues?.notes || "");
         }
     }, [open, item?.id, initialValues]);
 
     if (!item) return null;
+
+    const weighed = isWeightUnit(item.pricingType);
+    const unitLabel = getTranslatedUnit(item.pricingType);
+
+    // Decimal weight entry (e.g. 2.5 kg) for weight/area units.
+    const onWeightChange = (raw: string) => {
+        const normalized = raw.replace(",", ".");
+        if (normalized !== "" && !/^\d*\.?\d*$/.test(normalized)) return;
+        setWeightText(normalized);
+        const parsed = parseFloat(normalized);
+        if (!Number.isNaN(parsed) && parsed >= 0) setQuantity(parsed);
+    };
 
     const unitPrice = express ? item.basePrice * item.expressMultiplier : item.basePrice;
     const total = quantity * unitPrice;
@@ -79,7 +95,9 @@ export function ItemDetailSheet({
                 {/* Price Info */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-sm text-muted-foreground">{t('pos.pricePerPiece')}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {t('pos.pricePerPiece')}{weighed ? ` / ${unitLabel}` : ''}
+                        </p>
                         <LAmount value={item.basePrice} size="xl" />
                     </div>
                     <LBadge variant="muted">
@@ -90,16 +108,32 @@ export function ItemDetailSheet({
 
                 <LDivider />
 
-                {/* Quantity */}
+                {/* Quantity / Weight */}
                 <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground">{t('pos.quantity')}</span>
-                    <LQuantityStepper
-                        value={quantity}
-                        onChange={setQuantity}
-                        min={1}
-                        max={99}
-                        size="lg"
-                    />
+                    <span className="font-medium text-foreground">
+                        {weighed ? `${t('pos.quantity')} (${unitLabel})` : t('pos.quantity')}
+                    </span>
+                    {weighed ? (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                value={weightText}
+                                onChange={(e) => onWeightChange(e.target.value)}
+                                placeholder="0"
+                                className="h-10 w-24 rounded-lg border border-border bg-background px-3 text-right text-lg font-semibold text-foreground focus:border-primary focus:outline-none"
+                            />
+                            <span className="text-sm font-medium text-muted-foreground">{unitLabel}</span>
+                        </div>
+                    ) : (
+                        <LQuantityStepper
+                            value={quantity}
+                            onChange={setQuantity}
+                            min={1}
+                            max={99}
+                            size="lg"
+                        />
+                    )}
                 </div>
 
                 {/* Express Toggle */}

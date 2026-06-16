@@ -124,15 +124,31 @@ export function CheckoutSheet({
     // Hide agent selection if limit is 0, undefined, or null. Show only if limit > 0 OR -1 (unlimited)
     const canHaveAgents = !limitsLoading && (agentLimit === -1 || (typeof agentLimit === 'number' && agentLimit > 0));
 
-    // Auto-select first service area when areas exist and none selected
+    // Auto-select first service area when the feature is on, areas exist and none selected
     useEffect(() => {
-        if (deliverySettings.serviceAreas?.length > 0 && !selectedArea) {
+        if (deliverySettings.enableServiceAreas && deliverySettings.serviceAreas?.length > 0 && !selectedArea) {
             const firstActive = deliverySettings.serviceAreas.find(a => a.isActive);
             if (firstActive) {
                 setSelectedArea(firstActive.value);
             }
         }
-    }, [deliverySettings.serviceAreas, selectedArea]);
+    }, [deliverySettings.enableServiceAreas, deliverySettings.serviceAreas, selectedArea]);
+
+    // Clear any selected area/agent when the area+agent UI isn't applicable
+    // (store order, feature off, or a plan without agents). The sheet stays
+    // mounted across cart changes, so without this a previously-picked agent
+    // could be written onto a store/feature-off order.
+    const areaAgentUiActive =
+        (cart.deliveryType === "delivery_home" || cart.deliveryType === "pickup_home") &&
+        deliverySettings.enableServiceAreas;
+    useEffect(() => {
+        if (!areaAgentUiActive || !canHaveAgents) {
+            if (selectedAgentId) setSelectedAgentId("");
+        }
+        if (!areaAgentUiActive) {
+            if (selectedArea) setSelectedArea("");
+        }
+    }, [areaAgentUiActive, canHaveAgents, selectedAgentId, selectedArea]);
 
     // Get available agents filtered by selected area (or customer address if no area selected)
     const filterArea = useMemo(() => {
@@ -511,7 +527,8 @@ export function CheckoutSheet({
                                     </label>
                                 )}
 
-                                {/* Area & Agent Selection for pickup/delivery - Area first, then agents */}
+                                {/* Area & Agent Selection for pickup/delivery - gated on the Service Areas master toggle */}
+                                {deliverySettings.enableServiceAreas && (
                                 <LCard variant="outlined" padding="md" className="bg-muted/30">
                                     {/* Area Selection - show first when service areas are configured */}
                                     {deliverySettings.serviceAreas?.length > 0 && (
@@ -555,6 +572,7 @@ export function CheckoutSheet({
                                         </>
                                     )}
                                 </LCard>
+                                )}
                             </>
                         )}
 

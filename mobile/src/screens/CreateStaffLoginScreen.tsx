@@ -24,19 +24,31 @@ function generateRandomInviteCode(shopCode: string): string {
   return `${code}-${randomNum}`;
 }
 
+export interface StaffLoginPrefill {
+  name?: string;
+  phone?: string;
+  email?: string;
+  memberType?: MemberType;
+  /** When set, this login is being created FOR an existing staff roster row —
+   *  we link (not duplicate) that row instead of adding a new one. */
+  linkedStaffId?: string;
+}
+
 export default function CreateStaffLoginScreen({
   onBack,
+  prefill,
 }: {
   onBack: () => void;
+  prefill?: StaffLoginPrefill | null;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
-  const [memberType, setMemberType] = useState<MemberType>('staff');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [memberType, setMemberType] = useState<MemberType>(prefill?.memberType || 'staff');
+  const [name, setName] = useState(prefill?.name || '');
+  const [email, setEmail] = useState(prefill?.email || '');
+  const [phone, setPhone] = useState(prefill?.phone || '');
   const [saving, setSaving] = useState(false);
 
   // Success state
@@ -96,13 +108,24 @@ export default function CreateStaffLoginScreen({
         updatedAt: new Date(),
       });
 
-      // Also create/update staff roster entry if not agent
-      if (memberType !== 'agent') {
+      // Mirror EVERY login (agents included) into the staff roster so they show
+      // in Manage Staff and Attendance. The role keeps the member type so the
+      // list/detail can label it. When this login is created FOR an existing
+      // staff member, link that row (store the login email) instead of adding a
+      // duplicate.
+      const roleForType =
+        memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff';
+      if (prefill?.linkedStaffId) {
+        await firestore().collection(`shops/${shopId}/staff`).doc(prefill.linkedStaffId).update({
+          email: trimEmail,
+          updatedAt: new Date(),
+        });
+      } else {
         await firestore().collection(`shops/${shopId}/staff`).add({
           name: trimName,
           phone: phone.trim() || '',
           email: trimEmail,
-          role: memberType === 'plant' ? 'plant_operator' : 'staff',
+          role: roleForType,
           payType: 'monthly',
           baseSalary: 0,
           isActive: true,
