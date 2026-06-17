@@ -671,82 +671,82 @@ export function TagGeneratorModal({ open, onClose, order }: TagGeneratorModalPro
                     <div className="flex gap-4">
                         <button
                             onClick={() => setTagType("basket")}
-                            className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${tagType === "basket"
-                                ? "border-primary bg-primary/5 text-primary"
-                                : "border-border hover:bg-muted"
+                            className={`flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all duration-300 ${tagType === "basket"
+                                ? "border-primary bg-primary/10 text-primary shadow-md shadow-primary/20 scale-[1.02]"
+                                : "border-border/50 hover:bg-muted/50 hover:border-primary/50 text-muted-foreground"
                                 }`}
                         >
                             <ShoppingBag className="h-8 w-8" />
-                            <span className="font-medium">{t('plant.basketTag', 'Basket Tag')}</span>
-                            <span className="text-xs text-muted-foreground text-center">
+                            <span className="font-bold text-lg">{t('plant.basketTag', 'Basket Tag')}</span>
+                            <span className="text-xs text-center opacity-80">
                                 Single tag for the whole bag
                             </span>
                         </button>
                         <button
                             onClick={() => setTagType("items")}
-                            className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${tagType === "items"
-                                ? "border-primary bg-primary/5 text-primary"
-                                : "border-border hover:bg-muted"
+                            className={`flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all duration-300 ${tagType === "items"
+                                ? "border-primary bg-primary/10 text-primary shadow-md shadow-primary/20 scale-[1.02]"
+                                : "border-border/50 hover:bg-muted/50 hover:border-primary/50 text-muted-foreground"
                                 }`}
                         >
                             <Tag className="h-8 w-8" />
-                            <span className="font-medium">{t('plant.itemTags', 'Item Tags')}</span>
-                            <span className="text-xs text-muted-foreground text-center">
+                            <span className="font-bold text-lg">{t('plant.itemTags', 'Item Tags')}</span>
+                            <span className="text-xs text-center opacity-80">
                                 {totalQuantity} tags (one per garment)
                             </span>
                         </button>
                     </div>
 
                     {/* Label format: Standard vs Roll (image size) */}
-                    <div className="space-y-2">
-                        <span className="text-sm font-medium text-foreground">{t('plant.labelFormat', 'Label format')}</span>
+                    <div className="space-y-3">
+                        <span className="text-sm font-bold text-foreground">{t('plant.labelFormat', 'Label format')}</span>
                         <div className="flex gap-3">
                             <button
                                 type="button"
                                 onClick={() => setLabelFormat("standard")}
-                                className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all text-left ${labelFormat === "standard"
-                                    ? "border-primary bg-primary/5 text-primary"
-                                    : "border-border hover:bg-muted"
+                                className={`flex-1 flex flex-col items-start gap-1 p-4 rounded-xl border-2 transition-all duration-300 text-left ${labelFormat === "standard"
+                                    ? "border-primary bg-primary/5 text-primary shadow-sm"
+                                    : "border-border/50 hover:bg-muted/50"
                                     }`}
                             >
-                                <span className="font-medium text-sm">{t('plant.option1Standard', 'Option 1: Standard')}</span>
-                                <span className="text-xs text-muted-foreground">80mm width, one tag per block</span>
+                                <span className="font-bold text-sm">{t('plant.option1Standard', 'Option 1: Standard')}</span>
+                                <span className="text-xs opacity-80">80mm width, one tag per block</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setLabelFormat("roll")}
-                                className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all text-left ${labelFormat === "roll"
-                                    ? "border-primary bg-primary/5 text-primary"
-                                    : "border-border hover:bg-muted"
+                                className={`flex-1 flex flex-col items-start gap-1 p-4 rounded-xl border-2 transition-all duration-300 text-left ${labelFormat === "roll"
+                                    ? "border-primary bg-primary/5 text-primary shadow-sm"
+                                    : "border-border/50 hover:bg-muted/50"
                                     }`}
                             >
-                                <span className="font-medium text-sm">{t('plant.option2Roll', 'Option 2: Roll labels')}</span>
-                                <span className="text-xs text-muted-foreground">50mm×100mm paper, 15mm×100mm tags, 3 per row</span>
+                                <span className="font-bold text-sm">{t('plant.option2Roll', 'Option 2: Roll labels')}</span>
+                                <span className="text-xs opacity-80">50mm×100mm paper, 15mm×100mm tags, 3 per row</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Order Info Summary */}
-                    <div className="bg-muted/30 p-4 rounded-lg">
-                        <div className="flex justify-between text-sm mb-2">
-                            <span className="text-muted-foreground">Order:</span>
-                            <span className="font-bold">{order.orderNumber}</span>
+                    <div className="bg-gradient-to-br from-muted/30 to-background border border-border/50 p-5 rounded-2xl shadow-sm">
+                        <div className="flex justify-between text-sm mb-3">
+                            <span className="text-muted-foreground font-medium">Order:</span>
+                            <span className="font-black">{order.orderNumber}</span>
                         </div>
-                        <div className="flex justify-between text-sm mb-2">
-                            <span className="text-muted-foreground">Customer:</span>
-                            <span>{order.customerName}</span>
+                        <div className="flex justify-between text-sm mb-3">
+                            <span className="text-muted-foreground font-medium">Customer:</span>
+                            <span className="font-semibold">{order.customerName}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Items:</span>
-                            <span className="font-bold">{totalQuantity}</span>
+                            <span className="text-muted-foreground font-medium">Items:</span>
+                            <span className="font-black text-primary">{totalQuantity}</span>
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3">
-                        <LButton variant="outline" onClick={onClose}>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <LButton variant="outline" className="rounded-xl" onClick={onClose}>
                             {t('common.cancel', 'Cancel')}
                         </LButton>
-                        <LButton onClick={generatePreviews} disabled={generating}>
+                        <LButton className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300" onClick={generatePreviews} disabled={generating}>
                             {generating ? t('common.loading', 'Loading...') : t('plant.generatePreview', 'Generate Preview')}
                         </LButton>
                     </div>
@@ -904,15 +904,15 @@ export function TagGeneratorModal({ open, onClose, order }: TagGeneratorModalPro
                     </p>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end gap-3 pt-2">
-                        <LButton variant="outline" onClick={onClose}>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <LButton variant="outline" className="rounded-xl" onClick={onClose}>
                             {t('common.cancel', 'Cancel')}
                         </LButton>
-                        <LButton variant="outline" onClick={handleDownload} disabled={downloading} className="gap-2">
+                        <LButton variant="outline" onClick={handleDownload} disabled={downloading} className="rounded-xl gap-2 hover:bg-primary/5 hover:text-primary transition-colors">
                             <Download className="h-4 w-4" />
                             {downloading ? t('common.loading', 'Loading...') : t('plant.downloadPdf', 'Download PDF')}
                         </LButton>
-                        <LButton onClick={handlePrint} className="gap-2">
+                        <LButton onClick={handlePrint} className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 gap-2">
                             <Printer className="h-4 w-4" />
                             {t('plant.print', 'Print')}
                         </LButton>

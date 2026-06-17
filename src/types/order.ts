@@ -212,6 +212,7 @@ export interface Order {
     // Delivery Type
     deliveryType: DeliveryType;
     deliveryAddress?: string;
+    deliveryArea?: string;
     /** Lat/lng for pickup/delivery (enables "Get directions" for shop and agent). */
     deliveryLat?: number;
     deliveryLng?: number;

@@ -52,7 +52,7 @@ export function NewOrderPage() {
 
     const [view, setView] = useState<"build" | "checkout">("build");
     const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
-    const [itemDetailSheet, setItemDetailSheet] = useState<{ open: boolean; item?: InventoryItem }>({ open: false });
+    const [itemDetailSheet, setItemDetailSheet] = useState<{ open: boolean; item?: InventoryItem; express?: boolean; cartItemId?: string }>({ open: false });
 
     // Default category
     useEffect(() => {
@@ -94,13 +94,10 @@ export function NewOrderPage() {
         return true;
     });
 
-    const cartQty = (serviceId: string) =>
-        cart.items.filter((i) => i.service.id === serviceId).reduce((s, i) => s + i.quantity, 0);
-
     // Add item: weight-priced items open the detail sheet for an explicit weight
     const handleAddItem = (item: InventoryItem, express: boolean) => {
         if (isWeightUnit(item.pricingType)) {
-            setItemDetailSheet({ open: true, item });
+            setItemDetailSheet({ open: true, item, express });
         } else {
             cart.addItem(item, 1, express);
         }
@@ -144,9 +141,11 @@ export function NewOrderPage() {
         );
     }
 
-    const existingCartItem = itemDetailSheet.item
-        ? cart.items.find(i => i.service.id === itemDetailSheet.item?.id)
-        : undefined;
+    const existingCartItem = itemDetailSheet.cartItemId
+        ? cart.items.find(i => i.id === itemDetailSheet.cartItemId)
+        : itemDetailSheet.item
+            ? cart.items.find(i => i.service.id === itemDetailSheet.item?.id && i.express === !!itemDetailSheet.express)
+            : undefined;
 
     const categoryOptions = categories
         .filter((c) => c.isActive)
@@ -173,9 +172,22 @@ export function NewOrderPage() {
 
     return (
         <>
-            <div className="mx-auto grid max-w-[1500px] gap-5 p-4 lg:grid-cols-[1fr_400px] lg:p-6">
+            <div className="mx-auto max-w-[1500px] p-4 lg:p-6 space-y-6">
+                {isEditMode && (
+                    <div className="flex justify-end">
+                        <LButton 
+                            variant="outline" 
+                            onClick={() => navigate('/orders')} 
+                            className="rounded-xl border-border/80 text-foreground cursor-pointer"
+                        >
+                            {t('common.cancel', 'Cancel')}
+                        </LButton>
+                    </div>
+                )}
+
+                <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
                     {/* Left column */}
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                         <CustomerDetailsCard
                             customerId={cart.customerId}
                             customerName={cart.customerName}
@@ -185,10 +197,13 @@ export function NewOrderPage() {
                         />
 
                         {/* Garments & Services */}
-                        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                            <h2 className="mb-4 text-base font-extrabold text-foreground">
-                                {t('pos.selectGarmentsServices', 'Select Garments & Services')}
-                            </h2>
+                        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                            <div className="mb-4">
+                                <h2 className="text-base font-extrabold text-foreground">
+                                    {t('pos.selectGarmentsServices', 'Select Garments & Services')}
+                                </h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">{t('pos.selectGarmentsServicesDesc', 'Filter by category or search items')}</p>
+                            </div>
 
                             {categoryOptions.length > 0 && (
                                 <div className="mb-4">
@@ -200,28 +215,30 @@ export function NewOrderPage() {
                                 </div>
                             )}
 
-                            <div className="relative mb-4">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <div className="relative mb-5">
+                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <input
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder={t('pos.searchCatalog', 'Search catalog items…')}
-                                    className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                    className="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
                                 />
                             </div>
 
                             {loading ? (
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                                    {[1, 2, 3, 4, 5, 6].map((i) => <LSkeleton key={i} height={230} className="rounded-2xl" />)}
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                                    {[1, 2, 3, 4, 5, 6].map((i) => <LSkeleton key={i} height={180} className="rounded-xl" />)}
                                 </div>
                             ) : filteredItems.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                                     {filteredItems.map((item) => (
                                         <POSItemCard
                                             key={item.id}
                                             item={item}
-                                            cartQuantity={cartQty(item.id)}
+                                            cartItems={cart.items}
                                             onAdd={handleAddItem}
+                                            onUpdateQuantity={(itemId, newQty) => cart.updateItem(itemId, { quantity: newQty })}
+                                            onRemoveItem={cart.removeItem}
                                         />
                                     ))}
                                 </div>
@@ -236,13 +253,14 @@ export function NewOrderPage() {
                     </div>
 
                     {/* Right column — Order Summary (sticky on desktop) */}
-                    <div className="lg:sticky lg:top-4 lg:self-start lg:h-[calc(100vh-88px)]">
+                    <div className="lg:sticky lg:top-6 lg:self-start lg:h-[calc(100vh-88px)]">
                         <OrderSummaryPanel
                             cart={cart}
                             onCheckout={handleCheckout}
-                            onItemClick={(item) => setItemDetailSheet({ open: true, item: item.service })}
+                            onItemClick={(item) => setItemDetailSheet({ open: true, item: item.service, express: item.express, cartItemId: item.id })}
                         />
                     </div>
+                </div>
             </div>
 
             {/* Sheets */}
@@ -250,9 +268,18 @@ export function NewOrderPage() {
                 open={itemDetailSheet.open}
                 onClose={() => setItemDetailSheet({ open: false })}
                 item={itemDetailSheet.item}
-                initialValues={existingCartItem ? { quantity: 1, express: existingCartItem.express, notes: existingCartItem.notes } : undefined}
+                initialValues={existingCartItem 
+                    ? { quantity: existingCartItem.quantity, express: existingCartItem.express, notes: existingCartItem.notes } 
+                    : itemDetailSheet.express !== undefined 
+                        ? { quantity: 1, express: itemDetailSheet.express, notes: undefined }
+                        : undefined
+                }
                 onAdd={(item, quantity, expressFlag, notesText) => {
-                    cart.addItem(item, quantity, expressFlag, notesText);
+                    if (existingCartItem) {
+                        cart.updateItem(existingCartItem.id, { quantity, express: expressFlag, notes: notesText });
+                    } else {
+                        cart.addItem(item, quantity, expressFlag, notesText);
+                    }
                     setItemDetailSheet({ open: false });
                 }}
             />

@@ -51,13 +51,13 @@ export function CustomerSelectSheet({
 
     // Filter customers by phone or name
     const filteredCustomers = customers.filter((c) => {
-        if (!searchQuery) return true;
+        if (!searchQuery) return false; // Hide by default until user types
         const query = searchQuery.toLowerCase();
         return (
             c.name.toLowerCase().includes(query) ||
             c.phone.includes(query)
         );
-    });
+    }).slice(0, 8); // Limit to top 8 results for performance
 
     const handleCreateCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) return;

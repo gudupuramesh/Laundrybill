@@ -37,12 +37,12 @@ export function LMasterDetailLayout({
     return (
         <div className={cn("flex h-[calc(100vh-64px)]", className)}>
             {/* List Panel */}
-            <div className="flex-1 min-w-[320px] max-w-[400px] overflow-y-auto border-r border-border bg-card">
+            <div className="w-[450px] shrink-0 overflow-y-auto border-r border-border bg-card">
                 {listPanel}
             </div>
 
             {/* Detail Panel with smooth transition */}
-            <div className="flex-[1.5] min-w-[400px] overflow-y-auto bg-background">
+            <div className="flex-1 min-w-0 overflow-y-auto bg-background">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={selectedId || "empty"}
@@ -56,9 +56,6 @@ export function LMasterDetailLayout({
                     </motion.div>
                 </AnimatePresence>
             </div>
-
-            {/* Ad Slot - xl screens only */}
-            <LAdSlot variant="sidebar" position={adPosition} />
         </div>
     );
 }

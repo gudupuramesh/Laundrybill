@@ -26,7 +26,7 @@ import { useCreateOrder, useOrderMutations } from "@/hooks/use-orders";
 import { useCustomers } from "@/hooks/use-customers";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { addDays } from "date-fns";
-import { ChevronLeft, Store, Truck, Home, Calendar, Minus, Plus, Tag, Receipt, StickyNote, ShoppingBag, ArrowRight } from "lucide-react";
+import { ChevronLeft, Store, Truck, Home, Calendar, Minus, Plus, Tag, Receipt, StickyNote, ShoppingBag, ArrowRight, User, FileText, Check, AlertCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getTranslatedItemName } from "@/lib/inventory-translations";
 import { useStaffAuthOptional } from "@/features/staff-app/StaffAuthContext";
@@ -196,6 +196,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                     },
                     deliveryType: cart.deliveryType,
                     deliveryAddress: cart.deliveryAddress,
+                    deliveryArea: selectedArea,
                     deliveryNotes: cart.deliveryNotes,
                     expectedDelivery: expectedDate,
                     scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
@@ -255,6 +256,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
             },
             deliveryType: cart.deliveryType,
             deliveryAddress: cart.deliveryAddress,
+            deliveryArea: selectedArea,
             deliveryNotes: cart.deliveryNotes,
             expectedDelivery: expectedDate,
             scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
@@ -282,271 +284,366 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
     ];
 
     return (
-        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-4 lg:px-6">
-            {/* Header */}
-            <div className="mb-4 flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
-                    title={t("common.back")}
-                >
-                    <ChevronLeft className="h-5 w-5" />
-                </button>
-                <h1 className="text-xl font-extrabold text-foreground">
-                    {isEditMode ? t("checkout.updateOrderTitle", "Update Order") : t("checkout.orderReview", "Order Review")}
-                </h1>
+        <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-4 lg:px-6">
+            {/* Header Banner */}
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-primary/[0.02] to-card rounded-2xl border border-primary/10 p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-card border border-border text-muted-foreground transition-all duration-300 hover:border-primary hover:text-primary active:scale-95 shadow-sm cursor-pointer"
+                        title={t("common.back")}
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-xl font-extrabold text-foreground flex items-center gap-2">
+                            {isEditMode ? t("checkout.updateOrderTitle", "Update Order") : t("checkout.orderReview", "Order Review")}
+                        </h1>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            {isEditMode ? t("checkout.reviewAndUpdate", "Review and modify your order configuration") : t("checkout.verifyCart", "Verify cart items, delivery details, and confirm payment status")}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                    <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-extrabold text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        POS Portal
+                    </span>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_390px] lg:items-start">
                 {/* LEFT — order details */}
-                <div className="space-y-4">
-                {/* Customer */}
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <LAvatar name={cart.customerName || cart.customerPhone || "?"} size="md" />
-                        <div className="min-w-0">
-                            <p className="truncate font-bold text-foreground">{cart.customerName || t("customer.guest", "Guest")}</p>
-                            <p className="truncate text-sm text-muted-foreground">{cart.customerPhone}</p>
-                        </div>
-                    </div>
-                    {!isEditMode && (
-                        <button onClick={onClose} className="shrink-0 px-2 text-sm font-bold text-primary">
-                            {t("common.edit", "Edit").toUpperCase()}
-                        </button>
-                    )}
-                </div>
-
-                {/* Services grouped by category */}
-                {categoryGroups.map((group, gi) => (
-                    <div key={`${group.name}-${gi}`} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                        <div className="flex items-center justify-between bg-primary/5 px-4 py-2.5">
-                            <div className="flex items-center gap-2 text-primary">
-                                <ShoppingBag className="h-4 w-4" />
-                                <span className="text-xs font-extrabold uppercase tracking-wide">
-                                    {group.name} · {group.items.length} {group.items.length === 1 ? t("orders.item", "item") : t("orders.items", "items")}
+                <div className="space-y-5">
+                    {/* Customer Selection State */}
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:shadow-md">
+                        <div className="flex items-center gap-4 min-w-0">
+                            <div className="relative">
+                                <LAvatar name={cart.customerName || cart.customerPhone || "?"} size="lg" className="border-2 border-primary/20" />
+                                <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-card">
+                                    <User className="h-3 w-3" />
                                 </span>
                             </div>
-                            <span className="text-sm font-extrabold text-primary">{formatAmount(Math.round(group.subtotal))}</span>
+                            <div className="min-w-0">
+                                <p className="text-xs font-extrabold uppercase tracking-wider text-primary/80">Customer Details</p>
+                                <p className="truncate text-base font-extrabold text-foreground mt-0.5">{cart.customerName || t("customer.guest", "Guest")}</p>
+                                <p className="truncate text-sm font-semibold text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                    {cart.customerPhone}
+                                </p>
+                            </div>
                         </div>
-                        <div className="divide-y divide-border">
-                            {group.items.map((item) => (
-                                <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-semibold text-foreground">
-                                            {getTranslatedItemName(item.service.name)}
-                                            {item.express && (
-                                                <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-warning" style={{ background: "hsl(var(--warning) / 0.16)" }}>
-                                                    {t("pos.express", "Express")}
-                                                </span>
-                                            )}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">×{item.quantity} · {formatAmount(item.unitPrice)} {t("checkout.each", "ea.")}</p>
+                        {!isEditMode && (
+                            <button 
+                                onClick={onClose} 
+                                className="shrink-0 rounded-xl bg-muted px-4 py-2 text-xs font-extrabold text-primary transition-all duration-200 hover:bg-primary hover:text-white cursor-pointer active:scale-95"
+                            >
+                                {t("common.edit", "Change").toUpperCase()}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Services grouped by category */}
+                    {categoryGroups.map((group, gi) => (
+                        <div key={`${group.name}-${gi}`} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:shadow-md">
+                            <div className="flex items-center justify-between border-b border-border/80 bg-gradient-to-r from-primary/5 via-primary/[0.01] to-transparent px-5 py-3">
+                                <div className="flex items-center gap-2.5 text-primary">
+                                    <div className="rounded-lg bg-primary/10 p-1.5">
+                                        <ShoppingBag className="h-4 w-4" />
                                     </div>
-                                    <span className="text-sm font-bold text-foreground">{formatAmount(item.total)}</span>
+                                    <span className="text-sm font-extrabold uppercase tracking-wider">
+                                        {group.name}
+                                    </span>
+                                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">
+                                        {group.items.length} {group.items.length === 1 ? t("orders.item", "item") : t("orders.items", "items")}
+                                    </span>
                                 </div>
-                            ))}
+                                <span className="text-base font-extrabold text-primary tabular-nums">{formatAmount(Math.round(group.subtotal))}</span>
+                            </div>
+                            <div className="divide-y divide-border/60">
+                                {group.items.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-muted/30">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-bold text-foreground flex items-center gap-2">
+                                                {getTranslatedItemName(item.service.name)}
+                                                {item.express && (
+                                                    <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold text-warning uppercase tracking-wide" style={{ background: "hsl(var(--warning) / 0.12)" }}>
+                                                        ⚡ {t("pos.express", "Express")}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs font-semibold text-muted-foreground mt-1 flex items-center gap-1.5">
+                                                <span className="rounded bg-muted px-1.5 py-0.5">{item.quantity} {item.service.pricingType === "piece" ? "pcs" : item.service.pricingType}</span>
+                                                <span>·</span>
+                                                <span>{formatAmount(item.unitPrice)} {t("checkout.each", "ea.")}</span>
+                                            </p>
+                                            {item.notes && (
+                                                <p className="text-xs text-muted-foreground bg-muted/50 border border-dashed border-border rounded-lg px-2.5 py-1.5 mt-2 italic flex items-center gap-1.5">
+                                                    <StickyNote className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                                                    "{item.notes}"
+                                                </p>
+                                            )}
+                                        </div>
+                                        <span className="text-sm font-extrabold text-foreground tabular-nums">{formatAmount(item.total)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Summary */}
+                    <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+                        <h3 className="text-sm font-extrabold text-foreground flex items-center gap-2 pb-2 border-b border-border">
+                            <Receipt className="h-4 w-4 text-primary" />
+                            Order Bill Details
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="font-semibold text-muted-foreground">{t("pos.subtotal", "Subtotal")}</span>
+                                <span className="font-bold text-foreground tabular-nums">{formatAmount(cart.subtotal)}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                                <span className="flex items-center gap-1.5 font-semibold text-muted-foreground">
+                                    <Tag className="h-4 w-4 text-success" />
+                                    {t("pos.applyDiscount", "Discount (₹)")}
+                                </span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={cart.discountValue || ""}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        if (!v || v <= 0) cart.setDiscount(undefined, undefined);
+                                        else cart.setDiscount("flat", v);
+                                    }}
+                                    placeholder="0"
+                                    className="w-28 rounded-xl border border-border bg-background px-3 py-1.5 text-right text-sm font-bold text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            {cart.discountAmount > 0 && (
+                                <div className="flex items-center justify-between text-xs bg-success/5 border border-success/10 rounded-xl px-3 py-2">
+                                    <span className="font-bold text-success flex items-center gap-1">
+                                        <Check className="h-3 w-3" />
+                                        {t("checkout.discountApplied", "Discount applied")}
+                                    </span>
+                                    <span className="font-extrabold text-success tabular-nums">-{formatAmount(cart.discountAmount)}</span>
+                                </div>
+                            )}
+
+                            {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && (
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 font-semibold text-muted-foreground">
+                                        <Receipt className="h-4 w-4 text-muted-foreground/75" />
+                                        {cart.taxName || "GST"} ({cart.taxRate}%)
+                                    </span>
+                                    <span className="font-bold text-foreground tabular-nums">+{formatAmount(cart.taxAmount)}</span>
+                                </div>
+                            )}
+
+                            {cart.deliveryCharge > 0 && (
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 font-semibold text-muted-foreground">
+                                        <Truck className="h-4 w-4 text-muted-foreground/75" />
+                                        {t("pos.deliveryCharge", "Delivery Charge")}
+                                    </span>
+                                    <span className="font-bold text-foreground tabular-nums">+{formatAmount(cart.deliveryCharge)}</span>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between border-t border-border pt-4 mt-2">
+                                <span className="text-base font-extrabold text-foreground">{t("pos.grandTotal", "Grand Total")}</span>
+                                <span className="text-xl font-extrabold text-primary tabular-nums">{formatAmount(cart.total)}</span>
+                            </div>
                         </div>
                     </div>
-                ))}
 
-                {/* Summary */}
-                <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{t("pos.subtotal", "Subtotal")}</span>
-                        <span className="font-bold text-foreground">{formatAmount(cart.subtotal)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1.5 text-muted-foreground"><Tag className="h-4 w-4 text-success" />{t("pos.applyDiscount", "Discount")} (₹)</span>
+                    {/* Notes */}
+                    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4.5 shadow-sm transition-all duration-200 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
+                        <StickyNote className="h-5 w-5 shrink-0 text-muted-foreground" />
                         <input
-                            type="number"
-                            min={0}
-                            value={cart.discountValue || ""}
-                            onChange={(e) => {
-                                const v = parseFloat(e.target.value);
-                                if (!v || v <= 0) cart.setDiscount(undefined, undefined);
-                                else cart.setDiscount("flat", v);
-                            }}
-                            placeholder="0"
-                            className="w-24 rounded-lg border border-border bg-background px-3 py-1.5 text-right text-sm font-bold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            value={cart.deliveryNotes || ""}
+                            onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)}
+                            placeholder={t("checkout.addNote", "Add internal staff notes (e.g. stains, special requests)")}
+                            className="flex-1 bg-transparent text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground/70"
                         />
                     </div>
-                    {cart.discountAmount > 0 && (
-                        <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{t("checkout.discountApplied", "Discount applied")}</span>
-                            <span className="font-bold text-success">-{formatAmount(cart.discountAmount)}</span>
-                        </div>
-                    )}
-                    {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && (
-                        <div className="flex items-center justify-between text-sm">
-                            <span className="flex items-center gap-1.5 text-muted-foreground"><Receipt className="h-4 w-4" />{cart.taxName || "GST"} ({cart.taxRate}%)</span>
-                            <span className="font-bold text-foreground">+{formatAmount(cart.taxAmount)}</span>
-                        </div>
-                    )}
-                    {cart.deliveryCharge > 0 && (
-                        <div className="flex items-center justify-between text-sm">
-                            <span className="flex items-center gap-1.5 text-muted-foreground"><Truck className="h-4 w-4" />{t("pos.deliveryCharge", "Delivery")}</span>
-                            <span className="font-bold text-foreground">+{formatAmount(cart.deliveryCharge)}</span>
-                        </div>
-                    )}
-                    <div className="flex items-center justify-between border-t border-border pt-3">
-                        <span className="text-base font-extrabold text-foreground">{t("pos.grandTotal", "Grand Total")}</span>
-                        <span className="text-lg font-extrabold text-primary">{formatAmount(cart.total)}</span>
-                    </div>
-                </div>
 
-                {/* Notes */}
-                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <StickyNote className="h-5 w-5 shrink-0 text-muted-foreground" />
-                    <input
-                        value={cart.deliveryNotes || ""}
-                        onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)}
-                        placeholder={t("checkout.addNote", "Add a note (optional)")}
-                        className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                    />
-                </div>
-
-                {/* Damage photos */}
-                {shopId && canUploadDamagePhotos && (
-                    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                        <p className="mb-2 text-sm font-bold text-foreground">{t("checkout.damageStainPhotos", "Damage / stain photos (optional)")}</p>
-                        <LSmartImageUploader
-                            ref={damagePhotoUploaderRef}
-                            folder="damage-photos"
-                            shopId={shopId}
-                            value={damagePhotoMetadata}
-                            onChange={setDamagePhotoMetadata}
-                            maxFiles={5}
-                            showStats
-                            deferUpload
-                        />
-                    </div>
-                )}
+                    {/* Damage photos */}
+                    {shopId && canUploadDamagePhotos && (
+                        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                            <div className="mb-3 flex items-center justify-between">
+                                <p className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-primary" />
+                                    {t("checkout.damageStainPhotos", "Damage / Stain Photos")}
+                                </p>
+                                <span className="text-xs font-semibold text-muted-foreground">Optional</span>
+                            </div>
+                            <LSmartImageUploader
+                                ref={damagePhotoUploaderRef}
+                                folder="damage-photos"
+                                shopId={shopId}
+                                value={damagePhotoMetadata}
+                                onChange={setDamagePhotoMetadata}
+                                maxFiles={5}
+                                showStats
+                                deferUpload
+                            />
+                        </div>
+                    )}
                 </div>{/* /LEFT */}
 
                 {/* RIGHT — delivery, payment & confirm */}
-                <div className="space-y-4 lg:sticky lg:top-4">
-
-                {/* Expected delivery */}
-                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <Calendar className="h-5 w-5 shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                            {cart.deliveryType === "pickup_store" ? t("checkout.expectedReady", "Expected Ready") : t("checkout.expectedDelivery", "Expected Delivery")}
-                        </p>
-                        <p className="text-sm font-bold text-foreground">{formatDate(expectedDate)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() - 1); if (d >= new Date(new Date().toDateString())) setExpectedDate(d); }}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-primary transition-colors hover:bg-muted"
-                        >
-                            <Minus className="h-4 w-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() + 1); setExpectedDate(d); }}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-primary transition-colors hover:bg-muted"
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Delivery & Payment */}
-                <div className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <div>
-                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("mobile.deliveryTypeLabel", "Delivery Type")}</p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {deliveryTypes.map(({ value, label, Icon }) => {
-                                const active = cart.deliveryType === value;
-                                return (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() => cart.setDelivery(value)}
-                                        className={cn(
-                                            "flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-bold transition-colors",
-                                            active ? "border-primary bg-primary/5 text-primary ring-1 ring-primary" : "border-border text-muted-foreground hover:border-primary/40"
-                                        )}
-                                    >
-                                        <Icon className="h-4 w-4" />
-                                        <span className="text-center leading-tight">{label}</span>
-                                    </button>
-                                );
-                            })}
+                <div className="space-y-5 lg:sticky lg:top-6">
+                    {/* Expected delivery / Ready Date */}
+                    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:shadow-md">
+                        <div className="flex items-center gap-4">
+                            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                <div className="absolute inset-0 rounded-xl bg-primary/10 animate-pulse-soft" />
+                                <Calendar className="h-6 w-6 z-10" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                                    {cart.deliveryType === "pickup_store" ? t("checkout.expectedReady", "Expected Ready") : t("checkout.expectedDelivery", "Expected Delivery")}
+                                </p>
+                                <p className="text-base font-extrabold text-foreground mt-0.5">{formatDate(expectedDate)}</p>
+                            </div>
                         </div>
-                    </div>
-
-                    {isHomeType && (
-                        <LTextArea
-                            label={cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddress", "Delivery Address") : t("checkout.pickupAddress", "Pickup Address")}
-                            value={cart.deliveryAddress || ""}
-                            onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
-                            placeholder={t("checkout.enterFullAddress", "Enter full address")}
-                            minRows={2}
-                        />
-                    )}
-
-                    {isHomeType && deliverySettings.serviceAreas?.length > 0 && (
-                        <LSelect label={t("checkout.serviceArea", "Service Area")} value={selectedArea} onChange={handleAreaChange} options={areaOptions} />
-                    )}
-                    {isHomeType && canHaveAgents && (
-                        <LSelect
-                            label={t("checkout.assignAgent", "Assign Delivery Agent")}
-                            value={selectedAgentId}
-                            onChange={handleAgentChange}
-                            options={agentOptions}
-                            disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea}
-                        />
-                    )}
-
-                    <div>
-                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("checkout.paymentStatus", "Payment Status")}</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-3 mt-4">
                             <button
                                 type="button"
-                                onClick={() => setPaymentStatus("unpaid")}
-                                className={cn(
-                                    "rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
-                                    paymentStatus === "unpaid" ? "border-destructive bg-destructive/5 text-destructive ring-1 ring-destructive" : "border-border text-muted-foreground hover:border-destructive/40"
-                                )}
+                                onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() - 1); if (d >= new Date(new Date().toDateString())) setExpectedDate(d); }}
+                                className="flex items-center justify-center gap-1.5 h-10 rounded-xl border border-border font-extrabold text-primary bg-muted/30 transition-all duration-200 hover:bg-muted hover:border-primary/30 active:scale-95 cursor-pointer"
                             >
-                                {t("checkout.unpaid", "Unpaid")}
+                                <Minus className="h-4 w-4" />
+                                <span>1 Day</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setPaymentStatus("paid")}
-                                className={cn(
-                                    "rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
-                                    paymentStatus === "paid" ? "border-success bg-success/5 text-success ring-1 ring-success" : "border-border text-muted-foreground hover:border-success/40"
-                                )}
+                                onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() + 1); setExpectedDate(d); }}
+                                className="flex items-center justify-center gap-1.5 h-10 rounded-xl border border-border font-extrabold text-primary bg-muted/30 transition-all duration-200 hover:bg-muted hover:border-primary/30 active:scale-95 cursor-pointer"
                             >
-                                {t("checkout.paid", "Paid")}
+                                <Plus className="h-4 w-4" />
+                                <span>1 Day</span>
                             </button>
                         </div>
                     </div>
-                </div>
 
-                {/* Place Order */}
-                <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <button
-                        type="button"
-                        onClick={handlePlaceOrder}
-                        disabled={placing || cart.items.length === 0}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl bg-primary px-5 py-3 text-primary-foreground transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <span className="text-left">
-                            <span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{cart.items.length} {t("mobile.items", "items").toUpperCase()}</span>
-                            <span className="block text-lg font-extrabold">{formatAmount(cart.total)}</span>
-                        </span>
-                        <span className="flex items-center gap-2 text-sm font-extrabold">
-                            {placing ? t("common.loading", "Please wait…") : (isEditMode ? t("checkout.updateOrder", "Update Order") : t("checkout.placeOrder", "Place Order"))}
-                            {!placing && <ArrowRight className="h-5 w-5" />}
-                        </span>
-                    </button>
-                </div>
+                    {/* Delivery & Payment Form */}
+                    <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+                        <div>
+                            <p className="mb-3 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{t("mobile.deliveryTypeLabel", "Delivery Type")}</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {deliveryTypes.map(({ value, label, Icon }) => {
+                                    const active = cart.deliveryType === value;
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => cart.setDelivery(value)}
+                                            className={cn(
+                                                "flex flex-col items-center justify-center gap-2 rounded-xl border p-3 text-xs font-extrabold transition-all duration-200 cursor-pointer active:scale-95 shadow-sm",
+                                                active 
+                                                    ? "border-primary bg-primary/5 text-primary ring-1 ring-primary shadow-primary/5" 
+                                                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-muted/30"
+                                            )}
+                                        >
+                                            <Icon className={cn("h-5 w-5", active ? "text-primary scale-110" : "text-muted-foreground/75")} />
+                                            <span className="text-center leading-tight text-[11px]">{label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {isHomeType && (
+                            <div className="pt-2">
+                                <LTextArea
+                                    label={cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddress", "Delivery Address") : t("checkout.pickupAddress", "Pickup Address")}
+                                    value={cart.deliveryAddress || ""}
+                                    onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
+                                    placeholder={t("checkout.enterFullAddress", "Enter full delivery address…")}
+                                    minRows={2}
+                                    className="rounded-xl border border-border"
+                                />
+                            </div>
+                        )}
+
+                        {isHomeType && deliverySettings.serviceAreas?.length > 0 && (
+                            <div className="pt-2">
+                                <LSelect label={t("checkout.serviceArea", "Service Area")} value={selectedArea} onChange={handleAreaChange} options={areaOptions} />
+                            </div>
+                        )}
+                        {isHomeType && canHaveAgents && (
+                            <div className="pt-2">
+                                <LSelect
+                                    label={t("checkout.assignAgent", "Assign Delivery Agent")}
+                                    value={selectedAgentId}
+                                    onChange={handleAgentChange}
+                                    options={agentOptions}
+                                    disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea}
+                                />
+                            </div>
+                        )}
+
+                        {/* Payment Status */}
+                        <div className="pt-3 border-t border-border/80">
+                            <p className="mb-3 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{t("checkout.paymentStatus", "Payment Status")}</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentStatus("unpaid")}
+                                    className={cn(
+                                        "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3 transition-all duration-200 cursor-pointer active:scale-95",
+                                        paymentStatus === "unpaid" 
+                                            ? "border-destructive bg-destructive/5 text-destructive ring-1 ring-destructive" 
+                                            : "border-border bg-card text-muted-foreground hover:border-destructive/30 hover:bg-destructive/5"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-1.5">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <span className="font-extrabold text-sm">{t("checkout.unpaid", "Unpaid")}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold opacity-85 uppercase tracking-wide">Collect on Delivery</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentStatus("paid")}
+                                    className={cn(
+                                        "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3 transition-all duration-200 cursor-pointer active:scale-95",
+                                        paymentStatus === "paid" 
+                                            ? "border-success bg-success/5 text-success ring-1 ring-success" 
+                                            : "border-border bg-card text-muted-foreground hover:border-success/30 hover:bg-success/5"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-1.5">
+                                        <Check className="h-4 w-4" />
+                                        <span className="font-extrabold text-sm">{t("checkout.paid", "Paid")}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold opacity-85 uppercase tracking-wide">Paid in Full</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Place Order CTA Card */}
+                    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                        <button
+                            type="button"
+                            onClick={handlePlaceOrder}
+                            disabled={placing || cart.items.length === 0}
+                            className="group flex w-full items-center justify-between gap-4 rounded-xl bg-primary px-5 py-4 text-primary-foreground transition-all duration-300 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        >
+                            <div className="text-left">
+                                <span className="block text-[10px] font-extrabold uppercase tracking-widest opacity-80">{cart.items.length} {t("mobile.items", "items").toUpperCase()}</span>
+                                <span className="block text-xl font-black mt-0.5">{formatAmount(cart.total)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-sm font-extrabold">
+                                <span>{placing ? t("common.loading", "Please wait…") : (isEditMode ? t("checkout.updateOrder", "Update Order") : t("checkout.placeOrder", "Confirm & Place"))}</span>
+                                {!placing && <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />}
+                            </div>
+                        </button>
+                    </div>
                 </div>{/* /RIGHT */}
             </div>{/* /grid */}
         </div>

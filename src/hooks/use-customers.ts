@@ -41,7 +41,7 @@ export function useCustomers(searchQuery?: string) {
     const [hasMore, setHasMore] = useState(true);
     const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
 
-    // Initial load with real-time listener
+    // Initial load with real-time listener (dynamically adjusts limit to 1000 during active search to allow client search across 1000 contacts)
     useEffect(() => {
         if (!shopId) {
             setLoading(false);
@@ -51,11 +51,9 @@ export function useCustomers(searchQuery?: string) {
         setLoading(true);
         const customersRef = collection(db, `shops/${shopId}/customers`);
 
-        const q = query(
-            customersRef,
-            orderBy("name"),
-            limit(PAGE_SIZE)
-        );
+        const q = searchQuery
+            ? query(customersRef, orderBy("name"), limit(1000))
+            : query(customersRef, orderBy("name"), limit(PAGE_SIZE));
 
         const unsubscribe = onSnapshot(
             q,
@@ -67,7 +65,7 @@ export function useCustomers(searchQuery?: string) {
 
                 setCustomers(docs);
                 setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-                setHasMore(snapshot.docs.length === PAGE_SIZE);
+                setHasMore(searchQuery ? false : snapshot.docs.length === PAGE_SIZE);
                 setLoading(false);
             },
             (error) => {
@@ -77,7 +75,7 @@ export function useCustomers(searchQuery?: string) {
         );
 
         return unsubscribe;
-    }, [shopId]);
+    }, [shopId, searchQuery]);
 
     // Filter locally by search query
     const filteredCustomers = searchQuery

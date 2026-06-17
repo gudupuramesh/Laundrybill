@@ -179,33 +179,37 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
                     />
 
                     {/* Notes */}
-                    <LTextArea
-                        label={t('orders.notes')}
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder={t('orders.notesPlaceholder')}
-                        minRows={2}
-                    />
+                    <div className="pt-2">
+                        <LTextArea
+                            label={t('orders.notes')}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder={t('orders.notesPlaceholder')}
+                            minRows={2}
+                        />
+                    </div>
+
+                    <LSpacer size="sm" />
 
                     {/* Share status via WhatsApp */}
                     <LButton
                         variant="outline"
                         size="lg"
                         fullWidth
-                        leftIcon={<MessageCircle className="h-5 w-5" />}
+                        className="rounded-xl border-green-600/30 text-green-700 hover:bg-green-50 hover:text-green-800 font-semibold transition-colors"
+                        leftIcon={<MessageCircle className="h-5 w-5 text-green-600" />}
                         onClick={handleWhatsAppShare}
                         disabled={!newStatus || loading}
                     >
-                        {t("orders.shareStatusWhatsApp", "Share status via WhatsApp")}
+                        {t("orders.shareStatusWhatsApp", "Share via WhatsApp")}
                     </LButton>
-
-                    <LSpacer size="md" />
 
                     {/* Submit */}
                     <LButton
                         variant="primary"
                         size="lg"
                         fullWidth
+                        className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300"
                         onClick={handleUpdateClick}
                         loading={loading}
                         disabled={!newStatus}

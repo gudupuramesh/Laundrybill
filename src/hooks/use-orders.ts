@@ -38,6 +38,7 @@ interface CreateOrderInput {
     financials: Omit<OrderFinancials, "balance"> & { balance?: number };
     deliveryType: DeliveryType;
     deliveryAddress?: string;
+    deliveryArea?: string;
     deliveryNotes?: string;
     expectedDelivery: Date;
     scheduledPickupDate?: Date;
@@ -291,6 +292,7 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
             financials: Omit<OrderFinancials, "balance"> & { balance?: number };
             deliveryType?: DeliveryType;
             deliveryAddress?: string;
+            deliveryArea?: string;
             deliveryNotes?: string;
             expectedDelivery?: Date;
             deliverySlot?: string;
@@ -356,6 +358,9 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
         }
         if (input.deliveryAddress !== undefined) {
             updateData.deliveryAddress = input.deliveryAddress || null;
+        }
+        if (input.deliveryArea !== undefined) {
+            updateData.deliveryArea = input.deliveryArea || null;
         }
         if (input.deliveryNotes !== undefined) {
             updateData.deliveryNotes = input.deliveryNotes || null;
@@ -521,6 +526,7 @@ export function useCreateOrder() {
                     paymentReference: input.paymentReference || null,
                     deliveryType: input.deliveryType || "pickup_store",
                     deliveryAddress: input.deliveryAddress || null,
+                    deliveryArea: input.deliveryArea || null,
                     deliveryNotes: input.deliveryNotes || null,
                     deliverySlot: input.deliverySlot || null,
                     scheduledPickupDate: input.scheduledPickupDate ? Timestamp.fromDate(input.scheduledPickupDate) : null,

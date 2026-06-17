@@ -66,19 +66,19 @@ export function PaymentCollectionSheet({ open, onClose, order }: PaymentCollecti
         >
             <div className="space-y-6">
                 {/* Balance Info */}
-                <div className="p-4 bg-muted rounded-xl">
-                    <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">{t('orders.totalAmount')}</span>
-                        <LAmount value={order.financials.total} />
+                <div className="p-5 bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 rounded-2xl shadow-sm">
+                    <div className="flex justify-between text-sm mb-3">
+                        <span className="text-muted-foreground font-medium">{t('orders.totalAmount')}</span>
+                        <LAmount value={order.financials.total} className="font-bold" />
                     </div>
-                    <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">{t('orders.alreadyPaid')}</span>
-                        <LAmount value={order.financials.amountPaid} />
+                    <div className="flex justify-between text-sm mb-3">
+                        <span className="text-muted-foreground font-medium">{t('orders.alreadyPaid')}</span>
+                        <LAmount value={order.financials.amountPaid} className="font-bold" />
                     </div>
-                    <LDivider className="my-2" />
-                    <div className="flex justify-between font-semibold">
-                        <span>{t('orders.balanceDue')}</span>
-                        <LAmount value={order.financials.balance} size="lg" />
+                    <LDivider className="my-3 border-dashed border-primary/20" />
+                    <div className="flex justify-between font-black text-lg">
+                        <span className="text-primary">{t('orders.balanceDue')}</span>
+                        <LAmount value={order.financials.balance} size="lg" className="text-primary" />
                     </div>
                 </div>
 
@@ -134,6 +134,7 @@ export function PaymentCollectionSheet({ open, onClose, order }: PaymentCollecti
                         variant="primary"
                         size="lg"
                         fullWidth
+                        className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 mt-2"
                         onClick={handleSubmit}
                         loading={loading}
                         disabled={amount <= 0}
