@@ -127,6 +127,8 @@ export interface OrderFinancials {
     total: number;
     amountPaid: number;
     balance: number;
+    /** Total amount refunded (e.g. auto-refund on cancel). Net collected = amountPaid is kept 0 after a full refund; this field is the audit total. */
+    refundedAmount?: number;
 }
 
 // ============================================
@@ -154,6 +156,18 @@ export interface OrderPayment {
     reference?: string | null;
     collectedBy?: string;
     collectedAt: Timestamp;
+}
+
+// ============================================
+// ORDER REFUND (audit trail — e.g. auto-refund on cancel)
+// ============================================
+
+export interface OrderRefund {
+    id: string;
+    amount: number;
+    reason?: string | null;
+    refundedBy?: string;
+    refundedAt: Timestamp;
 }
 
 // ============================================
@@ -246,6 +260,8 @@ export interface Order {
     // History
     timeline?: OrderTimelineEvent[];
     payments?: OrderPayment[];
+    /** Refund audit trail (amount + who + when), e.g. auto-refund on cancel. */
+    refunds?: OrderRefund[];
 
     // Timestamps
     createdAt: Timestamp;

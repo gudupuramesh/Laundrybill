@@ -521,13 +521,16 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 });
 
                 const totalWithSalaries = totalExpenses + totalSalaries;
-                const profit = revenue - totalWithSalaries;
+                // Net profit is cash-basis (Collected − expenses) to match the apps.
+                const profit = collections - totalWithSalaries;
                 const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+                // Order count / avg exclude cancelled so they reconcile with revenue.
+                const activeOrderCount = ordersSnapshot.size - stats.cancelled;
 
                 setData({
                     revenue,
-                    orderCount: ordersSnapshot.size,
-                    avgOrderValue: ordersSnapshot.size > 0 ? revenue / ordersSnapshot.size : 0,
+                    orderCount: activeOrderCount,
+                    avgOrderValue: activeOrderCount > 0 ? revenue / activeOrderCount : 0,
                     collections,
                     outstanding,
                     collectionRate: revenue > 0 ? (collections / revenue) * 100 : 0,

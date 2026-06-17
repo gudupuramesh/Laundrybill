@@ -366,10 +366,17 @@ export function useDashboard(): UseDashboardReturn {
         ).length;
         const outForDeliveryOrders = allOrders.filter(o => o.status === "out_for_delivery").length;
 
-        // Outstanding amount
+        // Outstanding = receivables: every non-cancelled order with a positive
+        // balance, INCLUDING delivered/picked-up-but-unpaid (money still owed).
+        // Null-safe + clamp + (total−paid) fallback, matching canonical orderBalance.
         const outstandingAmount = allOrders
-            .filter(o => !["delivered", "picked_up", "cancelled"].includes(o.status))
-            .reduce((sum, order) => sum + (order.financials?.balance || 0), 0);
+            .filter(o => o.status !== "cancelled")
+            .reduce((sum, order) => {
+                const total = order.financials?.total || 0;
+                const paid = order.financials?.amountPaid || 0;
+                const bal = order.financials?.balance ?? (total - paid);
+                return sum + Math.max(0, bal);
+            }, 0);
 
         // Monthly revenue — exclude cancelled
         const monthlyRevenue = allOrders

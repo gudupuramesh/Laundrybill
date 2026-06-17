@@ -135,8 +135,8 @@ export function useOrderSummary(): OrderSummaryMetrics {
                 monthDocs.forEach((doc: any) => {
                     const data = doc.data() as Order;
                     if (data.status === 'cancelled') return;
-                    revenue += data.financials.total || 0;
-                    collected += data.financials.amountPaid || 0;
+                    revenue += data.financials?.total || 0;
+                    collected += data.financials?.amountPaid || 0;
                 });
 
                 // Process Due Data (All Time Amount)
@@ -144,12 +144,18 @@ export function useOrderSummary(): OrderSummaryMetrics {
                 dueDocs.forEach((doc: any) => {
                     const data = doc.data() as Order;
                     if (data.status === 'cancelled') return;
-                    dueAmount += data.financials.balance || 0;
+                    // Null-safe + clamp + (total−paid) fallback, matching canonical orderBalance.
+                    dueAmount += Math.max(0, data.financials?.balance ?? ((data.financials?.total || 0) - (data.financials?.amountPaid || 0)));
                 });
 
                 // Counts
                 const unpaidCount = unpaidDocs.length;
-                const pendingCount = overdueDelDocs.length + overduePickDocs.length;
+                // Dedup: an order overdue on BOTH pickup and delivery must count once.
+                const overdueIds = new Set<string>([
+                    ...overdueDelDocs.map((d: { id: string }) => d.id),
+                    ...overduePickDocs.map((d: { id: string }) => d.id),
+                ]);
+                const pendingCount = overdueIds.size;
                 const onlineOrdersCount = onlineDocs.length;
                 const onlineOrderIds = onlineDocs.map((d: { id: string }) => d.id);
 

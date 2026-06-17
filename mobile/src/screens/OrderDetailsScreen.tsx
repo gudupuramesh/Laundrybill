@@ -416,6 +416,7 @@ export default function OrderDetailsScreen({
   const handleCollectPayment = async () => {
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0 || saving) return;
+    if (order?.status === 'cancelled') { Alert.alert(t('mobile.errorTitle'), t('mobile.failedCollectPayment')); return; }
     setSaving(true);
     try {
       const currentPayments = order?.payments || [];
@@ -461,11 +462,27 @@ export default function OrderDetailsScreen({
         notes: cancelReason || 'Cancelled from mobile',
         notifiedCustomer: false,
       };
-      await orderDocRef().update({
+      // Cancel → auto-refund any collected cash (audit-logged) and void the balance,
+      // so the order contributes nothing to sales / collected / dues anywhere.
+      const priorPaid = fin.amountPaid || 0;
+      const cancelUpdate: any = {
         status: 'cancelled',
         updatedAt: new Date(),
         timeline: [...currentTimeline, cancelEvent],
-      });
+        'financials.balance': 0,
+      };
+      if (priorPaid > 0) {
+        cancelUpdate['financials.amountPaid'] = 0;
+        cancelUpdate['financials.refundedAmount'] = (fin.refundedAmount || 0) + priorPaid;
+        cancelUpdate.refunds = [...(order?.refunds || []), {
+          id: `r-${Date.now()}`,
+          amount: priorPaid,
+          reason: 'order_cancelled',
+          refundedBy: 'Shop Owner',
+          refundedAt: new Date(),
+        }];
+      }
+      await orderDocRef().update(cancelUpdate);
       setCancelModal(false);
       setCancelReason('');
     } catch (e: any) {

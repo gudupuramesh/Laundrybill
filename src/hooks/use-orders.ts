@@ -206,6 +206,40 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
             updateData.deliveredAt = serverTimestamp();
         }
 
+        // Cancel → auto-refund: any cash already collected is refunded (audit-logged)
+        // and the order is voided so it contributes nothing to sales/collected/dues.
+        if (newStatus === "cancelled") {
+            const fin = currentOrder.financials || ({} as Order["financials"]);
+            const priorPaid = fin.amountPaid || 0;
+            if (priorPaid > 0) {
+                const refund = {
+                    id: `r-${Date.now()}`,
+                    amount: priorPaid,
+                    reason: "order_cancelled",
+                    refundedBy: user?.displayName || "Unknown",
+                    refundedAt: Timestamp.now(),
+                };
+                updateData["financials.amountPaid"] = 0;
+                updateData["financials.refundedAmount"] = (fin.refundedAmount || 0) + priorPaid;
+                updateData.refunds = [...(currentOrder.refunds || []), refund];
+            }
+            // Voided: nothing is owed on a cancelled order.
+            updateData["financials.balance"] = 0;
+            // Reverse this order's contribution to the customer's lifetime stats.
+            if (currentOrder.customerId && !currentOrder.isGuest) {
+                try {
+                    const customerRef = doc(db, `shops/${shopId}/customers/${currentOrder.customerId}`);
+                    await updateDoc(customerRef, {
+                        totalOrders: increment(-1),
+                        totalSpent: increment(-(fin.total || 0)),
+                        updatedAt: serverTimestamp(),
+                    });
+                } catch {
+                    // Non-fatal: customer doc may be missing; order cancel still proceeds.
+                }
+            }
+        }
+
         await updateDoc(orderRef, updateData);
 
         return { ...currentOrder, ...updateData, id: orderId };
@@ -225,6 +259,7 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
         if (!orderDoc.exists()) throw new Error("Order not found");
 
         const order = orderDoc.data() as Order;
+        if (order.status === "cancelled") throw new Error("Cannot collect payment on a cancelled order");
         const newAmountPaid = order.financials.amountPaid + amount;
         const newBalance = order.financials.total - newAmountPaid;
 
@@ -306,6 +341,12 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
                 amountPaid: input.financials.amountPaid ?? currentOrder.financials.amountPaid,
                 balance: (input.financials.total || 0) - (input.financials.amountPaid ?? currentOrder.financials.amountPaid),
             },
+            // Keep paymentStatus in sync with the recomputed balance (it was left stale before).
+            paymentStatus: ((input.financials.total || 0) - (input.financials.amountPaid ?? currentOrder.financials.amountPaid)) <= 0
+                ? "paid"
+                : (input.financials.amountPaid ?? currentOrder.financials.amountPaid) > 0
+                    ? "partial"
+                    : "unpaid",
             updatedAt: serverTimestamp(),
         };
 
@@ -502,6 +543,15 @@ export function useCreateOrder() {
                         staffName: input.staffName || user?.displayName || "Unknown",
                         notifiedCustomer: false,
                     }],
+                    // Seed payments[] with the upfront amount so sum(payments) === amountPaid.
+                    payments: (input.financials.amountPaid || 0) > 0 ? [{
+                        id: `p-${Date.now()}`,
+                        amount: input.financials.amountPaid || 0,
+                        method: input.paymentMethod || "cash",
+                        reference: input.paymentReference || null,
+                        collectedBy: input.staffName || user?.displayName || "Unknown",
+                        collectedAt: Timestamp.now(),
+                    }] : [],
                 };
 
                 // Create order document outside transaction (addDoc doesn't work in transactions)
@@ -572,7 +622,8 @@ export function useOrderStats() {
 
                 const todayOrders = orders.filter((o) => {
                     const created = o.createdAt?.toDate?.();
-                    return created && created >= today;
+                    // Exclude cancelled so today's count/revenue match every other screen.
+                    return created && created >= today && o.status !== "cancelled";
                 });
 
                 const readyOrders = orders.filter((o) => o.status === "ready");
