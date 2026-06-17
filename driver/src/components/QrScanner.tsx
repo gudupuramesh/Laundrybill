@@ -20,12 +20,14 @@ export function QrScanner({
   permissionTitle = 'Scan QR codes',
   permissionBody = 'Allow camera access to scan order tags.',
   onResult,
+  onBack,
 }: {
   title: string;
   instruction: string;
   permissionTitle?: string;
   permissionBody?: string;
   onResult: (raw: string, reset: () => void) => void;
+  onBack?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -72,7 +74,12 @@ export function QrScanner({
         onBarcodeScanned={scanned ? undefined : handle}
       />
       <View style={styles.overlay}>
-        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 8, flexDirection: 'row', alignItems: 'center' }]}>
+          {onBack ? (
+            <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={{ paddingRight: 10 }}>
+              <MaterialIcons name="chevron-left" size={28} color="#fff" />
+            </TouchableOpacity>
+          ) : null}
           <Text style={styles.topTitle}>{title}</Text>
         </View>
         <View style={styles.center}>

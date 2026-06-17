@@ -18,12 +18,22 @@ service cloud.firestore {
     
     function isShopAdmin(shopId) {
       return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)) && 
+        (exists(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)).data.role == 'admin') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId)
       );
+    }
+
+    // A manager is a team member with role 'manager' (Team app). Managers may
+    // ADD/EDIT staff, team logins, services, categories and inventory — but NOT
+    // delete them or the shop account (those stay admin/owner-only).
+    function isShopManager(shopId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId;
     }
     
     // Shop doc must exist before reading fields — avoids rule errors and false denials.
@@ -47,13 +57,6 @@ service cloud.firestore {
         shopData(shopId).get('publicOrdering', {}).get('enabled', false) == true;
     }
     
-    function isPlantOperator(shopId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'plant_operator';
-    }
-
     // Shops collection
     match /shops/{shopId} {
       // Allow public read for shop details (needed for tracking page)
@@ -66,13 +69,15 @@ service cloud.firestore {
       // Staff subcollection (roster for attendance/payroll)
       match /staff/{staffId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
 
-      // Team members (app logins - Staff/Agent/Plant)
+      // Team members (app logins - Staff/Agent/Plant/Manager)
       match /teamMembers/{memberId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
 
       // FCM tokens for push notifications (new online order alerts)
@@ -112,19 +117,22 @@ service cloud.firestore {
       // Inventory subcollection (public read when shop has public ordering enabled)
       match /inventory/{itemId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId) || shopPublicOrderingEnabled(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
       // Services subcollection
       match /services/{serviceId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
       // Categories subcollection (public read when shop has public ordering enabled)
       match /categories/{categoryId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId) || shopPublicOrderingEnabled(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
       // Attendance subcollection (under staff)

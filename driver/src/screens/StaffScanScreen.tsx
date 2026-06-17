@@ -18,7 +18,7 @@ function resolveOrderId(raw: string): string {
  * or update its status. Staff see every order in the shop, so look the order up
  * directly (same model as the plant scan, but routed to the staff order detail).
  */
-export default function StaffScanScreen() {
+export default function StaffScanScreen({ onBack }: { onBack?: () => void } = {}) {
   const nav = useNav();
   const { shopId } = useDriverAuth();
 
@@ -43,6 +43,7 @@ export default function StaffScanScreen() {
 
   return (
     <QrScanner
+      onBack={onBack}
       title="Scan order"
       instruction="Point at an order or garment tag QR"
       permissionTitle="Scan an order"
