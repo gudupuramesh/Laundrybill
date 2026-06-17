@@ -55,11 +55,26 @@ const initialState: CartState = {
     deliveryFeeWaived: false,
 };
 
-export function useCart() {
+export function useCart(persistKey?: string) {
     const { shop: authShop } = useShop();
     const overrideShop = useCartShopOverride();
     const shop = overrideShop ?? authShop;
-    const [state, setState] = useState<CartState>(initialState);
+    const [state, setState] = useState<CartState>(() => {
+        if (persistKey) {
+            try {
+                const saved = sessionStorage.getItem(persistKey);
+                if (saved) return { ...initialState, ...JSON.parse(saved) };
+            } catch { /* ignore corrupt draft */ }
+        }
+        return initialState;
+    });
+
+    // Persist the cart draft so it survives navigating to other screens and back.
+    // Cleared on order placement (clearCart). sessionStorage = lives for the tab session.
+    useEffect(() => {
+        if (!persistKey) return;
+        try { sessionStorage.setItem(persistKey, JSON.stringify(state)); } catch { /* quota/serialize */ }
+    }, [persistKey, state]);
 
     // Auto-apply delivery charge from settings (min-order rule) for delivery_home / pickup_home.
     // When shop is null (e.g. agent app), do not overwrite – preserve order's deliveryCharge.
@@ -109,27 +124,29 @@ export function useCart() {
 
     const addItem = useCallback((service: InventoryItem, quantity: number = 1, express: boolean = false, notes?: string) => {
         setState((prev) => {
-            // For express items, don't combine with non-express items
+            // Combine with an existing line of the SAME item AND same express mode.
+            // (Express and normal stay as separate lines — they're priced differently —
+            //  but adding the same express item again increments its quantity.)
             const existingIndex = prev.items.findIndex(
-                (item) => item.service.id === service.id && !item.express && !express
+                (item) => item.service.id === service.id && item.express === express
             );
 
-            if (existingIndex >= 0 && !express) {
-                // Update existing non-express item
+            if (existingIndex >= 0) {
                 const items = [...prev.items];
+                const existing = items[existingIndex];
+                const newQty = existing.quantity + quantity;
                 items[existingIndex] = {
-                    ...items[existingIndex],
-                    quantity: items[existingIndex].quantity + quantity,
-                    total: (items[existingIndex].quantity + quantity) * items[existingIndex].unitPrice,
+                    ...existing,
+                    quantity: newQty,
+                    total: newQty * existing.unitPrice,
                 };
                 return { ...prev, items };
             }
 
-            // Add new item (express items always added as new entries)
             const expressMultiplier = express ? service.expressMultiplier : 1;
             const unitPrice = service.basePrice * expressMultiplier;
             const newItem: CartItem = {
-                id: `${service.id}-${Date.now()}`,
+                id: `${service.id}-${express ? "x" : "n"}-${Date.now()}`,
                 service,
                 quantity,
                 express,
@@ -316,7 +333,8 @@ export function useCart() {
 
     const clearCart = useCallback(() => {
         setState(initialState);
-    }, []);
+        if (persistKey) { try { sessionStorage.removeItem(persistKey); } catch { /* ignore */ } }
+    }, [persistKey]);
 
     // Calculate totals
     const totals = useMemo(() => {

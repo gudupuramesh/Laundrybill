@@ -4,12 +4,12 @@
 @layer base {
 
   :root {
-    /* Primary - Teal */
-    --primary: 168 80% 32%;
+    /* Primary - Brand Blue (#1B61E5 — design.md / owner app) */
+    --primary: 219 80% 50%;
     --primary-foreground: 0 0% 100%;
-    --primary-dark: 168 85% 26%;
-    --primary-light: 168 76% 48%;
-    --primary-muted: 168 60% 95%;
+    --primary-dark: 220 77% 45%;
+    --primary-light: 219 82% 63%;
+    --primary-muted: 218 90% 95%;
 
     /* Secondary - Amber */
     --secondary: 38 92% 50%;
@@ -18,17 +18,17 @@
     --secondary-muted: 38 80% 94%;
 
     /* Semantic Colors */
-    --success: 160 84% 39%;
+    --success: 142 76% 36%;           /* #16A34A */
     --success-foreground: 0 0% 100%;
-    --success-muted: 160 60% 94%;
+    --success-muted: 141 50% 93%;     /* #E6F6EC */
 
-    --warning: 38 92% 50%;
+    --warning: 38 92% 50%;            /* #F59E0B */
     --warning-foreground: 0 0% 0%;
-    --warning-muted: 38 80% 94%;
+    --warning-muted: 34 86% 95%;      /* #FEF1E6 */
 
-    --destructive: 0 84% 60%;
+    --destructive: 4 75% 53%;         /* #E1382D */
     --destructive-foreground: 0 0% 100%;
-    --destructive-muted: 0 60% 95%;
+    --destructive-muted: 2 79% 96%;   /* #FDECEC */
 
     /* Gray Scale */
     --gray-50: 210 20% 98%;
@@ -42,25 +42,25 @@
     --gray-800: 215 28% 17%;
     --gray-900: 221 39% 11%;
 
-    /* Base */
-    --background: 210 20% 98%;
-    --foreground: 221 39% 11%;
+    /* Base — owner-app tokens (mobile/src/theme.ts) */
+    --background: 220 38% 97%;        /* #F4F6FA */
+    --foreground: 231 28% 14%;        /* #1A1D2E */
 
     --card: 0 0% 100%;
-    --card-foreground: 221 39% 11%;
+    --card-foreground: 231 28% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 221 39% 11%;
+    --popover-foreground: 231 28% 14%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 216 33% 97%;             /* #F7F9FC surfaceMuted */
+    --muted-foreground: 218 12% 40%;  /* #5B6473 textSecondary */
 
-    --accent: 168 60% 95%;
-    --accent-foreground: 168 80% 32%;
+    --accent: 218 90% 95%;
+    --accent-foreground: 219 80% 50%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 168 80% 32%;
+    --border: 220 22% 92%;            /* #E6E9EF */
+    --input: 220 22% 92%;
+    --ring: 219 80% 50%;
 
     /* Radius */
     --radius: 0.5rem;
@@ -85,14 +85,15 @@
     --safe-area-inset-right: env(safe-area-inset-right, 0px);
 
     /* Sidebar */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 221 39% 11%;
-    --sidebar-primary: 168 80% 32%;
+    /* Sidebar — owner-app navy (#0F1E36 darkBlue) */
+    --sidebar-background: 217 56% 14%;        /* #0F1E36 */
+    --sidebar-foreground: 216 30% 80%;        /* light slate text */
+    --sidebar-primary: 219 80% 50%;           /* active item = brand blue */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 168 60% 95%;
-    --sidebar-accent-foreground: 168 80% 32%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 168 80% 32%;
+    --sidebar-accent: 217 45% 20%;            /* hover = lighter navy */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 40% 22%;
+    --sidebar-ring: 219 80% 50%;
   }
 
   .dark {
@@ -105,18 +106,18 @@
     --popover: 217 19% 15%;
     --popover-foreground: 210 20% 98%;
 
-    --primary: 168 76% 48%;
+    --primary: 219 82% 63%;
     --primary-foreground: 221 39% 11%;
 
     --muted: 217 19% 20%;
     --muted-foreground: 216 12% 70%;
 
-    --accent: 168 40% 20%;
-    --accent-foreground: 168 76% 60%;
+    --accent: 219 40% 22%;
+    --accent-foreground: 219 82% 70%;
 
     --border: 217 19% 25%;
     --input: 217 19% 25%;
-    --ring: 168 76% 48%;
+    --ring: 219 82% 63%;
   }
 }
 
@@ -148,9 +149,9 @@
   h4,
   h5,
   h6 {
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
     font-weight: 700;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -230,6 +231,17 @@
 .bg-popover {
   background-color: hsl(var(--popover));
 }
+
+/* Sidebar (navy — owner-app darkBlue) */
+.bg-sidebar { background-color: hsl(var(--sidebar-background)); }
+.text-sidebar-foreground { color: hsl(var(--sidebar-foreground)); }
+.border-sidebar-border { border-color: hsl(var(--sidebar-border)); }
+.bg-sidebar-primary { background-color: hsl(var(--sidebar-primary)); }
+.text-sidebar-primary-foreground { color: hsl(var(--sidebar-primary-foreground)); }
+.bg-sidebar-accent { background-color: hsl(var(--sidebar-accent)); }
+.text-sidebar-accent-foreground { color: hsl(var(--sidebar-accent-foreground)); }
+.hover\:bg-sidebar-accent:hover { background-color: hsl(var(--sidebar-accent)); }
+.hover\:text-sidebar-accent-foreground:hover { color: hsl(var(--sidebar-accent-foreground)); }
 
 .text-foreground {
   color: hsl(var(--foreground));

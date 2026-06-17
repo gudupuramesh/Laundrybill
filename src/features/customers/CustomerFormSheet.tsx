@@ -19,13 +19,17 @@ import {
     LTextInput,
     LPhoneInput,
     LTextArea,
+    LSelect,
     LButton,
     LSpacer,
     useLToast,
 } from "@/components/laundry";
 import type { Customer } from "@/types/customer";
+import { useDeliverySettings } from "@/hooks/use-delivery-settings";
+import { useShop } from "@/hooks/use-shop";
+import { getCountry } from "@/config/countries";
 import { useTranslation } from "react-i18next";
-import { isValidIndianPhone, isValidEmail, normalizePhone } from "@/lib/utils";
+import { isValidEmail, normalizePhone } from "@/lib/utils";
 
 interface CustomerFormSheetProps {
     open: boolean;
@@ -44,11 +48,18 @@ export function CustomerFormSheet({
     const { shopId } = useAuth();
     const { addToast } = useLToast();
     const [loading, setLoading] = useState(false);
+    const { settings } = useDeliverySettings();
+    const { shop } = useShop();
+    const country = getCountry(shop?.settings?.countryCode || "IN");
+    const phoneDigits = country.phoneDigits;
+    const areaOptions = (settings.serviceAreas || []).filter((a) => a.isActive);
+    const useAreaDropdown = settings.enableServiceAreas && areaOptions.length > 0;
     const [form, setForm] = useState({
         name: "",
         phone: "",
         email: "",
         address: "",
+        area: "",
         notes: "",
     });
     const [errors, setErrors] = useState({
@@ -68,6 +79,7 @@ export function CustomerFormSheet({
                 phone: customer.phone || "",
                 email: customer.email || "",
                 address: customer.address || "",
+                area: customer.area || "",
                 notes: customer.notes || "",
             });
         } else {
@@ -76,6 +88,7 @@ export function CustomerFormSheet({
                 phone: "",
                 email: "",
                 address: "",
+                area: "",
                 notes: "",
             });
         }
@@ -156,12 +169,8 @@ export function CustomerFormSheet({
             setErrors((prev) => ({ ...prev, phone: t("validation.required") }));
             return false;
         }
-        if (form.phone.length < 10) {
+        if (form.phone.length < phoneDigits) {
             setErrors((prev) => ({ ...prev, phone: t("validation.digitsEntered", { count: form.phone.length }) }));
-            return false;
-        }
-        if (!isValidIndianPhone(form.phone)) {
-            setErrors((prev) => ({ ...prev, phone: t("validation.phoneStart") }));
             return false;
         }
         setErrors((prev) => ({ ...prev, phone: "" }));
@@ -228,6 +237,7 @@ export function CustomerFormSheet({
                 phone: form.phone,
                 email: form.email || undefined,
                 address: form.address || undefined,
+                area: form.area || undefined,
                 notes: form.notes || undefined,
             });
         } catch (error) {
@@ -249,19 +259,18 @@ export function CustomerFormSheet({
     // Compute phone error/helper text
     const getPhoneHelperText = () => {
         if (errors.phone) return errors.phone;
-        if (phoneTouched && form.phone.length > 0 && form.phone.length < 10) {
-            return `${form.phone.length}/10 digits`;
+        if (phoneTouched && form.phone.length > 0 && form.phone.length < phoneDigits) {
+            return `${form.phone.length}/${phoneDigits} digits`;
         }
         return "";
     };
 
-    const phoneHasError = phoneTouched && form.phone.length > 0 && form.phone.length < 10;
+    const phoneHasError = phoneTouched && form.phone.length > 0 && form.phone.length < phoneDigits;
 
     const isValid =
         form.name.trim() &&
         !/\d/.test(form.name) &&
-        form.phone.length === 10 &&
-        isValidIndianPhone(form.phone) &&
+        form.phone.length === phoneDigits &&
         !errors.phone &&
         !errors.email &&
         !errors.name;
@@ -288,22 +297,15 @@ export function CustomerFormSheet({
                 <LPhoneInput
                     label={t('customer.phone')}
                     value={form.phone}
+                    countryCode={country.phoneCode}
+                    maxDigits={phoneDigits}
                     onValueChange={(v) => {
                         setForm({ ...form, phone: v });
                         setPhoneTouched(true);
-                        // Validate when 10 digits reached
-                        if (v.length === 10) {
-                            if (!isValidIndianPhone(v)) {
-                                setErrors((prev) => ({ ...prev, phone: t("validation.phoneStart") }));
-                            } else {
-                                setErrors((prev) => ({ ...prev, phone: "" }));
-                            }
-                        } else {
-                            setErrors((prev) => ({ ...prev, phone: "" }));
-                        }
+                        setErrors((prev) => ({ ...prev, phone: "" }));
                     }}
                     error={phoneHasError ? getPhoneHelperText() : errors.phone}
-                    helperText={!phoneHasError && !errors.phone && phoneTouched && form.phone.length < 10
+                    helperText={!phoneHasError && !errors.phone && phoneTouched && form.phone.length < phoneDigits
                         ? t("validation.digitsEntered", { count: form.phone.length })
                         : undefined}
                 />
@@ -328,6 +330,23 @@ export function CustomerFormSheet({
                     placeholder={t('customers.addressPlaceholder')}
                     minRows={2}
                 />
+
+                {useAreaDropdown ? (
+                    <LSelect
+                        label={t('checkout.serviceArea', 'Area')}
+                        value={form.area}
+                        onChange={(v) => setForm({ ...form, area: v })}
+                        placeholder={t('customer.selectArea', 'Select area')}
+                        options={areaOptions.map((a) => ({ value: a.value, label: a.value }))}
+                    />
+                ) : (
+                    <LTextInput
+                        label={t('customer.areaOptional', 'Area (optional)')}
+                        value={form.area}
+                        onChange={(e) => setForm({ ...form, area: e.target.value })}
+                        placeholder={t('customer.areaPlaceholder', 'Locality / area')}
+                    />
+                )}
 
                 <LTextArea
                     label={t('customers.notesOptional')}

@@ -1,37 +1,34 @@
 /**
- * Checkout Sheet
- * 
- * Multi-step checkout: Review → Delivery → Payment
+ * Checkout (Order Review) — full-page review + confirm, mirroring the owner app's
+ * OrderReviewScreen: customer card → services grouped by category → summary →
+ * notes → damage photos → expected-delivery (±) → delivery type + area + agent +
+ * Unpaid/Paid → bottom Place Order bar. Payment is a simple Unpaid/Paid status
+ * (amountPaid = total when Paid), exactly like the owner app.
  */
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LResponsiveDialog,
-    LOrderSummary,
-    LRadioGroup,
-    LTextInput,
     LTextArea,
-    LButton,
-    LProgressStepper,
-    LDivider,
-    LCard,
     LSelect,
+    LAvatar,
     LSmartImageUploader,
     type LSmartImageUploaderRef,
 } from "@/components/laundry";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth";
 import { useCart } from "./useCart";
 import { useCurrency } from "@/hooks/use-currency";
 import type { ImageMetadata } from "@/types/image-upload";
+import type { DeliveryType } from "@/types/order";
 import { useInventory } from "@/hooks/use-inventory";
 import { useCreateOrder, useOrderMutations } from "@/hooks/use-orders";
 import { useCustomers } from "@/hooks/use-customers";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { addDays } from "date-fns";
-import { Clock, Truck, Store, Home } from "lucide-react";
+import { ChevronLeft, Store, Truck, Home, Calendar, Minus, Plus, Tag, Receipt, StickyNote, ShoppingBag, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { getTranslatedItemName, getTranslatedCategoryName } from "@/lib/inventory-translations";
+import { getTranslatedItemName } from "@/lib/inventory-translations";
 import { useStaffAuthOptional } from "@/features/staff-app/StaffAuthContext";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShopLimits } from "@/hooks/use-shop-limits";
@@ -41,238 +38,131 @@ interface CheckoutSheetProps {
     onClose: () => void;
     cart: ReturnType<typeof useCart>;
     onComplete: (orderId: string) => void;
-    editOrderId?: string; // If provided, update this order instead of creating new
+    editOrderId?: string;
+    /** Kept for API compatibility; the checkout now always renders as a full page. */
+    asPage?: boolean;
 }
 
-type Step = "review" | "delivery" | "payment";
-type PaymentMethod = "cash" | "upi" | "card" | "pay_later";
-
-export function CheckoutSheet({
-    open,
-    onClose,
-    cart,
-    onComplete,
-    editOrderId,
-}: CheckoutSheetProps) {
+export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: CheckoutSheetProps) {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
-    const [step, setStep] = useState<Step>("review");
-
-    // Get inventory to check category turnaround times
+    const { shopId } = useAuth();
     const { allCategories } = useInventory();
 
-    // Calculate max turnaround days from cart items
+    const isEditMode = !!editOrderId;
+    const isHomeType = cart.deliveryType === "delivery_home" || cart.deliveryType === "pickup_home";
+
+    // Expected delivery = today + max turnaround (editable via ±)
     const maxTurnaroundDays = useMemo(() => {
-        if (cart.items.length === 0) return 2; // Default
-
-        return Math.max(...cart.items.map(i => {
-            // 1. Get Item turnaround (default to 2 if missing)
+        if (cart.items.length === 0) return 2;
+        return Math.max(...cart.items.map((i) => {
             const itemTurnaround = i.service.turnaroundDays || 2;
-
-            // 2. Get Category turnaround
-            const category = allCategories.find(c => c.id === i.service.categoryId);
+            const category = allCategories.find((c) => c.id === i.service.categoryId);
             const categoryTurnaround = category?.turnaroundDays || 2;
-
-            // 3. Use the greater of the two (ensures updated category times apply to existing items)
             return Math.max(itemTurnaround, categoryTurnaround);
         }));
     }, [cart.items, allCategories]);
-
-    // Initialize expected date logic
-    // We want the default to be today + maxTurnaround
     const minExpectedDate = useMemo(() => addDays(new Date(), maxTurnaroundDays), [maxTurnaroundDays]);
-
     const [expectedDate, setExpectedDate] = useState<Date>(minExpectedDate);
-    const [scheduledPickupDate, setScheduledPickupDate] = useState<Date>(new Date()); // Default to today
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-    const [amountPaid, setAmountPaid] = useState<number>(0);
-    const [upiRef, setUpiRef] = useState("");
+    const [scheduledPickupDate] = useState<Date>(new Date());
+    useEffect(() => {
+        setExpectedDate(minExpectedDate);
+    }, [minExpectedDate]);
+
+    // Payment: Unpaid / Paid (owner app model)
+    const [paymentStatus, setPaymentStatus] = useState<"unpaid" | "paid">("unpaid");
+    const amountPaid = paymentStatus === "paid" ? cart.total : 0;
 
     const { createOrder, loading } = useCreateOrder();
     const { updateOrder } = useOrderMutations();
     const { addAddress } = useCustomers();
     const [updating, setUpdating] = useState(false);
-    const [saveNewAddress, setSaveNewAddress] = useState(true); // Checkbox for saving new address
-    const [selectedAgentId, setSelectedAgentId] = useState<string>(""); // Selected agent for delivery
-    const [selectedArea, setSelectedArea] = useState<string>(""); // Selected service area for filtering
-    const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(""); // Selected time slot
-    const [slotError, setSlotError] = useState(false); // Validation state for slot
+    const [saveNewAddress] = useState(true);
+    const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+    const [selectedArea, setSelectedArea] = useState<string>("");
     const [damagePhotoMetadata, setDamagePhotoMetadata] = useState<ImageMetadata[]>([]);
     const damagePhotoUploaderRef = useRef<LSmartImageUploaderRef>(null);
+    const placing = loading || updating;
 
-    const { shopId } = useAuth();
-
-    // Reset expected date when cart changes significantly (optional, but good practice)
-    useEffect(() => {
-        // If pickup/home delivery, base expectation on pickup date
-        if (["pickup_home", "delivery_home"].includes(cart.deliveryType)) {
-            setExpectedDate(addDays(scheduledPickupDate, maxTurnaroundDays));
-        } else {
-            setExpectedDate(minExpectedDate);
-        }
-    }, [minExpectedDate, cart.deliveryType, scheduledPickupDate, maxTurnaroundDays]);
-
-    // Get delivery settings (service areas and time slots)
     const { settings: deliverySettings } = useDeliverySettings();
 
-    // Check if plan allows delivery agents
-    const { checkLimit, hasFeature, loading: limitsLoading } = useShopLimits();
+    const { hasFeature, checkLimit, loading: limitsLoading } = useShopLimits();
     const canUploadDamagePhotos = hasFeature("damagePhotos");
-    const agentLimitCheck = checkLimit("maxDeliveryAgents", 0);
-    const agentLimit = agentLimitCheck.limit;
-    // Hide agent selection if limit is 0, undefined, or null. Show only if limit > 0 OR -1 (unlimited)
-    const canHaveAgents = !limitsLoading && (agentLimit === -1 || (typeof agentLimit === 'number' && agentLimit > 0));
+    const agentLimit = checkLimit("maxDeliveryAgents", 0).limit;
+    const canHaveAgents = !limitsLoading && (agentLimit === -1 || (typeof agentLimit === "number" && agentLimit > 0));
 
-    // Auto-select first service area when the feature is on, areas exist and none selected
+    // Auto-select first service area
     useEffect(() => {
-        if (deliverySettings.enableServiceAreas && deliverySettings.serviceAreas?.length > 0 && !selectedArea) {
-            const firstActive = deliverySettings.serviceAreas.find(a => a.isActive);
-            if (firstActive) {
-                setSelectedArea(firstActive.value);
-            }
+        if (deliverySettings.serviceAreas?.length > 0 && !selectedArea) {
+            const firstActive = deliverySettings.serviceAreas.find((a) => a.isActive);
+            if (firstActive) setSelectedArea(firstActive.value);
         }
-    }, [deliverySettings.enableServiceAreas, deliverySettings.serviceAreas, selectedArea]);
+    }, [deliverySettings.serviceAreas, selectedArea]);
 
-    // Clear any selected area/agent when the area+agent UI isn't applicable
-    // (store order, feature off, or a plan without agents). The sheet stays
-    // mounted across cart changes, so without this a previously-picked agent
-    // could be written onto a store/feature-off order.
-    const areaAgentUiActive =
-        (cart.deliveryType === "delivery_home" || cart.deliveryType === "pickup_home") &&
-        deliverySettings.enableServiceAreas;
+    // Clear area/agent when not a home delivery / pickup-from-home order
+    const areaAgentUiActive = isHomeType;
     useEffect(() => {
-        if (!areaAgentUiActive || !canHaveAgents) {
-            if (selectedAgentId) setSelectedAgentId("");
-        }
-        if (!areaAgentUiActive) {
-            if (selectedArea) setSelectedArea("");
-        }
+        if (!areaAgentUiActive || !canHaveAgents) { if (selectedAgentId) setSelectedAgentId(""); }
+        if (!areaAgentUiActive) { if (selectedArea) setSelectedArea(""); }
     }, [areaAgentUiActive, canHaveAgents, selectedAgentId, selectedArea]);
 
-    // Get available agents filtered by selected area (or customer address if no area selected)
     const filterArea = useMemo(() => {
-        if (selectedArea && deliverySettings.serviceAreas?.length > 0) {
-            return selectedArea;
-        }
-        // Fallback to parsing from address when no areas configured
-        const addr = cart.deliveryAddress || '';
-        const parts = addr.split(',').map(p => p.trim());
-        return parts[0] || '';
+        if (selectedArea && deliverySettings.serviceAreas?.length > 0) return selectedArea;
+        const addr = cart.deliveryAddress || "";
+        return (addr.split(",").map((p) => p.trim())[0]) || "";
     }, [selectedArea, deliverySettings.serviceAreas, cart.deliveryAddress]);
-
     const { agents } = useAvailableAgents({ area: filterArea });
-    const selectedAgent = useMemo(() =>
-        agents.find(a => a.id === selectedAgentId),
-        [agents, selectedAgentId]
-    );
+    const selectedAgent = useMemo(() => agents.find((a) => a.id === selectedAgentId), [agents, selectedAgentId]);
 
-    // Area options for dropdown
     const areaOptions = useMemo(() => [
-        { value: "", label: t('checkout.selectArea', 'Select area...') },
-        ...deliverySettings.serviceAreas
-            .filter(area => area.isActive)
-            .map(area => ({
-                value: area.value,
-                label: area.value,
-            })),
-        { value: "__NEW__", label: t('common.addNewRequest', '+ Add New Area') }
+        { value: "", label: t("checkout.selectArea", "Select area...") },
+        ...deliverySettings.serviceAreas.filter((a) => a.isActive).map((a) => ({ value: a.value, label: a.value })),
+        { value: "__NEW__", label: t("common.addNewRequest", "+ Add New Area") },
     ], [deliverySettings.serviceAreas, t]);
-
     const agentOptions = useMemo(() => [
-        { value: "", label: t('checkout.noAgent', 'No agent assigned') },
-        ...agents.map(a => ({
-            value: a.id,
-            label: `${a.name}${a.isOnline ? ' 🟢' : ' ⚪'}`,
-        })),
-        { value: "__NEW__", label: t('common.addNewRequest', '+ Add New Agent') }
+        { value: "", label: t("checkout.noAgent", "No agent assigned") },
+        ...agents.map((a) => ({ value: a.id, label: `${a.name}${a.isOnline ? " 🟢" : " ⚪"}` })),
+        { value: "__NEW__", label: t("common.addNewRequest", "+ Add New Agent") },
     ], [agents, t]);
 
     const handleAreaChange = (value: string) => {
-        if (value === "__NEW__") {
-            // Redirect to Inventory page with Service Areas tab
-            navigate("/inventory?tab=service-areas");
-            return;
-        }
+        if (value === "__NEW__") { navigate("/inventory?tab=service-areas"); return; }
         setSelectedArea(value);
-        setSelectedAgentId(""); // Reset agent
+        setSelectedAgentId("");
     };
-
     const handleAgentChange = (value: string) => {
-        if (value === "__NEW__") {
-            // Redirect to Manage Staff page and trigger new staff sheet
-            navigate("/manage-staff?new=true");
-            return;
-        }
+        if (value === "__NEW__") { navigate("/manage-staff?new=true"); return; }
         setSelectedAgentId(value);
     };
 
-    // Get time slots based on delivery type
-    const availableTimeSlots = useMemo(() => {
-        if (cart.deliveryType === 'pickup_home') {
-            if (!deliverySettings.enablePickupSlots) return [];
-            return deliverySettings.pickupTimeSlots
-                .filter(slot => slot.isActive)
-                .map(slot => slot.value);
-        }
-        if (cart.deliveryType === 'delivery_home') {
-            if (!deliverySettings.enableDeliverySlots) return [];
-            return deliverySettings.deliveryTimeSlots
-                .filter(slot => slot.isActive)
-                .map(slot => slot.value);
-        }
-        return [];
-    }, [cart.deliveryType, deliverySettings]);
-
-    const isEditMode = !!editOrderId;
-
-    // Detect if we're in staff context
+    // Staff context
     const location = useLocation();
-    const isStaffRoute = location.pathname.startsWith('/staff');
+    const isStaffRoute = location.pathname.startsWith("/staff");
     const staffAuth = useStaffAuthOptional();
     const staff = staffAuth?.staff;
 
-    // Check if delivery address is new (not in customer's saved addresses)
-    const isNewAddress = cart.deliveryType !== 'pickup_store' &&
-        cart.deliveryAddress &&
-        cart.customerId &&
-        !cart.isGuest &&
-        !cart.customerAddresses?.some(
-            (a) => a.address.toLowerCase().trim() === cart.deliveryAddress?.toLowerCase().trim()
-        );
-
-    // Check if this is the first address for customer
+    const isNewAddress = cart.deliveryType !== "pickup_store" && cart.deliveryAddress && cart.customerId && !cart.isGuest &&
+        !cart.customerAddresses?.some((a) => a.address.toLowerCase().trim() === cart.deliveryAddress?.toLowerCase().trim());
     const isFirstAddress = !cart.customerAddresses || cart.customerAddresses.length === 0;
 
-    const steps = [
-        { id: "review", label: t('checkout.review') },
-        { id: "delivery", label: t('checkout.delivery') },
-        { id: "payment", label: t('checkout.payment') },
-    ];
+    // Services grouped by category (owner-app style)
+    const categoryGroups = useMemo(() => {
+        const map: Record<string, { name: string; subtotal: number; items: typeof cart.items }> = {};
+        cart.items.forEach((item) => {
+            const key = item.service.categoryId || "other";
+            if (!map[key]) map[key] = { name: item.service.categoryName || t("mobile.categoryOther", "Other"), subtotal: 0, items: [] };
+            map[key].items.push(item);
+            map[key].subtotal += item.total;
+        });
+        return Object.values(map);
+    }, [cart.items, t]);
 
-    const currentStepIndex = steps.findIndex((s) => s.id === step);
+    const formatDate = (d: Date) =>
+        d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
-    const handleNext = () => {
-        if (step === "review") setStep("delivery");
-        else if (step === "delivery") {
-            // Validate Time Slot if slots are available
-            if (availableTimeSlots.length > 0 && !selectedTimeSlot) {
-                setSlotError(true);
-                return;
-            }
-            setSlotError(false);
-            setStep("payment");
-        }
-    };
-
-    const handleBack = () => {
-        if (step === "delivery") setStep("review");
-        else if (step === "payment") setStep("delivery");
-    };
-
-    const handleComplete = async () => {
+    const handlePlaceOrder = async () => {
         if (isEditMode && editOrderId) {
-            // Update existing order
             setUpdating(true);
             try {
                 await updateOrder(editOrderId, {
@@ -308,445 +198,357 @@ export function CheckoutSheet({
                     deliveryAddress: cart.deliveryAddress,
                     deliveryNotes: cart.deliveryNotes,
                     expectedDelivery: expectedDate,
-                    scheduledPickupDate: (cart.deliveryType === 'pickup_home' || cart.deliveryType === 'delivery_home') ? scheduledPickupDate : undefined,
-                    deliverySlot: cart.deliveryType === 'delivery_home' ? selectedTimeSlot : undefined,
-                    pickupSlot: cart.deliveryType === 'pickup_home' ? selectedTimeSlot : undefined,
+                    scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
                 });
                 setUpdating(false);
                 onComplete(editOrderId);
             } catch (error) {
-                console.error('Failed to update order:', error);
+                console.error("Failed to update order:", error);
                 setUpdating(false);
             }
-        } else {
-            // Create new order - upload damage photos first if any (deferUpload)
-            let finalDamageUrls: string[] | undefined;
-            if (damagePhotoMetadata.length > 0) {
-                try {
-                    const finalMeta = await damagePhotoUploaderRef.current?.uploadPendingImages?.();
-                    finalDamageUrls = finalMeta?.map((m) => m.url).filter(Boolean) as string[] | undefined;
-                } catch (e) {
-                    console.error("Failed to upload damage photos:", e);
-                }
-            }
-            const order = await createOrder({
-                customerId: cart.customerId,
-                customerName: cart.customerName || "Guest",
-                customerPhone: cart.customerPhone || "",
-                isGuest: cart.isGuest,
-                items: cart.items.map((item, index) => ({
-                    id: `item-${item.service.id}-${index}`,
-                    serviceId: item.service.id,
-                    serviceName: item.service.name,
-                    categoryId: item.service.categoryId,
-                    categoryName: item.service.categoryName,
-                    quantity: item.quantity,
-                    unit: item.service.pricingType,
-                    unitPrice: item.unitPrice,
-                    total: item.total,
-                    express: item.express,
-                    notes: item.notes,
-                    damages: item.damages,
-                    expressMultiplier: item.service.expressMultiplier,
-                })),
-                damagePhotoUrls: (finalDamageUrls && finalDamageUrls.length > 0) ? finalDamageUrls : undefined,
-                financials: {
-                    subtotal: cart.subtotal,
-                    discountType: cart.discountType,
-                    discountValue: cart.discountValue,
-                    discountAmount: cart.discountAmount,
-                    expressCharge: cart.expressCharge,
-                    deliveryCharge: cart.deliveryCharge,
-                    taxAmount: cart.taxAmount,
-                    taxRate: cart.taxRate,
-                    taxName: cart.taxName,
-                    total: cart.total,
-                    amountPaid,
-                },
-                deliveryType: cart.deliveryType,
-                deliveryAddress: cart.deliveryAddress,
-                deliveryNotes: cart.deliveryNotes,
-                expectedDelivery: expectedDate,
-                scheduledPickupDate: (cart.deliveryType === 'pickup_home' || cart.deliveryType === 'delivery_home') ? scheduledPickupDate : undefined,
-                // Pass slot info
-                deliverySlot: cart.deliveryType === 'delivery_home' ? selectedTimeSlot : undefined,
-                pickupSlot: cart.deliveryType === 'pickup_home' ? selectedTimeSlot : undefined,
-                paymentMethod,
-                paymentReference: paymentMethod === "upi" ? upiRef : undefined,
-                // Pass staff info if in staff context
-                staffId: isStaffRoute ? staff?.id : undefined,
-                staffName: isStaffRoute ? staff?.name : undefined,
-                // Pass agent info if assigned
-                assignedAgentId: selectedAgentId || undefined,
-                assignedAgentName: selectedAgent?.name || undefined,
-            });
+            return;
+        }
 
-            if (order) {
-                // Save address to customer if needed
-                if (cart.customerId && cart.deliveryAddress && !cart.isGuest) {
-                    // First address: auto-save; 2nd+: save only if checkbox checked
-                    if (isFirstAddress || (isNewAddress && saveNewAddress)) {
-                        await addAddress(cart.customerId, cart.deliveryAddress);
-                    }
-                }
-                onComplete(order.id);
+        // Create new order — upload damage photos first if any
+        let finalDamageUrls: string[] | undefined;
+        if (damagePhotoMetadata.length > 0) {
+            try {
+                const finalMeta = await damagePhotoUploaderRef.current?.uploadPendingImages?.();
+                finalDamageUrls = finalMeta?.map((m) => m.url).filter(Boolean) as string[] | undefined;
+            } catch (e) {
+                console.error("Failed to upload damage photos:", e);
             }
+        }
+        const order = await createOrder({
+            customerId: cart.customerId,
+            customerName: cart.customerName || "Guest",
+            customerPhone: cart.customerPhone || "",
+            isGuest: cart.isGuest,
+            items: cart.items.map((item, index) => ({
+                id: `item-${item.service.id}-${index}`,
+                serviceId: item.service.id,
+                serviceName: item.service.name,
+                categoryId: item.service.categoryId,
+                categoryName: item.service.categoryName,
+                quantity: item.quantity,
+                unit: item.service.pricingType,
+                unitPrice: item.unitPrice,
+                total: item.total,
+                express: item.express,
+                notes: item.notes,
+                damages: item.damages,
+                expressMultiplier: item.service.expressMultiplier,
+            })),
+            damagePhotoUrls: (finalDamageUrls && finalDamageUrls.length > 0) ? finalDamageUrls : undefined,
+            financials: {
+                subtotal: cart.subtotal,
+                discountType: cart.discountType,
+                discountValue: cart.discountValue,
+                discountAmount: cart.discountAmount,
+                expressCharge: cart.expressCharge,
+                deliveryCharge: cart.deliveryCharge,
+                taxAmount: cart.taxAmount,
+                taxRate: cart.taxRate,
+                taxName: cart.taxName,
+                total: cart.total,
+                amountPaid,
+            },
+            deliveryType: cart.deliveryType,
+            deliveryAddress: cart.deliveryAddress,
+            deliveryNotes: cart.deliveryNotes,
+            expectedDelivery: expectedDate,
+            scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
+            paymentMethod: "cash",
+            staffId: isStaffRoute ? staff?.id : undefined,
+            staffName: isStaffRoute ? staff?.name : undefined,
+            assignedAgentId: isHomeType ? (selectedAgentId || undefined) : undefined,
+            assignedAgentName: isHomeType ? (selectedAgent?.name || undefined) : undefined,
+        });
+
+        if (order) {
+            if (cart.customerId && cart.deliveryAddress && !cart.isGuest) {
+                if (isFirstAddress || (isNewAddress && saveNewAddress)) {
+                    await addAddress(cart.customerId, cart.deliveryAddress);
+                }
+            }
+            onComplete(order.id);
         }
     };
 
+    const deliveryTypes: { value: DeliveryType; label: string; Icon: typeof Store }[] = [
+        { value: "pickup_store", label: t("pos.shopPickup", "Shop Pickup"), Icon: Store },
+        { value: "delivery_home", label: t("pos.homeDelivery", "Home Delivery"), Icon: Truck },
+        { value: "pickup_home", label: t("pos.pickupFromHome", "Pickup from Home"), Icon: Home },
+    ];
+
     return (
-        <LResponsiveDialog
-            open={open}
-            onClose={onClose}
-            title={t('checkout.title')}
-            size="md"
-            snapPoints={[0.9]}
-        >
-            <div className="space-y-6">
-                {/* Progress Stepper */}
-                <LProgressStepper
-                    steps={steps}
-                    currentStep={currentStepIndex}
-                />
+        <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-4 lg:px-6">
+            {/* Header */}
+            <div className="mb-4 flex items-center gap-3">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
+                    title={t("common.back")}
+                >
+                    <ChevronLeft className="h-5 w-5" />
+                </button>
+                <h1 className="text-xl font-extrabold text-foreground">
+                    {isEditMode ? t("checkout.updateOrderTitle", "Update Order") : t("checkout.orderReview", "Order Review")}
+                </h1>
+            </div>
 
-                <LDivider />
-
-                {/* Step Content */}
-                {step === "review" && (
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-foreground">{t('checkout.orderSummary')}</h3>
-                        <LOrderSummary
-                            items={cart.items.map((item) => ({
-                                id: item.id,
-                                name: (item.service.categoryName
-                                    ? `${getTranslatedItemName(item.service.name)} (${getTranslatedCategoryName(item.service.categoryName, item.service.categoryId)})`
-                                    : getTranslatedItemName(item.service.name)) + (item.express ? " ⚡ (Express)" : ""),
-                                quantity: item.quantity,
-                                price: item.unitPrice,
-                                unit: item.service.pricingType,
-                            }))}
-                            subtotal={cart.subtotal}
-                            discount={cart.discountAmount}
-                            delivery={cart.deliveryCharge}
-                            taxAmount={cart.taxAmount}
-                            taxName={cart.taxName}
-                            taxRate={cart.taxRate}
-                            total={cart.total}
-                        />
-                        {/* GST toggle: allow disabling tax for this order in POS */}
-                        {cart.taxSettings?.enabled && (
-                            <label className="flex items-center gap-3 text-sm cursor-pointer mt-2">
-                                <input
-                                    type="checkbox"
-                                    checked={cart.taxEnabled}
-                                    onChange={() => cart.toggleTax()}
-                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                />
-                                <span className="text-muted-foreground">{t('checkout.includeGST', 'Include GST for this order')}</span>
-                            </label>
-                        )}
-                        {/* Waive delivery fee for this order (home delivery / pickup & delivery only) */}
-                        {(cart.deliveryType === 'delivery_home' || cart.deliveryType === 'pickup_home') && (
-                            <label className="flex items-center gap-3 text-sm cursor-pointer mt-2">
-                                <input
-                                    type="checkbox"
-                                    checked={cart.deliveryFeeWaived}
-                                    onChange={(e) => cart.setDeliveryFeeWaived(e.target.checked)}
-                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                />
-                                <span className="text-muted-foreground">{t('checkout.waiveDeliveryFee', 'Waive delivery fee for this order')}</span>
-                            </label>
-                        )}
-                        {shopId && canUploadDamagePhotos && (
-                            <div className="pt-2">
-                                <LSmartImageUploader
-                                    ref={damagePhotoUploaderRef}
-                                    folder="damage-photos"
-                                    shopId={shopId}
-                                    value={damagePhotoMetadata}
-                                    onChange={setDamagePhotoMetadata}
-                                    maxFiles={5}
-                                    showStats={true}
-                                    deferUpload
-                                    label={t('checkout.damageStainPhotos', 'Damage / stain photos (optional)')}
-                                    hint={t('checkout.damageStainPhotosHint', 'Upload photos of damaged fabric or stains for this order')}
-                                />
-                            </div>
-                        )}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
+                {/* LEFT — order details */}
+                <div className="space-y-4">
+                {/* Customer */}
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <LAvatar name={cart.customerName || cart.customerPhone || "?"} size="md" />
+                        <div className="min-w-0">
+                            <p className="truncate font-bold text-foreground">{cart.customerName || t("customer.guest", "Guest")}</p>
+                            <p className="truncate text-sm text-muted-foreground">{cart.customerPhone}</p>
+                        </div>
                     </div>
-                )}
+                    {!isEditMode && (
+                        <button onClick={onClose} className="shrink-0 px-2 text-sm font-bold text-primary">
+                            {t("common.edit", "Edit").toUpperCase()}
+                        </button>
+                    )}
+                </div>
 
-                {step === "delivery" && (
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-foreground">{t('checkout.deliveryDetails')}</h3>
-
-                        {/* Read-only: delivery type was chosen in Cart – no re-selection here to avoid accidentally waiving delivery fee */}
-                        <LCard variant="outlined" padding="md" className="bg-muted/20">
-                            <div className="flex items-center gap-3">
-                                {cart.deliveryType === "pickup_store" && <Store className="h-5 w-5 text-muted-foreground" />}
-                                {cart.deliveryType === "delivery_home" && <Truck className="h-5 w-5 text-primary" />}
-                                {cart.deliveryType === "pickup_home" && <Home className="h-5 w-5 text-primary" />}
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">
-                                        {cart.deliveryType === "pickup_store" && t('checkout.shopPickup')}
-                                        {cart.deliveryType === "delivery_home" && t('checkout.homeDelivery')}
-                                        {cart.deliveryType === "pickup_home" && t('checkout.pickupFromHome', 'Pickup & Delivery')}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{t('checkout.selectedInCart', 'Selected in cart. Change delivery type in cart if needed.')}</p>
-                                </div>
+                {/* Services grouped by category */}
+                {categoryGroups.map((group, gi) => (
+                    <div key={`${group.name}-${gi}`} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                        <div className="flex items-center justify-between bg-primary/5 px-4 py-2.5">
+                            <div className="flex items-center gap-2 text-primary">
+                                <ShoppingBag className="h-4 w-4" />
+                                <span className="text-xs font-extrabold uppercase tracking-wide">
+                                    {group.name} · {group.items.length} {group.items.length === 1 ? t("orders.item", "item") : t("orders.items", "items")}
+                                </span>
                             </div>
-                        </LCard>
-
-                        {(cart.deliveryType === "delivery_home" || cart.deliveryType === "pickup_home") && (
-                            <>
-                                <LTextArea
-                                    label={cart.deliveryType === "delivery_home" ? t('checkout.deliveryAddress') : t('checkout.pickupAddress')}
-                                    value={cart.deliveryAddress || ""}
-                                    onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
-                                    placeholder={t('checkout.enterFullAddress')}
-                                />
-                                <LTextInput
-                                    label={t('checkout.notesOptional')}
-                                    value={cart.deliveryNotes || ""}
-                                    onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)}
-                                    placeholder={t('checkout.notesPlaceholder')}
-                                />
-
-                                {/* Show save checkbox only for 2nd+ addresses (first is auto-saved) */}
-                                {isNewAddress && !isFirstAddress && cart.customerId && !cart.isGuest && (
-                                    <label className="flex items-center gap-3 text-sm cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={saveNewAddress}
-                                            onChange={(e) => setSaveNewAddress(e.target.checked)}
-                                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                        />
-                                        <span className="text-muted-foreground">
-                                            {t('checkout.saveAddressToCustomer')}
-                                        </span>
-                                    </label>
-                                )}
-
-                                {/* Area & Agent Selection for pickup/delivery - gated on the Service Areas master toggle */}
-                                {deliverySettings.enableServiceAreas && (
-                                <LCard variant="outlined" padding="md" className="bg-muted/30">
-                                    {/* Area Selection - show first when service areas are configured */}
-                                    {deliverySettings.serviceAreas?.length > 0 && (
-                                        <div className="mb-4">
-                                            <LSelect
-                                                label={t('checkout.serviceArea', 'Service Area')}
-                                                value={selectedArea}
-                                                onChange={handleAreaChange}
-                                                options={areaOptions}
-                                            />
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {t('checkout.areaHelp', 'Select area first to see assigned agents')}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Agent Selection - below area; shows agents for selected area + unassigned agents */}
-                                    {canHaveAgents && (
-                                        <>
-                                            <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                                                <Truck className="h-4 w-4" />
-                                                {t('checkout.assignAgent', 'Assign Delivery Agent')}
-                                            </h4>
-                                            <LSelect
-                                                label={t('checkout.selectAgent', 'Select Agent')}
-                                                value={selectedAgentId}
-                                                onChange={handleAgentChange}
-                                                options={agentOptions}
-                                                disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea}
-                                            />
-                                            {deliverySettings.serviceAreas?.length > 0 && !selectedArea && (
-                                                <p className="text-xs text-muted-foreground mt-1 text-warning">
-                                                    {t('checkout.selectAreaFirst', 'Please select a service area first to see available agents')}
-                                                </p>
+                            <span className="text-sm font-extrabold text-primary">{formatAmount(Math.round(group.subtotal))}</span>
+                        </div>
+                        <div className="divide-y divide-border">
+                            {group.items.map((item) => (
+                                <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-foreground">
+                                            {getTranslatedItemName(item.service.name)}
+                                            {item.express && (
+                                                <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-warning" style={{ background: "hsl(var(--warning) / 0.16)" }}>
+                                                    {t("pos.express", "Express")}
+                                                </span>
                                             )}
-                                            {selectedArea && agents.length === 0 && (
-                                                <p className="text-xs text-muted-foreground mt-2">
-                                                    {t('checkout.noAgentsAvailable', 'No agents assigned for this area. You can assign one later in order details.')}
-                                                </p>
-                                            )}
-                                        </>
-                                    )}
-                                </LCard>
-                                )}
-                            </>
-                        )}
-
-                        {/* Time Slot Selection - show when enabled for pickup or delivery */}
-                        {availableTimeSlots.length > 0 && (
-                            <LCard variant="outlined" padding="md" className={slotError ? "border-destructive/50 ring-1 ring-destructive/50" : ""}>
-                                <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                                    <Clock className="h-4 w-4" />
-                                    {cart.deliveryType === 'pickup_home'
-                                        ? t('checkout.pickupSchedule')
-                                        : t('checkout.deliverySchedule', 'Delivery Time')}
-                                    <span className="text-destructive ml-1">*</span>
-                                </h4>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    {availableTimeSlots.map((slot) => (
-                                        <button
-                                            key={slot}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedTimeSlot(slot);
-                                                setSlotError(false);
-                                            }}
-                                            className={`
-                                                p-2 rounded-lg text-xs text-center transition-all
-                                                ${selectedTimeSlot === slot
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "bg-muted hover:bg-muted/80 text-foreground"
-                                                }
-                                            `}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
-                                </div>
-                                {slotError && (
-                                    <p className="text-xs text-destructive mt-2">
-                                        {t('checkout.timeSlotRequired', 'Please select a time slot')}
-                                    </p>
-                                )}
-                            </LCard>
-                        )}
-
-                        {/* Pickup Date - Only for Home Pickup */}
-                        {cart.deliveryType === 'pickup_home' && (
-                            <div className="p-3 bg-muted rounded-xl space-y-2 mb-3">
-                                <p className="text-sm text-muted-foreground">{t('checkout.scheduledPickupDate', 'Scheduled Pickup Date')}</p>
-                                <div className="flex items-center gap-3">
-                                    <LTextInput
-                                        type="date"
-                                        value={scheduledPickupDate.toISOString().split('T')[0]}
-                                        onChange={(e) => {
-                                            const date = new Date(e.target.value);
-                                            if (!isNaN(date.getTime())) {
-                                                setScheduledPickupDate(date);
-                                            }
-                                        }}
-                                        min={new Date().toISOString().split('T')[0]}
-                                        className="flex-1"
-                                    />
-                                    <div className="text-sm font-medium">
-                                        {scheduledPickupDate.toLocaleDateString("en-IN", {
-                                            weekday: "short",
-                                            day: "numeric",
-                                            month: "short",
-                                        })}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">×{item.quantity} · {formatAmount(item.unitPrice)} {t("checkout.each", "ea.")}</p>
                                     </div>
+                                    <span className="text-sm font-bold text-foreground">{formatAmount(item.total)}</span>
                                 </div>
-                            </div>
-                        )}
-
-                        <div className="p-3 bg-muted rounded-xl space-y-2">
-                            <p className="text-sm text-muted-foreground">{t('checkout.expectedDelivery')}</p>
-
-                            {/* Date Picker for Expected Delivery */}
-                            <div className="flex items-center gap-3">
-                                <LTextInput
-                                    type="date"
-                                    value={expectedDate.toISOString().split('T')[0]} // Format YYYY-MM-DD
-                                    onChange={(e) => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setExpectedDate(date);
-                                        }
-                                    }}
-                                    min={minExpectedDate.toISOString().split('T')[0]} // Min date constraint
-                                    className="flex-1"
-                                />
-                                <div className="text-sm font-medium">
-                                    {expectedDate.toLocaleDateString("en-IN", {
-                                        weekday: "short",
-                                        day: "numeric",
-                                        month: "short",
-                                    })}
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
-                )}
+                ))}
 
-                {step === "payment" && (
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-foreground">{t('checkout.payment')}</h3>
-
-                        <div className="flex items-center justify-between p-3 bg-muted rounded-xl">
-                            <span className="text-muted-foreground">{t('checkout.totalAmount')}</span>
-                            <span className="text-xl font-bold text-foreground">
-                                {formatAmount(cart.total)}
-                            </span>
-                        </div>
-
-                        <LRadioGroup
-                            name="paymentMethod"
-                            value={paymentMethod}
-                            onChange={(v) => setPaymentMethod(v as PaymentMethod)}
-                            options={[
-                                { value: "cash", label: t('checkout.cash'), description: t('checkout.cashDesc') },
-                                { value: "upi", label: t('checkout.upi'), description: t('checkout.upiDesc') },
-                                { value: "card", label: t('checkout.card'), description: t('checkout.cardDesc') },
-                                { value: "pay_later", label: t('checkout.payLater'), description: t('checkout.payLaterDesc') },
-                            ]}
+                {/* Summary */}
+                <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{t("pos.subtotal", "Subtotal")}</span>
+                        <span className="font-bold text-foreground">{formatAmount(cart.subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 text-muted-foreground"><Tag className="h-4 w-4 text-success" />{t("pos.applyDiscount", "Discount")} (₹)</span>
+                        <input
+                            type="number"
+                            min={0}
+                            value={cart.discountValue || ""}
+                            onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                if (!v || v <= 0) cart.setDiscount(undefined, undefined);
+                                else cart.setDiscount("flat", v);
+                            }}
+                            placeholder="0"
+                            className="w-24 rounded-lg border border-border bg-background px-3 py-1.5 text-right text-sm font-bold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                         />
+                    </div>
+                    {cart.discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{t("checkout.discountApplied", "Discount applied")}</span>
+                            <span className="font-bold text-success">-{formatAmount(cart.discountAmount)}</span>
+                        </div>
+                    )}
+                    {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-1.5 text-muted-foreground"><Receipt className="h-4 w-4" />{cart.taxName || "GST"} ({cart.taxRate}%)</span>
+                            <span className="font-bold text-foreground">+{formatAmount(cart.taxAmount)}</span>
+                        </div>
+                    )}
+                    {cart.deliveryCharge > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-1.5 text-muted-foreground"><Truck className="h-4 w-4" />{t("pos.deliveryCharge", "Delivery")}</span>
+                            <span className="font-bold text-foreground">+{formatAmount(cart.deliveryCharge)}</span>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between border-t border-border pt-3">
+                        <span className="text-base font-extrabold text-foreground">{t("pos.grandTotal", "Grand Total")}</span>
+                        <span className="text-lg font-extrabold text-primary">{formatAmount(cart.total)}</span>
+                    </div>
+                </div>
 
-                        {paymentMethod === "upi" && (
-                            <LTextInput
-                                label={t('checkout.upiReference')}
-                                value={upiRef}
-                                onChange={(e) => setUpiRef(e.target.value)}
-                                placeholder={t('checkout.enterTransactionId')}
-                            />
-                        )}
+                {/* Notes */}
+                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <StickyNote className="h-5 w-5 shrink-0 text-muted-foreground" />
+                    <input
+                        value={cart.deliveryNotes || ""}
+                        onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)}
+                        placeholder={t("checkout.addNote", "Add a note (optional)")}
+                        className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                    />
+                </div>
 
-                        {paymentMethod !== "pay_later" && (
-                            <LTextInput
-                                label={t('checkout.amountReceived')}
-                                value={amountPaid.toString()}
-                                onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
-                                inputMode="numeric"
-                            />
-                        )}
-
-                        {amountPaid > 0 && amountPaid < cart.total && (
-                            <div className="p-3 bg-warning-muted rounded-xl">
-                                <p className="text-sm text-warning">
-                                    {t('checkout.balanceDue')}: {formatAmount(cart.total - amountPaid)}
-                                </p>
-                            </div>
-                        )}
+                {/* Damage photos */}
+                {shopId && canUploadDamagePhotos && (
+                    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                        <p className="mb-2 text-sm font-bold text-foreground">{t("checkout.damageStainPhotos", "Damage / stain photos (optional)")}</p>
+                        <LSmartImageUploader
+                            ref={damagePhotoUploaderRef}
+                            folder="damage-photos"
+                            shopId={shopId}
+                            value={damagePhotoMetadata}
+                            onChange={setDamagePhotoMetadata}
+                            maxFiles={5}
+                            showStats
+                            deferUpload
+                        />
                     </div>
                 )}
+                </div>{/* /LEFT */}
 
-                <LDivider />
+                {/* RIGHT — delivery, payment & confirm */}
+                <div className="space-y-4 lg:sticky lg:top-4">
 
-                {/* Actions */}
-                <div className="flex gap-3">
-                    {step !== "review" && (
-                        <LButton
-                            variant="ghost"
-                            onClick={handleBack}
+                {/* Expected delivery */}
+                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <Calendar className="h-5 w-5 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                            {cart.deliveryType === "pickup_store" ? t("checkout.expectedReady", "Expected Ready") : t("checkout.expectedDelivery", "Expected Delivery")}
+                        </p>
+                        <p className="text-sm font-bold text-foreground">{formatDate(expectedDate)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() - 1); if (d >= new Date(new Date().toDateString())) setExpectedDate(d); }}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-primary transition-colors hover:bg-muted"
                         >
-                            {t('common.back')}
-                        </LButton>
+                            <Minus className="h-4 w-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() + 1); setExpectedDate(d); }}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-primary transition-colors hover:bg-muted"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Delivery & Payment */}
+                <div className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("mobile.deliveryTypeLabel", "Delivery Type")}</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {deliveryTypes.map(({ value, label, Icon }) => {
+                                const active = cart.deliveryType === value;
+                                return (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => cart.setDelivery(value)}
+                                        className={cn(
+                                            "flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-bold transition-colors",
+                                            active ? "border-primary bg-primary/5 text-primary ring-1 ring-primary" : "border-border text-muted-foreground hover:border-primary/40"
+                                        )}
+                                    >
+                                        <Icon className="h-4 w-4" />
+                                        <span className="text-center leading-tight">{label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {isHomeType && (
+                        <LTextArea
+                            label={cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddress", "Delivery Address") : t("checkout.pickupAddress", "Pickup Address")}
+                            value={cart.deliveryAddress || ""}
+                            onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
+                            placeholder={t("checkout.enterFullAddress", "Enter full address")}
+                            minRows={2}
+                        />
                     )}
 
-                    <LButton
-                        variant="primary"
-                        fullWidth
-                        onClick={step === "payment" ? handleComplete : handleNext}
-                        loading={loading || updating}
-                    >
-                        {step === "payment" ? (isEditMode ? t('checkout.updateOrder') : t('checkout.createOrder')) : t('common.continue')}
-                    </LButton>
+                    {isHomeType && deliverySettings.serviceAreas?.length > 0 && (
+                        <LSelect label={t("checkout.serviceArea", "Service Area")} value={selectedArea} onChange={handleAreaChange} options={areaOptions} />
+                    )}
+                    {isHomeType && canHaveAgents && (
+                        <LSelect
+                            label={t("checkout.assignAgent", "Assign Delivery Agent")}
+                            value={selectedAgentId}
+                            onChange={handleAgentChange}
+                            options={agentOptions}
+                            disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea}
+                        />
+                    )}
+
+                    <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("checkout.paymentStatus", "Payment Status")}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPaymentStatus("unpaid")}
+                                className={cn(
+                                    "rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
+                                    paymentStatus === "unpaid" ? "border-destructive bg-destructive/5 text-destructive ring-1 ring-destructive" : "border-border text-muted-foreground hover:border-destructive/40"
+                                )}
+                            >
+                                {t("checkout.unpaid", "Unpaid")}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPaymentStatus("paid")}
+                                className={cn(
+                                    "rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
+                                    paymentStatus === "paid" ? "border-success bg-success/5 text-success ring-1 ring-success" : "border-border text-muted-foreground hover:border-success/40"
+                                )}
+                            >
+                                {t("checkout.paid", "Paid")}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </LResponsiveDialog>
+
+                {/* Place Order */}
+                <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <button
+                        type="button"
+                        onClick={handlePlaceOrder}
+                        disabled={placing || cart.items.length === 0}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl bg-primary px-5 py-3 text-primary-foreground transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span className="text-left">
+                            <span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{cart.items.length} {t("mobile.items", "items").toUpperCase()}</span>
+                            <span className="block text-lg font-extrabold">{formatAmount(cart.total)}</span>
+                        </span>
+                        <span className="flex items-center gap-2 text-sm font-extrabold">
+                            {placing ? t("common.loading", "Please wait…") : (isEditMode ? t("checkout.updateOrder", "Update Order") : t("checkout.placeOrder", "Place Order"))}
+                            {!placing && <ArrowRight className="h-5 w-5" />}
+                        </span>
+                    </button>
+                </div>
+                </div>{/* /RIGHT */}
+            </div>{/* /grid */}
+        </div>
     );
 }

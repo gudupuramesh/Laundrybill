@@ -40,20 +40,20 @@ export function LSidebar({
     return (
         <aside
             className={cn(
-                "h-screen sticky top-0 bg-card border-r border-border",
+                "h-screen sticky top-0 bg-sidebar border-r border-sidebar-border",
                 "flex flex-col transition-all duration-300",
                 collapsed ? "w-16" : "w-64",
                 className
             )}
         >
             {/* Header */}
-            <div className="h-14 flex items-center justify-between px-4 border-b border-border">
+            <div className="h-14 flex items-center justify-between px-4 border-b border-sidebar-border">
                 {collapsed ? collapsedLogo : logo}
 
                 <button
                     onClick={() => setCollapsed(!collapsed)}
                     className={cn(
-                        "p-1.5 rounded-lg hover:bg-muted transition-colors",
+                        "p-1.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
                         collapsed && "mx-auto"
                     )}
                 >
@@ -77,22 +77,18 @@ export function LSidebar({
                             onClick={item.onClick}
                             className={cn(
                                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors relative",
-                                "hover:bg-muted",
-                                isActive && "bg-primary-muted text-primary",
+                                isActive
+                                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                                 collapsed && "justify-center px-0",
                                 (item.badge != null && item.badge > 0) && "relative"
                             )}
                             title={collapsed ? item.label : undefined}
                         >
-                            <Icon className={cn("h-5 w-5 flex-shrink-0", isActive && "text-primary")} />
+                            <Icon className="h-5 w-5 flex-shrink-0" />
                             {!collapsed && (
                                 <>
-                                    <span
-                                        className={cn(
-                                            "text-sm font-medium truncate flex-1 text-left",
-                                            isActive ? "text-primary" : "text-foreground"
-                                        )}
-                                    >
+                                    <span className="text-sm font-medium truncate flex-1 text-left">
                                         {item.label}
                                     </span>
                                     {item.badge != null && item.badge > 0 && (
@@ -114,7 +110,7 @@ export function LSidebar({
 
             {/* Footer */}
             {footer && !collapsed && (
-                <div className="p-4 border-t border-border">{footer}</div>
+                <div className="p-4 border-t border-sidebar-border">{footer}</div>
             )}
         </aside>
     );

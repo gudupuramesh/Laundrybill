@@ -48,6 +48,7 @@ import { useOrderSummary } from "@/hooks/use-order-summary";
 import { useSeenOnlineOrders, SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import type { PlanFeatures } from "@/types/plans";
 import { HelpQuickSheet } from "@/features/help";
+import { DashboardHeaderActions } from "@/features/dashboard/DashboardHeaderActions";
 
 // Sidebar item config (without translated labels)
 interface SidebarNavItem {
@@ -252,8 +253,8 @@ export function AppLayout() {
                     }))}
                     activeId={activeTab}
                     logo={
-                        <span className="font-bold text-xl text-primary">
-                            LaundryBill
+                        <span className="font-bold text-xl text-white">
+                            Laundry<span style={{ color: "hsl(var(--primary-light))" }}>Bill</span>
                         </span>
                     }
                     collapsedLogo={
@@ -265,16 +266,16 @@ export function AppLayout() {
                         <div className="flex items-center gap-3">
                             <LAvatar name={user?.displayName || "User"} size="sm" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">
+                                <p className="text-sm font-medium text-white truncate">
                                     {shopName || user?.displayName}
                                 </p>
-                                <p className="text-xs text-muted-foreground capitalize">
+                                <p className="text-xs text-sidebar-foreground capitalize">
                                     {role}
                                 </p>
                             </div>
                             <button
                                 onClick={signOut}
-                                className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                className="p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-white transition-colors"
                                 title="Sign out"
                             >
                                 <LogOut className="h-4 w-4" />
@@ -303,7 +304,9 @@ export function AppLayout() {
                             name: user?.displayName || "User",
                         }}
                         onUserClick={() => navigate("/settings")}
-                    />
+                    >
+                        {!isMobile && location.pathname === "/dashboard" && <DashboardHeaderActions />}
+                    </LTopNavbar>
                 )}
 
                 {/* Page Content - Scrollable */}

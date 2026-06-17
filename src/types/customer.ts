@@ -18,6 +18,7 @@ export interface Customer {
     email?: string;
     address?: string;              // Keep for backward compatibility
     addresses?: CustomerAddress[]; // New: array of addresses
+    area?: string;                 // Service area / locality (from settings.serviceAreas)
     notes?: string;
     totalOrders: number;
     totalSpent: number;

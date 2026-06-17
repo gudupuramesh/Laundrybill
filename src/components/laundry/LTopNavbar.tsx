@@ -76,13 +76,16 @@ export function LTopNavbar({
 
             {/* Title */}
             {title && (
-                <h1 className="text-lg font-semibold text-foreground flex-1 truncate">
+                <h1 className={cn(
+                    "text-lg font-semibold text-foreground truncate",
+                    !children && "flex-1"
+                )}>
                     {title}
                 </h1>
             )}
 
-            {/* Custom children */}
-            {children && <div className="flex-1">{children}</div>}
+            {/* Custom children (right-aligned, fills remaining space) */}
+            {children && <div className="flex-1 flex items-center justify-end">{children}</div>}
 
             {/* Right Section */}
             <div className="flex items-center gap-2">

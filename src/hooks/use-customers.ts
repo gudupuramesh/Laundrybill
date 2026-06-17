@@ -23,7 +23,13 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
-import { toTitleCase, normalizePhone, normalizeEmail, isValidIndianPhone, isValidEmail } from "@/lib/utils";
+import { toTitleCase, normalizePhone, normalizeEmail, isValidEmail } from "@/lib/utils";
+
+/** Country-agnostic phone check: 6–15 digits (E.164 range). */
+function hasValidPhoneLength(phone?: string): boolean {
+    const digits = (phone || "").replace(/\D/g, "");
+    return digits.length >= 6 && digits.length <= 15;
+}
 import type { Customer } from "@/types/customer";
 
 const PAGE_SIZE = 10;
@@ -113,7 +119,7 @@ export function useCustomers(searchQuery?: string) {
         if (!shopId) return null;
 
         // Validate phone
-        if (!data.phone || !isValidIndianPhone(data.phone)) {
+        if (!data.phone || !hasValidPhoneLength(data.phone)) {
             console.error("Invalid phone number");
             return null;
         }
@@ -140,6 +146,7 @@ export function useCustomers(searchQuery?: string) {
                 phone: normalized,
                 email: data.email ? normalizeEmail(data.email) : null,
                 address: data.address ? toTitleCase(data.address) : null,
+                area: data.area ? data.area.trim() : null,
                 notes: data.notes || null,
                 totalOrders: 0,
                 totalSpent: 0,
@@ -171,7 +178,7 @@ export function useCustomers(searchQuery?: string) {
             updateData.name = toTitleCase(data.name);
         }
         if (data.phone) {
-            if (!isValidIndianPhone(data.phone)) {
+            if (!hasValidPhoneLength(data.phone)) {
                 console.error("Invalid phone number");
                 return;
             }
@@ -195,6 +202,9 @@ export function useCustomers(searchQuery?: string) {
         }
         if (data.address !== undefined) {
             updateData.address = data.address ? toTitleCase(data.address) : null;
+        }
+        if (data.area !== undefined) {
+            updateData.area = data.area ? data.area.trim() : null;
         }
         if (data.notes !== undefined) {
             updateData.notes = data.notes || null;
