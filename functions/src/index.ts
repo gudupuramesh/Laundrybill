@@ -550,6 +550,7 @@ export * from "./auth";
 export { cleanupOrderImagesDaily } from "./scheduled/cleanup-order-images";
 
 export * from "./requests/create-public-order";
+export * from "./requests/track-order";
 export * from "./requests/get-public-order-slot-availability";
 export * from "./triggers/on-public-order-created";
 export * from "./triggers/on-order-updated";

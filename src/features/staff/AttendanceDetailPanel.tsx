@@ -6,7 +6,6 @@
 
 import { useState, useMemo } from "react";
 import {
-    LCard,
     LButton,
     LAvatar,
     LSpinner,
@@ -102,64 +101,67 @@ export function AttendanceDetailPanel({ staffId, onClose }: AttendanceDetailPane
     }
 
     return (
-        <div className="h-full overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-background border-b border-border p-4">
-                <div className="flex items-center gap-4">
-                    {onClose && (
-                        <LButton variant="ghost" size="icon-sm" onClick={onClose}>
-                            <ArrowLeft className="h-5 w-5" />
+        <div className="h-full overflow-y-auto bg-[#F4F6FA]">
+            {/* Header Profile Card */}
+            <div className="bg-card border-b border-border/50 px-6 py-8 flex flex-col items-center text-center shadow-sm relative">
+                {onClose && (
+                    <div className="absolute top-4 left-4">
+                        <LButton variant="ghost" size="icon-sm" onClick={onClose} className="hover:bg-muted/50 rounded-full h-8 w-8">
+                            <ArrowLeft className="h-4 w-4" />
                         </LButton>
-                    )}
-                    <LAvatar name={staff.name} size="lg" />
-                    <div>
-                        <h1 className="text-xl font-bold text-foreground">{staff.name}</h1>
-                        <p className="text-sm text-muted-foreground">{staff.phone}</p>
                     </div>
+                )}
+                
+                {/* Avatar */}
+                <div className="mb-4">
+                    <LAvatar name={staff.name} size="xl" />
                 </div>
+                
+                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{staff.name}</h1>
+                <p className="text-sm text-muted-foreground mt-1 font-medium">{staff.phone}</p>
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-4">
+            <div className="p-6 max-w-2xl mx-auto space-y-6">
                 {/* Month Selector */}
-                <div className="flex items-center justify-center gap-4">
-                    <LButton variant="ghost" size="icon-sm" onClick={handlePrevMonth}>
-                        <ChevronLeft className="h-5 w-5" />
+                <div className="flex items-center justify-center gap-4 bg-white rounded-full shadow-sm border border-border/60 py-2 px-4 max-w-fit mx-auto">
+                    <LButton variant="ghost" size="icon-sm" onClick={handlePrevMonth} className="rounded-full">
+                        <ChevronLeft className="h-5 w-5 text-muted-foreground hover:text-foreground" />
                     </LButton>
-                    <span className="text-lg font-semibold text-foreground min-w-[150px] text-center">
+                    <span className="text-lg font-bold text-foreground min-w-[150px] text-center tracking-tight">
                         {format(currentMonth, "MMMM yyyy")}
                     </span>
-                    <LButton variant="ghost" size="icon-sm" onClick={handleNextMonth}>
-                        <ChevronRight className="h-5 w-5" />
+                    <LButton variant="ghost" size="icon-sm" onClick={handleNextMonth} className="rounded-full">
+                        <ChevronRight className="h-5 w-5 text-muted-foreground hover:text-foreground" />
                     </LButton>
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-4 gap-2">
-                    <LCard variant="filled" padding="sm" className="text-center">
-                        <p className="text-2xl font-bold text-success">{summary.present}</p>
-                        <p className="text-xs text-muted-foreground">{t('staff.present')}</p>
-                    </LCard>
-                    <LCard variant="filled" padding="sm" className="text-center">
-                        <p className="text-2xl font-bold text-destructive">{summary.absent}</p>
-                        <p className="text-xs text-muted-foreground">{t('staff.absent')}</p>
-                    </LCard>
-                    <LCard variant="filled" padding="sm" className="text-center">
-                        <p className="text-2xl font-bold text-warning">{summary.half}</p>
-                        <p className="text-xs text-muted-foreground">{t('staff.halfDay')}</p>
-                    </LCard>
-                    <LCard variant="filled" padding="sm" className="text-center">
-                        <p className="text-2xl font-bold text-primary">{summary.leave}</p>
-                        <p className="text-xs text-muted-foreground">{t('staff.leave')}</p>
-                    </LCard>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-white rounded-2xl shadow-sm border border-border/60 p-4 text-center">
+                        <p className="text-3xl font-extrabold text-success tracking-tight">{summary.present}</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t('staff.present')}</p>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-border/60 p-4 text-center">
+                        <p className="text-3xl font-extrabold text-destructive tracking-tight">{summary.absent}</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t('staff.absent')}</p>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-border/60 p-4 text-center">
+                        <p className="text-3xl font-extrabold text-warning tracking-tight">{summary.half}</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t('staff.halfDay')}</p>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-border/60 p-4 text-center">
+                        <p className="text-3xl font-extrabold text-primary tracking-tight">{summary.leave}</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t('staff.leave')}</p>
+                    </div>
                 </div>
 
                 {/* Calendar Grid */}
-                <LCard variant="outlined" padding="md">
+                <div className="bg-white rounded-2xl shadow-sm border border-border/60 p-5">
                     {/* Day Headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
+                    <div className="grid grid-cols-7 gap-1 mb-3">
                         {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
-                            <div key={i} className="text-center text-xs font-medium text-muted-foreground py-1">
+                            <div key={i} className="text-center text-xs font-bold text-muted-foreground py-1 uppercase tracking-wider">
                                 {day}
                             </div>
                         ))}
@@ -215,7 +217,7 @@ export function AttendanceDetailPanel({ staffId, onClose }: AttendanceDetailPane
                             );
                         })}
                     </div>
-                </LCard>
+                </div>
 
                 {/* Legend */}
                 <div className="flex flex-wrap gap-3 justify-center text-xs">

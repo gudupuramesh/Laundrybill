@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F7FD; --c-surface:#FFFFFF; --c-soft:#EAEFFC; --c-surface-2:#F1F3F6;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-brand:#1A4FD6; --c-brand-hover:#1640B4; --c-ink:#0B1330;
+    --c-ring:#2563EB; --c-star:#E8A317;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-violet:#6B3FD4; --c-violet-soft:#EEE9FD; --c-cyan:#0E6E8C; --c-cyan-soft:#E1F3F8; --c-info:#155CC0; --c-info-soft:#E4F0FC; --c-warning:#9A5B00; --c-warning-soft:#FBEFD7; --c-brand-soft:#EAEFFC;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 6px 22px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+    --sh-lg:0 20px 50px rgba(11,19,48,.14);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:8px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  @keyframes lbPop{ from{ transform:scale(.6); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  @media (max-width:780px){ .pb-full{ flex-direction:column !important; } .pb-full > *{ width:100% !important; } .pb-cart{ position:static !important; } }
+</style>
+</helmet>
+
+<div style="background:var(--c-bg); color:var(--c-text); min-height:100vh;">
+
+  <!-- header -->
+  <header style="background:var(--c-surface); border-bottom:1px solid var(--c-border);">
+    <div style="max-width:840px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:12px;">
+      <span style="width:36px; height:36px; flex:none; border-radius:10px; background:var(--c-brand); display:flex; align-items:center; justify-content:center;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="flex:1; min-width:0;"><div style="font-size:17px; font-weight:700; letter-spacing:-.01em;">Bluewave Laundry</div><div style="font-size:11.5px; color:var(--c-text-3);">Fresh clothes, delivered.</div></div>
+      <div style="display:flex; gap:7px;">
+        <sc-for list="{{ socials }}" as="s" hint-placeholder-count="4">
+          <a href="#" aria-label="{{ s.label }}" style="width:34px; height:34px; border-radius:9px; background:var(--c-surface-2); color:var(--c-text-2); display:flex; align-items:center; justify-content:center; text-decoration:none;" style-hover="background:var(--c-brand); color:#fff;">{{ s.icon }}</a>
+        </sc-for>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== SUCCESS ===================== -->
+  <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+    <div style="max-width:480px; margin:40px auto; padding:0 20px;">
+      <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:18px; box-shadow:var(--sh-md); padding:34px 26px; text-align:center;">
+        <span style="width:72px; height:72px; border-radius:50%; background:var(--c-success-soft); color:var(--c-success); display:inline-flex; align-items:center; justify-content:center; animation:lbPop .3s cubic-bezier(.2,1.3,.5,1);"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span>
+        <div style="font-size:22px; font-weight:700; margin-top:16px;">Pickup booked!</div>
+        <div style="font-size:14px; color:var(--c-text-2); margin-top:6px;">Thanks — we've scheduled your pickup. A confirmation has been sent by SMS.</div>
+        <div style="display:inline-flex; align-items:center; gap:8px; margin-top:16px; padding:8px 14px; background:var(--c-surface-2); border-radius:10px;"><span style="font-size:12px; color:var(--c-text-3);">Booking</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px;">#BK-10293</span></div>
+        <div style="display:flex; gap:10px; margin-top:22px;">
+          <button onClick="{{ reset }}" style="flex:1; cursor:pointer; font:inherit; font-size:14px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:11px; padding:12px;" style-hover="background:var(--c-surface-2);">Book another</button>
+          <button style="flex:1; cursor:pointer; font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--c-brand); border:0; border-radius:11px; padding:12px;" style-hover="background:var(--c-brand-hover);">Track order</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== BOOK ===================== -->
+  <sc-if value="{{ isBook }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width:840px; margin:0 auto; padding:26px 20px 48px;">
+      <sc-if value="{{ offerOn }}" hint-placeholder-val="{{ true }}">
+        <div style="background:linear-gradient(135deg,var(--c-brand),#11338E); color:#fff; border-radius:14px; padding:13px 16px; display:flex; align-items:center; gap:12px; margin-bottom:20px; box-shadow:var(--sh-sm);">
+          <span style="font-size:20px;">🎉</span>
+          <div style="flex:1; min-width:0;"><div style="font-size:14.5px; font-weight:700;">{{ offerText }}</div><div style="font-size:12px; opacity:.85;">Apply the code at checkout</div></div>
+          <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:13px; background:rgba(255,255,255,.2); padding:6px 12px; border-radius:8px; border:1px dashed rgba(255,255,255,.55); white-space:nowrap;">{{ offerCode }}</span>
+        </div>
+      </sc-if>
+      <div style="text-align:center; margin-bottom:22px;">
+        <h1 style="font-size:28px; font-weight:700; letter-spacing:-.02em; margin:0 0 6px;">Book a laundry pickup</h1>
+        <p style="font-size:14.5px; color:var(--c-text-2); margin:0;">Free pickup &amp; delivery · ready in 24 hours</p>
+      </div>
+
+      <!-- mode toggle -->
+      <div style="display:flex; gap:6px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:5px; max-width:360px; margin:0 auto 22px; box-shadow:var(--sh-sm);">
+        <button onClick="{{ setQuick }}" aria-pressed="{{ isQuick }}" style="flex:1; cursor:pointer; font:inherit; font-size:13.5px; font-weight:600; padding:10px; border:0; border-radius:9px; background:{{ quickBg }}; color:{{ quickFg }};">⚡ Quick book</button>
+        <button onClick="{{ setFull }}" aria-pressed="{{ isFull }}" style="flex:1; cursor:pointer; font:inherit; font-size:13.5px; font-weight:600; padding:10px; border:0; border-radius:9px; background:{{ fullBg }}; color:{{ fullFg }};">🧺 Full order</button>
+      </div>
+
+      <!-- QUICK -->
+      <sc-if value="{{ isQuick }}" hint-placeholder-val="{{ true }}">
+        <div style="max-width:520px; margin:0 auto; background:var(--c-surface); border:1px solid var(--c-border); border-radius:16px; box-shadow:var(--sh-md); padding:22px;">
+          <div style="font-size:13px; font-weight:600; margin-bottom:10px;">What do you need?</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
+            <sc-for list="{{ svcChips }}" as="c" hint-placeholder-count="5">
+              <button onClick="{{ c.onClick }}" style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:600; padding:9px 14px; border-radius:20px; border:1.5px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};" style-hover="border-color:var(--c-brand);">{{ c.label }}</button>
+            </sc-for>
+          </div>
+          <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Your details</div>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+            <input placeholder="Full name" aria-label="Full name" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);" />
+            <input type="email" placeholder="Email address" aria-label="Email" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);" />
+            <input inputMode="tel" placeholder="Mobile number" aria-label="Mobile" style="width:100%; font-family:'IBM Plex Mono'; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);" />
+          </div>
+          <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;"><label for="q-date" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Pickup date</label><input id="q-date" value="Jun 19, 2026" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);" /></div>
+            <div style="flex:1;"><label for="q-slot" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Time slot</label><select id="q-slot" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);"><option>9:00 – 12:00</option><option>12:00 – 15:00</option><option>15:00 – 18:00</option></select></div>
+          </div>
+          <div style="margin-bottom:14px;"><label for="q-area" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Area</label><select id="q-area" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px;" style-focus="border-color:var(--c-brand);"><sc-for list="{{ areas }}" as="a" hint-placeholder-count="6"><option>{{ a }}</option></sc-for></select></div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Pickup address</label>
+            <button type="button" onClick="{{ useLocation }}" style="width:100%; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13.5px; font-weight:600; color:var(--c-brand); background:var(--c-brand-soft); border:1px solid {{ locBd }}; border-radius:10px; padding:11px;" style-hover="filter:brightness(.98);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/></svg>{{ locLabel }}</button>
+            <sc-if value="{{ located }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:8px; margin-top:8px; padding:9px 11px; background:var(--c-success-soft); border-radius:9px; font-size:12.5px; color:var(--c-success);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>{{ detectedAddr }}</div></sc-if>
+            <div style="font-size:11px; color:var(--c-text-3); text-align:center; margin:9px 0 7px;">or enter your address manually</div>
+            <textarea rows="2" placeholder="Flat / building, street, landmark" aria-label="Address" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px; resize:vertical;" style-focus="border-color:var(--c-brand);"></textarea>
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; background:var(--c-soft); border-radius:10px; padding:11px 13px; margin-bottom:16px;"><span style="color:var(--c-brand);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.5M11 12h1v4h1"/></svg></span><span style="font-size:12.5px; color:var(--c-text-2);">We'll weigh &amp; price your items at pickup — pay on delivery.</span></div>
+          <button onClick="{{ book }}" style="width:100%; cursor:pointer; font:inherit; font-size:16px; font-weight:700; color:#fff; background:var(--c-brand); border:0; border-radius:12px; padding:14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-brand-hover);">Book pickup</button>
+        </div>
+      </sc-if>
+
+      <!-- FULL POS -->
+      <sc-if value="{{ isFull }}" hint-placeholder-val="{{ false }}">
+        <div class="pb-full" style="display:flex; gap:16px; align-items:flex-start;">
+          <div style="flex:1.6; min-width:0;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+              <sc-for list="{{ cats }}" as="c" hint-placeholder-count="5">
+                <button onClick="{{ c.onClick }}" style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:600; padding:8px 13px; border-radius:20px; border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};" style-hover="border-color:var(--c-border-strong);">{{ c.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px;">
+              <sc-for list="{{ catalog }}" as="p" hint-placeholder-count="6">
+                <button onClick="{{ p.onAdd }}" style="cursor:pointer; font:inherit; text-align:left; display:flex; flex-direction:column; background:var(--c-surface); border:1.5px solid {{ p.bd }}; border-radius:13px; overflow:hidden; box-shadow:var(--sh-sm); position:relative;" style-hover="border-color:var(--c-brand);" style-active="transform:scale(.98);">
+                  <div style="aspect-ratio:1.4/1; background:var(--{{ p.soft }}); color:var(--{{ p.ref }}); display:flex; align-items:center; justify-content:center;">{{ p.icon }}</div>
+                  <sc-if value="{{ p.inCart }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:7px; right:7px; min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:var(--c-brand); color:#fff; font-size:12px; font-weight:700; font-family:'IBM Plex Mono'; display:flex; align-items:center; justify-content:center; box-shadow:var(--sh-sm);">{{ p.qty }}</span></sc-if>
+                  <div style="padding:9px 11px 11px;"><div style="font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.name }}</div><div style="margin-top:4px;"><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:14px;">{{ p.price }}</span><span style="font-size:10px; color:var(--c-text-3);"> د.إ {{ p.per }}</span></div></div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <!-- cart -->
+          <div class="pb-cart" style="flex:1; min-width:0; position:sticky; top:16px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:16px; box-shadow:var(--sh-md); overflow:hidden;">
+            <div style="padding:14px 16px; border-bottom:1px solid var(--c-border); display:flex; align-items:center; gap:9px;"><div style="font-size:14px; font-weight:700;">Your order</div><span style="font-size:11px; font-weight:600; color:var(--c-brand); background:var(--c-brand-soft); padding:2px 8px; border-radius:20px; font-family:'IBM Plex Mono';">{{ orderCount }}</span></div>
+            <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ false }}">
+              <div class="lb-scroll" style="max-height:220px; overflow:auto; padding:6px 12px;">
+                <sc-for list="{{ cartLines }}" as="l" hint-placeholder-count="2">
+                  <div style="display:flex; align-items:center; gap:10px; padding:8px 4px;">
+                    <span style="width:34px; height:34px; flex:none; border-radius:8px; background:var(--{{ l.soft }}); color:var(--{{ l.ref }}); display:flex; align-items:center; justify-content:center;">{{ l.icon }}</span>
+                    <div style="flex:1; min-width:0;"><div style="font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ l.name }}</div><div style="font-size:10.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ l.price }} د.إ {{ l.per }}</div></div>
+                    <div style="display:flex; align-items:center; gap:6px;"><button onClick="{{ l.dec }}" aria-label="Remove" style="cursor:pointer; width:25px; height:25px; display:flex; align-items:center; justify-content:center; font:inherit; color:var(--c-text-2); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span style="min-width:16px; text-align:center; font-family:'IBM Plex Mono'; font-weight:700; font-size:12.5px;">{{ l.qty }}</span><button onClick="{{ l.inc }}" aria-label="Add" style="cursor:pointer; width:25px; height:25px; display:flex; align-items:center; justify-content:center; font:inherit; color:#fff; background:var(--c-brand); border:0; border-radius:7px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:26px 18px; text-align:center; color:var(--c-text-3); font-size:12.5px;">Tap items to add them to your order</div>
+            </sc-if>
+            <div style="padding:13px 16px; border-top:1px solid var(--c-border);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:11px;"><span style="font-size:13px; color:var(--c-text-2);">Estimated total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">{{ orderTotal }}<span style="font-size:10px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+              <button onClick="{{ book }}" disabled="{{ bookDisabled }}" style="width:100%; cursor:{{ bookCursor }}; font:inherit; font-size:15px; font-weight:700; color:#fff; background:{{ bookBg }}; border:0; border-radius:11px; padding:13px;" style-hover="filter:brightness(.97);">Continue to pickup</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- testimonials -->
+      <div style="margin-top:40px;">
+        <div style="text-align:center; margin-bottom:16px;"><div style="color:var(--c-star); font-size:16px; letter-spacing:2px;">★★★★★</div><div style="font-size:13px; color:var(--c-text-3); margin-top:4px;">Rated 4.8 by 1,240 happy customers</div></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
+          <sc-for list="{{ testimonials }}" as="t" hint-placeholder-count="3">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px; box-shadow:var(--sh-sm);">
+              <div style="color:var(--c-star); font-size:13px; letter-spacing:1px; margin-bottom:9px;">★★★★★</div>
+              <div style="font-size:13.5px; color:var(--c-text-2); line-height:1.6;">“{{ t.text }}”</div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:14px;"><span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--{{ t.soft }}); color:var(--{{ t.ref }}); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600;">{{ t.initial }}</span><div><div style="font-size:13px; font-weight:600;">{{ t.name }}</div><div style="font-size:11px; color:var(--c-text-3);">{{ t.area }}</div></div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- footer -->
+  <footer style="background:var(--c-surface); border-top:1px solid var(--c-border); padding:24px 20px;">
+    <div style="max-width:840px; margin:0 auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <span style="font-size:13px; font-weight:600;">Bluewave Laundry</span>
+      <span style="font-size:12.5px; color:var(--c-text-3);">· 800-WASH · hello@bluewave.co</span>
+      <div style="margin-left:auto; display:flex; gap:7px;">
+        <sc-for list="{{ socials }}" as="s" hint-placeholder-count="4">
+          <a href="#" aria-label="{{ s.label }}" style="width:32px; height:32px; border-radius:8px; background:var(--c-surface-2); color:var(--c-text-2); display:flex; align-items:center; justify-content:center; text-decoration:none;" style-hover="background:var(--c-brand); color:#fff;">{{ s.icon }}</a>
+        </sc-for>
+      </div>
+    </div>
+    <div style="max-width:840px; margin:12px auto 0; font-size:11.5px; color:var(--c-text-3);">Powered by LaundryBill</div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'book', mode:'quick', svc:'Wash & Fold', cat:'Wash & Fold', cart:{ wf:3 }, located:false };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const G = (s,sz)=> html('<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const SO = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">'+s+'</svg>');
+
+    const gi={ bag:'<path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/>', shirt:'<path d="M8.5 3 5 5.5 6.5 9 8.5 8v12h7V8l2 1L19 5.5 15.5 3l-1.7 1.6a2.8 2.8 0 0 1-3.6 0Z"/>', suit:'<path d="M8 3 6 5v16h12V5l-2-2-4 5-4-5Z"/><path d="M12 8v9"/>', iron:'<path d="M3 13a8 8 0 0 1 8-3h10v5H5a2 2 0 0 1-2-2ZM7 18v2M11 18v2M15 18v2"/>', home:'<path d="M3 11 12 4l9 7M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>', bolt:'<path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z"/>' };
+    const tintSoft={'c-brand':'c-brand-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-warning':'c-warning-soft'};
+
+    const socials=[
+      {label:'Facebook', icon:SO('<path d="M14 9h3V6h-3c-2 0-3 1-3 3v2H9v3h2v6h3v-6h2.5l.5-3H14V9.5c0-.4.2-.5.5-.5Z"/>')},
+      {label:'Instagram', icon:SO('<path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm5 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm5-1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/>')},
+      {label:'WhatsApp', icon:SO('<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm4.3 12.5c-.2.5-1 .9-1.4 1-.4 0-.8.2-2.6-.6-2.2-.9-3.6-3.2-3.7-3.3-.1-.2-.9-1.2-.9-2.3 0-1 .6-1.5.8-1.7.2-.2.4-.3.6-.3h.4c.2 0 .4 0 .5.4l.7 1.6c0 .2.1.3 0 .5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.2 1.6 1.9 1 .8 1.7 1 2 1.2.2 0 .4 0 .5-.2l.6-.7c.2-.2.3-.2.6-.1l1.6.8c.2.1.4.2.4.3.1.2.1.6 0 1Z"/>')},
+      {label:'X', icon:SO('<path d="M4 3h4l5 7 5-7h2l-6 8.5L21 21h-4l-5-7-5 7H5l6-8.5L4 3Z"/>')},
+    ];
+    const areas=['Downtown','Jubilee Hills','Banjara Hills','Madhapur','Gachibowli','Kukatpally','Begumpet'];
+
+    const SC=['Wash & Fold','Dry Cleaning','Ironing','Household','Express'];
+    const svcChips=SC.map(label=>{ const on=label===this.state.svc;
+      return { label, onClick:()=>this.setState({svc:label}), bg:on?'var(--c-brand-soft)':'#fff', bd:on?'var(--c-brand)':'var(--c-border-strong)', fg:on?'var(--c-brand)':'var(--c-text-2)' }; });
+    const cats=SC.map(label=>{ const on=label===this.state.cat;
+      return { label, onClick:()=>this.setState({cat:label}), bg:on?'var(--c-brand)':'#fff', bd:on?'var(--c-brand)':'var(--c-border)', fg:on?'#fff':'var(--c-text-2)' }; });
+
+    const PROD={
+      'Wash & Fold':[['wf','Wash & Fold','6.00','/ kg','c-brand',gi.bag],['ts','T-Shirt','3.50','/ pc','c-info',gi.shirt],['tr','Trousers','5.00','/ pc','c-cyan',gi.shirt],['bs','Bedsheet','7.00','/ pc','c-violet',gi.bag]],
+      'Dry Cleaning':[['su','Suit (2-pc)','22.00','/ pc','c-violet',gi.suit],['bl','Blazer','14.00','/ pc','c-brand',gi.suit],['dr','Dress','18.00','/ pc','c-info',gi.shirt]],
+      'Ironing':[['sh','Shirt press','2.00','/ pc','c-info',gi.iron],['trp','Trouser press','2.50','/ pc','c-cyan',gi.iron],['ku','Kurta press','3.00','/ pc','c-violet',gi.iron]],
+      'Household':[['cu','Curtains','12.00','/ pc','c-cyan',gi.home],['bk','Blanket','15.00','/ pc','c-brand',gi.home]],
+      'Express':[['ex','Express shirt','5.00','/ pc','c-warning',gi.bolt],['exs','Express suit','30.00','/ pc','c-violet',gi.suit]],
+    };
+    const ALL={}; Object.values(PROD).flat().forEach(it=>{ ALL[it[0]]={price:parseFloat(it[2]), name:it[1], per:it[3], ref:it[4], icon:it[5]}; });
+    const cart=this.state.cart;
+    const set=(id,d)=>this.setState(s=>{ const n=(s.cart[id]||0)+d; const c={...s.cart}; if(n<=0) delete c[id]; else c[id]=n; return {cart:c}; });
+
+    const catalog=(PROD[this.state.cat]||[]).map(p=>({ name:p[1], price:p[2], per:p[3]==='/ kg'?'kg':'pc', icon:G(p[5],38), ref:p[4], soft:tintSoft[p[4]],
+      inCart:(cart[p[0]]||0)>0, qty:String(cart[p[0]]||0), bd:(cart[p[0]]||0)>0?'var(--c-brand)':'var(--c-border)', onAdd:()=>set(p[0],1) }));
+
+    const ids=Object.keys(cart);
+    const cartLines=ids.map(id=>{ const r=ALL[id]; return { name:r.name, price:r.price.toFixed(2), per:r.per==='/ kg'?'kg':'pc', icon:G(r.icon,16), ref:r.ref, soft:tintSoft[r.ref], qty:String(cart[id]), inc:()=>set(id,1), dec:()=>set(id,-1) }; });
+    const orderCount=ids.reduce((a,id)=>a+cart[id],0);
+    const orderTotalN=ids.reduce((a,id)=>a+ALL[id].price*cart[id],0);
+
+    return {
+      socials, areas,
+      offerOn:true, offerText:'20% OFF your first order', offerCode:'FRESH20',
+      located:this.state.located, useLocation:()=>this.setState({located:true}),
+      locLabel:this.state.located?'Location detected':'Use my current location',
+      locBd:this.state.located?'var(--c-success)':'transparent', detectedAddr:'Flat 2306, Main Road, Hyderabad 502100',
+      isBook:this.state.view==='book', isSuccess:this.state.view==='success',
+      isQuick:this.state.mode==='quick', isFull:this.state.mode==='full',
+      setQuick:()=>this.setState({mode:'quick'}), setFull:()=>this.setState({mode:'full'}),
+      quickBg:this.state.mode==='quick'?'var(--c-brand)':'transparent', quickFg:this.state.mode==='quick'?'#fff':'var(--c-text-3)',
+      fullBg:this.state.mode==='full'?'var(--c-brand)':'transparent', fullFg:this.state.mode==='full'?'#fff':'var(--c-text-3)',
+      svcChips, cats, catalog, cartLines, orderCount:String(orderCount), orderTotal:orderTotalN.toFixed(2),
+      hasItems:orderCount>0, empty:orderCount===0,
+      bookDisabled: orderCount===0?'true':null, bookBg:orderCount===0?'var(--c-border-strong)':'var(--c-brand)', bookCursor:orderCount===0?'not-allowed':'pointer',
+      book:()=>this.setState({view:'success'}),
+      reset:()=>this.setState({view:'book', cart:{}}),
+      testimonials:[
+        {text:'So easy — booked in a minute and my clothes came back perfect. Love the free pickup.', name:'Lavanya', area:'Downtown', initial:'L', ref:'c-brand', soft:'c-brand-soft'},
+        {text:'The full order option is great, I can pick exactly what I need. Fast and friendly.', name:'Marcus', area:'Jubilee Hills', initial:'M', ref:'c-violet', soft:'c-violet-soft'},
+        {text:'Best laundry service in the city. Reliable drivers and great prices.', name:'Hana', area:'Banjara Hills', initial:'H', ref:'c-cyan', soft:'c-cyan-soft'},
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

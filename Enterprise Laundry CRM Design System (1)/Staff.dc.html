@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1080px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ============================ LIST VIEW ============================ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+        <div style="display:flex; align-items:baseline; gap:9px;">
+          <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Staff</span>
+          <span style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">24 members</span>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="position:relative;">
+          <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <input type="search" placeholder="Search staff…" style="width:220px; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:8px 11px 8px 33px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+        </div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add Staff</button>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <!-- KPI row -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;">
+          <sc-for list="{{ listKpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:12px;">
+              <span style="width:38px; height:38px; flex:none; border-radius:10px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span>
+              <div>
+                <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:21px; letter-spacing:-.02em;">{{ k.value }}</div>
+                <div style="font-size:11.5px; color:var(--c-text-3);">{{ k.label }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- roster table -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--c-border);">
+            <div style="font-size:14px; font-weight:600;">Team roster</div>
+            <div style="margin-left:auto; display:flex; gap:7px;">
+              <sc-for list="{{ roleFilters }}" as="f" hint-placeholder-count="5">
+                <button style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid {{ f.border }}; background:{{ f.bg }}; color:{{ f.fg }};" style-hover="border-color:var(--c-border-strong);">{{ f.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:840px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:9px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Name</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Role</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Branch</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Contact</th>
+                  <th style="text-align:right; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Attendance</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                  <th style="padding:9px 18px; border-bottom:1px solid var(--c-border); width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ staff }}" as="s" hint-placeholder-count="8">
+                  <tr onClick="{{ s.onOpen }}" tabIndex="0" onKeyDown="{{ s.onKey }}" role="button" style="border-bottom:1px solid var(--c-border); cursor:pointer;" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:10px 18px;">
+                      <div style="display:flex; align-items:center; gap:11px;">
+                        <span style="width:34px; height:34px; flex:none; border-radius:50%; background:var(--{{ s.avSoft }}); color:var(--{{ s.avRef }}); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">{{ s.initials }}</span>
+                        <div><div style="font-weight:600;">{{ s.name }}</div><div style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ s.empId }}</div></div>
+                      </div>
+                    </td>
+                    <td style="padding:10px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--{{ s.roleRef }}); background:var(--{{ s.roleSoft }}); padding:3px 9px; border-radius:20px;">{{ s.role }}</span></td>
+                    <td style="padding:10px 14px; color:var(--c-text-2);">{{ s.branch }}</td>
+                    <td style="padding:10px 14px; color:var(--c-text-2); font-family:'IBM Plex Mono'; font-size:12.5px;">{{ s.phone }}</td>
+                    <td style="padding:10px 14px;">
+                      <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
+                        <div style="width:54px; height:6px; background:var(--c-surface-3); border-radius:6px; overflow:hidden;"><div style="height:100%; width:{{ s.attW }}; background:var(--{{ s.attColor }}); border-radius:6px;"></div></div>
+                        <span style="font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px; width:32px; text-align:right;">{{ s.attendance }}</span>
+                      </div>
+                    </td>
+                    <td style="padding:10px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:var(--{{ s.statusSoft }}); color:var(--{{ s.statusRef }});"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ s.statusRef }});"></span>{{ s.statusLabel }}</span></td>
+                    <td style="padding:10px 18px; text-align:right; color:var(--c-text-3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============================ DETAIL VIEW ============================ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:12px;">
+        <button onClick="{{ goList }}" aria-label="Back to staff list" style="cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <nav aria-label="Breadcrumb" style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--c-text-3);">
+          <button onClick="{{ goList }}" style="cursor:pointer; font:inherit; font-size:13px; color:var(--c-text-2); background:transparent; border:0;" style-hover="color:var(--c-primary);">Staff</button><span>/</span>
+          <span style="color:var(--c-text); font-weight:600;" aria-current="page">{{ d.name }}</span>
+        </nav>
+        <div style="flex:1;"></div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</button>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <!-- profile header -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px 22px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:18px; margin-bottom:16px;">
+          <span style="width:60px; height:60px; flex:none; border-radius:16px; background:var(--{{ d.avSoft }}); color:var(--{{ d.avRef }}); display:flex; align-items:center; justify-content:center; font-size:21px; font-weight:600;">{{ d.initials }}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="font-size:21px; font-weight:700; letter-spacing:-.01em;">{{ d.name }}</span>
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--{{ d.roleRef }}); background:var(--{{ d.roleSoft }}); padding:3px 10px; border-radius:20px;">{{ d.role }}</span>
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--{{ d.statusRef }}); background:var(--{{ d.statusSoft }}); padding:3px 10px; border-radius:20px;"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ d.statusRef }});"></span>{{ d.statusLabel }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:7px; font-size:12.5px; color:var(--c-text-3); flex-wrap:wrap;">
+              <span style="font-family:'IBM Plex Mono';">{{ d.empId }}</span><span>·</span><span>{{ d.branch }} branch</span><span>·</span><span>Joined {{ d.joined }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button aria-label="Call" style="cursor:pointer; width:38px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:9px;" style-hover="filter:brightness(.96);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></button>
+            <button aria-label="Message" style="cursor:pointer; width:38px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--c-success); background:var(--c-success-soft); border:0; border-radius:9px;" style-hover="filter:brightness(.96);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- stat tiles -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px;">
+          <sc-for list="{{ d.stats }}" as="st" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ st.label }}</div>
+              <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:23px; letter-spacing:-.02em; margin-top:8px; color:{{ st.color }};">{{ st.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- two columns -->
+        <div class="lb-row" style="display:flex; gap:16px;">
+          <!-- LEFT -->
+          <div style="flex:1.6; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- attendance -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; margin-bottom:15px;">
+                <div style="font-size:14px; font-weight:600;">Attendance</div>
+                <span style="margin-left:auto; font-size:11.5px; color:var(--c-text-3);">last 14 working days</span>
+              </div>
+              <div style="display:flex; gap:6px; margin-bottom:14px;">
+                <sc-for list="{{ d.dots }}" as="dot" hint-placeholder-count="14">
+                  <div style="flex:1; height:32px; border-radius:6px; background:var(--{{ dot.soft }}); display:flex; align-items:center; justify-content:center;" title="{{ dot.label }}"><span style="width:8px; height:8px; border-radius:50%; background:var(--{{ dot.ref }});"></span></div>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:12px;">
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--c-success);"></span><span style="color:var(--c-text-2);">Present</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.present }}</span></span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--c-warning);"></span><span style="color:var(--c-text-2);">Late</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.late }}</span></span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--c-error);"></span><span style="color:var(--c-text-2);">Absent</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.absent }}</span></span>
+                <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--c-text-3);"></span><span style="color:var(--c-text-2);">Off</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.off }}</span></span>
+              </div>
+            </div>
+            <!-- activity -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Recent activity</div>
+              <sc-for list="{{ d.activity }}" as="a" hint-placeholder-count="5">
+                <div style="display:flex; gap:13px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; flex:none;">
+                    <span style="width:26px; height:26px; border-radius:50%; background:var(--{{ a.soft }}); color:var(--{{ a.ref }}); display:flex; align-items:center; justify-content:center;">{{ a.icon }}</span>
+                    <span style="width:2px; flex:1; background:var(--c-border); display:{{ a.line }}; min-height:12px;"></span>
+                  </div>
+                  <div style="flex:1; padding-bottom:{{ a.pad }};">
+                    <div style="display:flex; align-items:baseline; gap:10px;">
+                      <span style="font-size:13.5px; font-weight:500;">{{ a.title }}</span>
+                      <span style="margin-left:auto; font-size:11px; color:var(--c-text-3); white-space:nowrap; font-family:'IBM Plex Mono';">{{ a.time }}</span>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- RIGHT -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- contact -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">CONTACT &amp; INFO</div>
+              <div style="display:flex; flex-direction:column; gap:13px;">
+                <div style="display:flex; align-items:center; gap:11px;"><span style="color:var(--c-text-3); flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></span><span style="font-family:'IBM Plex Mono'; font-size:13px;">{{ d.phone }}</span></div>
+                <div style="display:flex; align-items:center; gap:11px;"><span style="color:var(--c-text-3); flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><span style="font-size:13px; color:var(--c-text-2);">{{ d.email }}</span></div>
+                <div style="display:flex; align-items:flex-start; gap:11px;"><span style="color:var(--c-text-3); flex:none; margin-top:1px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><span style="font-size:13px; color:var(--c-text-2);">{{ d.address }}</span></div>
+                <div style="display:flex; align-items:center; gap:11px; padding-top:12px; border-top:1px solid var(--c-border);"><span style="color:var(--c-text-3); flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg></span><div><div style="font-size:13px; font-weight:500;">{{ d.emergency }}</div><div style="font-size:11px; color:var(--c-text-3);">Emergency contact</div></div></div>
+              </div>
+            </div>
+            <!-- payroll -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; margin-bottom:14px;">
+                <span style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3);">PAYROLL</span>
+                <span style="margin-left:auto; font-size:10.5px; font-weight:600; color:var(--{{ d.payRef }}); background:var(--{{ d.paySoft }}); padding:3px 9px; border-radius:20px;">{{ d.payStatus }}</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:11px; font-size:13.5px;">
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Monthly salary</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.salary }}<span style="font-size:10px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Earned this period</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.earned }}<span style="font-size:10px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-top:11px; border-top:1px solid var(--c-border);"><span style="color:var(--c-text-2);">Next payout</span><span style="font-weight:600;">{{ d.payDate }}</span></div>
+              </div>
+            </div>
+            <!-- schedule -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">SHIFT SCHEDULE</div>
+              <div style="display:flex; flex-direction:column; gap:7px;">
+                <sc-for list="{{ d.schedule }}" as="sc" hint-placeholder-count="7">
+                  <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; background:{{ sc.bg }};">
+                    <span style="width:34px; font-size:12px; font-weight:600; color:{{ sc.dayColor }};">{{ sc.day }}</span>
+                    <span style="font-family:'IBM Plex Mono'; font-size:12.5px; color:{{ sc.timeColor }};">{{ sc.time }}</span>
+                    <sc-if value="{{ sc.isToday }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto; font-size:10px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">Today</span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'list', selected:'LB-001' };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const TI = (s)=> html('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',1],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({
+      label, icon:S(p),
+      current: active ? 'page' : 'false',
+      weight: active ? '600' : '500',
+      fg: active ? 'var(--c-primary)' : 'var(--c-text-2)',
+      bg: active ? 'var(--c-primary-soft)' : 'transparent',
+    }));
+
+    const ROLE = {
+      Manager:{ref:'c-primary', soft:'c-primary-soft'},
+      'Front Desk':{ref:'c-info', soft:'c-info-soft'},
+      Washer:{ref:'c-cyan', soft:'c-cyan-soft'},
+      Presser:{ref:'c-violet', soft:'c-violet-soft'},
+      Driver:{ref:'c-success', soft:'c-success-soft'},
+    };
+    const STATUS = {
+      active:{label:'Active', ref:'c-success', soft:'c-success-soft'},
+      shift:{label:'On shift', ref:'c-success', soft:'c-success-soft'},
+      leave:{label:'On leave', ref:'c-warning', soft:'c-warning-soft'},
+      off:{label:'Off today', ref:'c-text-3', soft:'c-surface-3'},
+    };
+    const AV = ['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const avSoft = {'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+
+    const attColor = (n)=> n>=95 ? 'c-success' : (n>=88 ? 'c-warning' : 'c-error');
+
+    const recs = [
+      {id:'LB-001', name:'Ramesh Gudupu', initials:'RG', role:'Manager', branch:'Downtown', phone:'998 900 1201', email:'ramesh@laundrybill.co', address:'Flat 2306, Main Road, Hyderabad', emergency:'Sita Gudupu · 998 900 4500', joined:'Mar 2022', att:98, status:'active', salary:'4,800', earned:'4,512', payStatus:'On track', payDate:'Jun 30', s1:'312', s2:'99%', s3:'46h'},
+      {id:'LB-002', name:'Suresh Kumar', initials:'SK', role:'Driver', branch:'Downtown', phone:'998 770 8842', email:'suresh.k@laundrybill.co', address:'House 14, Jubilee Hills, Hyderabad', emergency:'Anita Kumar · 998 770 1100', joined:'Jul 2022', att:95, status:'shift', salary:'2,600', earned:'2,470', payStatus:'On track', payDate:'Jun 30', s1:'188', s2:'96%', s3:'42h'},
+      {id:'LB-003', name:'Imran Ali', initials:'IA', role:'Driver', branch:'Uptown', phone:'998 661 2390', email:'imran.ali@laundrybill.co', address:'Plot 9, Banjara Hills, Hyderabad', emergency:'Zoya Ali · 998 661 7720', joined:'Jan 2023', att:88, status:'leave', salary:'2,600', earned:'1,980', payStatus:'Pending', payDate:'Jun 30', s1:'141', s2:'91%', s3:'0h'},
+      {id:'LB-004', name:'Priya Nair', initials:'PN', role:'Front Desk', branch:'Downtown', phone:'998 412 5567', email:'priya.n@laundrybill.co', address:'Apt 7B, Madhapur, Hyderabad', emergency:'Ravi Nair · 998 412 9001', joined:'Sep 2022', att:97, status:'active', salary:'2,900', earned:'2,810', payStatus:'On track', payDate:'Jun 30', s1:'254', s2:'98%', s3:'44h'},
+      {id:'LB-005', name:'Anil Reddy', initials:'AR', role:'Washer', branch:'Plant', phone:'998 220 3340', email:'anil.r@laundrybill.co', address:'Qtr 22, Kukatpally, Hyderabad', emergency:'Latha Reddy · 998 220 8870', joined:'Nov 2021', att:92, status:'active', salary:'2,200', earned:'2,030', payStatus:'On track', payDate:'Jun 30', s1:'—', s2:'94%', s3:'48h'},
+      {id:'LB-006', name:'Fatima Sheikh', initials:'FS', role:'Presser', branch:'Plant', phone:'998 119 6678', email:'fatima.s@laundrybill.co', address:'Lane 5, Tolichowki, Hyderabad', emergency:'Karim Sheikh · 998 119 2230', joined:'Feb 2023', att:96, status:'active', salary:'2,300', earned:'2,225', payStatus:'On track', payDate:'Jun 30', s1:'—', s2:'97%', s3:'45h'},
+      {id:'LB-007', name:'Mohan Das', initials:'MD', role:'Front Desk', branch:'Uptown', phone:'998 503 7781', email:'mohan.d@laundrybill.co', address:'Flat 19, Begumpet, Hyderabad', emergency:'Geeta Das · 998 503 1190', joined:'Aug 2023', att:90, status:'off', salary:'2,900', earned:'2,640', payStatus:'On track', payDate:'Jun 30', s1:'203', s2:'93%', s3:'0h'},
+      {id:'LB-008', name:'Lakshmi V', initials:'LV', role:'Washer', branch:'Plant', phone:'998 884 2215', email:'lakshmi.v@laundrybill.co', address:'Qtr 8, Miyapur, Hyderabad', emergency:'Naveen V · 998 884 6650', joined:'Apr 2023', att:93, status:'active', salary:'2,200', earned:'2,090', payStatus:'On track', payDate:'Jun 30', s1:'—', s2:'95%', s3:'47h'},
+    ];
+
+    const staff = recs.map((r,i)=>{
+      const role = ROLE[r.role], stt = STATUS[r.status], av = AV[i % AV.length];
+      return {
+        name:r.name, initials:r.initials, empId:r.id, branch:r.branch, phone:r.phone,
+        role:r.role, roleRef:role.ref, roleSoft:role.soft,
+        statusLabel:stt.label, statusRef:stt.ref, statusSoft:stt.soft,
+        attendance:r.att+'%', attW:r.att+'%', attColor:attColor(r.att),
+        avRef:av, avSoft:avSoft[av],
+        onOpen: ()=>this.setState({view:'detail', selected:r.id}),
+        onKey: (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); this.setState({view:'detail', selected:r.id}); } },
+      };
+    });
+
+    const listKpis = [
+      {label:'Total staff', value:'24', icon:I('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>'), ref:'c-primary', softRef:'c-primary-soft'},
+      {label:'On shift now', value:'16', icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), ref:'c-success', softRef:'c-success-soft'},
+      {label:'On leave', value:'2', icon:I('<path d="M3 7h18v13H3zM3 11h18M8 3v4M16 3v4"/>'), ref:'c-warning', softRef:'c-warning-soft'},
+      {label:'Avg attendance', value:'94%', icon:I('<path d="M3 17l5-5 4 3 6-7"/><path d="M3 21h18"/>'), ref:'c-info', softRef:'c-info-soft'},
+    ];
+    const roleFilters = ['All','Manager','Front Desk','Washer','Driver'].map((label,i)=>({
+      label, bg: i===0?'var(--c-primary-soft)':'var(--c-surface)',
+      border: i===0?'var(--c-primary-soft)':'var(--c-border)',
+      fg: i===0?'var(--c-primary)':'var(--c-text-2)',
+    }));
+
+    // ===== detail record =====
+    const r = recs.find(x=>x.id===this.state.selected) || recs[0];
+    const role = ROLE[r.role], stt = STATUS[r.status];
+    const avIdx = recs.indexOf(r), av = AV[avIdx % AV.length];
+
+    // attendance dots from att pct (deterministic)
+    const dotState = (i)=>{
+      if(i===6 || i===13) return 'off';
+      if(r.status==='leave' && i>=11) return 'absent';
+      const seed = (i*7 + avIdx*3) % 100;
+      if(r.att < 92 && seed < 14) return 'absent';
+      if(seed < (100-r.att)*1.3) return 'late';
+      return 'present';
+    };
+    const DS = { present:{ref:'c-success', soft:'c-success-soft', label:'Present'}, late:{ref:'c-warning', soft:'c-warning-soft', label:'Late'}, absent:{ref:'c-error', soft:'c-error-soft', label:'Absent'}, off:{ref:'c-text-3', soft:'c-surface-3', label:'Off'} };
+    const dotsRaw = Array.from({length:14}, (_,i)=>dotState(i));
+    const dots = dotsRaw.map(s=>({ ref:DS[s].ref, soft:DS[s].soft, label:DS[s].label }));
+    const count = (s)=>dotsRaw.filter(x=>x===s).length;
+
+    const verbByRole = {
+      Manager:['Approved a refund','Closed evening register','Reviewed staff roster'],
+      'Front Desk':['Created order #XBPE-00031','Collected payment','Registered new customer'],
+      Washer:['Finished wash batch #B-204','Loaded machine 3','Logged detergent stock'],
+      Presser:['Pressed 18 garments','Completed finishing for order #XBPE-00025','Flagged a damaged item'],
+      Driver:['Delivered order #XBPE-00027','Picked up from Lavanya','Started route #3'],
+    };
+    const verbs = verbByRole[r.role] || verbByRole['Front Desk'];
+    const actIcon = r.status==='leave'
+      ? TI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')
+      : TI('<path d="M5 12l4 4 10-10"/>');
+    const actsRaw = [
+      {title:'Clocked in', time:'8:58 AM', soft:'c-success-soft', ref:'c-success', icon:TI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')},
+      {title:verbs[0], time:'10:11 AM', soft:'c-primary-soft', ref:'c-primary', icon:actIcon},
+      {title:verbs[1], time:'12:40 PM', soft:'c-primary-soft', ref:'c-primary', icon:actIcon},
+      {title:verbs[2], time:'3:25 PM', soft:'c-primary-soft', ref:'c-primary', icon:actIcon},
+      {title:'Break logged', time:'4:00 PM', soft:'c-surface-3', ref:'c-text-3', icon:TI('<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/>')},
+    ];
+    const activity = actsRaw.map((a,i)=>({ ...a, line: i===actsRaw.length-1?'none':'block', pad: i===actsRaw.length-1?'2px':'16px' }));
+
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const onLeave = r.status==='leave';
+    const schedule = days.map((day,i)=>{
+      const isToday = i===1;
+      const off = i===6 || (onLeave && (i===1||i===2));
+      return {
+        day, isToday,
+        time: off ? 'Off' : '9:00 – 18:00',
+        bg: isToday ? 'var(--c-primary-soft)' : 'transparent',
+        dayColor: isToday ? 'var(--c-primary)' : 'var(--c-text)',
+        timeColor: off ? 'var(--c-text-3)' : (isToday ? 'var(--c-primary)' : 'var(--c-text-2)'),
+      };
+    });
+
+    const PAY = { 'On track':{ref:'c-success', soft:'c-success-soft'}, 'Pending':{ref:'c-warning', soft:'c-warning-soft'} };
+    const pay = PAY[r.payStatus] || PAY['On track'];
+
+    const d = {
+      name:r.name, initials:r.initials, empId:r.id, branch:r.branch, joined:r.joined,
+      role:r.role, roleRef:role.ref, roleSoft:role.soft,
+      statusLabel:stt.label, statusRef:stt.ref, statusSoft:stt.soft,
+      avRef:av, avSoft:avSoft[av],
+      phone:r.phone, email:r.email, address:r.address, emergency:r.emergency,
+      salary:r.salary, earned:r.earned, payStatus:r.payStatus, payRef:pay.ref, paySoft:pay.soft, payDate:r.payDate,
+      stats:[
+        {label:'Attendance', value:r.att+'%', color:'var(--'+attColor(r.att)+')'},
+        {label: r.role==='Driver' ? 'Deliveries' : (r.role==='Manager'||r.role==='Front Desk' ? 'Orders handled' : 'Items processed'), value:r.s1, color:'var(--c-text)'},
+        {label:'On-time rate', value:r.s2, color:'var(--c-text)'},
+        {label:'Hours this week', value:r.s3, color:'var(--c-text)'},
+      ],
+      dots, present:count('present'), late:count('late'), absent:count('absent'), off:count('off'),
+      activity, schedule,
+    };
+
+    return {
+      navItems,
+      isList: this.state.view==='list',
+      isDetail: this.state.view==='detail',
+      goList: ()=>this.setState({view:'list'}),
+      staff, listKpis, roleFilters, d,
+    };
+  }
+}
+</script>
+</body>
+</html>

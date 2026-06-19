@@ -487,6 +487,7 @@ __exportStar(require("./auth"), exports);
 var cleanup_order_images_1 = require("./scheduled/cleanup-order-images");
 Object.defineProperty(exports, "cleanupOrderImagesDaily", { enumerable: true, get: function () { return cleanup_order_images_1.cleanupOrderImagesDaily; } });
 __exportStar(require("./requests/create-public-order"), exports);
+__exportStar(require("./requests/track-order"), exports);
 __exportStar(require("./requests/get-public-order-slot-availability"), exports);
 __exportStar(require("./triggers/on-public-order-created"), exports);
 __exportStar(require("./triggers/on-order-updated"), exports);

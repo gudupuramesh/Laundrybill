@@ -1,259 +1,193 @@
 /**
- * Apps Page
- * 
- * Shows all available LaundryBoss apps that the owner can share with their team.
- * Each app card has a share button for WhatsApp sharing.
- * 
- * Design: Follows dashboard-like layout with proper spacing and LCard usage
+ * Apps — 1000% to the design system (Apps.dc.html):
+ * two-pane (app list + detail). Header · platforms · features · access & roles ·
+ * release/share. Real actions: Share via WhatsApp / Copy link / Open; live login
+ * counts from useTeamMembers. (Feature/platform "toggles" are informational —
+ * the app suite has no per-app flag backend, so they show what each app includes.)
  */
 
-import { useState } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { PageWrapper } from "@/components/PageWrapper";
-import {
-    LCard,
-    LButton,
-    LBadge,
-    LHelpButton,
-} from "@/components/laundry";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
-import {
-    Users,
-    Truck,
-    Factory,
-    Share2,
-    ExternalLink,
-    Check,
-    Smartphone,
-    Copy,
-    Info,
-    CheckCircle2,
-    Clock
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useTeamMembers } from "@/hooks/use-team-members";
+import { Smartphone, Truck, Factory, Share2, ExternalLink, Check, Copy, Apple, Globe, MonitorSmartphone, ClipboardList, Users, Clock, Tag, Scan, Camera, MapPin, Boxes } from "lucide-react";
 
-interface AppInfo {
-    id: string;
-    name: string;
-    shortName: string;
-    description: string;
-    icon: React.ReactNode;
-    iconBg: string;
-    path: string;
-    status: "available" | "coming_soon";
+const MONO = "'IBM Plex Mono'";
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
+const secLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 14 };
+
+type Plat = { key: "ios" | "android" | "web"; name: string; detail: string | null };
+type Feature = { name: string; desc: string; icon: ReactNode; tint: string };
+interface AppDef {
+    id: string; name: string; role: string; tint: string; tagline: string; path: string; version: string; updated: string;
+    icon: ReactNode; platforms: Plat[]; features: Feature[]; access: string[];
+    countKey?: "staff" | "agent" | "plant";
 }
 
-// Apps are defined inside the component to access translations
+const APPS: AppDef[] = [
+    {
+        id: "staff", name: "Staff App", role: "Front desk", tint: "c-info", path: "/staff", version: "v3.8.0", updated: "Jun 11, 2026",
+        tagline: "Counter operations — take orders, update status, look up customers and clock in.",
+        icon: <Smartphone size={26} />, countKey: "staff",
+        platforms: [{ key: "ios", name: "iOS", detail: "iOS 14+ · 58 MB" }, { key: "android", name: "Android", detail: "Android 8+ · 44 MB" }, { key: "web", name: "Web", detail: "Browser · responsive" }],
+        features: [
+            { name: "POS order intake", desc: "Create & price new orders", icon: <ClipboardList size={17} />, tint: "c-primary" },
+            { name: "Status updates", desc: "Move orders through stages", icon: <Clock size={17} />, tint: "c-info" },
+            { name: "Customer lookup", desc: "Search profiles & history", icon: <Users size={17} />, tint: "c-violet" },
+            { name: "Attendance clock", desc: "Clock in / out on shift", icon: <Clock size={17} />, tint: "c-success" },
+            { name: "Tag printing", desc: "Print garment tags & receipts", icon: <Tag size={17} />, tint: "c-warning" },
+        ],
+        access: ["Staff", "Manager"],
+    },
+    {
+        id: "agent", name: "Delivery Agent", role: "Pickup & delivery", tint: "c-success", path: "/agent", version: "v3.1.2", updated: "Jun 13, 2026",
+        tagline: "On the road — assigned pickups & deliveries, navigation, proof photos and cash collection.",
+        icon: <Truck size={26} />, countKey: "agent",
+        platforms: [{ key: "ios", name: "iOS", detail: "iOS 14+ · 49 MB" }, { key: "android", name: "Android", detail: "Android 8+ · 38 MB" }, { key: "web", name: "Web", detail: null }],
+        features: [
+            { name: "My route", desc: "Assigned pickups & deliveries", icon: <MapPin size={17} />, tint: "c-primary" },
+            { name: "Navigation", desc: "Open address in maps", icon: <MapPin size={17} />, tint: "c-info" },
+            { name: "Proof photos", desc: "Capture pickup / delivery proof", icon: <Camera size={17} />, tint: "c-violet" },
+            { name: "Collect payment", desc: "Mark cash collected on delivery", icon: <Check size={17} />, tint: "c-success" },
+        ],
+        access: ["Delivery Agent"],
+    },
+    {
+        id: "plant", name: "Plant App", role: "Washers / Pressers", tint: "c-cyan", path: "/plant", version: "v2.5.3", updated: "Jun 09, 2026",
+        tagline: "Production floor — batch queue, barcode scanning, stage updates and processing photos.",
+        icon: <Factory size={26} />, countKey: "plant",
+        platforms: [{ key: "ios", name: "iOS", detail: null }, { key: "android", name: "Android", detail: "Android 9+ tablet · 51 MB" }, { key: "web", name: "Web", detail: "Browser · responsive" }],
+        features: [
+            { name: "Production queue", desc: "Items by stage & priority", icon: <Boxes size={17} />, tint: "c-primary" },
+            { name: "Barcode / QR scan", desc: "Scan tags to update stage", icon: <Scan size={17} />, tint: "c-info" },
+            { name: "Processing photos", desc: "Log damage & processing proof", icon: <Camera size={17} />, tint: "c-violet" },
+            { name: "Tag generation", desc: "Generate basket & item tags", icon: <Tag size={17} />, tint: "c-warning" },
+        ],
+        access: ["Plant Operator"],
+    },
+];
+
+const platIcon = (k: Plat["key"]): ReactNode => (k === "ios" ? <Apple size={18} /> : k === "android" ? <MonitorSmartphone size={18} /> : <Globe size={18} />);
 
 export function AppsPage() {
     const { t } = useTranslation();
-    const isMobile = useIsMobile();
     const { shopName } = useAuth();
-    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const { addToast } = useLToast();
+    const { staffCount, agentCount, plantCount } = useTeamMembers();
+    const [selectedId, setSelectedId] = useState("staff");
+    const [copied, setCopied] = useState(false);
 
-    // Get the base URL for sharing
-    const getAppUrl = (path: string) => {
-        const baseUrl = window.location.origin;
-        return `${baseUrl}${path}`;
+    const counts: Record<string, number> = { staff: staffCount, agent: agentCount, plant: plantCount };
+    const d = APPS.find((a) => a.id === selectedId) || APPS[0];
+    const url = `${window.location.origin}${d.path}`;
+
+    const copyLink = () => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+    const openApp = () => window.open(url, "_blank");
+    const share = () => {
+        const msg = `${shopName || "Our shop"} is using LaundryBill!\n\n${d.name}: ${url}\n\n1. Open the link\n2. Sign in with your invite code\n3. Start working`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        addToast({ type: "success", title: t("apps.opening", "Opening WhatsApp…") });
     };
 
-    const apps: AppInfo[] = [
-        {
-            id: "staff",
-            name: t('apps.staffApp', 'Staff App'),
-            shortName: "Staff",
-            description: t('apps.staffAppDesc', 'Take orders, manage customers, process payments'),
-            icon: <Users className="h-6 w-6 text-white" />,
-            iconBg: "bg-blue-500",
-            path: "/staff",
-            status: "available",
-        },
-        {
-            id: "agent",
-            name: t('apps.deliveryAgent', 'Delivery Agent'),
-            shortName: "Agent",
-            description: t('apps.deliveryAgentDesc', 'Pickup and deliver orders to customers'),
-            icon: <Truck className="h-6 w-6 text-white" />,
-            iconBg: "bg-green-500",
-            path: "/agent",
-            status: "available",
-        },
-        {
-            id: "plant",
-            name: t('apps.plantDashboard', 'Plant Dashboard'),
-            shortName: "Plant",
-            description: t('apps.plantDashboardDesc', 'Track washing, ironing, and packing'),
-            icon: <Factory className="h-6 w-6 text-white" />,
-            iconBg: "bg-purple-500",
-            path: "/plant",
-            status: "available",
-        },
-    ];
-
-    // Share via WhatsApp
-    const shareViaWhatsApp = (app: AppInfo) => {
-        const url = getAppUrl(app.path);
-        const headline = t('apps.shareMessage', { appName: app.name });
-        const message = `${shopName || "Our shop"} is using LaundryBill!
-
-${headline}
-${url}
-
-1. ${t('apps.step1')}
-2. ${t('apps.step2')}
-3. ${t('apps.step3')}
-4. ${t('apps.step4')}`;
-
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, "_blank");
-    };
-
-    // Copy link to clipboard
-    const copyLink = async (app: AppInfo) => {
-        const url = getAppUrl(app.path);
-        await navigator.clipboard.writeText(url);
-        setCopiedId(app.id);
-        setTimeout(() => setCopiedId(null), 2000);
-    };
-
-    // Open app in new tab
-    const openApp = (app: AppInfo) => {
-        window.open(getAppUrl(app.path), "_blank");
-    };
+    const ghostBtn: CSSProperties = { flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: 9 };
 
     return (
-        <PageWrapper maxWidth="lg">
-            {/* Page Header */}
-            <div className="mb-6 flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">
-                        {t("apps.title", "Apps")}
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {t("apps.subtitle", "Share these apps with your team")}
-                    </p>
-                </div>
-                <LHelpButton size="icon" className="shrink-0 mt-1" />
-            </div>
+        <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 14, padding: "0 22px" }}>
+                <div><div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("apps.title", "Apps")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("apps.suite", "LaundryBill app suite")} · {APPS.length} {t("apps.apps", "apps")}</div></div>
+            </header>
 
-            {/* How it works - Compact Info Card */}
-            <LCard className="mb-6 border-primary/20 bg-primary/5">
-                <div className="flex gap-4">
-                    <div className="flex-shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Info className="h-5 w-5 text-primary" />
-                        </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground text-sm mb-2">
-                            {t("apps.howItWorks", "How it works")}
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">1</span>
-                                <span>{t('apps.step1')}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">2</span>
-                                <span>{t('apps.step2')}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">3</span>
-                                <span>{t('apps.step3')}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">4</span>
-                                <span>{t('apps.step4')}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </LCard>
-
-            {/* Apps List */}
-            <div className="space-y-4">
-                {apps.map((app) => (
-                    <LCard
-                        key={app.id}
-                        className={cn(
-                            "transition-all",
-                            app.status === "coming_soon" && "opacity-70"
-                        )}
-                    >
-                        <div className="flex items-start gap-4">
-                            {/* App Icon */}
-                            <div className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-                                app.iconBg
-                            )}>
-                                {app.icon}
-                            </div>
-
-                            {/* App Info */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-foreground">
-                                        {app.name}
-                                    </h3>
-                                    {app.status === "available" ? (
-                                        <LBadge color="success" size="sm">
-                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                            {t("apps.available", "Available")}
-                                        </LBadge>
-                                    ) : (
-                                        <LBadge variant="warning" size="sm">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            {t("apps.comingSoon", "Coming Soon")}
-                                        </LBadge>
-                                    )}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {app.description}
-                                </p>
-
-                                {/* Actions - Only for available apps */}
-                                {app.status === "available" && (
-                                    <div className="flex flex-wrap gap-2 mt-3">
-                                        <LButton
-                                            variant="primary"
-                                            size="sm"
-                                            leftIcon={<Share2 className="h-4 w-4" />}
-                                            onClick={() => shareViaWhatsApp(app)}
-                                        >
-                                            {isMobile ? t('apps.share') : t('apps.shareWhatsApp')}
-                                        </LButton>
-                                        <LButton
-                                            variant="outline"
-                                            size="sm"
-                                            leftIcon={copiedId === app.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                            onClick={() => copyLink(app)}
-                                        >
-                                            {copiedId === app.id ? t('apps.copied') : t('apps.copyLink')}
-                                        </LButton>
-                                        <LButton
-                                            variant="ghost"
-                                            size="sm"
-                                            leftIcon={<ExternalLink className="h-4 w-4" />}
-                                            onClick={() => openApp(app)}
-                                        >
-                                            {t('apps.open')}
-                                        </LButton>
+            <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+                {/* app list */}
+                <section className="lb-svclist lb-scroll" style={{ width: 300, flex: "none", overflow: "auto", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", padding: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", padding: "4px 6px 10px" }}>{t("apps.applications", "Applications")}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {APPS.map((a) => {
+                            const on = a.id === selectedId;
+                            return (
+                                <button key={a.id} onClick={() => setSelectedId(a.id)} style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: 11, borderRadius: 11, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)" }}>
+                                    <span style={{ width: 42, height: 42, flex: "none", borderRadius: 11, background: `var(--${a.tint}-soft)`, color: `var(--${a.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{a.icon}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
+                                        <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 1 }}>{a.role}</div>
+                                        <div style={{ display: "flex", gap: 5, marginTop: 6 }}>{a.platforms.filter((p) => p.detail).map((p) => <span key={p.key} style={{ fontSize: 9, fontWeight: 600, color: "var(--c-text-3)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", padding: "1px 6px", borderRadius: 5 }}>{p.name}</span>)}</div>
                                     </div>
-                                )}
+                                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-success)", flex: "none" }} />
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* detail */}
+                <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: "auto", padding: "20px 22px 40px" }}>
+                    {/* header */}
+                    <div style={{ ...card, padding: "20px 22px", display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+                        <span style={{ width: 58, height: 58, flex: "none", borderRadius: 15, background: `var(--${d.tint}-soft)`, color: `var(--${d.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{d.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>{d.name}</span>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "var(--c-success)", background: "var(--c-success-soft)", padding: "3px 10px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--c-success)" }} />{t("apps.live", "Live")}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: `var(--${d.tint})`, background: `var(--${d.tint}-soft)`, padding: "3px 10px", borderRadius: 20 }}>{d.role}</span>
+                            </div>
+                            <div style={{ fontSize: 13, color: "var(--c-text-2)", marginTop: 6 }}>{d.tagline}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 24, flex: "none" }}>
+                            <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.countKey ? counts[d.countKey] ?? 0 : 0}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.activeLogins", "active logins")}</div></div>
+                            <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.version}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.version", "version")}</div></div>
+                        </div>
+                    </div>
+
+                    {/* platforms */}
+                    <div style={{ ...card, padding: "18px 20px", marginBottom: 16 }}>
+                        <div style={secLbl}>{t("apps.platforms", "PLATFORMS & DISTRIBUTION")}</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
+                            {d.platforms.map((p) => (
+                                <div key={p.key} style={{ border: "1px solid var(--c-border)", borderRadius: 11, padding: 14, display: "flex", alignItems: "center", gap: 12, opacity: p.detail ? 1 : 0.45 }}>
+                                    <span style={{ width: 38, height: 38, flex: "none", borderRadius: 10, background: "var(--c-surface-2)", color: "var(--c-text)", display: "flex", alignItems: "center", justifyContent: "center" }}>{platIcon(p.key)}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{p.detail || t("apps.notAvailable", "Not available")}</div></div>
+                                    {p.detail && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 600, color: "var(--c-success)" }}><Check size={13} />{t("apps.on", "On")}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="lb-cols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                        {/* features */}
+                        <div style={{ ...card, flex: 1.6, minWidth: 0, overflow: "hidden" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 20px", borderBottom: "1px solid var(--c-border)" }}><div style={{ fontSize: 14, fontWeight: 600 }}>{t("apps.features", "Features")}</div><span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 8px", borderRadius: 20 }}>{d.features.length} {t("apps.included", "included")}</span></div>
+                            {d.features.map((f, i) => (
+                                <div key={f.name} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 20px", borderBottom: i < d.features.length - 1 ? "1px solid var(--c-border)" : undefined }}>
+                                    <span style={{ width: 36, height: 36, flex: "none", borderRadius: 9, background: `var(--${f.tint}-soft)`, color: `var(--${f.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{f.icon}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{f.name}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{f.desc}</div></div>
+                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "var(--c-success-soft)", color: "var(--c-success)" }}><Check size={14} /></span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* access + share */}
+                        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                            <div style={{ ...card, padding: "18px 20px" }}>
+                                <div style={secLbl}>{t("apps.accessRoles", "ACCESS & ROLES")}</div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                    {d.access.map((r) => <span key={r} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: `var(--${d.tint})`, background: `var(--${d.tint}-soft)`, padding: "6px 12px", borderRadius: 20 }}><Users size={13} />{r}</span>)}
+                                </div>
+                            </div>
+                            <div style={{ ...card, padding: "18px 20px" }}>
+                                <div style={secLbl}>{t("apps.release", "RELEASE & SHARE")}</div>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.currentVersion", "Current version")}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{d.version}</span></div>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 14 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.lastUpdated", "Last updated")}</span><span style={{ fontWeight: 600 }}>{d.updated}</span></div>
+                                <button onClick={share} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: 12, boxShadow: "var(--sh-sm)", marginBottom: 10 }}><Share2 size={16} />{t("apps.shareWhatsApp", "Share via WhatsApp")}</button>
+                                <div style={{ display: "flex", gap: 9 }}>
+                                    <button onClick={copyLink} style={ghostBtn}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? t("apps.copied", "Copied") : t("apps.copyLink", "Copy link")}</button>
+                                    <button onClick={openApp} style={ghostBtn}><ExternalLink size={15} />{t("apps.open", "Open")}</button>
+                                </div>
                             </div>
                         </div>
-                    </LCard>
-                ))}
+                    </div>
+                </section>
             </div>
-
-            {/* Footer tip */}
-            <div className="mt-6 text-center">
-                <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
-                    <Smartphone className="h-4 w-4" />
-                    {t("apps.qrHint", "Tip: Print QR codes for easy app installation in your shop")}
-                </p>
-            </div>
-        </PageWrapper>
+        </div>
     );
 }

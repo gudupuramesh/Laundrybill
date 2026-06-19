@@ -49,6 +49,15 @@ export interface DeliverySettings {
     /** Delivery fee amount when order is below min (e.g. 50) */
     deliveryFeeAmount?: number;
 
+    /**
+     * Distance-band delivery fee. When enabled, home delivery / pickup-from-home
+     * charge a fee chosen from a manually-picked distance band (km range → fee),
+     * instead of the flat min-order rule above. Store pickup is always free.
+     */
+    distanceFeeEnabled?: boolean;
+    /** Distance bands (km range label → fee). Order matters (nearest first). */
+    distanceBands?: { id: string; label: string; fee: number }[];
+
     // Buffer: minimum minutes before slot start to allow booking (e.g. 30 = cannot book 9–10 after 8:30)
     bufferMinutes?: number;             // 0 or omit = no buffer
 }
@@ -160,6 +169,11 @@ export interface Shop {
         enabled: boolean;
         slug: string;
         template?: "minimal" | "warm" | "bold" | "pastel" | "corporate";
+        /** Tagline shown under the shop name on the public page hero */
+        tagline?: string;
+        /** Offer banner shown at the top of the public page */
+        offerEnabled?: boolean;
+        offerText?: string;
         /** Testimonials / reviews shown on public page (before area selector) */
         testimonials?: PublicTestimonial[];
         /** Social media links shown in header */

@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
     LCard,
     LButton,
@@ -32,8 +32,11 @@ import { useCurrencyByShopId } from "@/hooks/use-currency";
 export function PublicReceiptPage() {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
-    const { data, loading, error } = useOrderTracking(orderId || "");
-    const { formatAmount } = useCurrencyByShopId(data?.shopId || null);
+    const location = useLocation();
+    // Phone verifier — passed from the tracking page via router state.
+    const phoneFromState = (location.state as { phone?: string } | null)?.phone || "";
+    const { data, loading, error } = useOrderTracking(orderId || "", phoneFromState);
+    const { formatAmount, currencySymbol, currencyCode } = useCurrencyByShopId(data?.shopId || null);
     const [downloading, setDownloading] = useState(false);
 
     // Convert tracking data to Order-like object for receipt generation
@@ -116,6 +119,8 @@ export function PublicReceiptPage() {
                 name: data?.shopName || "LaundryBill",
                 phone: data?.shopPhone,
                 address: data?.shopAddress,
+                currencySymbol,
+                currencyCode,
             };
 
             const blob = getReceiptBlob(order, shopInfo);
@@ -149,6 +154,8 @@ export function PublicReceiptPage() {
                 name: data?.shopName || "LaundryBill",
                 phone: data?.shopPhone,
                 address: data?.shopAddress,
+                currencySymbol,
+                currencyCode,
             };
 
             const blob = getReceiptBlob(order, shopInfo);

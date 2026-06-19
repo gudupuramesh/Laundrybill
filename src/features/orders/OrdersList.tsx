@@ -1,152 +1,100 @@
 /**
- * Orders List Component
- * 
- * Used within master-detail layout on desktop
- * Displays searchable, filterable list of orders with stats
+ * Orders List — 1000% to the design system (Order Management.dc.html):
+ * header (title + count + search + Filters + New Order) · status pipeline tabs ·
+ * full-width table (Order · Customer · Type · Status · Payment · Total · Updated) ·
+ * infinite scroll. Wired to useOrdersPaginated + filter sheet + online-seen.
  */
 
-import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo, useContext, type CSSProperties } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
-import {
-    LSearchInput,
-    LList,
-    LListItem,
-    LAvatar,
-    LStatusBadge,
-    LAmount,
-    LDateDisplay,
-    LEmptyState,
-    LSkeletonList,
-    LAdSlot,
-    LSpinner,
-} from "@/components/laundry";
+import { LEmptyState, LSpinner } from "@/components/laundry";
 import { useOrdersPaginated, type OrderSourceFilter } from "@/hooks/use-orders-paginated";
-import { useOrderSummary } from "@/hooks/use-order-summary";
 import { useCurrency } from "@/hooks/use-currency";
-import { useIsMobile } from "@/hooks/use-mobile";
 import type { OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
-import { ClipboardList, Store, Truck, Home, Package, CheckCircle, Clock, AlertCircle, IndianRupee, AlertTriangle, Wallet, Globe } from "lucide-react";
+import { ClipboardList, Search, SlidersHorizontal, Plus, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { OrderFilterSheet, OrderFilterButton } from "./OrderFilterSheet";
+import { OrderFilterSheet } from "./OrderFilterSheet";
 
-// Delivery type badge configuration
-const useDeliveryTypeConfig = () => {
-    const { t } = useTranslation();
-    return {
-        pickup_store: {
-            icon: Store,
-            label: t('orders.deliveryTypes.pickup'),
-            bgClass: "bg-blue-100",
-            textClass: "text-blue-700",
-        },
-        delivery_home: {
-            icon: Truck,
-            label: t('orders.deliveryTypes.delivery'),
-            bgClass: "bg-green-100",
-            textClass: "text-green-700",
-        },
-        pickup_home: {
-            icon: Home,
-            label: t('orders.deliveryTypes.collect'),
-            bgClass: "bg-purple-100",
-            textClass: "text-purple-700",
-        },
-    };
+const MONO = "'IBM Plex Mono'";
+const AV = ["c-primary", "c-info", "c-violet", "c-cyan", "c-success", "c-warning"];
+
+// app status → DS tint
+const STATUS_TINT: Record<OrderStatus, string> = {
+    pending: "c-slate",
+    processing: "c-info",
+    ready: "c-primary",
+    ready_for_pickup: "c-primary",
+    out_for_delivery: "c-cyan",
+    picked_up: "c-success",
+    delivered: "c-success",
+    pickup_scheduled: "c-warning",
+    pickup_completed: "c-violet",
+    cancelled: "c-error",
 };
+const TYPE_TINT: Record<DeliveryType, string> = { delivery_home: "c-success", pickup_store: "c-info", pickup_home: "c-violet" };
 
-const AD_FREQUENCY = 5; // Show ad every 5 orders on mobile
+// pipeline tabs (DS look) mapped to the app's real statuses
+const TABS: { key: OrderStatus | "all"; label: string; dot: string }[] = [
+    { key: "all", label: "All", dot: "c-text-3" },
+    { key: "pending", label: "Placed", dot: "c-slate" },
+    { key: "processing", label: "Processing", dot: "c-info" },
+    { key: "ready", label: "Ready", dot: "c-primary" },
+    { key: "out_for_delivery", label: "Out for delivery", dot: "c-cyan" },
+    { key: "delivered", label: "Delivered", dot: "c-success" },
+    { key: "cancelled", label: "Cancelled", dot: "c-error" },
+];
+
+const TH: CSSProperties = { textAlign: "left", padding: "10px 14px", fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--c-text-3)", borderBottom: "1px solid var(--c-border)", whiteSpace: "nowrap", background: "var(--c-surface-2)" };
+const TD: CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--c-border)" };
+
+function timeAgo(d: Date): string {
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 60) return "just now";
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const days = Math.floor(h / 24);
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 interface OrdersListProps {
     selectedId?: string | null;
     onSelect?: (orderId: string) => void;
 }
 
-// Stats summary chip component
-function StatChip({
-    icon: Icon,
-    label,
-    count,
-    color,
-    onClick,
-    isActive
-}: {
-    icon: typeof Package;
-    label: string;
-    count: number;
-    color: "primary" | "success" | "warning" | "destructive";
-    onClick?: () => void;
-    isActive?: boolean;
-}) {
-    const colorClasses = {
-        primary: "bg-primary/10 text-primary",
-        success: "bg-success/10 text-success",
-        warning: "bg-warning/10 text-warning",
-        destructive: "bg-destructive/10 text-destructive",
-    };
-
-    return (
-        <button
-            onClick={onClick}
-            disabled={!onClick}
-            className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all",
-                colorClasses[color],
-                isActive && "ring-2 ring-offset-1 ring-primary",
-                onClick && "cursor-pointer hover:opacity-80 active:scale-95",
-                !onClick && "cursor-default"
-            )}
-        >
-            <Icon className="h-3.5 w-3.5" />
-            <span>{count}</span>
-            <span className="hidden sm:inline text-[10px] opacity-75">{label}</span>
-        </button>
-    );
-}
-
 export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const isMobile = useIsMobile();
+    const location = useLocation();
     const { markSeen } = useContext(SeenOnlineOrdersContext);
+    const { formatAmount } = useCurrency();
+
+    const basePath = location.pathname.startsWith("/staff") ? "/staff/orders" : "/orders";
+
     const [selectedDeliveryType, setSelectedDeliveryType] = useState<DeliveryType | "all">("all");
-    const DELIVERY_TYPE_CONFIG = useDeliveryTypeConfig();
     const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "all">("all");
     const [selectedOrderSource, setSelectedOrderSource] = useState<OrderSourceFilter>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | null>(null);
 
-    // Special Filters (Mutually exclusive with standard filters)
-    const [specialFilter, setSpecialFilter] = useState<'pending_overdue' | 'payment_due' | null>(null);
-    const { formatAmount } = useCurrency();
-
-    // Use paginated hook
     const { orders, loading, loadingMore, hasMore, loadMore } = useOrdersPaginated({
-        status: specialFilter ? 'all' : (selectedStatus !== "all" ? selectedStatus : 'all'),
-        deliveryType: specialFilter ? 'all' : (selectedDeliveryType !== "all" ? selectedDeliveryType : 'all'),
-        orderSource: specialFilter ? 'all' : selectedOrderSource,
+        status: specialFilter ? "all" : selectedStatus,
+        deliveryType: specialFilter ? "all" : selectedDeliveryType,
+        orderSource: specialFilter ? "all" : selectedOrderSource,
         searchTerm: searchQuery,
-        specialFilter: specialFilter,
+        specialFilter,
     });
 
-    const handleSpecialFilter = (filter: 'pending_overdue' | 'payment_due') => {
-        if (specialFilter === filter) {
-            setSpecialFilter(null); // Toggle off
-        } else {
-            setSpecialFilter(filter);
-            // Reset standard filters when special filter is active
-            setSelectedDeliveryType("all");
-            setSelectedStatus("all");
-        }
-    };
-
-    // When standard filters change, clear special filter (or set it if coming from sheet)
     const handleFilterApply = (
         type: DeliveryType | "all",
         status: OrderStatus | "all",
-        newSpecialFilter: 'pending_overdue' | 'payment_due' | null = null,
+        newSpecialFilter: "pending_overdue" | "payment_due" | null = null,
         orderSource: OrderSourceFilter = "all"
     ) => {
         if (newSpecialFilter) {
@@ -162,366 +110,153 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         }
     };
 
-    // Mark online order as seen when user selects it (so Orders badge count goes down)
+    // mark online order as seen on open
     useEffect(() => {
         if (!selectedId || !markSeen) return;
-        const selected = orders.find((o) => o.id === selectedId);
-        if (selected?.orderSource === "online") {
-            markSeen(selectedId);
-        }
+        const sel = orders.find((o) => o.id === selectedId);
+        if (sel?.orderSource === "online") markSeen(selectedId);
     }, [selectedId, orders, markSeen]);
 
-    // Fetch proper financial summary (Revenue/Collected This Month, Due All Time)
-    const summaryMetrics = useOrderSummary();
+    const activeFiltersCount = (selectedDeliveryType !== "all" ? 1 : 0) + (selectedOrderSource !== "all" ? 1 : 0) + (specialFilter ? 1 : 0);
 
-    // Calculate order stats including revenue
-    const orderStats = useMemo(() => {
-        const stats = {
-            total: orders.length,
-            online: 0,
-            pickupStore: 0,
-            pickupHome: 0,
-            deliveryHome: 0,
-            // By status
-            delivered: 0,
-            ongoing: 0,
-            unpaid: 0, // Orders that are delivered but not fully paid
-        };
-
-        orders.forEach(order => {
-            if (order.orderSource === "online") stats.online++;
-            const deliveryType = mapLegacyDeliveryType(order.deliveryType);
-            const total = order.financials?.total || 0;
-            const paid = order.financials?.amountPaid || 0;
-            const balance = order.financials?.balance ?? (total - paid);
-
-            // Revenue/Collected metrics removed here (handled by summaryMetrics)
-
-            // Count by delivery type
-            switch (deliveryType) {
-                case "pickup_store": stats.pickupStore++; break;
-                case "pickup_home": stats.pickupHome++; break;
-                case "delivery_home": stats.deliveryHome++; break;
-            }
-
-            // Count by status - "picked_up" for store pickup = delivered
-            const isCompleted = order.status === "delivered" ||
-                (order.status === "picked_up" && deliveryType === "pickup_store");
-
-            if (isCompleted) {
-                stats.delivered++;
-                // Check if payment is pending (delivered but not paid)
-                if (balance > 0) {
-                    stats.unpaid++;
-                }
-            } else if (order.status !== "cancelled") {
-                stats.ongoing++;
-            }
-        });
-
-        return stats;
-    }, [orders]);
-
-    // Count active filters
-    const activeFiltersCount = (selectedDeliveryType !== "all" ? 1 : 0) + (selectedStatus !== "all" ? 1 : 0) + (selectedOrderSource !== "all" ? 1 : 0) + (specialFilter ? 1 : 0);
-
-    // Get filter summary text
-    const getFilterSummary = () => {
-        const parts: string[] = [];
-
-        if (specialFilter === 'pending_overdue') return t('orders.filters.overdueOrders');
-        if (specialFilter === 'payment_due') return t('orders.filters.unpaidDues');
-
-        if (selectedOrderSource !== "all") {
-            parts.push(selectedOrderSource === "online" ? t('orders.onlineOrders') : t('orders.posOrders'));
-        }
-        if (selectedDeliveryType !== "all") {
-            const typeLabels: Record<DeliveryType, string> = {
-                pickup_store: t('orders.shopPickup'),
-                delivery_home: t('orders.homeDelivery'),
-                pickup_home: t('orders.pickupFromHome'),
-            };
-            parts.push(typeLabels[selectedDeliveryType]);
-        }
-        if (selectedStatus !== "all") {
-            parts.push(STATUS_LABELS[selectedStatus]);
-        }
-        return parts.length > 0 ? parts.join(" • ") : null;
-    };
-
-    // Infinite scroll with IntersectionObserver
+    // infinite scroll
     const observerRef = useRef<IntersectionObserver | null>(null);
     const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
     useEffect(() => {
         if (loading) return;
-
-        observerRef.current = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting && hasMore && !loadingMore) {
-                    loadMore();
-                }
-            },
-            { threshold: 0.1 }
-        );
-
-        if (loadMoreRef.current) {
-            observerRef.current.observe(loadMoreRef.current);
-        }
-
-        return () => {
-            if (observerRef.current) {
-                observerRef.current.disconnect();
-            }
-        };
+        observerRef.current = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && hasMore && !loadingMore) loadMore();
+        }, { threshold: 0.1 });
+        if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
+        return () => observerRef.current?.disconnect();
     }, [loading, hasMore, loadingMore, loadMore]);
 
-    // Group orders by date
-    const groupedOrders = orders.reduce((acc, order) => {
-        const dateKey = order.createdAt.toDate().toDateString();
-        if (!acc[dateKey]) {
-            acc[dateKey] = [];
-        }
-        acc[dateKey].push(order);
-        return acc;
-    }, {} as Record<string, typeof orders>);
+    const rows = useMemo(() => orders.map((order, i) => {
+        const dtype = mapLegacyDeliveryType(order.deliveryType);
+        const total = order.financials?.total || 0;
+        const paid = order.financials?.amountPaid || 0;
+        const balance = order.financials?.balance ?? (total - paid);
+        const pay = balance <= 0 && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Unpaid";
+        const payRef = pay === "Paid" ? "c-success" : pay === "Partial" ? "c-warning" : "c-error";
+        const av = AV[i % AV.length];
+        return { order, dtype, total, pay, payRef, av };
+    }), [orders]);
 
-    const handleOrderClick = (orderId: string) => {
-        if (onSelect) {
-            onSelect(orderId);
-        } else {
-            navigate(`/orders/${orderId}`);
-        }
-    };
+    const handleOpen = (id: string) => { if (onSelect) onSelect(id); else navigate(`${basePath}/${id}`); };
 
     return (
-        <div className="h-full flex flex-col">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-card p-4 space-y-3 border-b border-border">
-                <div className="flex gap-3">
-                    <div className="flex-1">
-                        <LSearchInput
-                            placeholder={t('orders.searchOrders')}
-                            onChange={setSearchQuery}
-                        />
-                    </div>
-                    <OrderFilterButton
-                        activeFiltersCount={activeFiltersCount}
-                        onClick={() => setFilterSheetOpen(true)}
-                    />
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
+            {/* header */}
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
+                    <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("orders.title", "Orders")}</span>
+                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{orders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
                 </div>
+                <div style={{ flex: 1 }} />
+                <div style={{ position: "relative" }}>
+                    <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
+                    <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("orders.searchOrders", "Search order, customer, phone…")}
+                        style={{ width: 240, maxWidth: "60vw", font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                </div>
+                <button onClick={() => setFilterSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: activeFiltersCount ? "var(--c-primary)" : "var(--c-text-2)", background: activeFiltersCount ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${activeFiltersCount ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 13px" }}>
+                    <SlidersHorizontal size={15} />{t("orders.filters.title", "Filters")}{activeFiltersCount ? ` · ${activeFiltersCount}` : ""}
+                </button>
+                <button onClick={() => navigate(`${basePath}/new`)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
+                    <Plus size={15} />{t("orders.newOrder", "New Order")}
+                </button>
+            </header>
 
-                {/* Order Stats Summary */}
-                {!loading && (
-                    <div className="space-y-2">
-                        {/* Revenue Stats Row */}
-                        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary">
-                                <IndianRupee className="h-3.5 w-3.5" />
-                                {summaryMetrics.loading ? (
-                                    <LSpinner size="sm" />
-                                ) : (
-                                    <span>{formatAmount(summaryMetrics.revenue)}</span>
-                                )}
-                                <span className="text-[10px] opacity-75">{t('orders.stats.revenue')}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-success/10 text-success">
-                                {summaryMetrics.loading ? (
-                                    <LSpinner size="sm" />
-                                ) : (
-                                    <span>{formatAmount(summaryMetrics.collected)}</span>
-                                )}
-                                <span className="text-[10px] opacity-75">{t('orders.stats.collected')}</span>
-                            </div>
-                            {summaryMetrics.due > 0 && (
-                                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive">
-                                    {summaryMetrics.loading ? (
-                                        <LSpinner size="sm" />
-                                    ) : (
-                                        <span>{formatAmount(summaryMetrics.due)}</span>
-                                    )}
-                                    <span className="text-[10px] opacity-75">{t('orders.stats.due')}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Order Counts Row */}
-                        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                            {/* Total */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-muted">
-                                <Package className="h-3.5 w-3.5" />
-                                <span>{orderStats.total}</span>
-                                <span className="text-[10px] opacity-75">{t('orders.stats.total')}</span>
-                            </div>
-
-                            {/* By type */}
-                            <div className="h-4 w-px bg-border" />
-                            {orderStats.online > 0 && (
-                                <StatChip
-                                    icon={Globe}
-                                    label={t('orders.onlineOrders')}
-                                    count={orderStats.online}
-                                    color="primary"
-                                    onClick={() => handleFilterApply(selectedDeliveryType, selectedStatus, null, "online")}
-                                    isActive={selectedOrderSource === "online"}
-                                />
-                            )}
-                            <StatChip icon={Store} label={t('orders.stats.store')} count={orderStats.pickupStore} color="primary" />
-                            <StatChip icon={Home} label={t('orders.deliveryTypes.collect')} count={orderStats.pickupHome} color="primary" />
-                            <StatChip icon={Truck} label={t('orders.deliveryTypes.delivery')} count={orderStats.deliveryHome} color="success" />
-
-                            <div className="h-4 w-px bg-border" />
-
-                            {/* Attention Needed */}
-                            {summaryMetrics.pendingCount > 0 && (
-                                <StatChip
-                                    icon={AlertTriangle}
-                                    label={t('orders.pending')}
-                                    count={summaryMetrics.pendingCount}
-                                    color="destructive"
-                                    onClick={() => handleSpecialFilter('pending_overdue')}
-                                    isActive={specialFilter === 'pending_overdue'}
-                                />
-                            )}
-                            {summaryMetrics.unpaidCount > 0 && (
-                                <StatChip
-                                    icon={Wallet}
-                                    label={t('orders.stats.due')}
-                                    count={summaryMetrics.unpaidCount}
-                                    color="warning"
-                                    onClick={() => handleSpecialFilter('payment_due')}
-                                    isActive={specialFilter === 'payment_due'}
-                                />
-                            )}
-
-                            {/* By status */}
-                            <div className="h-4 w-px bg-border" />
-                            <StatChip icon={CheckCircle} label={t('orders.steps.delivered')} count={orderStats.delivered} color="success" />
-                            <StatChip icon={Clock} label={t('orders.stats.ongoing')} count={orderStats.ongoing} color="warning" />
-                            {orderStats.unpaid > 0 && (
-                                <StatChip icon={AlertCircle} label={t('orders.stats.unpaid')} count={orderStats.unpaid} color="destructive" />
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Active Filter Summary */}
-                {activeFiltersCount > 0 && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t('orders.filterOrders')}:</span>
-                        <span className="text-xs font-medium text-primary">
-                            {getFilterSummary()}
-                        </span>
-                        <button
-                            onClick={() => {
-                                setSelectedDeliveryType("all");
-                                setSelectedStatus("all");
-                                setSelectedOrderSource("all");
-                                setSpecialFilter(null);
-                            }}
-                            className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                            {t('orders.filters.reset')}
+            {/* pipeline tabs */}
+            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
+                {TABS.map((tb) => {
+                    const on = selectedStatus === tb.key && !specialFilter;
+                    return (
+                        <button key={tb.key} onClick={() => { setSelectedStatus(tb.key); setSpecialFilter(null); }}
+                            style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: `var(--${tb.dot})` }} />{tb.label}
                         </button>
-                    </div>
-                )}
+                    );
+                })}
             </div>
 
-            {/* Orders List */}
-            <div className="flex-1 overflow-y-auto p-4">
-                {loading ? (
-                    <LSkeletonList count={5} />
-                ) : orders.length === 0 ? (
-                    <LEmptyState
-                        icon={<ClipboardList className="h-8 w-8" />}
-                        title={t('orders.empty')}
-                        description={
-                            selectedStatus !== "all"
-                                ? t('orders.tryDifferentFilter')
-                                : t('orders.createFirstOrder')
-                        }
-                    />
-                ) : (
-                    <div className="space-y-4">
-                        {Object.entries(groupedOrders).map(([date, dateOrders]) => (
-                            <div key={date}>
-                                {/* Date Header */}
-                                <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                                    <LDateDisplay date={new Date(date)} format="smart" />
-                                </h3>
-
-                                {/* Orders */}
-                                <LList>
-                                    {dateOrders.map((order, index) => (
-                                        <React.Fragment key={order.id}>
-                                            <LListItem
-                                                title={
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span>#{order.publicId}</span>
-                                                        {order.orderSource === "online" && (
-                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-0.5 bg-teal-100 text-teal-700">
-                                                                <Globe className="h-2.5 w-2.5" />
-                                                                {t('orders.onlineOrders')}
-                                                            </span>
-                                                        )}
-                                                        {(() => {
-                                                            const deliveryType = mapLegacyDeliveryType(order.deliveryType);
-                                                            const config = DELIVERY_TYPE_CONFIG[deliveryType];
-                                                            const Icon = config.icon;
-                                                            return (
-                                                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-0.5 ${config.bgClass} ${config.textClass}`}>
-                                                                    <Icon className="h-2.5 w-2.5" />
-                                                                    {config.label}
-                                                                </span>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                }
-                                                subtitle={`${order.customerName} • ${order.items.length} ${t('pos.items')} • By ${order.staffName || 'Admin'}`}
-                                                leftContent={
-                                                    <LAvatar name={order.customerName} size="sm" />
-                                                }
-                                                rightContent={
-                                                    <div className="text-right">
-                                                        <LAmount value={order.financials.total} size="sm" />
-                                                        <div className="mt-1">
-                                                            <LStatusBadge status={order.status} size="sm" />
+            {/* table */}
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "18px 22px 40px", minHeight: 0 }}>
+                <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
+                    {loading ? (
+                        <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
+                    ) : orders.length === 0 ? (
+                        <LEmptyState icon={<ClipboardList className="h-8 w-8" />} title={t("orders.empty", "No orders found")} description={t("orders.tryDifferentFilter", "Try another tab, filter, or search.")} />
+                    ) : (
+                        <div className="lb-scroll" style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 880 }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ ...TH, textAlign: "left", paddingLeft: 18 }}>{t("orders.order", "Order")}</th>
+                                        <th style={TH}>{t("customer.title", "Customer")}</th>
+                                        <th style={TH}>{t("orders.type", "Type")}</th>
+                                        <th style={TH}>{t("orders.status", "Status")}</th>
+                                        <th style={TH}>{t("checkout.payment", "Payment")}</th>
+                                        <th style={{ ...TH, textAlign: "right" }}>{t("pos.total", "Total")}</th>
+                                        <th style={{ ...TH, textAlign: "right", paddingRight: 18 }}>{t("orders.updated", "Updated")}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.map(({ order, dtype, total, pay, payRef, av }) => {
+                                        const stRef = STATUS_TINT[order.status] || "c-slate";
+                                        const tyRef = TYPE_TINT[dtype];
+                                        const updated = (order.updatedAt || order.createdAt)?.toDate?.() || order.createdAt.toDate();
+                                        return (
+                                            <tr key={order.id} onClick={() => handleOpen(order.id)} tabIndex={0} role="button"
+                                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpen(order.id); } }}
+                                                style={{ cursor: "pointer", background: selectedId === order.id ? "var(--c-primary-soft)" : "transparent" }}
+                                                onMouseEnter={(e) => { if (selectedId !== order.id) e.currentTarget.style.background = "var(--c-surface-2)"; }}
+                                                onMouseLeave={(e) => { if (selectedId !== order.id) e.currentTarget.style.background = "transparent"; }}>
+                                                <td style={{ ...TD, paddingLeft: 18, fontFamily: MONO, fontWeight: 600 }}>#{order.publicId}</td>
+                                                <td style={TD}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                        <span style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: `var(--${av}-soft)`, color: `var(--${av})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 600 }}>{(order.customerName || "?").trim()[0]?.toUpperCase()}</span>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                                                                {order.customerName || t("customer.guest", "Guest")}
+                                                                {order.orderSource === "online" && <Globe size={12} style={{ color: "var(--c-cyan)" }} />}
+                                                            </div>
+                                                            <div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{order.items.length} {t("pos.items", "pcs")}</div>
                                                         </div>
                                                     </div>
-                                                }
-                                                onClick={() => handleOrderClick(order.id)}
-                                                className={cn(
-                                                    "cursor-pointer transition-colors",
-                                                    selectedId === order.id &&
-                                                    "bg-primary-muted border-l-4 border-l-primary"
-                                                )}
-                                            />
-                                            {/* Mobile: Show ad card every N items */}
-                                            {isMobile && (index + 1) % AD_FREQUENCY === 0 && (
-                                                <LAdSlot
-                                                    variant="card"
-                                                    position={`orders-list-${index + 1}`}
-                                                />
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </LList>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Infinite Scroll Trigger */}
-                <div ref={loadMoreRef} className="h-16 flex items-center justify-center">
-                    {loadingMore && <LSpinner size="sm" />}
-                    {!hasMore && orders.length > 0 && (
-                        <p className="text-xs text-muted-foreground">{t('orders.noMore')}</p>
+                                                </td>
+                                                <td style={TD}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: `var(--${tyRef})`, whiteSpace: "nowrap" }}>
+                                                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${tyRef})` }} />{t(`orders.deliveryTypes.${dtype}`, dtype.replace("_", " "))}
+                                                    </span>
+                                                </td>
+                                                <td style={TD}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, whiteSpace: "nowrap" }}>
+                                                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${stRef})` }} />{STATUS_LABELS[order.status]}
+                                                    </span>
+                                                </td>
+                                                <td style={TD}><span style={{ fontSize: 12, fontWeight: 600, color: `var(--${payRef})` }}>{pay}</span></td>
+                                                <td style={{ ...TD, textAlign: "right", fontFamily: MONO, fontWeight: 600 }}>{formatAmount(total)}</td>
+                                                <td style={{ ...TD, paddingRight: 18, textAlign: "right", color: "var(--c-text-3)", fontSize: 12 }}>{timeAgo(updated)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    {!loading && orders.length > 0 && (
+                        <div ref={loadMoreRef} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-3)" }}>
+                            <span>{t("orders.showing", "Showing")} {orders.length}</span>
+                            <span style={{ marginLeft: "auto" }}>{loadingMore ? <LSpinner size="sm" /> : !hasMore ? t("orders.noMore", "End of list") : ""}</span>
+                        </div>
                     )}
                 </div>
+                {/* keep observer target alive even while empty list footer hidden */}
+                {(!orders.length || loading) && <div ref={loadMoreRef} style={{ height: 1 }} />}
             </div>
 
-            {/* Filter Sheet */}
             <OrderFilterSheet
+                key="order-filter-sheet"
                 open={filterSheetOpen}
                 onClose={() => setFilterSheetOpen(false)}
                 selectedDeliveryType={selectedDeliveryType}

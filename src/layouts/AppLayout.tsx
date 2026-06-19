@@ -50,6 +50,18 @@ import type { PlanFeatures } from "@/types/plans";
 import { HelpQuickSheet } from "@/features/help";
 import { DashboardHeaderActions } from "@/features/dashboard/DashboardHeaderActions";
 
+// LaundryBill brand mark — blue rounded square + glyph (design system)
+function BrandMark() {
+    return (
+        <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: "hsl(var(--primary))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff" />
+                <path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="hsl(var(--primary))" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        </span>
+    );
+}
+
 // Sidebar item config (without translated labels)
 interface SidebarNavItem {
     id: string;
@@ -253,29 +265,28 @@ export function AppLayout() {
                     }))}
                     activeId={activeTab}
                     logo={
-                        <span className="font-bold text-xl text-white">
-                            Laundry<span style={{ color: "hsl(var(--primary-light))" }}>Bill</span>
-                        </span>
-                    }
-                    collapsedLogo={
-                        <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-white font-bold text-sm">
-                            LB
+                        <div className="flex items-center gap-2.5">
+                            <BrandMark />
+                            <span className="text-base font-bold text-foreground" style={{ letterSpacing: "-0.01em" }}>
+                                Laundry<span style={{ color: "hsl(var(--primary))" }}>Bill</span>
+                            </span>
                         </div>
                     }
+                    collapsedLogo={<BrandMark />}
                     footer={
                         <div className="flex items-center gap-3">
                             <LAvatar name={user?.displayName || "User"} size="sm" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">
+                                <p className="text-sm font-medium text-foreground truncate">
                                     {shopName || user?.displayName}
                                 </p>
-                                <p className="text-xs text-sidebar-foreground capitalize">
+                                <p className="text-xs text-muted-foreground capitalize">
                                     {role}
                                 </p>
                             </div>
                             <button
                                 onClick={signOut}
-                                className="p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-white transition-colors"
+                                className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                                 title="Sign out"
                             >
                                 <LogOut className="h-4 w-4" />
@@ -287,8 +298,8 @@ export function AppLayout() {
 
             {/* Main Content Area - Scrollable */}
             <div className="flex-1 flex flex-col h-screen w-full min-w-0 overflow-hidden">
-                {/* Top Navbar - Hidden on order detail pages (they have their own header) */}
-                {!location.pathname.match(/^\/orders\/[^/]+$/) && (
+                {/* Top Navbar - Hidden on design-system screens that render their own header bar */}
+                {!(/^\/(orders|customers|inventory|manage-staff|attendance|expenses|payroll|reports|apps|scan)(\/|$)/.test(location.pathname) || /^\/staff\/(orders|customers|inventory)(\/|$)/.test(location.pathname) || /^\/settings(\/subscription|\/public-page)?\/?$/.test(location.pathname)) && (
                     <LTopNavbar
                         title={getPageTitle()}
                         showBack={location.pathname !== "/dashboard"}

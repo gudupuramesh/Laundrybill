@@ -37,6 +37,7 @@ interface PublicCartState {
   customerNotes: string;
   discountType?: "percent" | "flat";
   discountValue?: number;
+  deliveryBandId?: string;
 }
 
 const initialState: PublicCartState = {
@@ -142,6 +143,10 @@ export function usePublicCart(shop: Shop | null) {
     setState((prev) => ({ ...prev, deliveryCharge: charge }));
   }, []);
 
+  const setDeliveryBand = useCallback((bandId: string) => {
+    setState((prev) => ({ ...prev, deliveryBandId: bandId }));
+  }, []);
+
   const setPickupSlot = useCallback((date: string, slot: string) => {
     setState((prev) => ({ ...prev, pickupDate: date, pickupSlot: slot }));
   }, []);
@@ -192,9 +197,18 @@ export function usePublicCart(shop: Shop | null) {
     const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
 
     const isDelivery = state.deliveryAddress != null;
-    const deliveryCharge = !isDelivery
-      ? 0
-      : getDeliveryCharge(shop?.settings?.delivery, subtotalAfterDiscount, "delivery_home");
+    const del = shop?.settings?.delivery;
+    const dBands = Array.isArray(del?.distanceBands) ? del!.distanceBands : [];
+    let deliveryCharge = 0;
+    if (isDelivery) {
+      if (del?.distanceFeeEnabled && dBands.length > 0) {
+        // Distance-band mode: fee from the picked band (defaults to nearest).
+        const sel = dBands.find((b) => b.id === state.deliveryBandId) || dBands[0];
+        deliveryCharge = sel?.fee || 0;
+      } else {
+        deliveryCharge = getDeliveryCharge(del, subtotalAfterDiscount, "delivery_home");
+      }
+    }
 
     const taxableAmount = subtotalAfterDiscount;
     let taxAmount = 0;
@@ -220,6 +234,7 @@ export function usePublicCart(shop: Shop | null) {
     state.discountType,
     state.discountValue,
     state.deliveryAddress,
+    state.deliveryBandId,
     shop?.settings?.delivery,
     taxSettings?.enabled,
     taxSettings?.rate,
@@ -234,6 +249,7 @@ export function usePublicCart(shop: Shop | null) {
     removeItem,
     setCustomer,
     setDeliveryCharge,
+    setDeliveryBand,
     setPickupSlot,
     setDeliveryAddress,
     setDeliveryAddressMerge,

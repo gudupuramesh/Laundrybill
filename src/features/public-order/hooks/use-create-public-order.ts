@@ -44,6 +44,7 @@ interface CreatePublicOrderPayload {
   deliveryAddress: PublicDeliveryAddress;
   customerNotes?: string;
   isQuickOrder: boolean;
+  deliveryBandId?: string;
 }
 
 interface CreatePublicOrderResult {
@@ -79,6 +80,7 @@ export function useCreatePublicOrder() {
         deliveryAddress: PublicDeliveryAddress;
         customerNotes?: string;
         isQuickOrder: boolean;
+        deliveryBandId?: string;
       }
     ): Promise<CreatePublicOrderResult | null> => {
       const slug = shop.publicOrdering?.slug || "";
@@ -132,6 +134,7 @@ export function useCreatePublicOrder() {
           deliveryAddress: input.deliveryAddress,
           customerNotes: input.customerNotes,
           isQuickOrder: input.isQuickOrder,
+          deliveryBandId: input.deliveryBandId,
         };
 
         const result = await fn(payload);

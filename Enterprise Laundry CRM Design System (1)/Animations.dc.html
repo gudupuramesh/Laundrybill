@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E4E8EE;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC; --c-warning:#9A5B00; --c-warning-soft:#FBEFD7; --c-error:#C2362F; --c-error-soft:#FBE6E5;
+    --c-violet:#6B3FD4; --c-violet-soft:#EEE9FD; --c-cyan:#0E6E8C; --c-cyan-soft:#E1F3F8; --c-info:#155CC0; --c-info-soft:#E4F0FC;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:8px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @keyframes omPop{ 0%{ transform:scale(.3); opacity:0; } 60%{ transform:scale(1.12); opacity:1; } 100%{ transform:scale(1); } }
+  @keyframes omRing{ 0%{ transform:scale(.55); opacity:.55; } 100%{ transform:scale(1.9); opacity:0; } }
+  @keyframes omDraw{ from{ stroke-dashoffset:40; } to{ stroke-dashoffset:0; } }
+  @keyframes omRise{ 0%{ transform:translateY(10px); opacity:0; } 100%{ transform:translateY(0); opacity:1; } }
+  @keyframes omFillX{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
+  @keyframes omNodeFill{ 0%{ transform:scale(.5); background:var(--c-surface-2); color:var(--c-text-3); border-color:var(--c-border-strong); } 100%{ transform:scale(1); background:var(--c-primary); color:#fff; border-color:var(--c-primary); } }
+  @keyframes omSpin{ to{ transform:rotate(360deg); } }
+  @keyframes omTruck{ 0%{ transform:translateX(-6px); } 50%{ transform:translateX(150px); } 100%{ transform:translateX(-6px); } }
+  @keyframes omSlideIn{ from{ transform:translateX(120%); opacity:0; } to{ transform:translateX(0); opacity:1; } }
+  @keyframes omShimmer{ from{ background-position:-220px 0; } to{ background-position:220px 0; } }
+  @keyframes omStamp{ 0%{ transform:scale(1.8); opacity:0; } 60%{ transform:scale(.94); opacity:1; } 100%{ transform:scale(1); } }
+  @keyframes omStampBig{ 0%{ transform:scale(2.2) rotate(-11deg); opacity:0; } 55%{ transform:scale(.9) rotate(-11deg); opacity:1; } 100%{ transform:scale(1) rotate(-11deg); } }
+  @keyframes omBell{ 0%,100%{ transform:rotate(0); } 20%{ transform:rotate(16deg); } 40%{ transform:rotate(-13deg); } 60%{ transform:rotate(8deg); } 80%{ transform:rotate(-5deg); } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div><div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Motion &amp; Animations</div><div style="font-size:11.5px; color:var(--c-text-3);">Reusable feedback &amp; status animations</div></div>
+      <div style="flex:1;"></div>
+      <button onClick="{{ replayAll }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Replay all</button>
+    </header>
+
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:22px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(264px,1fr)); gap:16px; max-width:1180px;">
+        <sc-for list="{{ demos }}" as="d" hint-placeholder-count="8">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-sm); overflow:hidden; display:flex; flex-direction:column;">
+            <div style="height:176px; display:flex; align-items:center; justify-content:center; padding:18px; background:{{ d.stageBg }}; border-bottom:1px solid var(--c-border); overflow:hidden;">{{ d.anim }}</div>
+            <div style="display:flex; align-items:center; gap:10px; padding:13px 16px;">
+              <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">{{ d.label }}</div><div style="font-size:11.5px; color:var(--c-text-3);">{{ d.caption }}</div></div>
+              <button onClick="{{ d.replay }}" aria-label="Replay animation" title="Replay" style="cursor:pointer; width:32px; height:32px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:8px;" style-hover="filter:brightness(.96);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { nonce:{}, all:0 };
+
+  renderVals(){
+    const h = React.createElement;
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Animations','<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',1],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const mono = "'IBM Plex Mono', monospace";
+
+    // ---- animation builders (keyed for remount-on-replay) ----
+    const build = (id, k)=>{
+      if(id==='placed'){
+        return h('div',{key:k, style:{position:'relative', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px'}},
+          h('div',{style:{position:'relative', width:'72px', height:'72px', display:'flex', alignItems:'center', justifyContent:'center'}},
+            h('span',{style:{position:'absolute', inset:0, borderRadius:'50%', border:'3px solid var(--c-success)', animation:'omRing .85s ease-out forwards'}}),
+            h('span',{style:{width:'72px', height:'72px', borderRadius:'50%', background:'var(--c-success)', display:'flex', alignItems:'center', justifyContent:'center', animation:'omPop .45s cubic-bezier(.2,1.3,.5,1) both'}},
+              h('svg',{width:38, height:38, viewBox:'0 0 24 24', fill:'none'}, h('path',{d:'M5 13l4 4L19 7', stroke:'#fff', strokeWidth:3, strokeLinecap:'round', strokeLinejoin:'round', style:{strokeDasharray:40, strokeDashoffset:40, animation:'omDraw .5s .25s ease forwards'}}))
+            )
+          ),
+          h('div',{style:{fontSize:'14px', fontWeight:700, animation:'omRise .4s .35s both'}}, 'Order placed'),
+          h('div',{style:{fontFamily:mono, fontSize:'12px', color:'var(--c-text-3)', animation:'omRise .4s .5s both'}}, '#LB-04822')
+        );
+      }
+      if(id==='progress'){
+        const steps=['Received','Washing','Ironing','Ready','Delivered'];
+        return h('div',{key:k, style:{display:'flex', width:'100%', padding:'0 4px'}},
+          steps.map((s,i)=> h('div',{key:i, style:{flex:1, display:'flex', flexDirection:'column', alignItems:'center', position:'relative'}},
+            i>0 && h('span',{style:{position:'absolute', top:'13px', left:'-50%', width:'100%', height:'3px', background:'var(--c-border-strong)', overflow:'hidden'}},
+              h('span',{style:{display:'block', height:'100%', background:'var(--c-primary)', transformOrigin:'left', transform:'scaleX(0)', animation:'omFillX .35s '+(0.15+i*0.3)+'s ease forwards'}})),
+            h('span',{style:{position:'relative', zIndex:1, width:'28px', height:'28px', borderRadius:'50%', border:'2px solid var(--c-border-strong)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, fontFamily:mono, animation:'omNodeFill .35s '+(0.3+i*0.3)+'s both'}}, i+1),
+            h('span',{style:{marginTop:'7px', fontSize:'10px', color:'var(--c-text-2)', whiteSpace:'nowrap'}}, s)
+          ))
+        );
+      }
+      if(id==='attendance'){
+        return h('div',{key:k, style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'12px'}},
+          h('div',{style:{width:'132px', padding:'12px 14px', border:'1px dashed var(--c-border-strong)', borderRadius:'10px', textAlign:'center', background:'var(--c-surface)'}},
+            h('div',{style:{fontSize:'10px', color:'var(--c-text-3)', fontWeight:600, letterSpacing:'.06em'}}, 'CLOCK IN'),
+            h('div',{style:{fontFamily:mono, fontWeight:700, fontSize:'22px', animation:'omRise .4s .1s both'}}, '08:54')
+          ),
+          h('div',{style:{display:'inline-flex', alignItems:'center', gap:'6px', color:'var(--c-success)', fontWeight:600, fontSize:'12.5px', padding:'5px 13px', background:'var(--c-success-soft)', borderRadius:'20px', animation:'omStamp .5s .4s cubic-bezier(.2,1.4,.5,1) both'}},
+            h('svg',{width:14, height:14, viewBox:'0 0 24 24', fill:'none'}, h('path',{d:'M5 12l4 4L19 6', stroke:'currentColor', strokeWidth:3, strokeLinecap:'round', strokeLinejoin:'round'})), 'Marked present')
+        );
+      }
+      if(id==='payment'){
+        return h('div',{key:k, style:{display:'flex', alignItems:'center', justifyContent:'center'}},
+          h('div',{style:{border:'3px solid var(--c-success)', color:'var(--c-success)', borderRadius:'12px', padding:'10px 22px', fontWeight:800, fontSize:'26px', letterSpacing:'.1em', animation:'omStampBig .55s cubic-bezier(.2,1.4,.5,1) both'}}, 'PAID')
+        );
+      }
+      if(id==='washing'){
+        return h('div',{key:k, style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'12px'}},
+          h('div',{style:{position:'relative', width:'66px', height:'66px', borderRadius:'50%', border:'6px solid var(--c-info-soft)', borderTopColor:'var(--c-info)', animation:'omSpin 1s linear infinite'}}),
+          h('div',{style:{fontSize:'12.5px', fontWeight:600, color:'var(--c-info)'}}, 'Washing…')
+        );
+      }
+      if(id==='delivery'){
+        return h('div',{key:k, style:{position:'relative', width:'100%', height:'62px'}},
+          h('div',{style:{position:'absolute', bottom:'14px', left:0, right:0, borderTop:'2px dashed var(--c-border-strong)'}}),
+          h('div',{style:{position:'absolute', bottom:'17px', left:0, color:'var(--c-primary)', animation:'omTruck 1.8s ease-in-out infinite'}},
+            h('svg',{width:42, height:42, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.7, strokeLinecap:'round', strokeLinejoin:'round'},
+              h('path',{d:'M1 6h12v9H1z'}), h('path',{d:'M13 9h4l3 3v3h-7z'}), h('circle',{cx:5, cy:17.5, r:2}), h('circle',{cx:17, cy:17.5, r:2})))
+        );
+      }
+      if(id==='toast'){
+        return h('div',{key:k, style:{display:'flex', justifyContent:'flex-end', width:'100%'}},
+          h('div',{style:{display:'flex', alignItems:'center', gap:'10px', background:'var(--c-surface)', border:'1px solid var(--c-border)', borderLeft:'3px solid var(--c-success)', borderRadius:'11px', boxShadow:'var(--sh-md)', padding:'11px 14px', animation:'omSlideIn .45s cubic-bezier(.2,1,.3,1) both'}},
+            h('span',{style:{width:'24px', height:'24px', flex:'none', borderRadius:'7px', background:'var(--c-success-soft)', color:'var(--c-success)', display:'flex', alignItems:'center', justifyContent:'center'}},
+              h('svg',{width:14, height:14, viewBox:'0 0 24 24', fill:'none'}, h('path',{d:'M5 12l4 4L19 6', stroke:'currentColor', strokeWidth:3, strokeLinecap:'round', strokeLinejoin:'round'}))),
+            h('div',{}, h('div',{style:{fontSize:'12.5px', fontWeight:600}}, 'Saved'), h('div',{style:{fontSize:'11px', color:'var(--c-text-3)'}}, 'Order updated'))
+          )
+        );
+      }
+      if(id==='loading'){
+        const bar = (w)=> h('div',{key:w, style:{height:'13px', width:w, borderRadius:'6px', background:'linear-gradient(90deg,var(--c-surface-2) 25%,var(--c-surface-3) 37%,var(--c-surface-2) 63%)', backgroundSize:'220px 100%', animation:'omShimmer 1.2s linear infinite'}});
+        return h('div',{key:k, style:{display:'flex', flexDirection:'column', gap:'11px', width:'80%'}}, [bar('90%'), bar('65%'), bar('78%'), bar('50%')]);
+      }
+      if(id==='bell'){
+        return h('div',{key:k, style:{position:'relative', color:'var(--c-warning)'}},
+          h('svg',{width:46, height:46, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.7, strokeLinecap:'round', strokeLinejoin:'round', style:{transformOrigin:'top center', animation:'omBell 1s .1s ease both'}},
+            h('path',{d:'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9'}), h('path',{d:'M9 21h6'})),
+          h('span',{style:{position:'absolute', top:'2px', right:'2px', width:'14px', height:'14px', borderRadius:'50%', background:'var(--c-error)', color:'#fff', fontSize:'9px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', animation:'omPop .4s .2s cubic-bezier(.2,1.4,.5,1) both'}}, '3')
+        );
+      }
+      return null;
+    };
+
+    const DEMOS = [
+      ['placed','Order placed','Success confirmation after checkout','#F1FAF5'],
+      ['progress','Order progress','Status pipeline filling stage by stage','#F7F9FE'],
+      ['attendance','Attendance marked','Clock-in stamp confirmation','#F1FAF5'],
+      ['payment','Payment received','Paid stamp on invoice','#F7F9FE'],
+      ['washing','Processing','In-progress spinner for live stages','#F2F8FB'],
+      ['delivery','Out for delivery','Driver en-route loop','#F7F9FE'],
+      ['toast','Toast notification','Slide-in feedback message','#FAFBFE'],
+      ['loading','Loading skeleton','Shimmer placeholder while data loads','#FAFBFE'],
+      ['bell','New alert','Notification bell ring','#FFFCF4'],
+    ];
+    const demos = DEMOS.map(([id,label,caption,stageBg])=>{
+      const k = id+'-'+((this.state.nonce[id]||0)+this.state.all);
+      return { label, caption, stageBg, anim:build(id,k),
+        replay:()=>this.setState(s=>({nonce:{...s.nonce,[id]:(s.nonce[id]||0)+1}})) };
+    });
+
+    return { navItems, demos, replayAll:()=>this.setState(s=>({all:s.all+1})) };
+  }
+}
+</script>
+</body>
+</html>

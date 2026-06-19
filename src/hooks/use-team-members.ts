@@ -14,6 +14,7 @@ import {
     doc,
     addDoc,
     updateDoc,
+    deleteDoc,
     getDoc,
     getDocs,
     where,
@@ -155,5 +156,11 @@ export function useTeamMemberMutations() {
         });
     };
 
-    return { createTeamMember, updateTeamMember };
+    /** Revoke an app login — removes the teamMember doc entirely. */
+    const deleteTeamMember = async (id: string) => {
+        if (!shopId) return;
+        await deleteDoc(doc(db, "shops", shopId, "teamMembers", id));
+    };
+
+    return { createTeamMember, updateTeamMember, deleteTeamMember };
 }

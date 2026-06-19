@@ -120,7 +120,7 @@ export function CustomerDetailsCard({
                     <LAvatar 
                         name={customerName || customerPhone || "?"} 
                         size="md" 
-                        className="shadow-sm border border-primary/10" 
+                        className="shadow-sm" 
                     />
                     <div className="min-w-0 flex-1 z-10">
                         <p className="truncate text-base font-bold text-foreground">
@@ -194,7 +194,7 @@ export function CustomerDetailsCard({
                                     onClick={() => { onSelectCustomer(c); setQuery(""); }}
                                     className="flex w-full items-center gap-3 p-3 text-left transition-all duration-150 hover:bg-primary/5 hover:translate-x-0.5 cursor-pointer"
                                 >
-                                    <LAvatar name={c.name} size="sm" className="bg-primary/10 text-primary border border-primary/5" />
+                                    <LAvatar name={c.name} size="sm" />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-bold text-foreground">{c.name}</p>
                                         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">

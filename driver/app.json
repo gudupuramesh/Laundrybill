@@ -3,7 +3,7 @@
     "name": "Laundrybill Team",
     "slug": "laundrybill-driver",
     "scheme": "laundrybilldriver",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill.driver",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Laundrybill Team uses your photos to attach pickup and delivery proof to orders."
@@ -31,7 +31,7 @@
     "android": {
       "package": "in.laundrybill.driver",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 1,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#0F1E36",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -77,6 +77,11 @@
       "expo-font",
       "./plugins/withApsEnvironmentProduction"
     ],
-    "owner": "gudupuramesh"
+    "owner": "gudupuramesh",
+    "extra": {
+      "eas": {
+        "projectId": "5f9bab01-7920-41f3-8622-5b10969a1c3f"
+      }
+    }
   }
 }

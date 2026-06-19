@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#FFFFFF; --c-soft:#F4F7FD; --c-surface-2:#F1F3F6;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-ink:#0B1330;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7; --c-star:#E8A317;
+    --c-violet:#6B3FD4; --c-violet-soft:#EEE9FD; --c-cyan:#0E6E8C; --c-cyan-soft:#E1F3F8; --c-info:#155CC0; --c-info-soft:#E4F0FC;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 6px 22px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+    --sh-lg:0 20px 50px rgba(11,19,48,.16);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:8px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  @keyframes lbOv{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes lbSheet{ from{ transform:translateX(100%); } to{ transform:translateX(0); } }
+  @media (max-width:880px){
+    .pw-navlinks{ display:none !important; }
+    .pw-hero{ grid-template-columns:1fr !important; }
+    .pw-hero-art{ order:-1; min-height:240px !important; }
+    .pw-h1{ font-size:34px !important; }
+  }
+  @media (max-width:560px){
+    .pw-sheet{ width:100% !important; }
+    .pw-sec{ padding-left:18px !important; padding-right:18px !important; }
+    .pw-h1{ font-size:28px !important; }
+  }
+</style>
+</helmet>
+
+<div style="background:var(--c-bg); color:var(--c-text); font-size:15px; line-height:1.55; min-height:100vh;">
+
+  <!-- ===================== NAV ===================== -->
+  <header style="position:sticky; top:0; z-index:40; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--c-border);">
+    <div style="max-width:1140px; margin:0 auto; padding:13px 24px; display:flex; align-items:center; gap:16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="width:34px; height:34px; flex:none; border-radius:9px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span style="font-size:18px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></span>
+      </div>
+      <nav class="pw-navlinks" style="display:flex; gap:4px; margin-left:18px;">
+        <sc-for list="{{ navlinks }}" as="l" hint-placeholder-count="5">
+          <a href="{{ l.href }}" style="text-decoration:none; font-size:14px; font-weight:500; color:var(--c-text-2); padding:8px 12px; border-radius:8px;" style-hover="background:var(--c-soft); color:var(--c-text);">{{ l.label }}</a>
+        </sc-for>
+      </nav>
+      <div style="flex:1;"></div>
+      <a href="tel:+97144000000" style="display:inline-flex; align-items:center; gap:7px; text-decoration:none; font-size:14px; font-weight:600; color:var(--c-text-2);" style-hover="color:var(--c-primary);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg><span class="pw-navlinks">800-WASH</span></a>
+      <button onClick="{{ openOrder }}" style="cursor:pointer; font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:9px; padding:10px 18px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);">Order now</button>
+    </div>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="pw-sec" style="background:linear-gradient(180deg,var(--c-soft),#fff); padding:56px 24px 64px;">
+    <div class="pw-hero" style="max-width:1140px; margin:0 auto; display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center;">
+      <div>
+        <span style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:6px 12px; border-radius:20px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--c-success);"></span>Free pickup &amp; delivery in 7 areas</span>
+        <h1 class="pw-h1" style="font-size:46px; line-height:1.08; font-weight:700; letter-spacing:-.025em; margin:18px 0 14px;">Laundry, done right — <span style="color:var(--c-primary);">picked up</span> &amp; delivered.</h1>
+        <p style="font-size:17px; color:var(--c-text-2); margin:0 0 26px; max-width:46ch;">Schedule a pickup in 30 seconds. We wash, dry-clean and press your clothes and return them fresh — tracked every step of the way.</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button onClick="{{ openOrder }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:9px; font:inherit; font-size:16px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:11px; padding:14px 24px; box-shadow:var(--sh-md);" style-hover="background:var(--c-primary-hover);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Schedule a pickup</button>
+          <a href="#services" style="cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-decoration:none; font-size:16px; font-weight:600; color:var(--c-text); background:#fff; border:1px solid var(--c-border-strong); border-radius:11px; padding:14px 22px;" style-hover="background:var(--c-soft);">View services</a>
+        </div>
+        <div style="display:flex; gap:26px; margin-top:30px; flex-wrap:wrap;">
+          <sc-for list="{{ heroStats }}" as="s" hint-placeholder-count="3">
+            <div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:22px;">{{ s.v }}</div><div style="font-size:12.5px; color:var(--c-text-3);">{{ s.l }}</div></div>
+          </sc-for>
+        </div>
+      </div>
+      <!-- banner art + floating card -->
+      <div class="pw-hero-art" style="position:relative; min-height:380px; border-radius:20px; overflow:hidden; background:linear-gradient(150deg,#1A4FD6,#11338E); box-shadow:var(--sh-lg); display:flex; align-items:center; justify-content:center;">
+        <span style="color:rgba(255,255,255,.22);"><svg width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z"/><circle cx="12" cy="13" r="4"/></svg></span>
+        <span style="position:absolute; top:16px; left:16px; font-size:11px; font-weight:600; color:rgba(255,255,255,.7); background:rgba(255,255,255,.12); padding:5px 10px; border-radius:8px;">Shop banner photo</span>
+        <!-- floating order status card -->
+        <div style="position:absolute; bottom:18px; left:18px; right:18px; background:#fff; border-radius:14px; box-shadow:var(--sh-md); padding:14px 16px; display:flex; align-items:center; gap:12px;">
+          <span style="width:40px; height:40px; flex:none; border-radius:10px; background:var(--c-success-soft); color:var(--c-success); display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span>
+          <div style="flex:1;"><div style="font-size:13px; font-weight:600;">Order #LB-04821 · Ready</div><div style="font-size:12px; color:var(--c-text-3);">Out for delivery · arriving 4:30 PM</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TRUST BAR ===================== -->
+  <section style="border-top:1px solid var(--c-border); border-bottom:1px solid var(--c-border); background:#fff;">
+    <div style="max-width:1140px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:center; gap:14px 36px; flex-wrap:wrap; font-size:13.5px; color:var(--c-text-2);">
+      <span style="display:inline-flex; align-items:center; gap:8px;"><span style="color:var(--c-star);">★★★★★</span><strong>4.8</strong> · 1,240 reviews</span>
+      <span style="width:1px; height:16px; background:var(--c-border);"></span>
+      <span style="display:inline-flex; align-items:center; gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>50,000+ orders delivered</span>
+      <span style="width:1px; height:16px; background:var(--c-border);"></span>
+      <span style="display:inline-flex; align-items:center; gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>24-hour turnaround</span>
+    </div>
+  </section>
+
+  <!-- ===================== SERVICES ===================== -->
+  <section id="services" class="pw-sec" style="padding:64px 24px; max-width:1140px; margin:0 auto;">
+    <div style="text-align:center; margin-bottom:36px;">
+      <div style="font-size:13px; font-weight:600; color:var(--c-primary); letter-spacing:.04em; text-transform:uppercase;">Our services</div>
+      <h2 style="font-size:32px; font-weight:700; letter-spacing:-.02em; margin:8px 0 0;">Everything your wardrobe needs</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px;">
+      <sc-for list="{{ services }}" as="s" hint-placeholder-count="5">
+        <div style="border:1px solid var(--c-border); border-radius:16px; overflow:hidden; background:#fff; box-shadow:var(--sh-sm); display:flex; flex-direction:column;" style-hover="box-shadow:var(--sh-md);">
+          <div style="height:120px; background:var(--{{ s.soft }}); color:var(--{{ s.ref }}); display:flex; align-items:center; justify-content:center; position:relative;">{{ s.icon }}<span style="position:absolute; top:10px; left:10px; font-size:10px; font-weight:600; color:var(--c-text-3); background:#fff; padding:2px 7px; border-radius:6px;">Photo</span></div>
+          <div style="padding:16px; flex:1; display:flex; flex-direction:column;">
+            <div style="font-size:16px; font-weight:700;">{{ s.name }}</div>
+            <div style="font-size:13px; color:var(--c-text-2); margin-top:5px; flex:1;">{{ s.desc }}</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+              <span style="font-size:13px; color:var(--c-text-3);">from <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; color:var(--c-text);">{{ s.price }}</span> د.إ</span>
+              <button onClick="{{ s.onOrder }}" style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:8px; padding:7px 12px;" style-hover="filter:brightness(.97);">Order</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ===================== HOW IT WORKS ===================== -->
+  <section id="how" style="background:var(--c-soft); padding:64px 24px;">
+    <div style="max-width:1140px; margin:0 auto;">
+      <div style="text-align:center; margin-bottom:36px;">
+        <div style="font-size:13px; font-weight:600; color:var(--c-primary); letter-spacing:.04em; text-transform:uppercase;">How it works</div>
+        <h2 style="font-size:32px; font-weight:700; letter-spacing:-.02em; margin:8px 0 0;">Fresh laundry in 3 easy steps</h2>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px;">
+        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+          <div style="background:#fff; border:1px solid var(--c-border); border-radius:16px; padding:22px; text-align:center; box-shadow:var(--sh-sm);">
+            <span style="width:54px; height:54px; border-radius:14px; background:var(--c-primary-soft); color:var(--c-primary); display:inline-flex; align-items:center; justify-content:center; position:relative;">{{ s.icon }}<span style="position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; background:var(--c-primary); color:#fff; font-size:11px; font-weight:700; font-family:'IBM Plex Mono'; display:flex; align-items:center; justify-content:center;">{{ s.n }}</span></span>
+            <div style="font-size:16px; font-weight:700; margin-top:14px;">{{ s.title }}</div>
+            <div style="font-size:13.5px; color:var(--c-text-2); margin-top:6px;">{{ s.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="text-align:center; margin-top:30px;"><button onClick="{{ openOrder }}" style="cursor:pointer; font:inherit; font-size:16px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:11px; padding:14px 26px; box-shadow:var(--sh-md);" style-hover="background:var(--c-primary-hover);">Schedule your first pickup</button></div>
+    </div>
+  </section>
+
+  <!-- ===================== PRICING / PLANS ===================== -->
+  <section id="pricing" class="pw-sec" style="padding:64px 24px; max-width:1140px; margin:0 auto;">
+    <div style="text-align:center; margin-bottom:36px;"><div style="font-size:13px; font-weight:600; color:var(--c-primary); letter-spacing:.04em; text-transform:uppercase;">Plans</div><h2 style="font-size:32px; font-weight:700; letter-spacing:-.02em; margin:8px 0 0;">Simple, transparent pricing</h2></div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px;">
+      <sc-for list="{{ plans }}" as="p" hint-placeholder-count="3">
+        <div style="border:1.5px solid {{ p.bd }}; border-radius:18px; padding:24px; background:{{ p.bg }}; box-shadow:{{ p.shadow }}; position:relative;">
+          <sc-if value="{{ p.popular }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:-11px; left:24px; font-size:11px; font-weight:700; color:#fff; background:var(--c-primary); padding:4px 11px; border-radius:20px;">MOST POPULAR</span></sc-if>
+          <div style="font-size:16px; font-weight:700; color:{{ p.titleColor }};">{{ p.name }}</div>
+          <div style="margin:10px 0 4px;"><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:34px; color:{{ p.priceColor }};">{{ p.price }}</span><span style="font-size:13px; color:{{ p.subColor }};"> د.إ / {{ p.per }}</span></div>
+          <div style="font-size:13px; color:{{ p.subColor }}; margin-bottom:16px;">{{ p.desc }}</div>
+          <div style="display:flex; flex-direction:column; gap:9px; margin-bottom:18px;">
+            <sc-for list="{{ p.feats }}" as="f" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:9px; font-size:13.5px; color:{{ p.featColor }};"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ p.checkColor }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>{{ f }}</div>
+            </sc-for>
+          </div>
+          <button onClick="{{ openOrder }}" style="width:100%; cursor:pointer; font:inherit; font-size:14px; font-weight:600; color:{{ p.btnFg }}; background:{{ p.btnBg }}; border:1px solid {{ p.btnBd }}; border-radius:10px; padding:11px;" style-hover="filter:brightness(.97);">{{ p.cta }}</button>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ===================== REVIEWS / FEEDBACK ===================== -->
+  <section id="reviews" style="background:var(--c-ink); color:#fff; padding:64px 24px;">
+    <div style="max-width:1140px; margin:0 auto;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:34px;">
+        <div><div style="font-size:13px; font-weight:600; color:#8FB0F5; letter-spacing:.04em; text-transform:uppercase;">Customer feedback</div><h2 style="font-size:32px; font-weight:700; letter-spacing:-.02em; margin:8px 0 0;">Loved by 1,200+ households</h2></div>
+        <div style="display:flex; align-items:center; gap:14px;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:46px; line-height:1;">4.8</div><div><div style="color:var(--c-star); font-size:18px; letter-spacing:2px;">★★★★★</div><div style="font-size:12.5px; color:rgba(255,255,255,.6);">1,240 verified reviews</div></div></div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;">
+        <sc-for list="{{ reviews }}" as="r" hint-placeholder-count="3">
+          <div style="background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:20px;">
+            <div style="color:var(--c-star); font-size:14px; letter-spacing:1px; margin-bottom:10px;">★★★★★</div>
+            <div style="font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.9);">“{{ r.text }}”</div>
+            <div style="display:flex; align-items:center; gap:11px; margin-top:16px;">
+              <span style="width:36px; height:36px; flex:none; border-radius:50%; background:rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">{{ r.initial }}</span>
+              <div><div style="font-size:13.5px; font-weight:600;">{{ r.name }}</div><div style="font-size:11.5px; color:rgba(255,255,255,.55);">{{ r.area }}</div></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CONTACT + AREAS ===================== -->
+  <section id="contact" class="pw-sec" style="padding:64px 24px; max-width:1140px; margin:0 auto;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px; align-items:start;">
+      <div>
+        <div style="font-size:13px; font-weight:600; color:var(--c-primary); letter-spacing:.04em; text-transform:uppercase;">Get in touch</div>
+        <h2 style="font-size:30px; font-weight:700; letter-spacing:-.02em; margin:8px 0 18px;">We're here to help</h2>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <sc-for list="{{ contacts }}" as="c" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:13px;"><span style="width:42px; height:42px; flex:none; border-radius:11px; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center;">{{ c.icon }}</span><div><div style="font-size:11.5px; color:var(--c-text-3);">{{ c.label }}</div><div style="font-size:14.5px; font-weight:600;">{{ c.value }}</div></div></div>
+          </sc-for>
+        </div>
+        <div style="margin-top:22px;">
+          <div style="font-size:12px; font-weight:600; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px;">Service areas</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <sc-for list="{{ areas }}" as="a" hint-placeholder-count="7"><span style="font-size:12.5px; font-weight:500; color:var(--c-text-2); background:var(--c-soft); border:1px solid var(--c-border); padding:6px 12px; border-radius:20px;">{{ a }}</span></sc-for>
+          </div>
+        </div>
+      </div>
+      <!-- map placeholder -->
+      <div style="border-radius:18px; overflow:hidden; border:1px solid var(--c-border); min-height:300px; background:var(--c-soft); position:relative; display:flex; align-items:center; justify-content:center; box-shadow:var(--sh-sm);">
+        <span style="color:var(--c-border-strong);"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-5-2V6l5 2 6-2 5 2v12l-5-2-6 2ZM9 8v12M15 6v12"/></svg></span>
+        <span style="position:absolute; bottom:14px; left:14px; font-size:11px; font-weight:600; color:var(--c-text-3); background:#fff; padding:5px 11px; border-radius:8px; box-shadow:var(--sh-sm);">Map · Downtown branch</span>
+        <span style="position:absolute; top:46%; left:48%; width:18px; height:18px; border-radius:50% 50% 50% 0; background:var(--c-primary); transform:rotate(-45deg); box-shadow:0 4px 10px rgba(26,79,214,.4);"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer style="background:var(--c-ink); color:rgba(255,255,255,.7); padding:48px 24px 26px;">
+    <div style="max-width:1140px; margin:0 auto;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:30px; padding-bottom:30px; border-bottom:1px solid rgba(255,255,255,.1);">
+        <div>
+          <div style="display:flex; align-items:center; gap:9px; margin-bottom:12px;"><span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/></svg></span><span style="font-size:17px; font-weight:700; color:#fff;">LaundryBill</span></div>
+          <p style="font-size:13px; margin:0 0 16px; max-width:30ch;">Premium laundry &amp; dry-cleaning with free pickup and delivery.</p>
+          <div style="display:flex; gap:9px;">
+            <sc-for list="{{ socials }}" as="s" hint-placeholder-count="4">
+              <a href="#" aria-label="{{ s.label }}" style="width:36px; height:36px; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; display:flex; align-items:center; justify-content:center; text-decoration:none;" style-hover="background:var(--c-primary);">{{ s.icon }}</a>
+            </sc-for>
+          </div>
+        </div>
+        <sc-for list="{{ footCols }}" as="col" hint-placeholder-count="3">
+          <div>
+            <div style="font-size:12px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px;">{{ col.title }}</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ col.links }}" as="lk" hint-placeholder-count="4"><a href="#" style="text-decoration:none; font-size:13.5px; color:rgba(255,255,255,.7);" style-hover="color:#fff;">{{ lk }}</a></sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px;">Get the app</div>
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <a href="#" style="display:flex; align-items:center; gap:10px; text-decoration:none; background:rgba(255,255,255,.08); border-radius:10px; padding:9px 13px; color:#fff;" style-hover="background:rgba(255,255,255,.14);"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M16.7 12.9c0-2.1 1.7-3.1 1.8-3.2-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.2.8-.7 0-1.7-.8-2.8-.7-1.4 0-2.7.8-3.4 2.1-1.5 2.5-.4 6.3 1 8.3.7 1 1.5 2.2 2.5 2.1 1 0 1.4-.6 2.6-.6 1.2 0 1.5.6 2.6.6 1.1 0 1.8-1 2.4-2 .8-1.1 1.1-2.3 1.1-2.3 0 0-2-.8-2-3.4ZM14.6 6.3c.6-.7 1-1.7.9-2.6-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.5 1 .1 1.9-.5 2.5-1.2Z"/></svg><div><div style="font-size:9px; opacity:.7;">Download on the</div><div style="font-size:13px; font-weight:600;">App Store</div></div></a>
+            <a href="#" style="display:flex; align-items:center; gap:10px; text-decoration:none; background:rgba(255,255,255,.08); border-radius:10px; padding:9px 13px; color:#fff;" style-hover="background:rgba(255,255,255,.14);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 14 8-14 8V4Z"/></svg><div><div style="font-size:9px; opacity:.7;">Get it on</div><div style="font-size:13px; font-weight:600;">Google Play</div></div></a>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding-top:20px; font-size:12.5px;">
+        <span>© 2026 LaundryBill. All rights reserved.</span>
+        <span style="display:flex; gap:18px;"><a href="#" style="color:rgba(255,255,255,.7); text-decoration:none;" style-hover="color:#fff;">Privacy</a><a href="#" style="color:rgba(255,255,255,.7); text-decoration:none;" style-hover="color:#fff;">Terms</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================== QUICK ORDER DRAWER ===================== -->
+  <sc-if value="{{ orderOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Quick order" onClick="{{ closeOrder }}" style="position:fixed; inset:0; z-index:80; background:rgba(11,19,48,.5); animation:lbOv .14s ease; display:flex; justify-content:flex-end;">
+      <div class="pw-sheet" onClick="{{ stop }}" style="width:440px; max-width:100%; height:100%; background:#fff; box-shadow:var(--sh-lg); animation:lbSheet .22s ease; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+          <div><div style="font-size:16px; font-weight:700;">Book a pickup</div><div style="font-size:11.5px; color:var(--c-text-3);">Free pickup &amp; delivery</div></div>
+          <button onClick="{{ closeOrder }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:32px; height:32px; color:var(--c-text-2); background:var(--c-soft); border:0; border-radius:8px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div class="lb-scroll" style="flex:1; overflow:auto; padding:18px 20px; display:flex; flex-direction:column; gap:18px;">
+          <!-- service chips -->
+          <div>
+            <div style="font-size:12.5px; font-weight:600; margin-bottom:9px;">Choose a service</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <sc-for list="{{ svcChips }}" as="c" hint-placeholder-count="5">
+                <button onClick="{{ c.onClick }}" style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:600; padding:8px 13px; border-radius:20px; border:1.5px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};" style-hover="border-color:var(--c-primary);">{{ c.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <!-- items -->
+          <div>
+            <div style="font-size:12.5px; font-weight:600; margin-bottom:9px;">Add items</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ orderItems }}" as="it" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border:1px solid var(--c-border); border-radius:11px;">
+                  <span style="width:38px; height:38px; flex:none; border-radius:9px; background:var(--{{ it.soft }}); color:var(--{{ it.ref }}); display:flex; align-items:center; justify-content:center;">{{ it.icon }}</span>
+                  <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">{{ it.name }}</div><div style="font-size:11.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ it.price }} د.إ {{ it.per }}</div></div>
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <button onClick="{{ it.dec }}" aria-label="Remove" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font:inherit; color:var(--c-text-2); background:var(--c-soft); border:1px solid var(--c-border); border-radius:8px;" style-hover="background:var(--c-surface-2);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                    <span style="min-width:18px; text-align:center; font-family:'IBM Plex Mono'; font-weight:700; font-size:13px;">{{ it.qty }}</span>
+                    <button onClick="{{ it.inc }}" aria-label="Add" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font:inherit; color:#fff; background:var(--c-primary); border:0; border-radius:8px;" style-hover="background:var(--c-primary-hover);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <!-- pickup details -->
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:12.5px; font-weight:600;">Pickup details</div>
+            <div style="display:flex; gap:10px;">
+              <div style="flex:1;"><label for="po-date" style="display:block; font-size:11.5px; color:var(--c-text-3); margin-bottom:5px;">Date</label><input id="po-date" value="Jun 19, 2026" style="width:100%; font:inherit; font-size:13px; border:1px solid var(--c-border-strong); border-radius:9px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+              <div style="flex:1;"><label for="po-slot" style="display:block; font-size:11.5px; color:var(--c-text-3); margin-bottom:5px;">Slot</label><select id="po-slot" style="width:100%; font:inherit; font-size:13px; border:1px solid var(--c-border-strong); border-radius:9px; padding:9px 11px;" style-focus="border-color:var(--c-primary);"><option>9:00 – 12:00</option><option>12:00 – 15:00</option><option>15:00 – 18:00</option></select></div>
+            </div>
+            <div><label for="po-area" style="display:block; font-size:11.5px; color:var(--c-text-3); margin-bottom:5px;">Area</label><select id="po-area" style="width:100%; font:inherit; font-size:13px; border:1px solid var(--c-border-strong); border-radius:9px; padding:9px 11px;" style-focus="border-color:var(--c-primary);"><sc-for list="{{ areas }}" as="a" hint-placeholder-count="6"><option>{{ a }}</option></sc-for></select></div>
+            <div><label for="po-addr" style="display:block; font-size:11.5px; color:var(--c-text-3); margin-bottom:5px;">Address</label><input id="po-addr" placeholder="Flat / building, street" style="width:100%; font:inherit; font-size:13px; border:1px solid var(--c-border-strong); border-radius:9px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+            <div><label for="po-phone" style="display:block; font-size:11.5px; color:var(--c-text-3); margin-bottom:5px;">Phone</label><input id="po-phone" inputMode="tel" placeholder="998 000 0000" style="width:100%; font-family:'IBM Plex Mono'; font-size:13px; border:1px solid var(--c-border-strong); border-radius:9px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--c-border); padding:14px 20px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;"><span style="font-size:13px; color:var(--c-text-2);">{{ orderCount }} items · est. total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:19px;">{{ orderTotal }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+          <button onClick="{{ confirmOrder }}" style="width:100%; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px; font:inherit; font-size:15px; font-weight:700; color:#fff; background:var(--c-primary); border:0; border-radius:11px; padding:14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Confirm pickup</button>
+          <div style="font-size:11px; color:var(--c-text-3); text-align:center; margin-top:8px;">No payment now — pay on delivery or in-app</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- success toast -->
+  <sc-if value="{{ booked }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:fixed; bottom:22px; left:50%; transform:translateX(-50%); z-index:90; display:flex; align-items:center; gap:11px; background:#fff; border:1px solid var(--c-border); border-left:3px solid var(--c-success); border-radius:11px; box-shadow:var(--sh-lg); padding:13px 17px; animation:lbOv .2s ease;">
+      <span style="width:24px; height:24px; flex:none; border-radius:7px; background:var(--c-success-soft); color:var(--c-success); display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span>
+      <div><div style="font-size:13.5px; font-weight:600;">Pickup booked!</div><div style="font-size:12px; color:var(--c-text-3);">We'll text you a confirmation shortly.</div></div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { orderOpen:false, svc:'Wash & Fold', cart:{ wf:3 }, booked:false };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const G = (s,sz)=> html('<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const IC = (s)=> html('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const SO = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">'+s+'</svg>');
+
+    const gi={ shirt:'<path d="M8.5 3 5 5.5 6.5 9 8.5 8v12h7V8l2 1L19 5.5 15.5 3l-1.7 1.6a2.8 2.8 0 0 1-3.6 0Z"/>', suit:'<path d="M8 3 6 5v16h12V5l-2-2-4 5-4-5Z"/><path d="M12 8v9"/>', iron:'<path d="M3 13a8 8 0 0 1 8-3h10v5H5a2 2 0 0 1-2-2ZM7 18v2M11 18v2M15 18v2"/>', home:'<path d="M3 11 12 4l9 7M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>', bolt:'<path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z"/>', bag:'<path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/>', truck:'<path d="M1 5h13v10H1zM14 8h4l3 3v4h-7z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>', sparkle:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>' };
+
+    const navlinks=[['Services','#services'],['How it works','#how'],['Pricing','#pricing'],['Reviews','#reviews'],['Contact','#contact']].map(([label,href])=>({label,href}));
+    const heroStats=[{v:'50k+',l:'Orders delivered'},{v:'4.8★',l:'Avg. rating'},{v:'24h',l:'Turnaround'},{v:'7',l:'Service areas'}];
+
+    const SVC=[
+      ['Wash & Fold','Everyday laundry washed, dried & folded.','3.50','c-primary',gi.bag,'Wash & Fold'],
+      ['Dry Cleaning','Expert care for suits, dresses & delicates.','14.00','c-violet',gi.suit,'Dry Cleaning'],
+      ['Ironing & Press','Crisp, steam-pressed garments.','2.00','c-info',gi.iron,'Ironing'],
+      ['Household','Curtains, blankets & bulky textiles.','12.00','c-cyan',gi.home,'Household'],
+      ['Express 24h','Priority same-day handling.','5.00','c-warning',gi.bolt,'Express'],
+    ];
+    const tintSoft={'c-primary':'c-primary-soft','c-violet':'c-violet-soft','c-info':'c-info-soft','c-cyan':'c-cyan-soft','c-warning':'c-warning-soft'};
+    const services=SVC.map(s=>({ name:s[0], desc:s[1], price:s[2], ref:s[3], soft:tintSoft[s[3]], icon:G(s[4],52),
+      onOrder:()=>this.setState({orderOpen:true, svc:s[5]}) }));
+
+    const steps=[
+      ['1','Schedule a pickup','Pick a time slot — we come to your door for free.',IC('<path d="M8 2v3M16 2v3M3 9h18M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/>')],
+      ['2','We clean & care','Washed, pressed and quality-checked by pros.',IC('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>')],
+      ['3','Track live','Follow every stage from your phone.',IC('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>')],
+      ['4','Fresh delivery','Back to you within 24 hours.',IC('<path d="M1 5h13v10H1zM14 8h4l3 3v4h-7z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>')],
+    ].map(s=>({ n:s[0], title:s[1], desc:s[2], icon:s[3] }));
+
+    const plans=[
+      { name:'Pay as you go', price:'0', per:'mo', desc:'Order whenever you need.', feats:['No commitment','Standard 24h turnaround','Free pickup & delivery'], popular:false,
+        bd:'var(--c-border)', bg:'#fff', shadow:'var(--sh-sm)', titleColor:'var(--c-text)', priceColor:'var(--c-text)', subColor:'var(--c-text-3)', featColor:'var(--c-text-2)', checkColor:'var(--c-success)',
+        cta:'Start an order', btnFg:'var(--c-text)', btnBg:'#fff', btnBd:'var(--c-border-strong)' },
+      { name:'Standard', price:'79', per:'mo', desc:'For regular households.', feats:['4 pickups / month','10% off all services','Priority slots'], popular:true,
+        bd:'var(--c-primary)', bg:'#fff', shadow:'var(--sh-md)', titleColor:'var(--c-primary)', priceColor:'var(--c-text)', subColor:'var(--c-text-3)', featColor:'var(--c-text-2)', checkColor:'var(--c-primary)',
+        cta:'Choose Standard', btnFg:'#fff', btnBg:'var(--c-primary)', btnBd:'var(--c-primary)' },
+      { name:'Premium', price:'149', per:'mo', desc:'Unlimited convenience.', feats:['Unlimited pickups','20% off all services','Express included','Dedicated support'], popular:false,
+        bd:'var(--c-border)', bg:'#fff', shadow:'var(--sh-sm)', titleColor:'var(--c-text)', priceColor:'var(--c-text)', subColor:'var(--c-text-3)', featColor:'var(--c-text-2)', checkColor:'var(--c-success)',
+        cta:'Choose Premium', btnFg:'var(--c-text)', btnBg:'#fff', btnBd:'var(--c-border-strong)' },
+    ];
+
+    const reviews=[
+      {text:'Picked up at 9am, back the next day perfectly pressed. The live tracking is brilliant.', name:'Lavanya R.', area:'Downtown', initial:'L'},
+      {text:'Best dry cleaning in the city — my suits have never looked better. Super reliable drivers.', name:'Marcus R.', area:'Jubilee Hills', initial:'M'},
+      {text:'The subscription pays for itself. Free pickup, great prices, and the app just works.', name:'Hana K.', area:'Banjara Hills', initial:'H'},
+    ];
+
+    const contacts=[
+      {label:'Call us', value:'800-WASH (9274)', icon:IC('<path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>')},
+      {label:'Email', value:'hello@laundrybill.co', icon:IC('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>')},
+      {label:'Hours', value:'Mon–Sun · 7am – 10pm', icon:IC('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')},
+      {label:'Main branch', value:'12 Main Road, Downtown', icon:IC('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>')},
+    ];
+    const areas=['Downtown','Jubilee Hills','Banjara Hills','Madhapur','Gachibowli','Kukatpally','Begumpet'];
+
+    const socials=[
+      {label:'Facebook', icon:SO('<path d="M14 9h3V6h-3c-2 0-3 1-3 3v2H9v3h2v6h3v-6h2.5l.5-3H14V9.5c0-.4.2-.5.5-.5Z"/>')},
+      {label:'Instagram', icon:SO('<path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm5 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm5-1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/>')},
+      {label:'X', icon:SO('<path d="M4 3h4l5 7 5-7h2l-6 8.5L21 21h-4l-5-7-5 7H5l6-8.5L4 3Z"/>')},
+      {label:'WhatsApp', icon:SO('<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm4.3 12.5c-.2.5-1 .9-1.4 1-.4 0-.8.2-2.6-.6-2.2-.9-3.6-3.2-3.7-3.3-.1-.2-.9-1.2-.9-2.3 0-1 .6-1.5.8-1.7.2-.2.4-.3.6-.3h.4c.2 0 .4 0 .5.4l.7 1.6c0 .2.1.3 0 .5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.2 1.6 1.9 1 .8 1.7 1 2 1.2.2 0 .4 0 .5-.2l.6-.7c.2-.2.3-.2.6-.1l1.6.8c.2.1.4.2.4.3.1.2.1.6 0 1Z"/>')},
+    ];
+    const footCols=[
+      {title:'Services', links:['Wash & Fold','Dry Cleaning','Ironing','Household','Express 24h']},
+      {title:'Company', links:['About us','Careers','Service areas','Blog']},
+      {title:'Support', links:['Help center','Track order','Contact','FAQs']},
+    ];
+
+    // order drawer
+    const SC=['Wash & Fold','Dry Cleaning','Ironing','Household','Express'];
+    const svcChips=SC.map(label=>{ const on=label===this.state.svc;
+      return { label, onClick:()=>this.setState({svc:label}),
+        bg:on?'var(--c-primary-soft)':'#fff', bd:on?'var(--c-primary)':'var(--c-border-strong)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+    const ITEMS={
+      'Wash & Fold':[['wf','Wash & Fold (per kg)','6.00','/ kg','c-primary',gi.bag],['ts','T-Shirt / Polo','3.50','/ pc','c-info',gi.shirt],['tr','Trousers','5.00','/ pc','c-cyan',gi.shirt]],
+      'Dry Cleaning':[['su','Suit (2-pc)','22.00','/ pc','c-violet',gi.suit],['bl','Blazer','14.00','/ pc','c-primary',gi.suit],['dr','Dress','18.00','/ pc','c-info',gi.shirt]],
+      'Ironing':[['sh','Shirt press','2.00','/ pc','c-info',gi.iron],['trp','Trouser press','2.50','/ pc','c-cyan',gi.iron]],
+      'Household':[['cu','Curtains','12.00','/ pc','c-cyan',gi.home],['bk','Blanket','15.00','/ pc','c-primary',gi.home]],
+      'Express':[['ex','Express shirt','5.00','/ pc','c-warning',gi.bolt],['exs','Express suit','30.00','/ pc','c-violet',gi.suit]],
+    };
+    const cart=this.state.cart;
+    const set=(id,d)=>this.setState(s=>{ const n=(s.cart[id]||0)+d; const c={...s.cart}; if(n<=0) delete c[id]; else c[id]=n; return {cart:c}; });
+    const list=ITEMS[this.state.svc]||[];
+    const orderItems=list.map(it=>({ name:it[1], price:it[2], per:it[3], ref:it[4], soft:tintSoft[it[4]], icon:G(it[5],20),
+      qty:String(cart[it[0]]||0), inc:()=>set(it[0],1), dec:()=>set(it[0],-1) }));
+    // total across whole cart (all services)
+    const ALL={}; Object.values(ITEMS).flat().forEach(it=>{ ALL[it[0]]=parseFloat(it[2]); });
+    const ids=Object.keys(cart);
+    const orderCount=ids.reduce((a,id)=>a+cart[id],0);
+    const orderTotalN=ids.reduce((a,id)=>a+(ALL[id]||0)*cart[id],0);
+
+    return {
+      navlinks, heroStats, services, steps, plans, reviews, contacts, areas, socials, footCols,
+      openOrder:()=>this.setState({orderOpen:true}), closeOrder:()=>this.setState({orderOpen:false}), stop:(e)=>e.stopPropagation(),
+      orderOpen:this.state.orderOpen, svcChips, orderItems,
+      orderCount:String(orderCount), orderTotal:orderTotalN.toFixed(2),
+      booked:this.state.booked,
+      confirmOrder:()=>{ this.setState({orderOpen:false, booked:true}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({booked:false}),3200); },
+    };
+  }
+}
+</script>
+</body>
+</html>

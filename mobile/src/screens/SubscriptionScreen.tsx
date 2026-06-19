@@ -78,7 +78,31 @@ const STATIC_PRICES = Platform.OS === 'ios'
  * RevenueCat offering — displaying a non-purchasable plan can fail store review.
  * Flip to true once those products exist.
  */
-const SHOW_BUSINESS_PLAN = true;
+// Business is sold on the web (Razorpay), NOT via in-app purchase — Apple/Play
+// forbid non-IAP digital unlocks inside the app. The app still HONORS a Business
+// subscription bought on web (see currentPlanId / isPaidPlan), it just doesn't
+// sell or advertise it as buyable here. Flip to true only if Business IAP
+// products are ever created on BOTH stores and attached to the RC offering.
+const SHOW_BUSINESS_PLAN: boolean = false;
+
+/**
+ * Single source of truth for the plan tier ('pro' | 'business'), derived from a
+ * RevenueCat package id AND/OR the store product id. Used by BOTH the plan cards
+ * (display) and the post-purchase Firestore sync, so the tier we SAVE always
+ * matches the tier the user TAPPED. (Previously the sync re-guessed from only the
+ * product id and would silently record a Business purchase as 'pro'.)
+ */
+function tierFromIds(packageId?: string, productId?: string): 'pro' | 'business' {
+  const id = (packageId || '').toLowerCase();
+  const prodId = (productId || '').toLowerCase();
+  if (
+    id.includes('business') || prodId.includes('business') ||
+    id.includes('enterprise') || prodId.includes('enterprise')
+  ) {
+    return 'business';
+  }
+  return 'pro';
+}
 
 /**
  * Format an amount in the live product's currency (so the savings line matches
@@ -209,7 +233,8 @@ export default function SubscriptionScreen({
       setIsPro(entitled);
       if (entitled) {
         setUiState('syncing');
-        await syncEntitlementToFirestore(customerInfo);
+        // Save the SAME tier the user tapped — not a re-guess from the product id.
+        await syncEntitlementToFirestore(customerInfo, tierFromIds(pkg.identifier, pkg.product?.identifier));
         setUiState('done');
         Alert.alert('Payment Successful', 'Your subscription is now active!');
       } else {
@@ -249,15 +274,17 @@ export default function SubscriptionScreen({
   };
 
   // ── Sync to Firestore ────────────────────────────────────────────────
-  const syncEntitlementToFirestore = async (info: any) => {
+  const syncEntitlementToFirestore = async (info: any, tierOverride?: 'pro' | 'business') => {
     if (!shopId) return;
     try {
       const entitlement = info.entitlements?.active?.[ENTITLEMENT_ID];
       if (!entitlement) return;
+      // Prefer the tier the user tapped; fall back to the product id (restore path).
+      const planId = tierOverride ?? tierFromIds(undefined, entitlement.productIdentifier);
       const syncRcSubscription = createNamedHttpsCallable('syncRevenueCatSubscription');
       await syncRcSubscription({
         shopId,
-        planId: entitlement.productIdentifier?.includes('business') ? 'business' : 'pro',
+        planId,
         productIdentifier: entitlement.productIdentifier || '',
         expirationDate: entitlement.expirationDate || null,
         isActive: true,
@@ -286,12 +313,8 @@ export default function SubscriptionScreen({
 
   // Try to identify Pro vs Business packages by identifier pattern
   // RevenueCat identifiers: e.g. "$rc_monthly", "$rc_annual", "pro_monthly", "business_monthly"
-  const classifyPkg = (pkg: PurchasesPackage) => {
-    const id = (pkg.identifier || '').toLowerCase();
-    const prodId = (pkg.product?.identifier || '').toLowerCase();
-    if (id.includes('business') || prodId.includes('business') || id.includes('enterprise') || prodId.includes('enterprise')) return 'business';
-    return 'pro'; // default to pro
-  };
+  const classifyPkg = (pkg: PurchasesPackage) =>
+    tierFromIds(pkg.identifier, pkg.product?.identifier);
 
   const proPackages = packages.filter((p) => classifyPkg(p) === 'pro');
   const bizPackages = packages.filter((p) => classifyPkg(p) === 'business');
@@ -344,6 +367,12 @@ export default function SubscriptionScreen({
   const bizSavings = hasSeparateBizProducts ? calcSavings(bizPackages) : null;
 
   const rcNotConfigured = !isRevenueCatConfigured();
+
+  // When Business is hidden, drop the Business-only feature rows so the
+  // comparison doesn't show rows that are unavailable in every shown tier.
+  const compFeatures = SHOW_BUSINESS_PLAN
+    ? PLAN_FEATURES
+    : PLAN_FEATURES.filter((f) => f.free || f.pro);
 
   // ── Loading ──────────────────────────────────────────────────────────
   if (uiState === 'loading') {
@@ -643,13 +672,15 @@ export default function SubscriptionScreen({
             <Text style={[s.compHeaderCell, { flex: 1, textAlign: 'left' }]}>Feature</Text>
             <Text style={s.compHeaderCell}>Free</Text>
             <Text style={[s.compHeaderCell, { color: colors.primary }]}>Pro</Text>
-            <Text style={[s.compHeaderCell, { color: '#0D47A1' }]}>Biz</Text>
+            {SHOW_BUSINESS_PLAN && (
+              <Text style={[s.compHeaderCell, { color: '#0D47A1' }]}>Biz</Text>
+            )}
           </View>
 
-          {PLAN_FEATURES.map((f, i) => (
-            <View key={f.label} style={[s.compRow, i === PLAN_FEATURES.length - 1 && { borderBottomWidth: 0 }]}>
+          {compFeatures.map((f, i) => (
+            <View key={f.label} style={[s.compRow, i === compFeatures.length - 1 && { borderBottomWidth: 0 }]}>
               <View style={s.compFeatureCell}>
-                <MaterialIcons name={f.icon as any} size={14} color={f.biz ? colors.primary : colors.textMuted} />
+                <MaterialIcons name={f.icon as any} size={14} color={(SHOW_BUSINESS_PLAN ? f.biz : f.pro) ? colors.primary : colors.textMuted} />
                 <Text style={s.compFeatureText} numberOfLines={1}>{f.label}</Text>
               </View>
               <View style={s.compCheckCell}>
@@ -666,9 +697,11 @@ export default function SubscriptionScreen({
                   color={f.pro ? colors.success : colors.border}
                 />
               </View>
-              <View style={s.compCheckCell}>
-                <MaterialIcons name="check-circle" size={16} color={colors.success} />
-              </View>
+              {SHOW_BUSINESS_PLAN && (
+                <View style={s.compCheckCell}>
+                  <MaterialIcons name="check-circle" size={16} color={colors.success} />
+                </View>
+              )}
             </View>
           ))}
         </View>

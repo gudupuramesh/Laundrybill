@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1040px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ============================ LIST VIEW ============================ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+        <div style="display:flex; align-items:baseline; gap:9px;">
+          <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Customers</span>
+          <span style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">1,284 total</span>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="position:relative;">
+          <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <input value="{{ search }}" onInput="{{ onSearch }}" type="search" placeholder="Search name or phone…" style="width:240px; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:8px 11px 8px 33px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+        </div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add Customer</button>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;">
+          <sc-for list="{{ listKpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:12px;">
+              <span style="width:38px; height:38px; flex:none; border-radius:10px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span>
+              <div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:21px; letter-spacing:-.02em;">{{ k.value }}</div><div style="font-size:11.5px; color:var(--c-text-3);">{{ k.label }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--c-border);">
+            <div style="font-size:14px; font-weight:600;">All customers</div>
+            <div style="margin-left:auto; display:flex; gap:7px;">
+              <sc-for list="{{ planFilters }}" as="f" hint-placeholder-count="4">
+                <button style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid {{ f.border }}; background:{{ f.bg }}; color:{{ f.fg }};" style-hover="border-color:var(--c-border-strong);">{{ f.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:880px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:9px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Customer</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Area</th>
+                  <th style="text-align:right; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Orders</th>
+                  <th style="text-align:right; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Lifetime</th>
+                  <th style="text-align:right; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Balance</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Plan</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Last order</th>
+                  <th style="padding:9px 18px; border-bottom:1px solid var(--c-border); width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ customers }}" as="c" hint-placeholder-count="8">
+                  <tr onClick="{{ c.onOpen }}" tabIndex="0" onKeyDown="{{ c.onKey }}" role="button" style="border-bottom:1px solid var(--c-border); cursor:pointer;" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:10px 18px;">
+                      <div style="display:flex; align-items:center; gap:11px;">
+                        <span style="width:34px; height:34px; flex:none; border-radius:50%; background:var(--{{ c.avSoft }}); color:var(--{{ c.avRef }}); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">{{ c.initial }}</span>
+                        <div><div style="font-weight:600;">{{ c.name }}</div><div style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ c.phone }}</div></div>
+                      </div>
+                    </td>
+                    <td style="padding:10px 14px; color:var(--c-text-2);">{{ c.area }}</td>
+                    <td style="padding:10px 14px; text-align:right; font-family:'IBM Plex Mono';">{{ c.orders }}</td>
+                    <td style="padding:10px 14px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ c.ltv }}</td>
+                    <td style="padding:10px 14px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600; color:{{ c.balColor }};">{{ c.balance }}</td>
+                    <td style="padding:10px 14px;"><span style="font-size:11px; font-weight:600; color:var(--{{ c.planRef }}); background:var(--{{ c.planSoft }}); padding:3px 9px; border-radius:20px;">{{ c.plan }}</span></td>
+                    <td style="padding:10px 14px; color:var(--c-text-3); font-size:12.5px;">{{ c.lastOrder }}</td>
+                    <td style="padding:10px 18px; text-align:right; color:var(--c-text-3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============================ DETAIL VIEW ============================ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:12px;">
+        <button onClick="{{ goList }}" aria-label="Back to customers" style="cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <nav aria-label="Breadcrumb" style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--c-text-3);">
+          <button onClick="{{ goList }}" style="cursor:pointer; font:inherit; font-size:13px; color:var(--c-text-2); background:transparent; border:0;" style-hover="color:var(--c-primary);">Customers</button><span>/</span>
+          <span style="color:var(--c-text); font-weight:600;" aria-current="page">{{ d.name }}</span>
+        </nav>
+        <div style="flex:1;"></div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Order</button>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <!-- profile header -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px 22px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:18px; margin-bottom:16px;">
+          <span style="width:60px; height:60px; flex:none; border-radius:16px; background:var(--{{ d.avSoft }}); color:var(--{{ d.avRef }}); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:600;">{{ d.initial }}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="font-size:21px; font-weight:700; letter-spacing:-.01em;">{{ d.name }}</span>
+              <span style="font-size:12px; font-weight:600; color:var(--{{ d.planRef }}); background:var(--{{ d.planSoft }}); padding:3px 10px; border-radius:20px;">{{ d.plan }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:7px; font-size:12.5px; color:var(--c-text-3); flex-wrap:wrap;">
+              <span style="font-family:'IBM Plex Mono';">{{ d.phone }}</span><span>·</span><span>{{ d.email }}</span><span>·</span><span>{{ d.area }}</span><span>·</span><span>Member since {{ d.since }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button aria-label="Call" style="cursor:pointer; width:38px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:9px;" style-hover="filter:brightness(.96);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></button>
+            <button aria-label="Message" style="cursor:pointer; width:38px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--c-success); background:var(--c-success-soft); border:0; border-radius:9px;" style-hover="filter:brightness(.96);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/></svg></button>
+            <button aria-label="Edit" style="cursor:pointer; width:38px; height:38px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px;" style-hover="background:var(--c-surface-2);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- stat tiles -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px;">
+          <sc-for list="{{ d.stats }}" as="st" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ st.label }}</div>
+              <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:22px; letter-spacing:-.02em; margin-top:8px; color:{{ st.color }};">{{ st.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div class="lb-row" style="display:flex; gap:16px;">
+          <!-- LEFT: order history -->
+          <div style="flex:1.7; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--c-border);">
+                <div style="font-size:14px; font-weight:600;">Order history</div>
+                <span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">{{ d.orders }}</span>
+                <a href="#" style="margin-left:auto; font-size:12.5px; font-weight:600; color:var(--c-primary); text-decoration:none;" style-hover="text-decoration:underline;">View all</a>
+              </div>
+              <div style="overflow-x:auto;" class="lb-scroll">
+                <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:520px;">
+                  <thead>
+                    <tr style="background:var(--c-surface-2);">
+                      <th style="text-align:left; padding:8px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Order</th>
+                      <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Date</th>
+                      <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Items</th>
+                      <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                      <th style="text-align:right; padding:8px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ d.history }}" as="o" hint-placeholder-count="6">
+                      <tr style="border-bottom:1px solid var(--c-border);" style-hover="background:var(--c-surface-2);">
+                        <td style="padding:9px 18px; font-family:'IBM Plex Mono'; font-weight:600;">{{ o.id }}</td>
+                        <td style="padding:9px 14px; color:var(--c-text-2);">{{ o.date }}</td>
+                        <td style="padding:9px 14px; color:var(--c-text-2); font-family:'IBM Plex Mono';">{{ o.items }}</td>
+                        <td style="padding:9px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:var(--{{ o.stSoft }}); color:var(--{{ o.stRef }});"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ o.stRef }});"></span>{{ o.status }}</span></td>
+                        <td style="padding:9px 18px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ o.total }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- activity -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Recent activity</div>
+              <sc-for list="{{ d.activity }}" as="a" hint-placeholder-count="4">
+                <div style="display:flex; gap:13px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; flex:none;">
+                    <span style="width:26px; height:26px; border-radius:50%; background:var(--{{ a.soft }}); color:var(--{{ a.ref }}); display:flex; align-items:center; justify-content:center;">{{ a.icon }}</span>
+                    <span style="width:2px; flex:1; background:var(--c-border); display:{{ a.line }}; min-height:12px;"></span>
+                  </div>
+                  <div style="flex:1; padding-bottom:{{ a.pad }};">
+                    <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-size:13.5px; font-weight:500;">{{ a.title }}</span><span style="margin-left:auto; font-size:11px; color:var(--c-text-3); white-space:nowrap; font-family:'IBM Plex Mono';">{{ a.time }}</span></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- RIGHT -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- contact & address -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">CONTACT &amp; ADDRESSES</div>
+              <div style="display:flex; flex-direction:column; gap:13px;">
+                <div style="display:flex; align-items:center; gap:11px;"><span style="color:var(--c-text-3); flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></span><span style="font-family:'IBM Plex Mono'; font-size:13px;">{{ d.phone }}</span></div>
+                <div style="display:flex; align-items:center; gap:11px;"><span style="color:var(--c-text-3); flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><span style="font-size:13px; color:var(--c-text-2);">{{ d.email }}</span></div>
+                <sc-for list="{{ d.addresses }}" as="ad" hint-placeholder-count="2">
+                  <div style="display:flex; align-items:flex-start; gap:11px; padding-top:12px; border-top:1px solid var(--c-border);"><span style="color:var(--{{ ad.ref }}); flex:none; margin-top:1px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><div style="font-size:11px; font-weight:600; color:var(--{{ ad.ref }});">{{ ad.tag }}</div><div style="font-size:12.5px; color:var(--c-text-2); margin-top:2px;">{{ ad.line }}</div></div></div>
+                </sc-for>
+              </div>
+            </div>
+            <!-- subscription -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; margin-bottom:14px;">
+                <span style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3);">SUBSCRIPTION</span>
+                <span style="margin-left:auto; font-size:10.5px; font-weight:600; color:var(--{{ d.subRef }}); background:var(--{{ d.subSoft }}); padding:3px 9px; border-radius:20px;">{{ d.subStatus }}</span>
+              </div>
+              <div style="font-size:15px; font-weight:700;">{{ d.plan }} plan</div>
+              <div style="font-size:12.5px; color:var(--c-text-3); margin-top:3px;">{{ d.planDesc }}</div>
+              <div style="display:flex; justify-content:space-between; margin-top:14px; padding-top:13px; border-top:1px solid var(--c-border); font-size:13px;"><span style="color:var(--c-text-2);">Renews</span><span style="font-weight:600;">{{ d.renews }}</span></div>
+              <div style="display:flex; justify-content:space-between; margin-top:9px; font-size:13px;"><span style="color:var(--c-text-2);">Monthly</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.planPrice }}<span style="font-size:10px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span></div>
+            </div>
+            <!-- preferences -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">PREFERENCES</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ d.prefs }}" as="pf" hint-placeholder-count="4">
+                  <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;"><span style="color:var(--c-text-2);">{{ pf.label }}</span><span style="font-weight:600; background:var(--c-surface-2); padding:3px 9px; border-radius:6px;">{{ pf.value }}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'list', selected:'lavanya', search:'' };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const TI = (s)=> html('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',1],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const AV=['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const avSoft={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+    const PLAN={ Premium:{ref:'c-success', soft:'c-success-soft'}, Standard:{ref:'c-info', soft:'c-info-soft'}, 'Pay-as-you-go':{ref:'c-text-3', soft:'c-surface-3'} };
+    const OST={ Delivered:{ref:'c-success', soft:'c-success-soft'}, Processing:{ref:'c-info', soft:'c-info-soft'}, Ready:{ref:'c-primary', soft:'c-primary-soft'}, Cancelled:{ref:'c-error', soft:'c-error-soft'} };
+
+    // id, name, phone, email, area, since, plan, ltvN, ordersN, balanceN, last
+    const C = [
+      ['lavanya','Lavanya','998 999 856','lavanya@mail.com','Downtown','2023','Premium',3418,48,42.5,'2 days ago'],
+      ['marcus','Marcus Reed','628 114 8890','marcus.r@mail.com','Jubilee Hills','2022','Standard',2110,31,0,'5 days ago'],
+      ['elena','Elena Cruz','510 992 3471','elena.c@mail.com','Madhapur','2024','Premium',1890,22,128,'Yesterday'],
+      ['ade','Ade Mtm','770 220 1180','ade.m@mail.com','Gachibowli','2023','Pay-as-you-go',640,9,0,'1 week ago'],
+      ['hana','Hana Kim','669 401 7720','hana.k@mail.com','Banjara Hills','2021','Premium',5240,71,0,'3 days ago'],
+      ['ramesh','Ramesh Gudupu','998 900 1201','ramesh.g@mail.com','Begumpet','2022','Standard',1530,18,55,'4 days ago'],
+      ['tom','Tom Becker','408 220 5567','tom.b@mail.com','Kukatpally','2024','Standard',410,6,18,'2 weeks ago'],
+      ['sara','Sara Lin','201 884 9930','sara.l@mail.com','Downtown','2023','Premium',2980,39,0,'Today'],
+    ];
+    const money=(n)=>n.toLocaleString('en-US',{minimumFractionDigits:0});
+    const q=(this.state.search||'').toLowerCase();
+    const customers = C.filter(c=>!q||c[1].toLowerCase().includes(q)||c[2].includes(q)).map((c,i)=>{
+      const [id,name,phone,email,area,since,plan,ltv,orders,bal,last]=c; const av=AV[i%AV.length];
+      return { id, name, phone, area, initial:name.trim()[0], avRef:av, avSoft:avSoft[av],
+        orders:String(orders), ltv:money(ltv), balance: bal>0?money(bal):'—', balColor: bal>0?'var(--c-error)':'var(--c-text-3)',
+        plan, planRef:PLAN[plan].ref, planSoft:PLAN[plan].soft, lastOrder:last,
+        onOpen:()=>this.setState({view:'detail', selected:id}),
+        onKey:(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); this.setState({view:'detail', selected:id}); } } };
+    });
+
+    const listKpis=[
+      {label:'Total customers', value:'1,284', icon:I('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>'), ref:'c-primary', softRef:'c-primary-soft'},
+      {label:'Active this month', value:'612', icon:I('<path d="M20 6 9 17l-5-5"/>'), ref:'c-success', softRef:'c-success-soft'},
+      {label:'With dues', value:'47', icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), ref:'c-error', softRef:'c-error-soft'},
+      {label:'Subscriptions', value:'86', icon:I('<path d="M3 7h18v12H3zM3 11h18"/>'), ref:'c-violet', softRef:'c-violet-soft'},
+    ];
+    const planFilters=['All','Premium','Standard','With dues'].map((label,i)=>({ label,
+      bg:i===0?'var(--c-primary-soft)':'var(--c-surface)', border:i===0?'var(--c-primary-soft)':'var(--c-border)', fg:i===0?'var(--c-primary)':'var(--c-text-2)' }));
+
+    // ===== detail =====
+    const rec = C.find(c=>c[0]===this.state.selected) || C[0];
+    const [id,name,phone,email,area,since,plan,ltv,orders,bal,last]=rec;
+    const di = C.findIndex(c=>c[0]===id); const av=AV[di%AV.length];
+
+    const SUB = plan==='Pay-as-you-go' ? {status:'None', ref:'c-text-3', soft:'c-surface-3'} : {status:'Active', ref:'c-success', soft:'c-success-soft'};
+    const planDesc = { Premium:'Unlimited pickups · 20% off all services', Standard:'4 pickups/month · 10% off', 'Pay-as-you-go':'No subscription — billed per order' }[plan];
+    const planPrice = { Premium:'149', Standard:'79', 'Pay-as-you-go':'0' }[plan];
+
+    // order history (deterministic from index)
+    const statuses=['Delivered','Delivered','Processing','Ready','Delivered','Cancelled'];
+    const histN = Math.min(6, Math.max(3, orders%7+3));
+    const history = Array.from({length:histN},(_,k)=>{
+      const st = k===2?'Processing':(k===3?'Ready':(k===5&&histN>5?'Cancelled':'Delivered'));
+      const num = 27 - k - di;
+      const items = ((di+k)%9)+1;
+      const total = (((di*13+k*17)%80)+15);
+      const o = OST[st];
+      return { id:'#XBPE-'+String(280-di*3-k).padStart(5,'0'), date:'Jun '+String(17-k*2).padStart(2,'0')+', 2026',
+        items: items+' pcs', status:st, stRef:o.ref, stSoft:o.soft, total: total.toFixed(2) };
+    });
+
+    const addresses=[
+      {tag:'HOME', ref:'c-primary', line: (di===0?'Flat 2306, Main Road, Hyderabad 502100':'House '+(10+di)+', '+area+', Hyderabad')},
+      {tag:'WORK', ref:'c-violet', line: 'Office '+(2+di)+', Tech Park, '+area},
+    ];
+    const activity=[
+      {title:'Placed order '+history[0].id, time:last, soft:'c-primary-soft', ref:'c-primary', icon:TI('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3"/>')},
+      {title: bal>0?'Invoice generated · balance due':'Payment received', time:'1 week ago', soft: bal>0?'c-warning-soft':'c-success-soft', ref: bal>0?'c-warning':'c-success', icon:TI('<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>')},
+      {title:'Joined '+plan+' plan', time:since, soft:'c-violet-soft', ref:'c-violet', icon:TI('<path d="M3 7h18v12H3zM3 11h18"/>')},
+      {title:'Customer created', time:'Member since '+since, soft:'c-surface-3', ref:'c-text-3', icon:TI('<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>')},
+    ].map((a,k,arr)=>({ ...a, line:k===arr.length-1?'none':'block', pad:k===arr.length-1?'2px':'16px' }));
+
+    const prefs=[
+      {label:'Detergent', value: di%2? 'Eco / fragrance-free':'Standard'},
+      {label:'Starch', value: di%3===0?'Light':(di%3===1?'Medium':'None')},
+      {label:'Finishing', value: di%2?'Hanger':'Folded'},
+      {label:'Preferred slot', value: di%2?'9:00 – 12:00':'15:00 – 18:00'},
+    ];
+
+    const d = {
+      name, phone, email, area, since, plan, initial:name.trim()[0], avRef:av, avSoft:avSoft[av],
+      planRef:PLAN[plan].ref, planSoft:PLAN[plan].soft, orders:String(orders),
+      stats:[
+        {label:'Lifetime value', value:money(ltv), color:'var(--c-text)'},
+        {label:'Total orders', value:String(orders), color:'var(--c-text)'},
+        {label:'Avg turnaround', value:(24+di%12)+'h', color:'var(--c-text)'},
+        {label:'Open balance', value: bal>0?money(bal):'0', color: bal>0?'var(--c-error)':'var(--c-success)'},
+      ],
+      history, addresses, activity, prefs,
+      subStatus:SUB.status, subRef:SUB.ref, subSoft:SUB.soft, planDesc, planPrice,
+      renews: plan==='Pay-as-you-go'?'—':'Jul 1, 2026',
+    };
+
+    return {
+      navItems,
+      isList:this.state.view==='list', isDetail:this.state.view==='detail',
+      goList:()=>this.setState({view:'list'}),
+      search:this.state.search, onSearch:(e)=>this.setState({search:e.target.value}),
+      customers, listKpis, planFilters, d,
+    };
+  }
+}
+</script>
+</body>
+</html>

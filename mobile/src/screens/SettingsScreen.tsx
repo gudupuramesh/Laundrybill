@@ -55,7 +55,6 @@ export default function SettingsScreen({
   const [serviceCount, setServiceCount] = useState(0);
 
   // Settings state
-  const [darkMode, setDarkMode] = useState(false);
   const [languageCode, setLanguageCode] = useState('en');
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -121,7 +120,6 @@ export default function SettingsScreen({
               const data = doc.data();
               if (data) {
                 setShopData(data);
-                setDarkMode(data.settings?.darkMode ?? false);
                 setLanguageCode(resolveLanguageToCode(data.settings?.language));
                 const tax = data.settings?.tax;
                 if (tax) {
@@ -743,27 +741,6 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.appearance')}</Text>
           <View style={styles.sectionCard}>
-            <View style={styles.listItem}>
-              <View style={styles.listItemLeft}>
-                <View style={[styles.listItemIcon, { backgroundColor: colors.surfaceMuted }]}>
-                  <MaterialIcons name={darkMode ? 'dark-mode' : 'light-mode'} size={18} color={colors.textSecondary} />
-                </View>
-                <View>
-                  <Text style={styles.listItemText}>{t('mobile.darkMode')}</Text>
-                  <Text style={styles.listItemSubtext}>Switch between light & dark theme</Text>
-                </View>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={(val) => {
-                  setDarkMode(val);
-                  saveSetting('darkMode', val);
-                }}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.surface}
-                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-              />
-            </View>
             <TouchableOpacity style={styles.listItem} onPress={() => setShowCountryPicker(true)}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
@@ -952,12 +929,14 @@ export default function SettingsScreen({
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.taxFieldLabel}>{t('mobile.gstNumberLabel')}</Text>
+              <Text style={styles.taxFieldLabel}>
+                {isIndiaCountry ? t('mobile.gstNumberLabel') : `${(taxNameDraft || 'Tax').trim()} ${t('mobile.numberWord', 'number')}`}
+              </Text>
               <TextInput
                 style={styles.taxInput}
                 value={gstNumberDraft}
                 onChangeText={setGstNumberDraft}
-                placeholder="22AAAAA0000A1Z5"
+                placeholder={isIndiaCountry ? '22AAAAA0000A1Z5' : t('mobile.taxNumberPlaceholder', 'Tax registration number')}
                 autoCapitalize="characters"
               />
 

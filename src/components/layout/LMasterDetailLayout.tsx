@@ -6,7 +6,6 @@
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { LAdSlot } from "@/components/laundry/LAdSlot";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface LMasterDetailLayoutProps {
@@ -14,7 +13,6 @@ interface LMasterDetailLayoutProps {
     detailPanel: React.ReactNode;
     emptyState?: React.ReactNode;
     selectedId?: string | null;
-    adPosition?: string;
     className?: string;
 }
 
@@ -23,7 +21,6 @@ export function LMasterDetailLayout({
     detailPanel,
     emptyState,
     selectedId,
-    adPosition = "master-detail-sidebar",
     className,
 }: LMasterDetailLayoutProps) {
     const isMobile = useIsMobile();

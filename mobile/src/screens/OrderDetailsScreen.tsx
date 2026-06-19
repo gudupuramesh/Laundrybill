@@ -723,6 +723,27 @@ export default function OrderDetailsScreen({
           </View>
         ) : null}
 
+        {/* ─── Service area & assigned delivery agent ─────────────── */}
+        {(order.deliveryArea || order.assignedAgentName) ? (
+          <View style={styles.deliveryCard}>
+            <MaterialIcons name="local-shipping" size={20} color="#00408f" />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              {order.deliveryArea ? (
+                <View>
+                  <Text style={styles.deliveryLabel}>{t('mobile.serviceAreaLabel', 'Service area')}</Text>
+                  <Text style={styles.deliveryDate}>{order.deliveryArea}</Text>
+                </View>
+              ) : null}
+              {order.assignedAgentName ? (
+                <View style={order.deliveryArea ? { marginTop: 10 } : undefined}>
+                  <Text style={styles.deliveryLabel}>{t('mobile.deliveryAgentLabel', 'Delivery agent')}</Text>
+                  <Text style={styles.deliveryDate}>{order.assignedAgentName}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         {/* ─── Items ──────────────────────────────────────────────── */}
         {categoryGroups.map((group, gi) => (
           <View key={`${group.name}-${gi}`} style={styles.serviceSection}>

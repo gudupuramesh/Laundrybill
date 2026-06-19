@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB; --c-star:#E8A317;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC; --c-error:#C2362F; --c-error-soft:#FBE6E5;
+    --c-violet:#6B3FD4; --c-violet-soft:#EEE9FD; --c-cyan:#0E6E8C; --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:8px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:980px){ .ps-grid{ flex-direction:column !important; } .ps-grid > *{ width:100% !important; } .ps-preview{ position:static !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div><div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Public booking page</div><div style="font-size:11.5px; color:var(--c-text-3);">Set up your customer-facing page</div></div>
+      <div style="flex:1;"></div>
+      <span style="display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--{{ pubRef }}); background:var(--{{ pubSoft }}); padding:6px 12px; border-radius:20px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--{{ pubRef }});"></span>{{ pubLabel }}</span>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Preview</button>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 16px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);">Save changes</button>
+    </header>
+
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:22px;">
+      <div class="ps-grid" style="display:flex; gap:20px; align-items:flex-start; max-width:1180px; margin:0 auto;">
+
+        <!-- FORM -->
+        <div style="flex:1.5; min-width:0; display:flex; flex-direction:column; gap:16px;">
+
+          <!-- page link -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="font-size:13px; font-weight:700; margin-bottom:3px;">Page link</div>
+            <div style="font-size:12px; color:var(--c-text-3); margin-bottom:14px;">Share this URL with customers to take bookings.</div>
+            <label for="ps-slug" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Your booking URL</label>
+            <div style="display:flex; align-items:stretch; border:1px solid var(--c-border-strong); border-radius:10px; overflow:hidden;" style-focus-within="border-color:var(--c-primary);">
+              <span style="display:flex; align-items:center; padding:0 12px; background:var(--c-surface-2); color:var(--c-text-3); font-size:13px; font-family:'IBM Plex Mono'; border-right:1px solid var(--c-border);">book.laundrybill.co/</span>
+              <input id="ps-slug" value="{{ slug }}" onInput="{{ onSlug }}" style="flex:1; min-width:0; border:0; outline:none; font-family:'IBM Plex Mono'; font-size:13px; font-weight:600; color:var(--c-primary); padding:11px 12px;" />
+              <button onClick="{{ copyLink }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:0; border-left:1px solid var(--c-border); padding:0 14px;" style-hover="background:var(--c-surface-2);">{{ copyLabel }}</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:9px; margin-top:12px;"><span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-surface-2); display:flex; align-items:center; justify-content:center; color:var(--c-text-2);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z"/></svg></span><span style="font-size:12px; color:var(--c-text-2);">QR code generated automatically — print it for your shop counter.</span></div>
+          </div>
+
+          <!-- brand -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="font-size:13px; font-weight:700; margin-bottom:14px;">Brand</div>
+            <div style="display:flex; gap:16px; margin-bottom:16px;">
+              <div>
+                <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Logo</label>
+                <label style="cursor:pointer; width:84px; height:84px; border-radius:14px; border:1.5px dashed var(--c-border-strong); background:var(--c-surface-2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; color:var(--c-text-3);" style-hover="border-color:var(--c-primary); color:var(--c-primary);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14"/></svg><span style="font-size:10px; font-weight:600;">Upload</span><input type="file" accept="image/*" style="display:none;" /></label>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:12px;">
+                <div><label for="ps-name" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Business name</label><input id="ps-name" value="{{ brand }}" onInput="{{ onBrand }}" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+                <div><label for="ps-tag" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Tagline</label><input id="ps-tag" value="{{ tagline }}" onInput="{{ onTag }}" style="width:100%; font:inherit; font-size:14px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+              </div>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; margin-bottom:8px;">Brand color</label>
+              <div style="display:flex; gap:9px;">
+                <sc-for list="{{ colorOpts }}" as="c" hint-placeholder-count="5">
+                  <button onClick="{{ c.onClick }}" aria-label="Brand color" style="cursor:pointer; width:34px; height:34px; border-radius:9px; background:{{ c.hex }}; border:2px solid {{ c.bd }}; box-shadow:0 0 0 1px var(--c-border);"></button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- contact + social -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="font-size:13px; font-weight:700; margin-bottom:14px;">Contact &amp; social links</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+              <div><label for="ps-phone" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Phone</label><input id="ps-phone" value="800-WASH" style="width:100%; font:inherit; font-size:13.5px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+              <div><label for="ps-email" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Email</label><input id="ps-email" value="hello@bluewave.co" style="width:100%; font:inherit; font-size:13.5px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ socialFields }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="width:36px; height:36px; flex:none; border-radius:9px; background:var(--c-surface-2); color:var(--c-text-2); display:flex; align-items:center; justify-content:center;">{{ s.icon }}</span>
+                  <input value="{{ s.value }}" placeholder="{{ s.ph }}" style="flex:1; min-width:0; font:inherit; font-size:13.5px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" />
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- offer banner -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; margin-bottom:14px;"><div style="font-size:13px; font-weight:700;">Offer banner</div><button role="switch" aria-checked="{{ offerOn }}" onClick="{{ toggleOffer }}" aria-label="Show offer banner" style="margin-left:auto; position:relative; cursor:pointer; width:42px; height:24px; border:0; border-radius:20px; background:{{ offerTrack }};"><span style="position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ offerKnob }};"></span></button></div>
+            <div style="display:flex; gap:12px;">
+              <div style="flex:2;"><label for="ps-offer" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Banner text</label><input id="ps-offer" value="{{ offerText }}" onInput="{{ onOfferText }}" style="width:100%; font:inherit; font-size:13.5px; border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+              <div style="flex:1;"><label for="ps-code" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Promo code</label><input id="ps-code" value="{{ offerCode }}" onInput="{{ onOfferCode }}" style="width:100%; font-family:'IBM Plex Mono'; font-size:13.5px; font-weight:600; color:var(--c-primary); border:1px solid var(--c-border-strong); border-radius:9px; padding:10px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+            </div>
+          </div>
+
+          <!-- testimonials -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; margin-bottom:14px;"><div style="font-size:13px; font-weight:700;">Testimonials</div><button style="margin-left:auto; cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:8px; padding:6px 11px;" style-hover="filter:brightness(.97);">+ Add</button></div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ testimonials }}" as="t" hint-placeholder-count="3">
+                <div style="display:flex; align-items:flex-start; gap:11px; padding:12px; border:1px solid var(--c-border); border-radius:11px;">
+                  <span style="width:34px; height:34px; flex:none; border-radius:50%; background:var(--{{ t.soft }}); color:var(--{{ t.ref }}); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">{{ t.initial }}</span>
+                  <div style="flex:1; min-width:0;"><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:13px; font-weight:600;">{{ t.name }}</span><span style="color:var(--c-star); font-size:11px;">★★★★★</span></div><div style="font-size:12px; color:var(--c-text-2); margin-top:3px;">{{ t.text }}</div></div>
+                  <button aria-label="Remove" style="cursor:pointer; width:28px; height:28px; flex:none; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-error-soft); color:var(--c-error);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- booking options -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+            <div style="font-size:13px; font-weight:700; margin-bottom:14px;">Booking options</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <sc-for list="{{ options }}" as="o" hint-placeholder-count="5">
+                <label style="display:flex; align-items:center; gap:12px; padding:10px 2px; cursor:pointer; border-bottom:1px solid var(--c-border);">
+                  <div style="flex:1;"><div style="font-size:13.5px; font-weight:600;">{{ o.label }}</div><div style="font-size:11.5px; color:var(--c-text-3);">{{ o.desc }}</div></div>
+                  <button role="switch" aria-checked="{{ o.on }}" onClick="{{ o.toggle }}" aria-label="{{ o.label }}" style="position:relative; cursor:pointer; width:42px; height:24px; border:0; border-radius:20px; flex:none; background:{{ o.track }};"><span style="position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ o.knob }};"></span></button>
+                </label>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- LIVE PREVIEW -->
+        <div style="flex:1; min-width:0;">
+          <div class="ps-preview" style="position:sticky; top:0;">
+            <div style="font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--c-text-3); margin-bottom:12px;">Live preview</div>
+            <!-- phone frame -->
+            <div style="margin:0 auto; width:300px; max-width:100%; border-radius:34px; background:var(--c-ink,#0B1330); padding:10px; box-shadow:var(--sh-md);">
+              <div style="border-radius:26px; overflow:hidden; background:#F4F7FD; height:540px; display:flex; flex-direction:column;">
+                <div style="background:#fff; border-bottom:1px solid var(--c-border); padding:14px 16px; display:flex; align-items:center; gap:10px;">
+                  <span style="width:30px; height:30px; flex:none; border-radius:8px; background:{{ brandColor }}; display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/></svg></span>
+                  <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ brand }}</div><div style="font-size:10px; color:var(--c-text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tagline }}</div></div>
+                  <div style="display:flex; gap:4px;"><sc-for list="{{ previewSocials }}" as="s" hint-placeholder-count="3"><span style="width:22px; height:22px; border-radius:6px; background:var(--c-surface-2); color:var(--c-text-3); display:flex; align-items:center; justify-content:center;">{{ s }}</span></sc-for></div>
+                </div>
+                <div class="lb-scroll" style="flex:1; overflow:auto; padding:16px;">
+                  <sc-if value="{{ offerOn }}" hint-placeholder-val="{{ true }}">
+                    <div style="background:{{ brandColor }}; color:#fff; border-radius:10px; padding:9px 11px; display:flex; align-items:center; gap:8px; margin-bottom:12px;"><span style="font-size:14px;">🎉</span><div style="flex:1; min-width:0; font-size:10.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ offerText }}</div><span style="font-family:'IBM Plex Mono'; font-size:9px; font-weight:700; background:rgba(255,255,255,.22); padding:2px 6px; border-radius:5px;">{{ offerCode }}</span></div>
+                  </sc-if>
+                  <div style="text-align:center; margin-bottom:14px;"><div style="font-size:17px; font-weight:700; letter-spacing:-.01em;">Book a pickup</div><div style="font-size:11px; color:var(--c-text-3);">Free pickup &amp; delivery</div></div>
+                  <div style="display:flex; gap:4px; background:#fff; border:1px solid var(--c-border); border-radius:10px; padding:4px; margin-bottom:14px;"><span style="flex:1; text-align:center; font-size:11px; font-weight:600; padding:7px; border-radius:7px; background:{{ brandColor }}; color:#fff;">⚡ Quick</span><sc-if value="{{ fullOn }}" hint-placeholder-val="{{ true }}"><span style="flex:1; text-align:center; font-size:11px; font-weight:600; padding:7px; color:var(--c-text-3);">🧺 Full</span></sc-if></div>
+                  <div style="background:#fff; border:1px solid var(--c-border); border-radius:12px; padding:14px; box-shadow:var(--sh-sm);">
+                    <div style="font-size:11px; font-weight:600; margin-bottom:8px;">Choose a service</div>
+                    <div style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px;"><span style="font-size:10px; font-weight:600; color:#fff; background:{{ brandColor }}; padding:5px 9px; border-radius:20px;">Wash &amp; Fold</span><span style="font-size:10px; font-weight:600; color:var(--c-text-2); background:var(--c-surface-2); padding:5px 9px; border-radius:20px;">Dry Clean</span><span style="font-size:10px; font-weight:600; color:var(--c-text-2); background:var(--c-surface-2); padding:5px 9px; border-radius:20px;">Iron</span></div>
+                    <div style="height:34px; border:1px solid var(--c-border); border-radius:8px; margin-bottom:8px;"></div>
+                    <div style="height:34px; border:1px solid var(--c-border); border-radius:8px; margin-bottom:12px;"></div>
+                    <div style="text-align:center; font-size:11px; font-weight:700; color:#fff; background:{{ brandColor }}; border-radius:9px; padding:11px;">Book pickup</div>
+                  </div>
+                  <sc-if value="{{ testiOn }}" hint-placeholder-val="{{ true }}">
+                    <div style="margin-top:14px; background:#fff; border:1px solid var(--c-border); border-radius:12px; padding:13px;"><div style="color:var(--c-star); font-size:11px;">★★★★★</div><div style="font-size:11px; color:var(--c-text-2); margin-top:5px;">“{{ firstTesti }}”</div></div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+            <div style="text-align:center; margin-top:12px; font-size:11.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">book.laundrybill.co/{{ slug }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { slug:'bluewave', brand:'Bluewave Laundry', tagline:'Fresh clothes, delivered.', color:'#1A4FD6',
+    copied:false, published:true,
+    opts:{ quick:true, full:true, prices:true, phone:true, location:true, subs:false },
+    offer:{ on:true, text:'20% OFF your first order', code:'FRESH20' },
+  };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const SO = (s,sz)=> html('<svg width="'+(sz||17)+'" height="'+(sz||17)+'" viewBox="0 0 24 24" fill="currentColor">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',1],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const fb=SO('<path d="M14 9h3V6h-3c-2 0-3 1-3 3v2H9v3h2v6h3v-6h2.5l.5-3H14V9.5c0-.4.2-.5.5-.5Z"/>');
+    const ig=SO('<path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm5 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm5-1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/>');
+    const wa=SO('<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm4.3 12.5c-.2.5-1 .9-1.4 1-.4 0-.8.2-2.6-.6-2.2-.9-3.6-3.2-3.7-3.3-.1-.2-.9-1.2-.9-2.3 0-1 .6-1.5.8-1.7.2-.2.4-.3.6-.3h.4c.2 0 .4 0 .5.4l.7 1.6c0 .2.1.3 0 .5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.2 1.6 1.9 1 .8 1.7 1 2 1.2.2 0 .4 0 .5-.2l.6-.7c.2-.2.3-.2.6-.1l1.6.8c.2.1.4.2.4.3.1.2.1.6 0 1Z"/>');
+    const xs=SO('<path d="M4 3h4l5 7 5-7h2l-6 8.5L21 21h-4l-5-7-5 7H5l6-8.5L4 3Z"/>');
+    const socialFields=[
+      {icon:fb, value:'fb.com/bluewave', ph:'Facebook URL'},
+      {icon:ig, value:'@bluewavelaundry', ph:'Instagram handle'},
+      {icon:wa, value:'+971 50 000 0000', ph:'WhatsApp number'},
+      {icon:xs, value:'', ph:'X (Twitter) URL'},
+    ];
+    const previewSocials=[fb,ig,wa];
+
+    const colorList=['#1A4FD6','#0E7C6B','#6B3FD4','#C2362F','#9A5B00'];
+    const colorOpts=colorList.map(hex=>({ hex, onClick:()=>this.setState({color:hex}), bd: hex===this.state.color?'#fff':'transparent' }));
+
+    const T=[
+      {name:'Lavanya', text:'Booked in a minute, clothes came back perfect.', initial:'L', ref:'c-primary', soft:'c-primary-soft'},
+      {name:'Marcus', text:'The full order option is great. Fast and friendly.', initial:'M', ref:'c-violet', soft:'c-violet-soft'},
+      {name:'Hana', text:'Best laundry service — reliable and great prices.', initial:'H', ref:'c-cyan', soft:'c-cyan-soft'},
+    ];
+
+    const O=[
+      ['quick','Quick book','Fast pickup with no item selection'],
+      ['full','Full order (POS)','Let customers pick exact items & prices'],
+      ['location','Ask for location','Let customers share GPS or enter address'],
+      ['prices','Show prices','Display per-item pricing publicly'],
+      ['phone','Require phone','Make phone number mandatory'],
+      ['subs','Offer subscriptions','Show monthly plans on the page'],
+    ];
+    const options=O.map(([key,label,desc])=>{ const on=this.state.opts[key];
+      return { label, desc, on:on?'true':'false', toggle:()=>this.setState(s=>({opts:{...s.opts,[key]:!s.opts[key]}})),
+        track:on?'var(--c-primary)':'var(--c-border-strong)', knob:on?'translateX(18px)':'translateX(0)' }; });
+
+    return {
+      navItems,
+      pubLabel:this.state.published?'Published':'Draft', pubRef:this.state.published?'c-success':'c-text-3', pubSoft:this.state.published?'c-success-soft':'c-surface-3',
+      slug:this.state.slug, onSlug:(e)=>this.setState({slug:e.target.value.replace(/\s+/g,'-').toLowerCase()}),
+      copyLabel:this.state.copied?'Copied!':'Copy', copyLink:()=>{ this.setState({copied:true}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({copied:false}),1500); },
+      brand:this.state.brand, onBrand:(e)=>this.setState({brand:e.target.value}),
+      tagline:this.state.tagline, onTag:(e)=>this.setState({tagline:e.target.value}),
+      brandColor:this.state.color, colorOpts,
+      socialFields, previewSocials, testimonials:T, options,
+      offerOn:this.state.offer.on, offerText:this.state.offer.text, offerCode:this.state.offer.code,
+      toggleOffer:()=>this.setState(s=>({offer:{...s.offer,on:!s.offer.on}})),
+      onOfferText:(e)=>this.setState(s=>({offer:{...s.offer,text:e.target.value}})),
+      onOfferCode:(e)=>this.setState(s=>({offer:{...s.offer,code:e.target.value}})),
+      offerTrack:this.state.offer.on?'var(--c-primary)':'var(--c-border-strong)', offerKnob:this.state.offer.on?'translateX(18px)':'translateX(0)',
+      fullOn:this.state.opts.full, testiOn:true, firstTesti:T[0].text,
+    };
+  }
+}
+</script>
+</body>
+</html>

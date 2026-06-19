@@ -224,6 +224,8 @@ export function useShopMutations() {
             if (updates.deliveryFeeEnabled !== undefined) flat["settings.delivery.deliveryFeeEnabled"] = updates.deliveryFeeEnabled;
             if (updates.deliveryFeeMinOrder !== undefined) flat["settings.delivery.deliveryFeeMinOrder"] = updates.deliveryFeeMinOrder;
             if (updates.deliveryFeeAmount !== undefined) flat["settings.delivery.deliveryFeeAmount"] = updates.deliveryFeeAmount;
+            if (updates.distanceFeeEnabled !== undefined) flat["settings.delivery.distanceFeeEnabled"] = updates.distanceFeeEnabled;
+            if (updates.distanceBands !== undefined) flat["settings.delivery.distanceBands"] = updates.distanceBands;
             await updateDoc(shopRef, flat);
         },
         [shopId]

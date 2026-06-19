@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-primary-tint:#9DB6EE;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1080px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:{{ navW }}; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column; transition:width .18s ease;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 0 16px; justify-content:center;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <sc-if value="{{ navOpen }}" hint-placeholder-val="{{ true }}"><div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div></sc-if>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" title="{{ n.label }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px; justify-content:{{ navJustify }};" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          <sc-if value="{{ navOpen }}" hint-placeholder-val="{{ true }}">{{ n.label }}</sc-if>
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border); justify-content:{{ navJustify }};">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <sc-if value="{{ navOpen }}" hint-placeholder-val="{{ true }}"><div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div></sc-if>
+      <sc-if value="{{ navOpen }}" hint-placeholder-val="{{ true }}"><button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button></sc-if>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- top bar -->
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <button onClick="{{ toggleNav }}" aria-label="Toggle menu" style="cursor:pointer; width:34px; height:34px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:8px;" style-hover="background:var(--c-surface-2);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div>
+        <div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Dashboard</div>
+        <div style="font-size:11.5px; color:var(--c-text-3);">Tuesday, Jun 18 · Downtown branch</div>
+      </div>
+      <div style="flex:1;"></div>
+      <div role="group" aria-label="Date range" style="display:flex; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:2px;">
+        <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+          <button onClick="{{ r.onClick }}" aria-pressed="{{ r.on }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 12px; border:0; border-radius:6px; background:{{ r.bg }}; color:{{ r.fg }};">{{ r.label }}</button>
+        </sc-for>
+      </div>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Order</button>
+      <span style="width:32px; height:32px; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">RG</span>
+    </header>
+
+    <!-- scroll body -->
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+
+      <!-- QUICK SCAN & SEARCH -->
+      <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:11px; padding:14px 20px; border-bottom:1px solid var(--c-border);">
+          <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg></span>
+          <div><div style="font-size:14px; font-weight:600;">Quick Scan &amp; Search</div><div style="font-size:11.5px; color:var(--c-text-3);">Find an order or customer</div></div>
+        </div>
+        <div style="padding:16px 20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <div style="flex:1; min-width:200px; position:relative;">
+            <svg style="position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+            <input type="search" placeholder="Search orders, customers…" style="width:100%; font:inherit; font-size:14px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:9px; padding:11px 13px 11px 38px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+          </div>
+          <button style="cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:9px; padding:11px 22px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>Search</button>
+          <button style="cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:14px; font-weight:600; color:var(--c-primary); background:var(--c-surface); border:1px solid var(--c-primary); border-radius:9px; padding:11px 22px;" style-hover="background:var(--c-primary-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M3 12h18"/></svg>Scan Order</button>
+        </div>
+      </div>
+
+      <!-- KPI ROW -->
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:16px;">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span>
+              <span style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ k.label }}</span>
+            </div>
+            <div style="font-family:'IBM Plex Mono'; font-weight:600; font-size:25px; letter-spacing:-.02em; margin-top:11px;">{{ k.value }}</div>
+            <div style="display:flex; align-items:center; gap:5px; margin-top:5px; font-size:11.5px;">
+              <span style="font-weight:600; color:var(--{{ k.deltaRef }});">{{ k.delta }}</span>
+              <span style="color:var(--c-text-3);">{{ k.sub }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- ROW: revenue + pipeline -->
+      <div class="lb-row" style="display:flex; gap:16px; margin-bottom:16px;">
+        <!-- revenue chart -->
+        <div style="flex:1.7; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:18px;">
+            <div>
+              <div style="font-size:14px; font-weight:600;">Revenue</div>
+              <div style="font-size:12px; color:var(--c-text-3);">Last 14 days</div>
+            </div>
+            <div style="margin-left:auto; text-align:right;">
+              <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:20px;">35,120<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></div>
+              <div style="font-size:11.5px; color:var(--c-success); font-weight:600;">▲ 14% vs prior</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <!-- y axis -->
+            <div style="display:flex; flex-direction:column; justify-content:space-between; height:180px; font-family:'IBM Plex Mono'; font-size:10px; color:var(--c-text-3); text-align:right; padding-bottom:18px;">
+              <span>3.5k</span><span>2.5k</span><span>1.5k</span><span>0</span>
+            </div>
+            <!-- plot -->
+            <div style="flex:1; position:relative;">
+              <div style="position:absolute; inset:0 0 18px 0; display:flex; flex-direction:column; justify-content:space-between;">
+                <span style="border-top:1px dashed var(--c-border);"></span><span style="border-top:1px dashed var(--c-border);"></span><span style="border-top:1px dashed var(--c-border);"></span><span style="border-top:1px dashed var(--c-border);"></span>
+              </div>
+              <div role="img" aria-label="Daily revenue bar chart, last 14 days, trending up" style="position:relative; display:flex; align-items:flex-end; gap:6px; height:180px;">
+                <sc-for list="{{ bars }}" as="b" hint-placeholder-count="14">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px;">
+                    <div style="width:100%; max-width:22px; height:{{ b.h }}; background:{{ b.fill }}; border-radius:4px 4px 0 0;"></div>
+                    <span style="font-family:'IBM Plex Mono'; font-size:9.5px; color:{{ b.labelColor }};">{{ b.day }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- pipeline -->
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:center; margin-bottom:16px;">
+            <div>
+              <div style="font-size:14px; font-weight:600;">Order pipeline</div>
+              <div style="font-size:12px; color:var(--c-text-3);">Live across stages</div>
+            </div>
+            <span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:700; font-size:20px;">100</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:13px;">
+            <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="6">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:{{ p.color }};"></span>
+                  <span style="font-size:12.5px; color:var(--c-text-2);">{{ p.label }}</span>
+                  <span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:13px;">{{ p.count }}</span>
+                </div>
+                <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;">
+                  <div style="height:100%; width:{{ p.w }}; background:{{ p.color }}; border-radius:6px;"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW: store health + revenue analytics -->
+      <div class="lb-row" style="display:flex; gap:16px; margin-bottom:16px;">
+        <!-- store health -->
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:11px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+            <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-success-soft); color:var(--c-success); display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></span>
+            <div><div style="font-size:14px; font-weight:600;">Store Health</div><div style="font-size:11.5px; color:var(--c-text-3);">Operational performance · last 30 days</div></div>
+            <span style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--c-error); background:var(--c-error-soft); padding:4px 10px; border-radius:20px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>9 overdue</span>
+          </div>
+          <div style="padding:18px 20px;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:18px;">
+              <div style="position:relative; width:120px; height:120px; border-radius:50%; background:{{ healthRing }}; display:flex; align-items:center; justify-content:center;">
+                <div style="width:90px; height:90px; border-radius:50%; background:var(--c-surface); display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:30px; letter-spacing:-.02em;">{{ healthScore }}</div><div style="font-size:9px; font-weight:600; letter-spacing:.08em; color:var(--c-text-3);">SCORE</div></div>
+              </div>
+              <span style="font-size:11.5px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); padding:4px 13px; border-radius:20px;">Healthy</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; padding-top:16px; border-top:1px solid var(--c-border);">
+              <sc-for list="{{ healthMetrics }}" as="m" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex; align-items:baseline; margin-bottom:5px;"><span style="font-size:12.5px; font-weight:500;">{{ m.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:700; font-size:13px; color:var(--{{ m.ref }});">{{ m.value }}</span></div>
+                  <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;"><div style="height:100%; width:{{ m.value }}; background:var(--{{ m.ref }}); border-radius:6px;"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; padding:13px 20px; border-top:1px solid var(--c-border); font-size:12px; color:var(--c-text-3);"><span>20 active orders on schedule</span><a href="#" style="margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; color:var(--c-primary); text-decoration:none;" style-hover="text-decoration:underline;">View reports <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+        </div>
+
+        <!-- revenue analytics / collection -->
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:11px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+            <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-8"/><path d="M4 21h16"/></svg></span>
+            <div><div style="font-size:14px; font-weight:600;">Revenue Analytics</div><div style="font-size:11.5px; color:var(--c-text-3);">This month overview</div></div>
+          </div>
+          <div style="padding:18px 20px;">
+            <div style="font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--c-text-3); display:flex; align-items:center; margin-bottom:9px;"><span>Collection progress</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:700; font-size:14px; color:var(--c-success);">{{ collectionPct }}</span></div>
+            <div style="height:9px; background:var(--c-error); border-radius:6px; overflow:hidden; margin-bottom:9px;"><div style="height:100%; width:{{ collectionPct }}; background:var(--c-success); border-radius:6px;"></div></div>
+            <div style="display:flex; align-items:center; font-size:11.5px; margin-bottom:18px;"><span style="display:inline-flex; align-items:center; gap:6px; color:var(--c-text-2);"><span style="width:7px; height:7px; border-radius:50%; background:var(--c-success);"></span>{{ collected }} collected</span><span style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--c-text-2);">{{ pending }} pending<span style="width:7px; height:7px; border-radius:50%; background:var(--c-error);"></span></span></div>
+            <div style="display:flex; flex-direction:column; gap:11px; padding-top:16px; border-top:1px solid var(--c-border);">
+              <sc-for list="{{ pnl }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; font-size:13px;"><span style="display:inline-flex; align-items:center; gap:8px; color:var(--c-text-2);"><span style="width:8px; height:8px; border-radius:50%; background:var(--{{ r.ref }});"></span>{{ r.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.value }}</span></div>
+              </sc-for>
+              <div style="display:flex; align-items:center; padding-top:11px; border-top:1px solid var(--c-border); font-size:14px;"><span style="font-weight:700;">Net Profit</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; color:var(--{{ netRef }});">{{ netProfit }}</span></div>
+            </div>
+            <div style="text-align:center; margin-top:16px;"><a href="#" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--c-primary); text-decoration:none;" style-hover="text-decoration:underline;">View Full Reports <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW: schedule + side -->
+      <div class="lb-row" style="display:flex; gap:16px;">
+        <!-- today's schedule -->
+        <div style="flex:1.7; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+            <div style="font-size:14px; font-weight:600;">Today's pickups &amp; deliveries</div>
+            <span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">6</span>
+            <a href="#" style="margin-left:auto; font-size:12.5px; font-weight:600; color:var(--c-primary); text-decoration:none;" style-hover="text-decoration:underline;">View routes</a>
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="background:var(--c-surface-2);">
+                <th style="text-align:left; padding:8px 20px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Time</th>
+                <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Order</th>
+                <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Customer</th>
+                <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Type</th>
+                <th style="text-align:left; padding:8px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Driver</th>
+                <th style="text-align:left; padding:8px 20px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ schedule }}" as="s" hint-placeholder-count="6">
+                <tr style="border-bottom:1px solid var(--c-border);" style-hover="background:var(--c-surface-2);">
+                  <td style="padding:9px 20px; font-family:'IBM Plex Mono'; font-weight:500;">{{ s.time }}</td>
+                  <td style="padding:9px 14px; font-family:'IBM Plex Mono'; color:var(--c-text-2);">{{ s.order }}</td>
+                  <td style="padding:9px 14px; font-weight:500;">{{ s.customer }}</td>
+                  <td style="padding:9px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:{{ s.typeColor }};"><span style="width:5px; height:5px; border-radius:50%; background:{{ s.typeColor }};"></span>{{ s.type }}</span></td>
+                  <td style="padding:9px 14px; color:var(--c-text-2);">{{ s.driver }}</td>
+                  <td style="padding:9px 20px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:{{ s.stBg }}; color:{{ s.stFg }};"><span style="width:5px; height:5px; border-radius:50%; background:{{ s.stFg }};"></span>{{ s.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- side column -->
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+          <!-- needs attention -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:16px 18px; box-shadow:var(--sh-sm);">
+            <div style="font-size:14px; font-weight:600; margin-bottom:13px;">Needs attention</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+                <a href="#" style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:9px; text-decoration:none; background:var(--{{ a.softRef }});" style-hover="filter:brightness(.98);">
+                  <span style="width:28px; height:28px; flex:none; border-radius:7px; background:var(--c-surface); color:var(--{{ a.ref }}); display:flex; align-items:center; justify-content:center;">{{ a.icon }}</span>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:12.5px; font-weight:600; color:var(--c-text);">{{ a.title }}</div>
+                    <div style="font-size:11.5px; color:var(--c-text-3);">{{ a.sub }}</div>
+                  </div>
+                  <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; color:var(--{{ a.ref }});">{{ a.count }}</span>
+                </a>
+              </sc-for>
+            </div>
+          </div>
+          <!-- top services -->
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:16px 18px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; margin-bottom:14px;">
+              <div style="font-size:14px; font-weight:600;">Top services</div>
+              <span style="margin-left:auto; font-size:11.5px; color:var(--c-text-3);">this week</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:13px;">
+              <sc-for list="{{ services }}" as="s" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:6px;">
+                    <span style="font-size:12.5px; color:var(--c-text-2);">{{ s.label }}</span>
+                    <span style="margin-left:auto; font-family:'IBM Plex Mono'; font-size:12px; color:var(--c-text-3);">{{ s.rev }}</span>
+                    <span style="font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px; width:34px; text-align:right;">{{ s.pct }}</span>
+                  </div>
+                  <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;">
+                    <div style="height:100%; width:{{ s.pct }}; background:{{ s.color }}; border-radius:6px;"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { range:'7d', navCollapsed:false };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',1],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({
+      label, icon:S(p),
+      current: active ? 'page' : 'false',
+      weight: active ? '600' : '500',
+      fg: active ? 'var(--c-primary)' : 'var(--c-text-2)',
+      bg: active ? 'var(--c-primary-soft)' : 'transparent',
+    }));
+
+    const ranges = ['Today','7d','30d'].map(label=>{
+      const on = (label==='Today'?'today':label)===this.state.range || label===this.state.range;
+      const active = label===this.state.range;
+      return { label, on: active?'true':'false',
+        bg: active ? 'var(--c-surface)' : 'transparent',
+        fg: active ? 'var(--c-text)' : 'var(--c-text-3)',
+        onClick: ()=>this.setState({range:label}) };
+    });
+
+    const kpis = [
+      {label:'Orders today', value:'128', icon:I('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>'), ref:'c-primary', softRef:'c-primary-soft', delta:'▲ 12%', deltaRef:'c-success', sub:'vs yesterday'},
+      {label:'Revenue today', value:'3,420', icon:I('<path d="M12 2v20M16 6H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H7"/>'), ref:'c-success', softRef:'c-success-soft', delta:'▲ 8%', deltaRef:'c-success', sub:'د.إ'},
+      {label:'Ready for pickup', value:'37', icon:I('<path d="M3 8 12 3l9 5-9 5-9-5ZM3 8v8l9 5 9-5V8"/>'), ref:'c-info', softRef:'c-info-soft', delta:'● live', deltaRef:'c-info', sub:'in queue'},
+      {label:'Overdue', value:'5', icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), ref:'c-warning', softRef:'c-warning-soft', delta:'▲ 2', deltaRef:'c-warning', sub:'needs action'},
+      {label:'Subscriptions', value:'86', icon:I('<path d="M3 7h18v12H3zM3 11h18"/>'), ref:'c-violet', softRef:'c-violet-soft', delta:'▲ 4', deltaRef:'c-success', sub:'active plans'},
+    ];
+
+    const vals = [1820,2140,1760,2480,2310,2620,1980,2240,2890,2510,3010,2760,3180,3420];
+    const max = 3500;
+    const bars = vals.map((v,i)=>{
+      const today = i===vals.length-1;
+      return {
+        h: (v/max*100).toFixed(1)+'%',
+        fill: today ? 'var(--c-primary)' : 'var(--c-primary-tint)',
+        labelColor: today ? 'var(--c-text)' : 'var(--c-text-3)',
+        day: String(5+i),
+      };
+    });
+
+    const pipeRaw = [
+      ['Received', 18, 'var(--c-text-3)'],
+      ['Washing', 24, 'var(--c-info)'],
+      ['Ironing', 12, 'var(--c-violet)'],
+      ['Ready', 37, 'var(--c-success)'],
+      ['Out for delivery', 9, 'var(--c-cyan)'],
+    ];
+    const pmax = 37;
+    const pipeline = pipeRaw.map(([label,count,color])=>({ label, count:String(count), color, w:(count/pmax*100).toFixed(0)+'%' }));
+
+    const TYPE = { Pickup:'var(--c-violet)', Delivery:'var(--c-success)' };
+    const sst = {
+      scheduled:{label:'Scheduled', bg:'var(--c-warning-soft)', fg:'var(--c-warning)'},
+      enroute:{label:'En route', bg:'var(--c-info-soft)', fg:'var(--c-info)'},
+      done:{label:'Completed', bg:'var(--c-success-soft)', fg:'var(--c-success)'},
+    };
+    const sched = [
+      ['09:30','#XBPE-00031','Lavanya','Pickup','ramesh','enroute'],
+      ['10:15','#XBPE-00029','Ade Mtm','Delivery','suresh','enroute'],
+      ['11:00','#XBPE-00025','Ramesh Gudupu','Delivery','ramesh','scheduled'],
+      ['12:30','#XBPE-00022','Hana Kim','Pickup','imran','scheduled'],
+      ['14:00','#XBPE-00018','Marcus Reed','Delivery','suresh','scheduled'],
+      ['16:15','#XBPE-00014','Elena Cruz','Pickup','ramesh','done'],
+    ];
+    const schedule = sched.map(([time,order,customer,type,driver,st])=>({
+      time, order, customer, type, driver,
+      typeColor: TYPE[type],
+      status: sst[st].label, stBg: sst[st].bg, stFg: sst[st].fg,
+    }));
+
+    const alerts = [
+      {title:'Pickups overdue', sub:'Past scheduled window', count:'5', ref:'c-warning', softRef:'c-warning-soft', icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')},
+      {title:'Unpaid invoices', sub:'2,140 د.إ outstanding', count:'3', ref:'c-error', softRef:'c-error-soft', icon:I('<path d="M4 4h16v16l-3-2-3 2-2-2-2 2-3-2-3 2Z"/><path d="M8 9h8M8 13h5"/>')},
+      {title:'Stuck in Ironing', sub:'Waiting over 24h', count:'2', ref:'c-violet', softRef:'c-violet-soft', icon:I('<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>')},
+      {title:'Unassigned route', sub:'No driver assigned', count:'1', ref:'c-info', softRef:'c-info-soft', icon:I('<path d="M3 8 12 3l9 5-9 5-9-5ZM3 8v8l9 5 9-5V8"/>')},
+    ];
+
+    const services = [
+      {label:'Wash & Fold', rev:'12,640', pct:'42%', color:'var(--c-primary)'},
+      {label:'Dry Cleaning', rev:'8,420', pct:'28%', color:'var(--c-info)'},
+      {label:'Ironing', rev:'5,180', pct:'18%', color:'var(--c-violet)'},
+      {label:'Express', rev:'3,520', pct:'12%', color:'var(--c-success)'},
+    ];
+
+    // store health
+    const healthScore = 71;
+    const healthRing = 'conic-gradient(var(--c-success) 0 '+healthScore+'%, var(--c-surface-2) '+healthScore+'% 100%)';
+    const healthMetrics = [
+      {label:'On-Time Delivery', value:'100%', ref:'c-success'},
+      {label:'On-Time Pickup', value:'100%', ref:'c-success'},
+      {label:'Order Flow', value:'55%', ref:'c-error'},
+      {label:'Collection Rate', value:'27%', ref:'c-error'},
+    ];
+
+    // revenue analytics
+    const collectionPct = '27%';
+    const pnl = [
+      {label:'Sales', value:'17,354.16', ref:'c-primary'},
+      {label:'Collected', value:'4,643.32', ref:'c-success'},
+      {label:'Uncollected', value:'12,710.84', ref:'c-error'},
+      {label:'Monthly Expenses', value:'6,000.00', ref:'c-warning'},
+    ];
+
+    return { navItems, ranges, kpis, bars, pipeline, schedule, alerts, services,
+      navOpen: !this.state.navCollapsed,
+      navW: this.state.navCollapsed ? '66px' : '218px',
+      navJustify: this.state.navCollapsed ? 'center' : 'flex-start',
+      toggleNav: ()=>this.setState(s=>({navCollapsed:!s.navCollapsed})),
+      healthScore:String(healthScore), healthRing, healthMetrics,
+      collectionPct, collected:'4,643.32 د.إ', pending:'12,710.84 د.إ', pnl,
+      netProfit:'-1,356.68 د.إ', netRef:'c-error' };
+  }
+}
+</script>
+</body>
+</html>

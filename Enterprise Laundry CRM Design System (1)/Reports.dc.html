@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-primary-tint:#9DB6EE;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1040px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div><div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Reports</div><div style="font-size:11.5px; color:var(--c-text-3);">Monthly performance · Downtown branch</div></div>
+      <div style="flex:1;"></div>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M16 2v3M3 9h18M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>June 2026</button>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Export PDF</button>
+    </header>
+
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 44px;">
+
+      <!-- KPI ROW -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px;">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:16px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; gap:9px;"><span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span><span style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ k.label }}</span></div>
+            <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:25px; letter-spacing:-.02em; margin-top:11px; color:{{ k.color }};">{{ k.value }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">{{ k.unit }}</span></div>
+            <div style="display:flex; align-items:center; gap:5px; margin-top:5px; font-size:11.5px;"><span style="font-weight:600; color:var(--{{ k.deltaRef }});">{{ k.delta }}</span><span style="color:var(--c-text-3);">vs last month</span></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- ROW B: revenue vs expenses + margin -->
+      <div class="lb-row" style="display:flex; gap:14px; margin-bottom:16px;">
+        <div style="flex:1.7; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:flex-start; margin-bottom:16px;">
+            <div><div style="font-size:14px; font-weight:600;">Revenue vs Expenses</div><div style="font-size:12px; color:var(--c-text-3);">Last 8 months · profit trend</div></div>
+            <div style="margin-left:auto; display:flex; gap:14px;">
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--c-text-2);"><span style="width:9px; height:9px; border-radius:2px; background:var(--c-primary);"></span>Revenue</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--c-text-2);"><span style="width:9px; height:9px; border-radius:2px; background:var(--c-warning);"></span>Expenses</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:12px; height:170px;">
+            <sc-for list="{{ rvx }}" as="b" hint-placeholder-count="8">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:7px;">
+                <div style="width:100%; display:flex; gap:3px; align-items:flex-end; height:100%; justify-content:center;">
+                  <div style="width:42%; max-width:14px; height:{{ b.rh }}; background:var(--c-primary); border-radius:3px 3px 0 0;"></div>
+                  <div style="width:42%; max-width:14px; height:{{ b.eh }}; background:var(--c-warning); border-radius:3px 3px 0 0;"></div>
+                </div>
+                <span style="font-size:10px; color:{{ b.labelColor }};">{{ b.m }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-size:14px; font-weight:600; align-self:flex-start;">Net profit</div>
+          <div style="position:relative; width:150px; height:150px; margin:14px 0 6px; border-radius:50%; background:{{ marginRing }}; display:flex; align-items:center; justify-content:center;">
+            <div style="width:112px; height:112px; border-radius:50%; background:var(--c-surface); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+              <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:26px; color:var(--c-success);">{{ margin }}%</div>
+              <div style="font-size:10.5px; color:var(--c-text-3);">margin</div>
+            </div>
+          </div>
+          <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:22px;">{{ netProfit }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></div>
+          <div style="font-size:11.5px; color:var(--c-success); font-weight:600; margin-top:3px;">▲ 9% vs last month</div>
+        </div>
+      </div>
+
+      <!-- ROW C: operational health + order outcome -->
+      <div class="lb-row" style="display:flex; gap:14px; margin-bottom:16px;">
+        <div style="flex:1.4; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:center; margin-bottom:16px;"><div style="font-size:14px; font-weight:600;">Operational health</div><span style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); padding:4px 11px; border-radius:20px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--c-success);"></span>Healthy · 92/100</span></div>
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <sc-for list="{{ health }}" as="h" hint-placeholder-count="5">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="font-size:12.5px; color:var(--c-text-2);">{{ h.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px;">{{ h.value }}</span><span style="font-size:10px; font-weight:600; color:var(--{{ h.ref }}); background:var(--{{ h.soft }}); padding:2px 7px; border-radius:20px;">{{ h.tag }}</span></div>
+                <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;"><div style="height:100%; width:{{ h.w }}; background:var(--{{ h.ref }}); border-radius:6px;"></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Order outcomes</div>
+          <div style="font-size:12px; color:var(--c-text-3); margin-bottom:16px;">312 orders this month</div>
+          <div style="display:flex; align-items:center; gap:20px;">
+            <div style="position:relative; width:120px; height:120px; flex:none; border-radius:50%; background:{{ orderRing }}; display:flex; align-items:center; justify-content:center;">
+              <div style="width:78px; height:78px; border-radius:50%; background:var(--c-surface); display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:20px;">312</div><div style="font-size:9.5px; color:var(--c-text-3);">orders</div></div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:11px;">
+              <sc-for list="{{ outcomes }}" as="o" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; border-radius:3px; background:var(--{{ o.ref }});"></span><span style="font-size:12.5px; color:var(--c-text-2);">{{ o.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px;">{{ o.value }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW D: customer growth + top services -->
+      <div class="lb-row" style="display:flex; gap:14px; margin-bottom:16px;">
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:flex-start; margin-bottom:16px;"><div><div style="font-size:14px; font-weight:600;">Customer growth</div><div style="font-size:12px; color:var(--c-text-3);">New customers / month</div></div><div style="margin-left:auto; text-align:right;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">+184</div><div style="font-size:11px; color:var(--c-success); font-weight:600;">▲ 9%</div></div></div>
+          <div style="display:flex; align-items:flex-end; gap:8px; height:120px; margin-bottom:14px;">
+            <sc-for list="{{ growth }}" as="g" hint-placeholder-count="8">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px;"><div style="width:100%; max-width:24px; height:{{ g.h }}; background:{{ g.fill }}; border-radius:4px 4px 0 0;"></div><span style="font-size:10px; color:var(--c-text-3);">{{ g.m }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:10px; padding-top:13px; border-top:1px solid var(--c-border);">
+            <div style="flex:1;"><div style="font-size:11px; color:var(--c-text-3);">Returning</div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px;">68%</div></div>
+            <div style="flex:1;"><div style="font-size:11px; color:var(--c-text-3);">Retention</div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px; color:var(--c-success);">91%</div></div>
+            <div style="flex:1;"><div style="font-size:11px; color:var(--c-text-3);">Churn</div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px; color:var(--c-warning);">9%</div></div>
+          </div>
+        </div>
+        <div style="flex:1.4; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:center; margin-bottom:14px;"><div style="font-size:14px; font-weight:600;">Top services</div><span style="margin-left:auto; font-size:11.5px; color:var(--c-text-3);">by revenue · June</span></div>
+          <!-- #1 highlight -->
+          <div style="display:flex; align-items:center; gap:13px; padding:13px; border-radius:11px; background:var(--c-primary-soft); margin-bottom:12px;">
+            <span style="width:40px; height:40px; flex:none; border-radius:10px; background:var(--c-primary); color:#fff; display:flex; align-items:center; justify-content:center;">{{ topIcon }}</span>
+            <div style="flex:1;"><div style="display:flex; align-items:center; gap:7px;"><span style="font-size:14px; font-weight:700;">{{ top.label }}</span><span style="font-size:9.5px; font-weight:700; color:#fff; background:var(--c-primary); padding:2px 7px; border-radius:5px;">#1 MOST RANKED</span></div><div style="font-size:11.5px; color:var(--c-text-2); margin-top:2px;">{{ top.orders }} orders · {{ top.share }} of revenue</div></div>
+            <div style="text-align:right;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:17px;">{{ top.rev }}</div><div style="font-size:10px; color:var(--c-text-3);">د.إ</div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:11px;">
+            <sc-for list="{{ services }}" as="s" hint-placeholder-count="4">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;"><span style="font-size:11px; font-family:'IBM Plex Mono'; color:var(--c-text-3); width:16px;">{{ s.rank }}</span><span style="font-size:12.5px; color:var(--c-text-2);">{{ s.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px;">{{ s.rev }}</span></div>
+                <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden; margin-left:24px;"><div style="height:100%; width:{{ s.w }}; background:var(--{{ s.ref }}); border-radius:6px;"></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW E: staff attendance + payment + peak hours -->
+      <div class="lb-row" style="display:flex; gap:14px;">
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Staff attendance</div>
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+            <div style="position:relative; width:96px; height:96px; flex:none; border-radius:50%; background:{{ attRing }}; display:flex; align-items:center; justify-content:center;"><div style="width:64px; height:64px; border-radius:50%; background:var(--c-surface); display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px; color:var(--c-success);">94%</div><div style="font-size:9px; color:var(--c-text-3);">avg</div></div></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:9px; font-size:12.5px;">
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Present days</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">452 / 480</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Late arrivals</span><span style="font-family:'IBM Plex Mono'; font-weight:600; color:var(--c-warning);">21</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">On leave</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">7</span></div>
+            </div>
+          </div>
+          <div style="padding-top:13px; border-top:1px solid var(--c-border); display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:11px; font-weight:600; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.04em;">Top attendance</div>
+            <sc-for list="{{ topStaff }}" as="t" hint-placeholder-count="3">
+              <div style="display:flex; align-items:center; gap:10px;"><span style="width:28px; height:28px; flex:none; border-radius:50%; background:var(--{{ t.soft }}); color:var(--{{ t.ref }}); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600;">{{ t.initials }}</span><span style="font-size:13px; font-weight:500;">{{ t.name }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px; color:var(--c-success);">{{ t.pct }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Payment collection</div>
+          <div style="display:flex; align-items:center; gap:18px; margin-bottom:16px;">
+            <div style="position:relative; width:110px; height:110px; flex:none; border-radius:50%; background:{{ payRing }}; display:flex; align-items:center; justify-content:center;"><div style="width:72px; height:72px; border-radius:50%; background:var(--c-surface); display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">82%</div><div style="font-size:9px; color:var(--c-text-3);">collected</div></div></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:11px;">
+              <div><div style="display:flex; align-items:center; gap:7px;"><span style="width:9px; height:9px; border-radius:3px; background:var(--c-success);"></span><span style="font-size:12px; color:var(--c-text-2);">Collected</span></div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; margin-top:2px;">28,800 <span style="font-size:10px; color:var(--c-text-3);">د.إ</span></div></div>
+              <div><div style="display:flex; align-items:center; gap:7px;"><span style="width:9px; height:9px; border-radius:3px; background:var(--c-error);"></span><span style="font-size:12px; color:var(--c-text-2);">Outstanding</span></div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; margin-top:2px; color:var(--c-error);">6,320 <span style="font-size:10px; color:var(--c-text-3);">د.إ</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+          <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Peak intake hours</div>
+          <div style="font-size:12px; color:var(--c-text-3); margin-bottom:18px;">Orders by time of day</div>
+          <div style="display:flex; align-items:flex-end; gap:7px; height:120px;">
+            <sc-for list="{{ peak }}" as="p" hint-placeholder-count="7">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px;"><div style="width:100%; max-width:22px; height:{{ p.h }}; background:{{ p.fill }}; border-radius:4px 4px 0 0;"></div><span style="font-size:9px; color:{{ p.labelColor }};">{{ p.t }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const G = (s)=> html('<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',1],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const kpis=[
+      {label:'Revenue', value:'35,120', unit:'د.إ', icon:I('<path d="M12 2v20M16 6H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H7"/>'), ref:'c-primary', softRef:'c-primary-soft', color:'var(--c-text)', delta:'▲ 14%', deltaRef:'c-success'},
+      {label:'Expenses', value:'7,770', unit:'د.إ', icon:I('<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>'), ref:'c-warning', softRef:'c-warning-soft', color:'var(--c-text)', delta:'▲ 16%', deltaRef:'c-error'},
+      {label:'Net profit', value:'27,350', unit:'د.إ', icon:I('<path d="M3 17l5-5 4 3 6-7"/><path d="M3 21h18"/>'), ref:'c-success', softRef:'c-success-soft', color:'var(--c-success)', delta:'▲ 9%', deltaRef:'c-success'},
+      {label:'Profit margin', value:'78', unit:'%', icon:I('<circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/>'), ref:'c-info', softRef:'c-info-soft', color:'var(--c-text)', delta:'▲ 2pt', deltaRef:'c-success'},
+    ];
+
+    // revenue vs expenses
+    const rev=[28.2,30.1,27.6,31.4,29.8,33.2,31.0,35.1];
+    const exp=[5.9,6.4,5.6,6.9,6.2,7.1,6.7,7.77];
+    const mx=37; const mlab=['Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+    const rvx=rev.map((v,i)=>({ rh:(v/mx*100).toFixed(1)+'%', eh:(exp[i]/mx*100).toFixed(1)+'%', m:mlab[i], labelColor: i===7?'var(--c-text)':'var(--c-text-3)' }));
+
+    const margin=78;
+    const marginRing='conic-gradient(var(--c-success) 0 '+margin+'%, var(--c-surface-2) '+margin+'% 100%)';
+
+    // operational health
+    const H=[
+      ['On-time delivery','96%',96,'c-success','c-success-soft','Good'],
+      ['Avg turnaround','26h',74,'c-success','c-success-soft','On target'],
+      ['Capacity used','82%',82,'c-warning','c-warning-soft','High'],
+      ['Rework rate','1.8%',88,'c-success','c-success-soft','Low'],
+      ['SLA met','94%',94,'c-success','c-success-soft','Good'],
+    ];
+    const health=H.map(([label,value,w,ref,soft,tag])=>({ label, value, w:w+'%', ref, soft, tag }));
+
+    // order outcomes donut
+    const OC=[['Delivered',290,'c-success'],['In progress',14,'c-info'],['Cancelled',8,'c-error']];
+    const ocTot=OC.reduce((a,o)=>a+o[1],0); let acc=0;
+    const ocSeg=OC.map(([l,v,c])=>{ const a0=acc/ocTot*100, a1=(acc+v)/ocTot*100; acc+=v; return 'var(--'+c+') '+a0.toFixed(1)+'% '+a1.toFixed(1)+'%'; }).join(', ');
+    const orderRing='conic-gradient('+ocSeg+')';
+    const outcomes=OC.map(([label,v,ref])=>({ label, value:String(v), ref }));
+
+    // customer growth
+    const gv=[120,138,126,150,142,165,158,184]; const gmx=200;
+    const growth=gv.map((v,i)=>({ h:(v/gmx*100).toFixed(1)+'%', m:mlab[i], fill:i===7?'var(--c-primary)':'var(--c-primary-tint)' }));
+
+    // top services
+    const SV=[['Wash & Fold',12640,'c-primary',362,'40%'],['Dry Cleaning',8420,'c-info',141,'27%'],['Ironing',5180,'c-violet',208,'16%'],['Household',3520,'c-cyan',38,'11%'],['Express',2180,'c-warning',54,'7%']];
+    const money=(n)=>n.toLocaleString('en-US');
+    const top={ label:SV[0][0], rev:money(SV[0][1]), orders:SV[0][3], share:SV[0][4] };
+    const topIcon=G('<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 3v18"/>');
+    const smax=SV[0][1];
+    const services=SV.slice(1).map((s,i)=>({ rank:'#'+(i+2), label:s[0], rev:money(s[1]), ref:s[2], w:(s[1]/smax*100).toFixed(0)+'%' }));
+
+    // staff attendance
+    const attRing='conic-gradient(var(--c-success) 0 94%, var(--c-surface-2) 94% 100%)';
+    const AVc={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-success':'c-success-soft'};
+    const topStaff=[['Fatima Sheikh','FS','c-violet','99%'],['Priya Nair','PN','c-info','98%'],['Ramesh Gudupu','RG','c-primary','98%']].map(([name,initials,ref,pct])=>({ name, initials, ref, soft:AVc[ref], pct }));
+
+    const payRing='conic-gradient(var(--c-success) 0 82%, var(--c-error) 82% 100%)';
+
+    // peak hours
+    const pv=[8,22,38,30,46,52,28]; const pmx=58; const ptl=['7-9','9-11','11-1','1-3','3-5','5-7','7-9p'];
+    const peakMaxI=pv.indexOf(Math.max(...pv));
+    const peak=pv.map((v,i)=>({ h:(v/pmx*100).toFixed(1)+'%', t:ptl[i], fill:i===peakMaxI?'var(--c-primary)':'var(--c-primary-tint)', labelColor:i===peakMaxI?'var(--c-text)':'var(--c-text-3)' }));
+
+    return { navItems, kpis, rvx, margin:String(margin), marginRing, netProfit:'27,350',
+      health, orderRing, outcomes, growth, top, topIcon, services, attRing, topStaff, payRing, peak };
+  }
+}
+</script>
+</body>
+</html>

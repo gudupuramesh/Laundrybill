@@ -208,7 +208,14 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     };
     // Quick orders are always pickup_home: ensure a default delivery charge when client sent 0
     let deliveryCharge = rawFinancials.deliveryCharge || 0;
-    if (isQuickOrder && deliveryCharge === 0 && delivery) {
+    // Distance-band mode: compute the fee SERVER-SIDE from the selected band so the
+    // client can't tamper with the amount. Public orders are always pickup_home.
+    const distanceBands = Array.isArray(delivery.distanceBands) ? delivery.distanceBands : [];
+    if (delivery.distanceFeeEnabled === true && distanceBands.length > 0) {
+        const sel = distanceBands.find((b) => b.id === data.deliveryBandId) || distanceBands[0];
+        deliveryCharge = typeof (sel === null || sel === void 0 ? void 0 : sel.fee) === "number" && sel.fee >= 0 ? sel.fee : 0;
+    }
+    else if (isQuickOrder && deliveryCharge === 0 && delivery) {
         const fee = (delivery.deliveryFeeEnabled === true)
             ? ((_g = (_f = delivery.deliveryFeeAmount) !== null && _f !== void 0 ? _f : delivery.defaultCharge) !== null && _g !== void 0 ? _g : 50)
             : ((_h = delivery.defaultCharge) !== null && _h !== void 0 ? _h : 50);

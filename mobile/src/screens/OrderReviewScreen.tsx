@@ -8,7 +8,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import { useAgents } from '../lib/useAgents';
-import { getDeliveryCharge, type DeliveryChargeSettings } from '../lib/delivery-charge';
+import { getDeliveryCharge, getDistanceBands, type DeliveryChargeSettings } from '../lib/delivery-charge';
 import { uploadImageToR2 } from '../lib/uploadR2';
 import { DamagePhotos } from '../components/DamagePhotos';
 import { Dropdown } from '../components/Dropdown';
@@ -82,6 +82,7 @@ export default function OrderReviewScreen({
   const [damagePhotos, setDamagePhotos] = useState<string[]>([]);
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [selectedArea, setSelectedArea] = useState<string>('');
+  const [deliveryBandId, setDeliveryBandId] = useState<string>('');
   const [placing, setPlacing] = useState(false);
 
   // Delivery agents for assignment (shown for home delivery / pickup).
@@ -185,11 +186,13 @@ export default function OrderReviewScreen({
 
     const afterDiscount = Math.max(0, subtotal - discountAmount);
     const taxAmount = taxEnabled ? Math.round(afterDiscount * (taxRate / 100)) : 0;
-    const deliveryCharge = getDeliveryCharge(deliverySettings, afterDiscount, deliveryType);
+    const deliveryCharge = getDeliveryCharge(deliverySettings, afterDiscount, deliveryType, deliveryBandId);
     const total = afterDiscount + taxAmount + deliveryCharge;
 
     return { subtotal, discountAmount, taxAmount, deliveryCharge, total, expressCharge };
-  }, [draftOrder, discountText, taxEnabled, taxRate, deliverySettings, deliveryType]);
+  }, [draftOrder, discountText, taxEnabled, taxRate, deliverySettings, deliveryType, deliveryBandId]);
+
+  const distanceBands = getDistanceBands(deliverySettings);
 
   // Expected delivery: today + max turnaround days (editable)
   const [expectedDelivery, setExpectedDelivery] = useState<Date>(() => {
@@ -359,6 +362,7 @@ export default function OrderReviewScreen({
         assignedAgentId: isHomeType ? assignedAgentId : null,
         assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
         assignedAt: isHomeType && assignedAgentId ? new Date() : null,
+        deliveryArea: isHomeType ? (selectedArea || null) : null,
         damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
         staffId: 'mobile',
         staffName: 'Mobile App',
@@ -399,6 +403,7 @@ export default function OrderReviewScreen({
                 ? existingData.assignedAt
                 : new Date())
             : null,
+          deliveryArea: isHomeType ? (selectedArea || null) : null,
           damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
           updatedAt: new Date(),
           timeline: [...(existingData.timeline || []), {
@@ -714,6 +719,19 @@ export default function OrderReviewScreen({
               </TouchableOpacity>
             </View>
           </View>
+
+          {isHomeType && distanceBands.length > 0 && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.deliveryDistance', 'Delivery distance')}</Text>
+              <Dropdown
+                title={t('mobile.deliveryDistance', 'Delivery distance')}
+                value={deliveryBandId || distanceBands[0].id}
+                placeholder={t('mobile.selectDistance', 'Select distance')}
+                options={distanceBands.map((b) => ({ key: b.id, label: `${b.label} · ${formatCurrency(b.fee, countrySettings)}` }))}
+                onSelect={setDeliveryBandId}
+              />
+            </View>
+          )}
 
           {serviceAreasEnabled && isHomeType && serviceAreas.length > 0 && (
             <View style={styles.toggleGroup}>

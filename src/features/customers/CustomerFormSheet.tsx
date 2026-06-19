@@ -5,7 +5,7 @@
  * With validation feedback and duplicate checking
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import {
     collection,
     query,
@@ -14,22 +14,18 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
-import {
-    LResponsiveDialog,
-    LTextInput,
-    LPhoneInput,
-    LTextArea,
-    LSelect,
-    LButton,
-    LSpacer,
-    useLToast,
-} from "@/components/laundry";
+import { LResponsiveDialog, useLToast } from "@/components/laundry";
 import type { Customer } from "@/types/customer";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShop } from "@/hooks/use-shop";
 import { getCountry } from "@/config/countries";
 import { useTranslation } from "react-i18next";
 import { isValidEmail, normalizePhone } from "@/lib/utils";
+
+const MONO = "'IBM Plex Mono'";
+const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
+const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
+const errTxt: CSSProperties = { fontSize: 11.5, color: "var(--c-error)", marginTop: 5 };
 
 interface CustomerFormSheetProps {
     open: boolean;
@@ -283,91 +279,67 @@ export function CustomerFormSheet({
             size="sm"
             snapPoints={[0.8]}
         >
-            <div className="space-y-4">
-                <LTextInput
-                    label={t('customer.name')}
-                    value={form.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    onBlur={validateName}
-                    placeholder={t('customers.namePlaceholder')}
-                    required
-                    error={errors.name}
-                />
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* Name */}
+                <div>
+                    <label style={lbl}>{t('customer.name', 'Customer Name')}</label>
+                    <input value={form.name} onChange={(e) => handleNameChange(e.target.value)} onBlur={validateName} placeholder={t('customers.namePlaceholder', 'e.g. Priya Sharma')}
+                        style={{ ...fld, borderColor: errors.name ? "var(--c-error)" : "var(--c-border-strong)" }} />
+                    {errors.name && <div style={errTxt}>{errors.name}</div>}
+                </div>
 
-                <LPhoneInput
-                    label={t('customer.phone')}
-                    value={form.phone}
-                    countryCode={country.phoneCode}
-                    maxDigits={phoneDigits}
-                    onValueChange={(v) => {
-                        setForm({ ...form, phone: v });
-                        setPhoneTouched(true);
-                        setErrors((prev) => ({ ...prev, phone: "" }));
-                    }}
-                    error={phoneHasError ? getPhoneHelperText() : errors.phone}
-                    helperText={!phoneHasError && !errors.phone && phoneTouched && form.phone.length < phoneDigits
-                        ? t("validation.digitsEntered", { count: form.phone.length })
-                        : undefined}
-                />
+                {/* Phone */}
+                <div>
+                    <label style={lbl}>{t('customer.phone', 'Phone Number')}</label>
+                    <div style={{ display: "flex", alignItems: "center", border: `1px solid ${(phoneHasError || errors.phone) ? "var(--c-error)" : "var(--c-border-strong)"}`, borderRadius: 9, background: "var(--c-surface)" }}>
+                        <span style={{ fontFamily: MONO, fontSize: 13.5, color: "var(--c-text-3)", paddingLeft: 12 }}>{country.phoneCode}</span>
+                        <input value={form.phone} inputMode="numeric" placeholder={"0".repeat(phoneDigits)}
+                            onChange={(e) => { setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, phoneDigits) }); setPhoneTouched(true); setErrors((prev) => ({ ...prev, phone: "" })); }}
+                            style={{ ...fld, border: 0, fontFamily: MONO, paddingLeft: 8, background: "transparent" }} />
+                    </div>
+                    {(phoneHasError || errors.phone) && <div style={errTxt}>{getPhoneHelperText()}</div>}
+                </div>
 
-                <LTextInput
-                    label={t('customers.emailOptional')}
-                    value={form.email}
-                    onChange={(e) => {
-                        setForm({ ...form, email: e.target.value });
-                        if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
-                    }}
-                    onBlur={validateEmail}
-                    placeholder="customer@example.com"
-                    type="email"
-                    error={errors.email}
-                />
+                {/* Email */}
+                <div>
+                    <label style={lbl}>{t('customers.emailOptional', 'Email (optional)')}</label>
+                    <input type="email" value={form.email} onBlur={validateEmail} placeholder="customer@example.com"
+                        onChange={(e) => { setForm({ ...form, email: e.target.value }); if (errors.email) setErrors((prev) => ({ ...prev, email: "" })); }}
+                        style={{ ...fld, borderColor: errors.email ? "var(--c-error)" : "var(--c-border-strong)" }} />
+                    {errors.email && <div style={errTxt}>{errors.email}</div>}
+                </div>
 
-                <LTextArea
-                    label={t('customers.addressOptional')}
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    placeholder={t('customers.addressPlaceholder')}
-                    minRows={2}
-                />
+                {/* Address */}
+                <div>
+                    <label style={lbl}>{t('customers.addressOptional', 'Address (optional)')}</label>
+                    <textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder={t('customers.addressPlaceholder', 'Flat / building, street, city, ZIP')}
+                        style={{ ...fld, resize: "vertical" }} />
+                </div>
 
-                {useAreaDropdown ? (
-                    <LSelect
-                        label={t('checkout.serviceArea', 'Area')}
-                        value={form.area}
-                        onChange={(v) => setForm({ ...form, area: v })}
-                        placeholder={t('customer.selectArea', 'Select area')}
-                        options={areaOptions.map((a) => ({ value: a.value, label: a.value }))}
-                    />
-                ) : (
-                    <LTextInput
-                        label={t('customer.areaOptional', 'Area (optional)')}
-                        value={form.area}
-                        onChange={(e) => setForm({ ...form, area: e.target.value })}
-                        placeholder={t('customer.areaPlaceholder', 'Locality / area')}
-                    />
-                )}
+                {/* Area */}
+                <div>
+                    <label style={lbl}>{t('checkout.serviceArea', 'Area (optional)')}</label>
+                    {useAreaDropdown ? (
+                        <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} style={fld}>
+                            <option value="">{t('customer.selectArea', 'Select area')}</option>
+                            {areaOptions.map((a) => <option key={a.value} value={a.value}>{a.value}</option>)}
+                        </select>
+                    ) : (
+                        <input value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder={t('customer.areaPlaceholder', 'Locality / area')} style={fld} />
+                    )}
+                </div>
 
-                <LTextArea
-                    label={t('customers.notesOptional')}
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                    placeholder={t('customers.notesPlaceholder')}
-                    minRows={2}
-                />
+                {/* Notes */}
+                <div>
+                    <label style={lbl}>{t('customers.notesOptional', 'Notes (optional)')}</label>
+                    <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={t('customers.notesPlaceholder', 'Any special preferences or notes')}
+                        style={{ ...fld, resize: "vertical" }} />
+                </div>
 
-                <LSpacer size="md" />
-
-                <LButton
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    onClick={handleSubmit}
-                    loading={loading}
-                    disabled={!isValid}
-                >
-                    {isEdit ? t('customers.saveChanges') : t('customers.addCustomer')}
-                </LButton>
+                <button type="button" onClick={handleSubmit} disabled={!isValid || loading}
+                    style={{ width: "100%", marginTop: 4, cursor: (!isValid || loading) ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: (!isValid || loading) ? 0.55 : 1 }}>
+                    {loading ? t('common.loading', 'Saving…') : isEdit ? t('customers.saveChanges', 'Save Changes') : t('customers.addCustomer', 'Add Customer')}
+                </button>
             </div>
         </LResponsiveDialog>
     );

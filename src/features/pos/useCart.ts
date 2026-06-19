@@ -38,6 +38,8 @@ interface CartState {
     deliveryAddress?: string;
     deliveryNotes?: string;
     deliveryCharge: number;
+    /** Selected distance band id (when shop uses distance-band delivery fees). */
+    deliveryBandId?: string;
     expectedDays: number;
     taxSettings?: ShopTaxSettings;
     taxEnabled: boolean;
@@ -86,6 +88,26 @@ export function useCart(persistKey?: string) {
             return;
         }
         if (!shop?.settings?.delivery) return; // Agent app may have no shop; keep existing charge
+        const del = shop.settings.delivery;
+
+        // Distance-band mode: fee comes from a manually-picked band (km range → fee).
+        if (
+            del.distanceFeeEnabled &&
+            Array.isArray(del.distanceBands) &&
+            del.distanceBands.length > 0 &&
+            (state.deliveryType === "pickup_home" || state.deliveryType === "delivery_home")
+        ) {
+            const bands = del.distanceBands;
+            const selected = bands.find((b) => b.id === state.deliveryBandId) || bands[0];
+            const charge = state.deliveryFeeWaived ? 0 : (selected?.fee || 0);
+            setState((prev) =>
+                prev.deliveryCharge !== charge || prev.deliveryBandId !== selected?.id
+                    ? { ...prev, deliveryCharge: charge, deliveryBandId: selected?.id }
+                    : prev
+            );
+            return;
+        }
+
         const subtotal = state.items.reduce((sum, i) => sum + i.total, 0);
         let discountAmount = 0;
         if (state.discountType && state.discountValue) {
@@ -118,18 +140,20 @@ export function useCart(persistKey?: string) {
         state.discountType,
         state.discountValue,
         state.deliveryFeeWaived,
+        state.deliveryBandId,
         shop?.settings?.delivery,
         overrideShop,
     ]);
 
+    const setDeliveryBand = useCallback((bandId: string) => {
+        setState((prev) => ({ ...prev, deliveryBandId: bandId }));
+    }, []);
+
     const addItem = useCallback((service: InventoryItem, quantity: number = 1, express: boolean = false, notes?: string) => {
         setState((prev) => {
-            // Combine with an existing line of the SAME item AND same express mode.
-            // (Express and normal stay as separate lines — they're priced differently —
-            //  but adding the same express item again increments its quantity.)
-            const existingIndex = prev.items.findIndex(
-                (item) => item.service.id === service.id && item.express === express
-            );
+            // One line per item (design system): adding the same item again just
+            // increments its quantity. Express is a per-line toggle (see toggleItemExpress).
+            const existingIndex = prev.items.findIndex((item) => item.service.id === service.id);
 
             if (existingIndex >= 0) {
                 const items = [...prev.items];
@@ -175,6 +199,18 @@ export function useCart(persistKey?: string) {
                 }
 
                 return updated;
+            }),
+        }));
+    }, []);
+
+    const toggleItemExpress = useCallback((itemId: string) => {
+        setState((prev) => ({
+            ...prev,
+            items: prev.items.map((item) => {
+                if (item.id !== itemId) return item;
+                const express = !item.express;
+                const unitPrice = item.service.basePrice * (express ? item.service.expressMultiplier : 1);
+                return { ...item, express, unitPrice, total: item.quantity * unitPrice };
             }),
         }));
     }, []);
@@ -392,9 +428,11 @@ export function useCart(persistKey?: string) {
         addItem,
         updateItem,
         removeItem,
+        toggleItemExpress,
         setCustomer,
         setDiscount,
         setDelivery,
+        setDeliveryBand,
         setTaxSettings,
         toggleTax,
         setDeliveryFeeWaived,

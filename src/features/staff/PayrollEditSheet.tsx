@@ -1,20 +1,16 @@
 /**
- * Payroll Edit Sheet
- * 
- * Bottom sheet for editing payroll amounts (bonus, deductions, manual override)
+ * Payroll Edit Sheet — design-system tokens.
+ * Adjust bonus / deductions / advances, or override the final net salary.
  */
 
-import { useState, useEffect } from "react";
-import {
-    LButton,
-    LNumberInput,
-    LDivider,
-} from "@/components/laundry";
+import { useState, useEffect, type CSSProperties } from "react";
 import { LBottomSheet } from "@/components/laundry";
 import { usePayrollMutations } from "@/hooks/use-staff";
 import { useCurrency } from "@/hooks/use-currency";
 import type { PayrollEntry } from "@/types/staff";
-import { AlertCircle, Gift, TrendingDown, Edit3 } from "lucide-react";
+import { AlertCircle, Gift, TrendingDown } from "lucide-react";
+
+const MONO = "'IBM Plex Mono'";
 
 interface PayrollEditSheetProps {
     open: boolean;
@@ -32,18 +28,10 @@ export function PayrollEditSheet({ open, onClose, payroll }: PayrollEditSheetPro
     const [submitting, setSubmitting] = useState(false);
     const { updatePayroll } = usePayrollMutations();
 
-    // Reset form when opened
     useEffect(() => {
-        if (open && payroll) {
-            setBonus(payroll.bonus || 0);
-            setDeductions(payroll.deductions || 0);
-            setAdvances(payroll.advances || 0);
-            setManualNetSalary(null);
-            setUseManualOverride(false);
-        }
+        if (open && payroll) { setBonus(payroll.bonus || 0); setDeductions(payroll.deductions || 0); setAdvances(payroll.advances || 0); setManualNetSalary(null); setUseManualOverride(false); }
     }, [open, payroll]);
 
-    // Calculate preview
     const totalEarnings = payroll.baseSalary + payroll.overtimeAmount + bonus;
     const totalDeductions = deductions + advances;
     const calculatedNetSalary = totalEarnings - totalDeductions;
@@ -52,170 +40,74 @@ export function PayrollEditSheet({ open, onClose, payroll }: PayrollEditSheetPro
         setSubmitting(true);
         try {
             if (useManualOverride && manualNetSalary !== null) {
-                // Manual override - set custom values
-                await updatePayroll(payroll.id, {
-                    bonus,
-                    deductions,
-                    advances,
-                    totalEarnings,
-                    totalDeductions,
-                    netSalary: manualNetSalary,
-                });
+                await updatePayroll(payroll.id, { bonus, deductions, advances, totalEarnings, totalDeductions, netSalary: manualNetSalary });
             } else {
-                // Normal update
-                await updatePayroll(payroll.id, {
-                    bonus,
-                    deductions,
-                    advances,
-                });
+                await updatePayroll(payroll.id, { bonus, deductions, advances });
             }
             onClose();
-        } catch (error) {
-            console.error("Failed to update payroll:", error);
-            alert("Failed to update payroll. Please try again.");
-        } finally {
-            setSubmitting(false);
-        }
+        } catch (e) { console.error("Failed to update payroll:", e); }
+        finally { setSubmitting(false); }
     };
 
+    const lbl: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, marginBottom: 7 };
+    const Money = ({ value, onChange }: { value: number; onChange: (n: number) => void }) => (
+        <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--c-border-strong)", borderRadius: 9, background: "var(--c-surface)" }}>
+            <span style={{ fontFamily: MONO, fontSize: 13, color: "var(--c-text-3)", paddingLeft: 11 }}>{currencySymbol}</span>
+            <input type="text" inputMode="decimal" value={value || ""} placeholder="0" onChange={(e) => { const n = parseFloat(e.target.value); onChange(isNaN(n) || n < 0 ? 0 : n); }} style={{ width: "100%", font: "inherit", fontFamily: MONO, fontWeight: 700, fontSize: 13.5, color: "var(--c-text)", border: 0, background: "transparent", padding: "10px 12px 10px 8px", outline: "none" }} />
+        </div>
+    );
+    const row: CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 13 };
+
     return (
-        <LBottomSheet
-            open={open}
-            onClose={onClose}
-            title="Edit Payroll"
-            snapPoints={[0.85]}
-        >
-            <div className="p-4 space-y-4">
-                {/* Current Calculation Summary */}
-                <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                    <div className="flex justify-between">
-                        <span className="text-muted-foreground">Base Salary:</span>
-                        <span>{formatAmount(payroll.baseSalary)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span className="text-muted-foreground">Overtime ({payroll.overtimeHours}h):</span>
-                        <span>{formatAmount(payroll.overtimeAmount)}</span>
-                    </div>
+        <LBottomSheet open={open} onClose={onClose} title="Edit Payroll" snapPoints={[0.85]}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* current calc */}
+                <div style={{ background: "var(--c-surface-2)", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={row}><span style={{ color: "var(--c-text-2)" }}>Base salary</span><span style={{ fontFamily: MONO }}>{formatAmount(payroll.baseSalary)}</span></div>
+                    <div style={row}><span style={{ color: "var(--c-text-2)" }}>Overtime ({payroll.overtimeHours}h)</span><span style={{ fontFamily: MONO }}>{formatAmount(payroll.overtimeAmount)}</span></div>
                 </div>
 
-                <LDivider label="Adjustments" />
-
-                {/* Bonus Input */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-foreground">
-                        <Gift className="h-4 w-4 text-success" />
-                        <span className="text-sm font-medium">Bonus / Incentive</span>
-                    </div>
-                    <LNumberInput
-                        value={bonus}
-                        onChange={setBonus}
-                        prefix={currencySymbol}
-                        min={0}
-                        placeholder="0"
-                    />
+                <div>
+                    <label style={{ ...lbl, color: "var(--c-success)" }}><Gift size={15} />Bonus / incentive</label>
+                    <Money value={bonus} onChange={setBonus} />
+                </div>
+                <div>
+                    <label style={{ ...lbl, color: "var(--c-error)" }}><TrendingDown size={15} />Deductions</label>
+                    <Money value={deductions} onChange={setDeductions} />
+                </div>
+                <div>
+                    <label style={{ ...lbl, color: "var(--c-warning)" }}><TrendingDown size={15} />Advances taken</label>
+                    <Money value={advances} onChange={setAdvances} />
                 </div>
 
-                {/* Deductions Input */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-foreground">
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                        <span className="text-sm font-medium">Deductions</span>
-                    </div>
-                    <LNumberInput
-                        value={deductions}
-                        onChange={setDeductions}
-                        prefix={currencySymbol}
-                        min={0}
-                        placeholder="0"
-                    />
+                {/* calculated */}
+                <div style={{ background: "var(--c-primary-soft)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 600 }}>Calculated net salary</span>
+                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19, color: "var(--c-primary)" }}>{formatAmount(calculatedNetSalary)}</span>
                 </div>
 
-                {/* Advances Input */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-foreground">
-                        <TrendingDown className="h-4 w-4 text-warning" />
-                        <span className="text-sm font-medium">Advances Taken</span>
-                    </div>
-                    <LNumberInput
-                        value={advances}
-                        onChange={setAdvances}
-                        prefix={currencySymbol}
-                        min={0}
-                        placeholder="0"
-                    />
-                </div>
-
-                <LDivider />
-
-                {/* Calculated Total */}
-                <div className="bg-primary-muted rounded-lg p-3">
-                    <div className="flex justify-between items-center">
-                        <span className="font-medium">Calculated Net Salary:</span>
-                        <span className="text-xl font-bold">{formatAmount(calculatedNetSalary)}</span>
-                    </div>
-                </div>
-
-                {/* Manual Override Toggle */}
-                <div className="border border-border rounded-lg p-3 space-y-3">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setUseManualOverride(!useManualOverride);
-                            if (!useManualOverride) {
-                                setManualNetSalary(calculatedNetSalary);
-                            }
-                        }}
-                        className="flex items-center gap-2 text-sm w-full"
-                    >
-                        <input
-                            type="checkbox"
-                            checked={useManualOverride}
-                            onChange={() => { }}
-                            className="rounded"
-                        />
-                        <Edit3 className="h-4 w-4 text-primary" />
-                        <span className="font-medium">Override Final Amount</span>
-                    </button>
-
+                {/* override */}
+                <div style={{ border: "1px solid var(--c-border)", borderRadius: 11, padding: 13, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", fontSize: 13.5, fontWeight: 600 }}>
+                        <input type="checkbox" checked={useManualOverride} onChange={() => { const v = !useManualOverride; setUseManualOverride(v); if (v) setManualNetSalary(calculatedNetSalary); }} style={{ accentColor: "var(--c-primary)", width: 16, height: 16 }} />
+                        Override final amount
+                    </label>
                     {useManualOverride && (
                         <>
-                            <p className="text-xs text-muted-foreground flex items-start gap-1">
-                                <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-                                Use this to give full salary even if staff took leave, or make other manual adjustments.
-                            </p>
-                            <LNumberInput
-                                value={manualNetSalary ?? calculatedNetSalary}
-                                onChange={setManualNetSalary}
-                                prefix={currencySymbol}
-                                min={0}
-                            />
+                            <div style={{ fontSize: 11.5, color: "var(--c-text-3)", display: "flex", gap: 6 }}><AlertCircle size={13} style={{ flex: "none", marginTop: 1 }} />Give full salary even if staff took leave, or make other manual adjustments.</div>
+                            <Money value={manualNetSalary ?? calculatedNetSalary} onChange={setManualNetSalary} />
                         </>
                     )}
                 </div>
 
-                {/* Final Amount */}
                 {useManualOverride && manualNetSalary !== null && manualNetSalary !== calculatedNetSalary && (
-                    <div className="bg-warning/10 border border-warning rounded-lg p-3">
-                        <div className="flex justify-between items-center">
-                            <span className="font-medium text-warning">Final Amount (Override):</span>
-                            <span className="text-xl font-bold text-warning">{formatAmount(manualNetSalary)}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Difference: {manualNetSalary > calculatedNetSalary ? "+" : ""}{formatAmount(manualNetSalary - calculatedNetSalary)}
-                        </p>
+                    <div style={{ background: "var(--c-warning-soft)", border: "1px solid var(--c-warning)", borderRadius: 10, padding: "12px 14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, color: "var(--c-warning)" }}>Final amount (override)</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18, color: "var(--c-warning)" }}>{formatAmount(manualNetSalary)}</span></div>
+                        <div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 4 }}>Difference: {manualNetSalary > calculatedNetSalary ? "+" : ""}{formatAmount(manualNetSalary - calculatedNetSalary)}</div>
                     </div>
                 )}
 
-                {/* Submit Button */}
-                <LButton
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    onClick={handleSubmit}
-                    loading={submitting}
-                >
-                    Save Changes
-                </LButton>
+                <button type="button" onClick={handleSubmit} disabled={submitting} style={{ width: "100%", cursor: submitting ? "wait" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving…" : "Save Changes"}</button>
             </div>
         </LBottomSheet>
     );

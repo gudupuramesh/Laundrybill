@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import {
     collection,
     query,
@@ -229,6 +229,11 @@ interface FinancialReportsData {
     // Daily breakdown
     revenueByDay: DailyRevenue[];
 
+    // Reports extras (for the DS reports layout)
+    topServices: { name: string; orders: number; revenue: number }[];
+    peakHours: { hour: number; count: number }[];
+    monthlyTrend: { month: string; revenue: number; expenses: number; newCustomers: number }[];
+
     // New Metrics
     staffMetrics: StaffMetric[];
     customerStats: {
@@ -276,6 +281,9 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
         profit: 0,
         profitMargin: 0,
         revenueByDay: [],
+        topServices: [],
+        peakHours: [],
+        monthlyTrend: [],
         staffMetrics: [],
         customerStats: {
             newCustomers: 0,
@@ -309,6 +317,8 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 let collections = 0;
                 let outstanding = 0;
                 const dailyMap = new Map<string, { amount: number; count: number }>();
+                const serviceMap = new Map<string, { orders: number; revenue: number }>();
+                const hourMap = new Map<number, number>();
                 const stats = {
                     total: ordersSnapshot.size,
                     orderPlaced: 0, pickupScheduled: 0, pickedUp: 0, inProgress: 0,
@@ -377,8 +387,22 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                         } else {
                             dailyMap.set(dateKey, { amount: total, count: 1 });
                         }
+                        // peak intake hour
+                        const hr = orderDate.getHours();
+                        hourMap.set(hr, (hourMap.get(hr) || 0) + 1);
+                        // top services by item revenue
+                        (order.items || []).forEach((it: { serviceName?: string; total?: number; unitPrice?: number; quantity?: number }) => {
+                            const name = it.serviceName || "Other";
+                            const rev = it.total ?? (it.unitPrice || 0) * (it.quantity || 0);
+                            const m = serviceMap.get(name) || { orders: 0, revenue: 0 };
+                            m.revenue += rev; m.orders += 1;
+                            serviceMap.set(name, m);
+                        });
                     }
                 });
+
+                const topServices = Array.from(serviceMap.entries()).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.revenue - a.revenue);
+                const peakHours = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourMap.get(h) || 0 }));
 
                 const revenueByDay = Array.from(dailyMap.entries())
                     .map(([date, d]) => ({ date, ...d }))
@@ -520,6 +544,43 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     }
                 });
 
+                // 6. Monthly trend (last 8 months ending at the selected period's month)
+                const trendMonthsList = Array.from({ length: 8 }, (_, i) => format(subMonths(startOfMonth(endDate), 7 - i), "yyyy-MM"));
+                const trendStart = startOfMonth(subMonths(endDate, 7));
+                const revByMonth: Record<string, number> = {};
+                const expByMonth: Record<string, number> = {};
+                const custByMonth: Record<string, number> = {};
+                const trendOrdersSnap = await getDocs(query(
+                    collection(db, `shops/${shopId}/orders`),
+                    where("createdAt", ">=", Timestamp.fromDate(trendStart)),
+                    where("createdAt", "<=", Timestamp.fromDate(endDate)),
+                ));
+                trendOrdersSnap.forEach((d) => {
+                    const o = d.data();
+                    if ((o.status || "") === "cancelled") return;
+                    const dt = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+                    if (!dt) return;
+                    const mk = format(dt, "yyyy-MM");
+                    revByMonth[mk] = (revByMonth[mk] || 0) + (o.financials?.total || 0);
+                });
+                const trendExpSnap = await getDocs(query(
+                    collection(db, `shops/${shopId}/expenses`),
+                    where("date", ">=", Timestamp.fromDate(trendStart)),
+                    where("date", "<=", Timestamp.fromDate(endDate)),
+                ));
+                trendExpSnap.forEach((d) => {
+                    const e = d.data();
+                    const dt = e.date?.toDate ? e.date.toDate() : null;
+                    if (!dt) return;
+                    const mk = format(dt, "yyyy-MM");
+                    expByMonth[mk] = (expByMonth[mk] || 0) + (e.amount || 0);
+                });
+                allCustSnap.forEach((d) => {
+                    const created = d.data().createdAt?.toDate?.();
+                    if (created) { const mk = format(created, "yyyy-MM"); custByMonth[mk] = (custByMonth[mk] || 0) + 1; }
+                });
+                const monthlyTrend = trendMonthsList.map((m) => ({ month: m, revenue: revByMonth[m] || 0, expenses: expByMonth[m] || 0, newCustomers: custByMonth[m] || 0 }));
+
                 const totalWithSalaries = totalExpenses + totalSalaries;
                 // Net profit is cash-basis (Collected − expenses) to match the apps.
                 const profit = collections - totalWithSalaries;
@@ -541,6 +602,9 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     profit,
                     profitMargin,
                     revenueByDay,
+                    topServices,
+                    peakHours,
+                    monthlyTrend,
                     staffMetrics: Array.from(staffMap.values()),
                     customerStats: {
                         newCustomers,

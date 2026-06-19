@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+    --sh-overlay:0 16px 48px rgba(16,24,40,.2),0 2px 8px rgba(16,24,40,.08);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @keyframes lbOv{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes lbMod{ from{ transform:translateY(8px) scale(.985); opacity:0; } to{ transform:translateY(0) scale(1); opacity:1; } }
+  @media (max-width:1040px){ .lb-cols{ flex-direction:column !important; } .lb-svclist{ width:100% !important; max-height:300px; border-right:0 !important; border-bottom:1px solid var(--c-border) !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- top bar -->
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div style="display:flex; align-items:baseline; gap:9px;">
+        <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Services</span>
+        <span style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">5 services · 24 items</span>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="position:relative;">
+        <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+        <input type="search" placeholder="Search items…" style="width:200px; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:8px 11px 8px 33px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+      </div>
+      <button onClick="{{ openService }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Service</button>
+    </header>
+
+    <div class="lb-cols" style="flex:1; min-height:0; display:flex; overflow:hidden;">
+
+      <!-- ====== SERVICE CATEGORIES ====== -->
+      <section class="lb-svclist lb-scroll" style="width:288px; flex:none; overflow:auto; border-right:1px solid var(--c-border); background:var(--c-surface); padding:14px;">
+        <div style="font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--c-text-3); padding:4px 6px 10px;">Service categories</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <sc-for list="{{ services }}" as="s" hint-placeholder-count="5">
+            <button onClick="{{ s.onSelect }}" style="cursor:pointer; font:inherit; text-align:left; display:flex; align-items:center; gap:12px; padding:10px; border-radius:10px; border:1px solid {{ s.bd }}; background:{{ s.bg }};" style-hover="background:var(--c-surface-2);">
+              <span style="width:42px; height:42px; flex:none; border-radius:10px; background:var(--{{ s.soft }}); color:var(--{{ s.ref }}); display:flex; align-items:center; justify-content:center;">{{ s.icon }}</span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:13.5px;">{{ s.name }}</div>
+                <div style="font-size:11.5px; color:var(--c-text-3); margin-top:1px;">{{ s.count }} items · {{ s.priceRange }}</div>
+              </div>
+              <span style="width:8px; height:8px; border-radius:50%; background:var(--{{ s.dotRef }}); flex:none;"></span>
+            </button>
+          </sc-for>
+        </div>
+        <button onClick="{{ openService }}" style="width:100%; margin-top:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-primary); background:transparent; border:1px dashed var(--c-border-strong); border-radius:10px; padding:11px;" style-hover="background:var(--c-primary-soft); border-color:var(--c-primary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New service category</button>
+      </section>
+
+      <!-- ====== ITEM CATALOG ====== -->
+      <section class="lb-scroll" style="flex:1; min-width:0; overflow:auto; padding:20px 22px 40px;">
+        <!-- service header -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:16px; margin-bottom:18px;">
+          <span style="width:54px; height:54px; flex:none; border-radius:13px; background:var(--{{ cur.soft }}); color:var(--{{ cur.ref }}); display:flex; align-items:center; justify-content:center;">{{ cur.iconLg }}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:19px; font-weight:700; letter-spacing:-.01em;">{{ cur.name }}</span>
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); padding:3px 9px; border-radius:20px;"><span style="width:5px; height:5px; border-radius:50%; background:var(--c-success);"></span>Active</span>
+            </div>
+            <div style="font-size:12.5px; color:var(--c-text-3); margin-top:4px;">{{ cur.desc }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span style="font-size:11px; color:var(--c-text-3);">Price range</span>
+            <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px;">{{ cur.priceRange }}</span>
+          </div>
+          <button aria-label="Edit service" style="cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px;" style-hover="background:var(--c-surface-2);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+        </div>
+
+        <!-- items toolbar -->
+        <div style="display:flex; align-items:center; margin-bottom:14px;">
+          <div style="font-size:14px; font-weight:600;">Items <span style="color:var(--c-text-3); font-weight:500; font-family:'IBM Plex Mono';">({{ cur.count }})</span></div>
+          <button onClick="{{ openItem }}" style="margin-left:auto; cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:8px; padding:8px 13px;" style-hover="filter:brightness(.97);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add Item</button>
+        </div>
+
+        <!-- items grid -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px;">
+          <sc-for list="{{ items }}" as="it" hint-placeholder-count="6">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; overflow:hidden; box-shadow:var(--sh-sm);" style-hover="border-color:var(--c-border-strong);">
+              <div style="height:118px; background:var(--{{ it.soft }}); display:flex; align-items:center; justify-content:center; position:relative; border-bottom:1px solid var(--c-border);">
+                <span style="color:var(--{{ it.ref }}); opacity:.9;">{{ it.icon }}</span>
+                <span style="position:absolute; top:9px; right:9px; display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; padding:3px 7px; border-radius:20px; background:var(--c-surface); color:var(--{{ it.statusRef }}); box-shadow:var(--sh-sm);"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ it.statusRef }});"></span>{{ it.statusLabel }}</span>
+                <button aria-label="Edit item" style="position:absolute; bottom:9px; right:9px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:var(--c-surface); border:0; border-radius:7px; box-shadow:var(--sh-sm);" style-hover="color:var(--c-primary);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              </div>
+              <div style="padding:12px 13px;">
+                <div style="font-weight:600; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ it.name }}</div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+                  <span style="font-size:11px; color:var(--c-text-3); background:var(--c-surface-2); padding:2px 7px; border-radius:5px;">{{ it.unit }}</span>
+                  <span style="font-size:11px; color:var(--c-text-3); display:inline-flex; align-items:center; gap:3px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ it.turnaround }}</span>
+                </div>
+                <div style="display:flex; align-items:baseline; gap:3px; margin-top:10px;">
+                  <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:17px;">{{ it.price }}</span>
+                  <span style="font-size:11px; color:var(--c-text-3);">د.إ {{ it.per }}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+          <!-- add item card -->
+          <button onClick="{{ openItem }}" style="cursor:pointer; font:inherit; min-height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; color:var(--c-text-3); background:transparent; border:1px dashed var(--c-border-strong); border-radius:12px;" style-hover="background:var(--c-primary-soft); border-color:var(--c-primary); color:var(--c-primary);">
+            <span style="width:40px; height:40px; border-radius:50%; background:var(--c-surface); border:1px solid var(--c-border); display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span style="font-size:13px; font-weight:600;">Add new item</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===================== NEW SERVICE MODAL ===================== -->
+  <sc-if value="{{ serviceModal }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="New service category" onClick="{{ closeModal }}" style="position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,17,23,.5); animation:lbOv .14s ease;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:460px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-overlay); animation:lbMod .16s ease; max-height:90vh; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:18px 20px; border-bottom:1px solid var(--c-border);">
+          <div style="font-size:16px; font-weight:600;">New service category</div>
+          <button onClick="{{ closeModal }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:30px; height:30px; color:var(--c-text-2); background:transparent; border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div class="lb-scroll" style="padding:20px; overflow:auto; display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:7px;">Cover image</div>
+            <label style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; height:120px; border:1.5px dashed var(--c-border-strong); border-radius:10px; background:var(--c-surface-2); color:var(--c-text-3);" style-hover="border-color:var(--c-primary); color:var(--c-primary);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="9" cy="9" r="1.5"/></svg>
+              <span style="font-size:12.5px; font-weight:500;">Drag &amp; drop or <span style="color:var(--c-primary); font-weight:600;">browse</span></span>
+              <span style="font-size:11px;">PNG, JPG up to 5 MB</span>
+              <input type="file" accept="image/*" style="display:none;" />
+            </label>
+          </div>
+          <div>
+            <label for="svc-name" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Service name</label>
+            <input id="svc-name" type="text" placeholder="e.g. Wash &amp; Iron" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" />
+          </div>
+          <div>
+            <label for="svc-desc" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Description</label>
+            <textarea id="svc-desc" rows="2" placeholder="Short description shown to customers" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px; resize:vertical;" style-focus="border-color:var(--c-primary);"></textarea>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1;">
+              <label for="svc-turn" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Default turnaround</label>
+              <select id="svc-turn" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);"><option>24 hours</option><option>48 hours</option><option>Same day</option><option>72 hours</option></select>
+            </div>
+            <div style="flex:1;">
+              <label for="svc-color" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Accent</label>
+              <div id="svc-color" style="display:flex; gap:7px; padding-top:3px;">
+                <sc-for list="{{ swatches }}" as="sw" hint-placeholder-count="5">
+                  <span style="width:26px; height:26px; border-radius:7px; background:var(--{{ sw }}); cursor:pointer; border:2px solid var(--c-surface); box-shadow:0 0 0 1px var(--c-border);"></span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 20px; border-top:1px solid var(--c-border);">
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-surface-2);">Cancel</button>
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-primary-hover);">Create service</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== NEW ITEM MODAL ===================== -->
+  <sc-if value="{{ itemModal }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="New item" onClick="{{ closeModal }}" style="position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,17,23,.5); animation:lbOv .14s ease;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:480px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-overlay); animation:lbMod .16s ease; max-height:90vh; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:18px 20px; border-bottom:1px solid var(--c-border);">
+          <div style="font-size:16px; font-weight:600;">New item</div>
+          <span style="font-size:12px; color:var(--c-text-3);">in {{ cur.name }}</span>
+          <button onClick="{{ closeModal }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:30px; height:30px; color:var(--c-text-2); background:transparent; border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div class="lb-scroll" style="padding:20px; overflow:auto; display:flex; flex-direction:column; gap:16px;">
+          <div style="display:flex; gap:16px;">
+            <label style="cursor:pointer; flex:none; width:120px; height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; border:1.5px dashed var(--c-border-strong); border-radius:10px; background:var(--c-surface-2); color:var(--c-text-3); text-align:center;" style-hover="border-color:var(--c-primary); color:var(--c-primary);">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="9" cy="9" r="1.5"/></svg>
+              <span style="font-size:11.5px; font-weight:600; color:var(--c-primary);">Add photo</span>
+              <input type="file" accept="image/*" style="display:none;" />
+            </label>
+            <div style="flex:1; display:flex; flex-direction:column; gap:13px;">
+              <div>
+                <label for="it-name" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Item name</label>
+                <input id="it-name" type="text" placeholder="e.g. T-Shirt / Polo" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" />
+              </div>
+              <div>
+                <label for="it-svc" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Service</label>
+                <select id="it-svc" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);"><option>{{ cur.name }}</option><option>Dry Cleaning</option><option>Ironing</option><option>Household</option></select>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1;">
+              <label for="it-price" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Price (د.إ)</label>
+              <input id="it-price" type="text" inputMode="decimal" placeholder="0.00" style="width:100%; font-family:'IBM Plex Mono'; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" />
+            </div>
+            <div style="flex:1;">
+              <label for="it-turn" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Turnaround</label>
+              <select id="it-turn" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);"><option>24h</option><option>48h</option><option>Same day</option></select>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Pricing unit</div>
+            <div style="display:flex; gap:9px;">
+              <label style="flex:1; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px; padding:9px 12px; border:1px solid var(--c-primary); background:var(--c-primary-soft); border-radius:8px;"><input type="radio" name="unit" checked style="accent-color:var(--c-primary); width:15px; height:15px;" />Per piece</label>
+              <label style="flex:1; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px; padding:9px 12px; border:1px solid var(--c-border-strong); background:var(--c-surface); border-radius:8px;"><input type="radio" name="unit" style="accent-color:var(--c-primary); width:15px; height:15px;" />Per kg</label>
+            </div>
+          </div>
+          <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+            <div><div style="font-size:13px; font-weight:600;">Active &amp; bookable</div><div style="font-size:11.5px; color:var(--c-text-3);">Show this item on the order screen</div></div>
+            <button role="switch" aria-checked="{{ itemActive }}" onClick="{{ flipItemActive }}" aria-label="Active" style="position:relative; cursor:pointer; width:42px; height:24px; border:0; border-radius:20px; flex:none; background:{{ itemTrack }};"><span style="position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ itemKnob }};"></span></button>
+          </label>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 20px; border-top:1px solid var(--c-border);">
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-surface-2);">Cancel</button>
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-primary-hover);">Save item</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { selected:'wash', modal:null, itemActive:true };
+
+  componentDidMount(){ this._k=(e)=>{ if(e.key==='Escape') this.setState({modal:null}); }; window.addEventListener('keydown', this._k); }
+  componentWillUnmount(){ window.removeEventListener('keydown', this._k); }
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const G = (s,sz)=> html('<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',1],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({
+      label, icon:S(p), current: active?'page':'false',
+      weight: active?'600':'500',
+      fg: active?'var(--c-primary)':'var(--c-text-2)',
+      bg: active?'var(--c-primary-soft)':'transparent',
+    }));
+
+    // garment icons
+    const gi = {
+      shirt:'<path d="M8.5 3 5 5.5 6.5 9 8.5 8v12h7V8l2 1L19 5.5 15.5 3l-1.7 1.6a2.8 2.8 0 0 1-3.6 0Z"/>',
+      trousers:'<path d="M7 3h10l1 18h-4l-2-11-2 11H6Z"/>',
+      sheet:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 11h18M8 6v5"/>',
+      towel:'<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 3v18"/>',
+      pillow:'<rect x="3" y="7" width="18" height="10" rx="4"/>',
+      suit:'<path d="M8 3 6 5v16h12V5l-2-2-4 5-4-5Z"/><path d="M12 8v9"/>',
+      blazer:'<path d="M7 3 5 6v15h14V6l-2-3-5 6-5-6Z"/>',
+      saree:'<path d="M5 4c4 3.5 10 3.5 14 0M5 21c1.5-8 3-12 7-17M19 21c-1.5-8-3-12-7-17"/>',
+      coat:'<path d="M8 3 6 6v15h12V6l-2-3M8 3l4 4 4-4M12 7v14"/>',
+      dress:'<path d="M9.5 3h5l-1.2 3.5L17 21H7l3.7-14.5L9.5 3Z"/>',
+      kurta:'<path d="M8.5 3 5 6l1.5 2.5L8.5 8v13h7V8l2 .5L19 6l-3.5-3-1.6 1.6a2.8 2.8 0 0 1-3.8 0Z"/><path d="M12 8v6"/>',
+      curtain:'<path d="M3 3h18M4 3c1.5 6 1.5 12 0 18M9 3c-.8 6-.8 12 0 18M15 3c.8 6 .8 12 0 18M20 3c1.5 6 1.5 12 0 18"/>',
+      blanket:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 5v14"/>',
+      carpet:'<rect x="3" y="6" width="18" height="12" rx="1"/><path d="M3 9h18M3 15h18M6 6v12M18 6v12"/>',
+    };
+    const TINTS = ['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const tintSoft = {'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+
+    const SVC = [
+      { id:'wash', name:'Wash & Fold', ref:'c-primary', icon:gi.towel, desc:'Everyday laundry washed, dried and neatly folded.',
+        items:[
+          ['T-Shirt / Polo','shirt','3.50','piece','24h',1],
+          ['Trousers','trousers','5.00','piece','24h',1],
+          ['Bedsheet (Single)','sheet','7.00','piece','48h',1],
+          ['Bath Towel','towel','4.00','piece','24h',1],
+          ['Pillow Cover','pillow','2.50','piece','24h',1],
+          ['Mixed load','blanket','6.00','kg','48h',0],
+        ]},
+      { id:'dry', name:'Dry Cleaning', ref:'c-violet', icon:gi.blazer, desc:'Solvent cleaning for delicate and formal wear.',
+        items:[
+          ['Suit (2-piece)','suit','22.00','piece','48h',1],
+          ['Blazer','blazer','14.00','piece','48h',1],
+          ['Saree','saree','16.00','piece','72h',1],
+          ['Overcoat','coat','20.00','piece','72h',1],
+          ['Evening Dress','dress','18.00','piece','48h',1],
+        ]},
+      { id:'iron', name:'Ironing & Press', ref:'c-info', icon:gi.shirt, desc:'Crisp pressing and steam finishing per garment.',
+        items:[
+          ['Shirt','shirt','2.00','piece','24h',1],
+          ['Trousers','trousers','2.50','piece','24h',1],
+          ['Kurta','kurta','3.00','piece','24h',1],
+          ['Saree','saree','5.00','piece','48h',1],
+        ]},
+      { id:'household', name:'Household', ref:'c-cyan', icon:gi.blanket, desc:'Bulky home textiles cleaned at the plant.',
+        items:[
+          ['Curtains','curtain','12.00','piece','72h',1],
+          ['Blanket','blanket','15.00','piece','72h',1],
+          ['Carpet (small)','carpet','25.00','piece','72h',1],
+        ]},
+      { id:'express', name:'Express (24h)', ref:'c-warning', icon:gi.shirt, desc:'Priority same-day handling with a surcharge.',
+        items:[
+          ['Express Shirt','shirt','5.00','piece','8h',1],
+          ['Express Suit','suit','30.00','piece','12h',1],
+          ['Express add-on','sheet','8.00','order','—',1],
+        ]},
+    ];
+
+    const priceRange = (its)=>{
+      const ps = its.map(i=>parseFloat(i[2]));
+      const lo = Math.min(...ps), hi = Math.max(...ps);
+      return lo.toFixed(0)+'–'+hi.toFixed(0)+' د.إ';
+    };
+
+    const services = SVC.map((s,i)=>({
+      name:s.name, ref:s.ref, soft:tintSoft[s.ref], icon:G(s.icon,22),
+      count:s.items.length, priceRange:priceRange(s.items),
+      dotRef: s.id==='express' ? 'c-warning' : 'c-success',
+      bg: s.id===this.state.selected ? 'var(--c-primary-soft)' : 'var(--c-surface)',
+      bd: s.id===this.state.selected ? 'var(--c-primary)' : 'var(--c-border)',
+      onSelect: ()=>this.setState({selected:s.id}),
+    }));
+
+    const curRec = SVC.find(s=>s.id===this.state.selected) || SVC[0];
+    const cur = {
+      name:curRec.name, ref:curRec.ref, soft:tintSoft[curRec.ref], iconLg:G(curRec.icon,28),
+      desc:curRec.desc, count:curRec.items.length, priceRange:priceRange(curRec.items),
+    };
+
+    const items = curRec.items.map((it,i)=>{
+      const tint = TINTS[i % TINTS.length];
+      const active = it[5]===1;
+      return {
+        name:it[0], icon:G(gi[it[1]]||gi.shirt,46),
+        price:parseFloat(it[2]).toFixed(2), per: it[3]==='order'?'/ order':(it[3]==='kg'?'/ kg':'/ pc'),
+        unit: it[3]==='kg'?'Per kg':(it[3]==='order'?'Per order':'Per piece'),
+        turnaround:it[4],
+        ref:tint, soft:tintSoft[tint],
+        statusLabel: active?'Active':'Hidden',
+        statusRef: active?'c-success':'c-text-3',
+      };
+    });
+
+    return {
+      navItems, services, cur, items,
+      swatches: TINTS,
+      serviceModal: this.state.modal==='service',
+      itemModal: this.state.modal==='item',
+      openService: ()=>this.setState({modal:'service'}),
+      openItem: ()=>this.setState({modal:'item'}),
+      closeModal: ()=>this.setState({modal:null}),
+      stop: (e)=>e.stopPropagation(),
+      itemActive: this.state.itemActive,
+      flipItemActive: ()=>this.setState(s=>({itemActive:!s.itemActive})),
+      itemTrack: this.state.itemActive ? 'var(--c-primary)' : 'var(--c-border-strong)',
+      itemKnob: this.state.itemActive ? 'translateX(18px)' : 'translateX(0)',
+    };
+  }
+}
+</script>
+</body>
+</html>

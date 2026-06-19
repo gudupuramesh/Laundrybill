@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1000px){ .lb-cols{ flex-direction:column !important; } .lb-applist{ width:100% !important; border-right:0 !important; border-bottom:1px solid var(--c-border) !important; max-height:none; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div><div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Apps</div><div style="font-size:11.5px; color:var(--c-text-3);">LaundryBill app suite · 5 apps</div></div>
+      <div style="flex:1;"></div>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Connect app</button>
+    </header>
+
+    <div class="lb-cols" style="flex:1; min-height:0; display:flex; overflow:hidden;">
+      <!-- app list -->
+      <section class="lb-applist lb-scroll" style="width:300px; flex:none; overflow:auto; border-right:1px solid var(--c-border); background:var(--c-surface); padding:14px;">
+        <div style="font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--c-text-3); padding:4px 6px 10px;">Applications</div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <sc-for list="{{ apps }}" as="a" hint-placeholder-count="5">
+            <button onClick="{{ a.onSelect }}" style="cursor:pointer; font:inherit; text-align:left; display:flex; align-items:center; gap:12px; padding:11px; border-radius:11px; border:1px solid {{ a.bd }}; background:{{ a.bg }};" style-hover="background:var(--c-surface-2);">
+              <span style="width:42px; height:42px; flex:none; border-radius:11px; background:var(--{{ a.soft }}); color:var(--{{ a.ref }}); display:flex; align-items:center; justify-content:center;">{{ a.icon }}</span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:13.5px;">{{ a.name }}</div>
+                <div style="font-size:11px; color:var(--c-text-3); margin-top:1px;">{{ a.role }}</div>
+                <div style="display:flex; gap:5px; margin-top:6px;">
+                  <sc-for list="{{ a.platBadges }}" as="pb" hint-placeholder-count="2"><span style="font-size:9px; font-weight:600; color:var(--c-text-3); background:var(--c-surface-2); border:1px solid var(--c-border); padding:1px 6px; border-radius:5px;">{{ pb }}</span></sc-for>
+                </div>
+              </div>
+              <span style="width:8px; height:8px; border-radius:50%; background:var(--{{ a.dotRef }}); flex:none;"></span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- app detail -->
+      <section class="lb-scroll" style="flex:1; min-width:0; overflow:auto; padding:20px 22px 40px;">
+        <!-- header -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px 22px; box-shadow:var(--sh-sm); display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+          <span style="width:58px; height:58px; flex:none; border-radius:15px; background:var(--{{ d.soft }}); color:var(--{{ d.ref }}); display:flex; align-items:center; justify-content:center;">{{ d.iconLg }}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="font-size:20px; font-weight:700; letter-spacing:-.01em;">{{ d.name }}</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); padding:3px 10px; border-radius:20px;"><span style="width:5px; height:5px; border-radius:50%; background:var(--c-success);"></span>Live</span>
+              <span style="font-size:11px; font-weight:600; color:var(--{{ d.ref }}); background:var(--{{ d.soft }}); padding:3px 10px; border-radius:20px;">{{ d.role }}</span>
+            </div>
+            <div style="font-size:13px; color:var(--c-text-2); margin-top:6px;">{{ d.tagline }}</div>
+          </div>
+          <div style="display:flex; gap:24px; flex:none;">
+            <div style="text-align:right;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">{{ d.users }}</div><div style="font-size:11px; color:var(--c-text-3);">active users</div></div>
+            <div style="text-align:right;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">{{ d.version }}</div><div style="font-size:11px; color:var(--c-text-3);">version</div></div>
+          </div>
+        </div>
+
+        <!-- platforms -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm); margin-bottom:16px;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">PLATFORMS &amp; DISTRIBUTION</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;">
+            <sc-for list="{{ d.platforms }}" as="p" hint-placeholder-count="3">
+              <div style="border:1px solid var(--c-border); border-radius:11px; padding:14px; display:flex; align-items:center; gap:12px; opacity:{{ p.opacity }};">
+                <span style="width:38px; height:38px; flex:none; border-radius:10px; background:var(--c-surface-2); color:var(--c-text); display:flex; align-items:center; justify-content:center;">{{ p.icon }}</span>
+                <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:600;">{{ p.name }}</div><div style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ p.detail }}</div></div>
+                <button role="switch" aria-checked="{{ p.on }}" onClick="{{ p.toggle }}" aria-label="{{ p.name }} enabled" style="position:relative; cursor:pointer; width:40px; height:23px; border:0; border-radius:20px; flex:none; background:{{ p.track }};"><span style="position:absolute; top:3px; left:3px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ p.knob }};"></span></button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="lb-cols" style="display:flex; gap:16px; align-items:flex-start;">
+          <!-- features & controls -->
+          <div style="flex:1.6; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-sm); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:10px; padding:15px 20px; border-bottom:1px solid var(--c-border);"><div style="font-size:14px; font-weight:600;">Features &amp; controls</div><span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">{{ d.featOnCount }} on</span></div>
+            <sc-for list="{{ d.features }}" as="f" hint-placeholder-count="5">
+              <div style="display:flex; align-items:center; gap:13px; padding:13px 20px; border-bottom:1px solid var(--c-border);">
+                <span style="width:36px; height:36px; flex:none; border-radius:9px; background:var(--{{ f.soft }}); color:var(--{{ f.ref }}); display:flex; align-items:center; justify-content:center;">{{ f.icon }}</span>
+                <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">{{ f.name }}</div><div style="font-size:11.5px; color:var(--c-text-3);">{{ f.desc }}</div></div>
+                <button role="switch" aria-checked="{{ f.on }}" onClick="{{ f.toggle }}" aria-label="{{ f.name }}" style="position:relative; cursor:pointer; width:42px; height:24px; border:0; border-radius:20px; flex:none; background:{{ f.track }};"><span style="position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ f.knob }};"></span></button>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- access + info -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">ACCESS &amp; ROLES</div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <sc-for list="{{ d.access }}" as="r" hint-placeholder-count="4">
+                  <label style="display:flex; align-items:center; gap:11px; cursor:pointer;">
+                    <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--{{ r.soft }}); color:var(--{{ r.ref }}); display:flex; align-items:center; justify-content:center;">{{ r.icon }}</span>
+                    <span style="flex:1; font-size:13px; font-weight:500;">{{ r.label }}</span>
+                    <button role="switch" aria-checked="{{ r.on }}" onClick="{{ r.toggle }}" aria-label="{{ r.label }} access" style="position:relative; cursor:pointer; width:40px; height:23px; border:0; border-radius:20px; flex:none; background:{{ r.track }};"><span style="position:absolute; top:3px; left:3px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ r.knob }};"></span></button>
+                  </label>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">RELEASE</div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:10px;"><span style="color:var(--c-text-2);">Current version</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.version }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:10px;"><span style="color:var(--c-text-2);">Last updated</span><span style="font-weight:600;">{{ d.updated }}</span></div>
+              <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding-top:12px; border-top:1px solid var(--c-border);"><div><div style="font-size:13px; font-weight:600;">Force update</div><div style="font-size:11px; color:var(--c-text-3);">Require latest version</div></div><button role="switch" aria-checked="{{ forceOn }}" onClick="{{ flipForce }}" aria-label="Force update" style="position:relative; cursor:pointer; width:40px; height:23px; border:0; border-radius:20px; flex:none; background:{{ forceTrack }};"><span style="position:absolute; top:3px; left:3px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ forceKnob }};"></span></button></label>
+              <div style="display:flex; gap:9px; margin-top:14px;">
+                <button style="flex:1; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:12.5px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:9px;" style-hover="background:var(--c-surface-2);">App Store</button>
+                <button style="flex:1; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:12.5px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:9px;" style-hover="background:var(--c-surface-2);">Play Store</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { selected:'manager', feat:{}, plat:{}, access:{}, force:{} };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const A = (s,sz)=> html('<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const FI = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const PI = (s)=> html('<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',1],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const tintSoft={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+    const apple='<path d="M16.7 12.9c0-2.1 1.7-3.1 1.8-3.2-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.2.8-.7 0-1.7-.8-2.8-.7-1.4 0-2.7.8-3.4 2.1-1.5 2.5-.4 6.3 1 8.3.7 1 1.5 2.2 2.5 2.1 1 0 1.4-.6 2.6-.6 1.2 0 1.5.6 2.6.6 1.1 0 1.8-1 2.4-2 .8-1.1 1.1-2.3 1.1-2.3 0 0-2-.8-2-3.4ZM14.6 6.3c.6-.7 1-1.7.9-2.6-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.5 1 .1 1.9-.5 2.5-1.2Z"/>';
+    const android='<path d="M6 9h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9ZM4 10v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0ZM18 10v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0ZM9 19v2a1 1 0 0 0 2 0v-2M13 19v2a1 1 0 0 0 2 0v-2M8 8a4 4 0 0 1 8 0M9.5 5.5l-1-1.5M14.5 5.5l1-1.5"/><circle cx="9.5" cy="6" r=".6" fill="#fff"/><circle cx="14.5" cy="6" r=".6" fill="#fff"/>';
+    const web='<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>';
+    const plIcon={ ios:A(apple,20), android:A(android,20), web:A(web,20) };
+
+    // app definitions
+    const APPS = [
+      { id:'manager', name:'Manager App', role:'Owner / Admin', ref:'c-primary', tagline:'Full business control — orders, reports, staff, payroll and approvals from one place.',
+        users:'12', version:'v4.2.1', updated:'Jun 14, 2026',
+        icon:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+        platforms:{ ios:'iOS 15+ · 84 MB', android:'Android 9+ · 62 MB', web:'Browser · responsive' },
+        features:[
+          ['Live dashboard','Revenue, orders & alerts at a glance','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>','c-primary',1],
+          ['Reports & analytics','Profit, expenses and growth','<path d="M4 18l5-5 4 3 7-8"/><path d="M4 21h16"/>','c-info',1],
+          ['Staff & payroll','Manage team, attendance, salaries','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>','c-violet',1],
+          ['Approvals','Refunds, expenses & discounts','<path d="M20 6 9 17l-5-5"/>','c-success',1],
+          ['Multi-branch','Switch and compare branches','<path d="M3 21V8l9-5 9 5v13"/>','c-cyan',0],
+        ],
+        access:['Manager','Admin'] },
+      { id:'staff', name:'Staff App', role:'Front desk', ref:'c-info', tagline:'Counter operations — take orders, update status, look up customers and clock in.',
+        users:'34', version:'v3.8.0', updated:'Jun 11, 2026',
+        icon:'<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
+        platforms:{ ios:'iOS 14+ · 58 MB', android:'Android 8+ · 44 MB', web:null },
+        features:[
+          ['POS order intake','Create & price new orders','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>','c-primary',1],
+          ['Status updates','Move orders through stages','<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/>','c-info',1],
+          ['Customer lookup','Search profiles & history','<circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/>','c-violet',1],
+          ['Attendance clock','Clock in / out on shift','<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>','c-success',1],
+          ['Tag printing','Print garment tags & receipts','<rect x="6" y="3" width="12" height="6"/><rect x="6" y="14" width="12" height="7"/><path d="M6 14H4v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3h-2"/>','c-warning',1],
+        ],
+        access:['Staff','Manager'] },
+      { id:'plant', name:'Plant App', role:'Washers / Pressers', ref:'c-cyan', tagline:'Production floor — batch queue, barcode scanning, stage updates and machine logs.',
+        users:'21', version:'v2.5.3', updated:'Jun 09, 2026',
+        icon:'<path d="M3 21V11l5 3V11l5 3V8l5 3v10Z"/><path d="M7 21v-3M12 21v-3M17 21v-3"/>',
+        platforms:{ ios:null, android:'Android 9+ tablet · 51 MB', web:null },
+        features:[
+          ['Production queue','Items by stage & priority','<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/>','c-primary',1],
+          ['Barcode / QR scan','Scan tags to update stage','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>','c-info',1],
+          ['Stage updates','Wash → Iron → Ready','<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/>','c-cyan',1],
+          ['Machine log','Loads, cycles & faults','<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3"/>','c-violet',1],
+          ['Quality flags','Mark damage or rework','<path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/>','c-warning',0],
+        ],
+        access:['Plant','Manager'] },
+      { id:'agent', name:'Agent App', role:'Drivers / Delivery', ref:'c-success', tagline:'On the road — assigned routes, pickups & deliveries, navigation, proof and cash collection.',
+        users:'18', version:'v3.1.2', updated:'Jun 13, 2026',
+        icon:'<path d="M1 5h13v10H1zM14 8h4l3 3v4h-7z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/>',
+        platforms:{ ios:'iOS 14+ · 72 MB', android:'Android 8+ · 55 MB', web:null },
+        features:[
+          ['Route & stops','Optimized daily route','<path d="M9 20l-5-2V6l5 2 6-2 5 2v12l-5-2-6 2ZM9 8v12M15 6v12"/>','c-primary',1],
+          ['Pickups & deliveries','Job list with windows','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/>','c-info',1],
+          ['Navigation','Turn-by-turn to next stop','<path d="m3 11 18-8-8 18-2-8-8-2Z"/>','c-cyan',1],
+          ['Proof of delivery','Photo & signature capture','<path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/>','c-violet',1],
+          ['Cash collection','Collect & reconcile COD','<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>','c-success',1],
+        ],
+        access:['Agent','Manager'] },
+      { id:'customer', name:'Customer App', role:'Public', ref:'c-violet', tagline:'For your customers — place orders, track status live, pay and manage subscriptions.',
+        users:'1,284', version:'v5.0.4', updated:'Jun 16, 2026',
+        icon:'<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><circle cx="12" cy="17.5" r="1"/>',
+        platforms:{ ios:'iOS 14+ · 66 MB', android:'Android 8+ · 49 MB', web:'Browser · PWA' },
+        features:[
+          ['Place order','Schedule pickup & pay','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>','c-primary',1],
+          ['Live tracking','Real-time order status','<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>','c-info',1],
+          ['Wallet & pay','Cards, wallet & invoices','<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>','c-success',1],
+          ['Subscriptions','Manage plans & renewals','<path d="M3 7h18v12H3zM3 11h18"/>','c-violet',1],
+          ['Offers & referrals','Promo codes & rewards','<path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7ZM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/>','c-warning',1],
+        ],
+        access:['Customer'] },
+    ];
+
+    const ROLEMETA={ Manager:['c-primary','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'], Admin:['c-violet','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4 12H1M23 12h-3"/>'], Staff:['c-info','<circle cx="12" cy="8" r="3"/><path d="M6 20a6 6 0 0 1 12 0"/>'], Plant:['c-cyan','<path d="M3 21V11l5 3V11l5 3V8l5 3v10Z"/>'], Agent:['c-success','<path d="M1 6h13v9H1zM14 9h4l3 3v3h-7z"/>'], Customer:['c-violet','<rect x="7" y="3" width="10" height="18" rx="2"/>'] };
+
+    const apps = APPS.map(a=>{
+      const plats=[];
+      if(a.platforms.ios) plats.push('iOS'); if(a.platforms.android) plats.push('Android'); if(a.platforms.web) plats.push('Web');
+      return { name:a.name, role:a.role, icon:A(a.icon,22), ref:a.ref, soft:tintSoft[a.ref],
+        platBadges:plats, dotRef: a.id==='plant'?'c-warning':'c-success',
+        onSelect:()=>this.setState({selected:a.id}),
+        bg: a.id===this.state.selected?'var(--c-primary-soft)':'var(--c-surface)', bd: a.id===this.state.selected?'var(--c-primary)':'var(--c-border)' };
+    });
+
+    const app = APPS.find(a=>a.id===this.state.selected)||APPS[0];
+    const fkey=(i)=>app.id+':f'+i, pkey=(p)=>app.id+':p'+p, akey=(r)=>app.id+':a'+r;
+    const fOn=(i,def)=> this.state.feat[fkey(i)] ?? def;
+    const pOn=(p,def)=> this.state.plat[pkey(p)] ?? def;
+    const aOn=(r,def)=> this.state.access[akey(r)] ?? def;
+
+    const platDefs=[['ios','iOS','ios'],['android','Android','android'],['web','Web','web']].filter(([k])=>app.platforms[k]);
+    const platforms=platDefs.map(([k,name])=>{ const def=true; const on=pOn(k,def);
+      return { name, detail:app.platforms[k], icon:plIcon[k], on:on?'true':'false',
+        toggle:()=>this.setState(s=>({plat:{...s.plat,[pkey(k)]:!on}})),
+        track:on?'var(--c-primary)':'var(--c-border-strong)', knob:on?'translateX(17px)':'translateX(0)', opacity:on?'1':'.55' }; });
+
+    let featOnCount=0;
+    const features=app.features.map((f,i)=>{ const on=fOn(i,!!f[4]); if(on) featOnCount++;
+      return { name:f[0], desc:f[1], icon:FI(f[2]), ref:f[3], soft:tintSoft[f[3]], on:on?'true':'false',
+        toggle:()=>this.setState(s=>({feat:{...s.feat,[fkey(i)]:!on}})),
+        track:on?'var(--c-primary)':'var(--c-border-strong)', knob:on?'translateX(18px)':'translateX(0)' }; });
+
+    const access=app.access.map((role,i)=>{ const def=true; const on=aOn(i,def); const meta=ROLEMETA[role]||['c-text-3','<circle cx="12" cy="12" r="9"/>'];
+      return { label:role+' role', icon:S(meta[1]), ref:meta[0], soft:tintSoft[meta[0]]||'c-surface-3', on:on?'true':'false',
+        toggle:()=>this.setState(s=>({access:{...s.access,[akey(i)]:!on}})),
+        track:on?'var(--c-primary)':'var(--c-border-strong)', knob:on?'translateX(17px)':'translateX(0)' }; });
+
+    const forceOn = this.state.force[app.id] ?? false;
+
+    const d = { name:app.name, role:app.role, ref:app.ref, soft:tintSoft[app.ref], iconLg:A(app.icon,28),
+      tagline:app.tagline, users:app.users, version:app.version, updated:app.updated,
+      platforms, features, featOnCount:String(featOnCount), access,
+      forceOn:forceOn?'true':'false', flipForce:()=>this.setState(s=>({force:{...s.force,[app.id]:!forceOn}})),
+      forceTrack:forceOn?'var(--c-primary)':'var(--c-border-strong)', forceKnob:forceOn?'translateX(17px)':'translateX(0)' };
+
+    return { navItems, apps,
+      d:{...d}, ...d };
+  }
+}
+</script>
+</body>
+</html>

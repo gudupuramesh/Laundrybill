@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+    --sh-overlay:0 16px 48px rgba(16,24,40,.2),0 2px 8px rgba(16,24,40,.08);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @keyframes lbPop{ from{ transform:scale(.6); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  @keyframes lbOv{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes lbMod{ from{ transform:translateY(8px) scale(.985); opacity:0; } to{ transform:translateY(0) scale(1); opacity:1; } }
+  @media (max-width:760px){
+    .pos-body{ flex-direction:column !important; }
+    .pos-cart{ width:100% !important; flex:none !important; border-left:0 !important; border-top:1px solid var(--c-border) !important; max-height:none !important; }
+    .co-grid{ flex-direction:column !important; }
+    .co-grid > *{ width:100% !important; }
+  }
+</style>
+</helmet>
+
+<div style="display:flex; flex-direction:column; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== TOP BAR ===================== -->
+  <header style="flex:none; height:60px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 18px; gap:14px;">
+    <span style="width:32px; height:32px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <div>
+      <div style="font-size:14px; font-weight:700; letter-spacing:-.01em; line-height:1.05;">New Order</div>
+      <div style="font-size:11px; color:var(--c-text-3);">Downtown branch · POS</div>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--c-text-3); padding:6px 11px; background:var(--c-surface-2); border-radius:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span style="font-family:'IBM Plex Mono';">{{ clock }}</span>
+    </div>
+    <span style="display:flex; align-items:center; gap:8px; padding:5px 11px 5px 6px; border:1px solid var(--c-border); border-radius:20px;">
+      <span style="width:26px; height:26px; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600;">RG</span>
+      <span style="font-size:12.5px; font-weight:600;">Ramesh</span>
+    </span>
+  </header>
+
+  <!-- ============================ POS VIEW ============================ -->
+  <sc-if value="{{ isPos }}" hint-placeholder-val="{{ true }}">
+    <div class="pos-body" style="flex:1; min-height:0; display:flex; overflow:hidden;">
+
+      <!-- catalog -->
+      <section style="flex:1; min-width:0; display:flex; flex-direction:column;">
+        <div style="padding:16px 18px 12px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid var(--c-border); background:var(--c-surface);">
+          <div style="position:relative;">
+            <svg style="position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+            <input type="search" placeholder="Search items or scan a tag…" style="width:100%; font:inherit; font-size:14px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:10px; padding:11px 13px 11px 38px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+          </div>
+          <div class="lb-thin" style="display:flex; gap:8px; overflow-x:auto;">
+            <sc-for list="{{ categories }}" as="c" hint-placeholder-count="6">
+              <button onClick="{{ c.onClick }}" style="cursor:pointer; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; padding:7px 14px; border-radius:20px; border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};" style-hover="border-color:var(--c-border-strong);">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div class="lb-scroll" style="flex:1; overflow:auto; padding:16px 18px 24px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:13px;">
+            <sc-for list="{{ catalog }}" as="p" hint-placeholder-count="12">
+              <div style="display:flex; flex-direction:column; background:var(--c-surface); border:1.5px solid {{ p.bd }}; border-radius:13px; overflow:hidden; box-shadow:var(--sh-sm); position:relative;">
+                <div style="aspect-ratio:1.5/1; background:var(--{{ p.soft }}); display:flex; align-items:center; justify-content:center; color:var(--{{ p.ref }}); position:relative;">
+                  {{ p.icon }}
+                  <sc-if value="{{ p.inCart }}" hint-placeholder-val="{{ false }}">
+                    <span style="position:absolute; top:8px; right:8px; min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:var(--c-primary); color:#fff; font-size:12px; font-weight:700; font-family:'IBM Plex Mono'; display:flex; align-items:center; justify-content:center; box-shadow:var(--sh-sm);">{{ p.qtyBadge }}</span>
+                  </sc-if>
+                </div>
+                <div style="padding:10px 11px 11px; display:flex; flex-direction:column; gap:9px;">
+                  <div>
+                    <div style="font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.name }}</div>
+                    <div style="display:flex; align-items:baseline; justify-content:space-between; margin-top:4px;">
+                      <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; color:var(--c-primary);">{{ p.price }}<span style="font-size:9px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span>
+                      <span style="font-size:10.5px; color:var(--c-text-3);">{{ p.per }}</span>
+                    </div>
+                  </div>
+                  <button onClick="{{ p.toggleExpress }}" aria-pressed="{{ p.expressPressed }}" aria-label="Express service" style="cursor:pointer; font:inherit; display:flex; align-items:center; gap:7px; padding:6px 9px; border-radius:8px; border:0; background:{{ p.expRowBg }};" style-hover="filter:brightness(.98);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="{{ p.expFg }}"><path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z"/></svg>
+                    <span style="font-size:10.5px; font-weight:700; letter-spacing:.04em; color:{{ p.expFg }};">EXPRESS</span>
+                    <span style="margin-left:auto; position:relative; width:34px; height:19px; border-radius:20px; background:{{ p.expTrack }}; flex:none;"><span style="position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ p.expKnob }};"></span></span>
+                  </button>
+                  <sc-if value="{{ p.showStepper }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid var(--c-border-strong); border-radius:9px; padding:3px;">
+                      <button onClick="{{ p.dec }}" aria-label="Decrease" style="cursor:pointer; width:30px; height:28px; display:flex; align-items:center; justify-content:center; font:inherit; color:var(--c-text-2); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                      <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:14px;">{{ p.qtyBadge }}</span>
+                      <button onClick="{{ p.inc }}" aria-label="Increase" style="cursor:pointer; width:30px; height:28px; display:flex; align-items:center; justify-content:center; font:inherit; color:var(--c-primary); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-primary-soft);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ p.showEditWeight }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ p.onAdd }}" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:9px; padding:9px;" style-hover="background:var(--c-primary-hover);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit Weight</button>
+                  </sc-if>
+                  <sc-if value="{{ p.showAdd }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ p.onAdd }}" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font:inherit; font-size:12.5px; font-weight:600; color:var(--c-primary); background:transparent; border:0; padding:6px;" style-hover="opacity:.75;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add to List</button>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <!-- cart -->
+      <aside class="pos-cart" style="width:392px; flex:none; background:var(--c-surface); border-left:1px solid var(--c-border); display:flex; flex-direction:column; min-height:0;">
+        <div style="padding:15px 18px; border-bottom:1px solid var(--c-border); display:flex; align-items:center; gap:10px;">
+          <div style="font-size:15px; font-weight:700;">Current order</div>
+          <span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 9px; border-radius:20px; font-family:'IBM Plex Mono';">{{ itemCount }}</span>
+          <button onClick="{{ clearCart }}" style="margin-left:auto; cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-error); background:transparent; border:0;" style-hover="opacity:.7;">Clear</button>
+        </div>
+
+        <!-- customer row -->
+        <button onClick="{{ openCust }}" style="cursor:pointer; font:inherit; text-align:left; width:100%; padding:12px 18px; border:0; border-bottom:1px solid var(--c-border); background:var(--c-surface); display:flex; align-items:center; gap:11px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:36px; height:36px; flex:none; border-radius:50%; background:var(--{{ custAvSoft }}); color:var(--{{ custAvRef }}); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">{{ custAvatar }}</span>
+          <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:600;">{{ custName }}</div><div style="font-size:11.5px; color:var(--c-text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ custMeta }}</div></div>
+          <span style="font-size:12px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); border-radius:7px; padding:6px 11px;">{{ custBtn }}</span>
+        </button>
+
+        <!-- grouped lines -->
+        <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ false }}">
+          <div class="lb-scroll" style="flex:1; overflow:auto; padding:6px 12px 10px; min-height:0;">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+              <div style="margin-top:10px;">
+                <div style="display:flex; align-items:center; gap:8px; padding:4px 6px 7px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:var(--{{ g.ref }});"></span>
+                  <span style="font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--c-text-2);">{{ g.category }}</span>
+                  <span style="font-size:10.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ g.qtyLabel }}</span>
+                  <span style="margin-left:auto; font-family:'IBM Plex Mono'; font-size:11.5px; font-weight:600; color:var(--c-text-2);">{{ g.subtotal }}</span>
+                </div>
+                <div style="border:1px solid var(--c-border); border-radius:11px; overflow:hidden;">
+                  <sc-for list="{{ g.lines }}" as="l" hint-placeholder-count="2">
+                    <div style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-bottom:1px solid var(--c-border); background:var(--c-surface);" style-hover="background:var(--c-surface-2);">
+                      <span style="width:38px; height:38px; flex:none; border-radius:8px; background:var(--{{ l.soft }}); color:var(--{{ l.ref }}); display:flex; align-items:center; justify-content:center;">{{ l.icon }}</span>
+                      <div style="flex:1; min-width:0;">
+                        <div style="font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ l.name }}</div>
+                        <div style="display:flex; align-items:center; gap:7px; margin-top:3px;">
+                          <span style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ l.price }} د.إ {{ l.per }}</span>
+                          <button onClick="{{ l.toggleExpress }}" aria-pressed="{{ l.expressOn }}" style="cursor:pointer; font:inherit; display:inline-flex; align-items:center; gap:3px; font-size:9px; font-weight:700; letter-spacing:.03em; padding:2px 6px; border-radius:5px; border:1px solid {{ l.expBd }}; background:{{ l.expBg }}; color:{{ l.expFg }};">⚡ EXPRESS</button>
+                        </div>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:6px; flex:none;">
+                        <sc-if value="{{ l.isKg }}" hint-placeholder-val="{{ false }}">
+                          <span style="display:inline-flex; align-items:center; gap:3px; border:1px solid var(--c-border-strong); border-radius:8px; padding:5px 8px; background:var(--c-surface);">
+                            <input value="{{ l.kgVal }}" onInput="{{ l.onKg }}" inputMode="decimal" aria-label="Weight in kilograms" style="width:38px; border:0; outline:none; padding:0; background:transparent; font-family:'IBM Plex Mono'; font-weight:700; font-size:13px; text-align:right; color:var(--c-text);" />
+                            <span style="font-size:11px; color:var(--c-text-3);">kg</span>
+                          </span>
+                        </sc-if>
+                        <sc-if value="{{ l.isPc }}" hint-placeholder-val="{{ true }}">
+                          <button onClick="{{ l.dec }}" aria-label="Decrease" style="cursor:pointer; width:27px; height:27px; display:flex; align-items:center; justify-content:center; font:inherit; color:var(--c-text-2); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-3);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                          <span style="min-width:22px; text-align:center; font-family:'IBM Plex Mono'; font-weight:700; font-size:13px;">{{ l.qtyMid }}</span>
+                          <button onClick="{{ l.inc }}" aria-label="Increase" style="cursor:pointer; width:27px; height:27px; display:flex; align-items:center; justify-content:center; font:inherit; color:#fff; background:var(--c-primary); border:0; border-radius:7px;" style-hover="background:var(--c-primary-hover);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                        </sc-if>
+                      </div>
+                      <span style="width:54px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600; font-size:13px;">{{ l.lineTotal }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--c-text-3); padding:30px;">
+            <span style="width:58px; height:58px; border-radius:50%; background:var(--c-surface-2); display:flex; align-items:center; justify-content:center;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span>
+            <div style="text-align:center;"><div style="font-size:13.5px; font-weight:600; color:var(--c-text-2);">No items yet</div><div style="font-size:12px; margin-top:2px;">Tap products to add them to the order</div></div>
+          </div>
+        </sc-if>
+
+        <!-- totals -->
+        <div style="border-top:1px solid var(--c-border); padding:14px 18px 16px;">
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Subtotal</span><span style="font-family:'IBM Plex Mono';">{{ subtotal }}</span></div>
+            <sc-if value="{{ promoOn }}" hint-placeholder-val="{{ false }}"><div style="display:flex; justify-content:space-between; color:var(--c-success);"><span>Discount · SAVE10</span><span style="font-family:'IBM Plex Mono';">−{{ discount }}</span></div></sc-if>
+            <sc-if value="{{ anyExpress }}" hint-placeholder-val="{{ false }}"><div style="display:flex; justify-content:space-between; color:var(--c-warning);"><span>Express surcharge</span><span style="font-family:'IBM Plex Mono';">+{{ expressSurcharge }}</span></div></sc-if>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">VAT (18%)</span><span style="font-family:'IBM Plex Mono';">{{ vat }}</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding-top:9px; margin-top:3px; border-top:1px solid var(--c-border);"><span style="font-weight:700; font-size:15px;">Total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:19px;">{{ total }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+          </div>
+          <button onClick="{{ goCheckout }}" disabled="{{ checkoutDisabled }}" style="width:100%; margin-top:14px; cursor:{{ checkoutCursor }}; display:flex; align-items:center; justify-content:center; gap:9px; font:inherit; font-size:15px; font-weight:700; color:#fff; background:{{ checkoutBg }}; border:0; border-radius:11px; padding:14px; box-shadow:var(--sh-sm);" style-hover="filter:brightness(.97);">Checkout <span style="font-family:'IBM Plex Mono';">· {{ total }} د.إ</span></button>
+        </div>
+      </aside>
+    </div>
+  </sc-if>
+
+  <!-- ============================ CHECKOUT VIEW ============================ -->
+  <sc-if value="{{ isCheckout }}" hint-placeholder-val="{{ false }}">
+    <div class="lb-scroll" style="flex:1; min-height:0; overflow:auto; background:var(--c-bg);">
+      <div style="max-width:1200px; margin:0 auto; padding:24px;">
+        <button onClick="{{ goPos }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:transparent; border:0; margin-bottom:14px;" style-hover="color:var(--c-primary);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back to items</button>
+        <div style="font-size:21px; font-weight:700; letter-spacing:-.01em; margin-bottom:16px;">Checkout</div>
+
+        <div class="co-grid" style="display:flex; gap:16px; align-items:flex-start;">
+          <!-- form -->
+          <div style="flex:1.5; min-width:0; display:flex; flex-direction:column; gap:14px;">
+            <!-- customer details -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:13px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; margin-bottom:14px;">
+                <span style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3);">CUSTOMER</span>
+                <button onClick="{{ openCust }}" style="margin-left:auto; cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:7px; padding:5px 11px;" style-hover="filter:brightness(.97);">{{ custBtn }}</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:13px; margin-bottom:14px;">
+                <span style="width:46px; height:46px; flex:none; border-radius:12px; background:var(--{{ custAvSoft }}); color:var(--{{ custAvRef }}); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:600;">{{ custAvatar }}</span>
+                <div><div style="font-size:16px; font-weight:700;">{{ custName }}</div><div style="font-size:12.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ custPhone }}</div></div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:11px;">
+                <div style="display:flex; gap:9px; align-items:flex-start;"><span style="color:var(--c-text-3); margin-top:1px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><div><div style="font-size:10.5px; color:var(--c-text-3);">Email</div><div style="font-size:12.5px;">{{ custEmail }}</div></div></div>
+                <div style="display:flex; gap:9px; align-items:flex-start;"><span style="color:var(--c-text-3); margin-top:1px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span><div><div style="font-size:10.5px; color:var(--c-text-3);">Service area</div><div style="font-size:12.5px;">{{ custArea }}</div></div></div>
+                <div style="grid-column:1 / -1; display:flex; gap:9px; align-items:flex-start;"><span style="color:var(--c-text-3); margin-top:1px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span><div><div style="font-size:10.5px; color:var(--c-text-3);">Address</div><div style="font-size:12.5px;">{{ custAddress }}</div></div></div>
+              </div>
+            </div>
+            <!-- fulfilment -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:13px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">FULFILMENT</div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;">
+                <sc-for list="{{ deliveryOpts }}" as="d" hint-placeholder-count="3">
+                  <button onClick="{{ d.onClick }}" style="cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 8px; border-radius:11px; border:1.5px solid {{ d.bd }}; background:{{ d.bg }}; color:{{ d.fg }};" style-hover="border-color:var(--c-primary);"><span>{{ d.icon }}</span><span style="font-size:12.5px; font-weight:600; text-align:center;">{{ d.label }}</span><span style="font-size:11px; font-family:'IBM Plex Mono'; color:var(--c-text-3);">{{ d.fee }}</span></button>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:12px; margin-top:14px;">
+                <div style="flex:1;"><label for="co-date" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Ready by</label><input id="co-date" type="text" value="{{ readyBy }}" style="width:100%; font:inherit; font-size:14px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:11px 12px;" style-focus="border-color:var(--c-primary);" /></div>
+                <div style="flex:1;"><label for="co-slot" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Time slot</label><select id="co-slot" style="width:100%; font:inherit; font-size:14px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:11px 12px;" style-focus="border-color:var(--c-primary);"><option>9:00 – 12:00</option><option>12:00 – 15:00</option><option>15:00 – 18:00</option></select></div>
+              </div>
+              <sc-if value="{{ showDist }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:16px;">
+                  <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Delivery distance <span style="color:var(--c-text-3); font-weight:400;">· fixed by km</span></div>
+                  <div style="display:flex; gap:9px; flex-wrap:wrap;">
+                    <sc-for list="{{ distOpts }}" as="dz" hint-placeholder-count="4">
+                      <button onClick="{{ dz.onClick }}" style="cursor:pointer; font:inherit; flex:1; min-width:100px; display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:10px 13px; border-radius:10px; border:1.5px solid {{ dz.bd }}; background:{{ dz.bg }};" style-hover="border-color:var(--c-primary);">
+                        <span style="font-size:13px; font-weight:600; color:{{ dz.fg }};">{{ dz.label }}</span>
+                        <span style="font-size:11px; font-family:'IBM Plex Mono'; color:var(--c-text-3);">{{ dz.fee }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:160px;"><label for="co-area" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Service area</label><select id="co-area" value="{{ area }}" onChange="{{ onArea }}" style="width:100%; font:inherit; font-size:14px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:11px 12px;" style-focus="border-color:var(--c-primary);"><sc-for list="{{ areas }}" as="ar" hint-placeholder-count="6"><option>{{ ar }}</option></sc-for></select></div>
+                  <div style="flex:1; min-width:160px;">
+                    <div style="font-size:12px; font-weight:600; margin-bottom:6px;">Assigned agent <span style="color:var(--c-text-3); font-weight:400;">· auto</span></div>
+                    <div style="display:flex; align-items:center; gap:10px; border:1px solid var(--c-success-soft); background:var(--c-success-soft); border-radius:9px; padding:8px 11px;">
+                      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-surface); color:var(--{{ agentRef }}); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600;">{{ agentInitials }}</span>
+                      <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:600;">{{ agentName }}</div><div style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--c-success); font-weight:600;"><span style="width:5px; height:5px; border-radius:50%; background:var(--c-success);"></span>Available · {{ agentJobs }}</div></div>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <!-- payment -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:13px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">PAYMENT</div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;">
+                <sc-for list="{{ payOpts }}" as="p" hint-placeholder-count="3">
+                  <button onClick="{{ p.onClick }}" style="cursor:pointer; font:inherit; display:flex; align-items:center; justify-content:center; gap:8px; padding:13px 8px; border-radius:11px; border:1.5px solid {{ p.bd }}; background:{{ p.bg }}; color:{{ p.fg }}; font-size:13px; font-weight:600;" style-hover="border-color:var(--c-primary);"><span>{{ p.icon }}</span>{{ p.label }}</button>
+                </sc-for>
+              </div>
+              <label style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; cursor:pointer;">
+                <div><div style="font-size:13px; font-weight:600;">Collect payment now</div><div style="font-size:11.5px; color:var(--c-text-3);">Mark this order as paid</div></div>
+                <button role="switch" aria-checked="{{ paidNow }}" onClick="{{ flipPaid }}" aria-label="Collect payment now" style="position:relative; cursor:pointer; width:44px; height:25px; border:0; border-radius:20px; flex:none; background:{{ paidTrack }};"><span style="position:absolute; top:3px; left:3px; width:19px; height:19px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ paidKnob }};"></span></button>
+              </label>
+            </div>
+            <!-- notes -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:13px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:12px;">ORDER NOTES</div>
+              <textarea value="{{ notes }}" onInput="{{ onNotes }}" rows="3" placeholder="Stain details, folding preference, gate code, allergies…" style="width:100%; font:inherit; font-size:13.5px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:10px; padding:11px 12px; resize:vertical;" style-focus="border-color:var(--c-primary);"></textarea>
+            </div>
+          </div>
+
+          <!-- summary -->
+          <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:13px; box-shadow:var(--sh-sm); position:sticky; top:0;">
+            <div style="padding:16px 18px; border-bottom:1px solid var(--c-border); font-size:14px; font-weight:700;">Order summary</div>
+            <div class="lb-scroll" style="max-height:440px; overflow:auto; padding:6px 14px;">
+              <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+                <div style="padding:8px 0 4px;">
+                  <div style="display:flex; align-items:center; gap:7px; padding:0 2px 6px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--{{ g.ref }});"></span><span style="font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--c-text-2);">{{ g.category }}</span></div>
+                  <sc-for list="{{ g.lines }}" as="l" hint-placeholder-count="2">
+                    <div style="display:flex; align-items:center; gap:11px; padding:7px 2px;">
+                      <span style="width:34px; height:34px; flex:none; border-radius:8px; background:var(--{{ l.soft }}); color:var(--{{ l.ref }}); display:flex; align-items:center; justify-content:center;">{{ l.iconSm }}</span>
+                      <div style="flex:1; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ l.name }}</span><sc-if value="{{ l.expressOn }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px; font-weight:700; letter-spacing:.03em; color:var(--c-warning); background:var(--c-warning-soft); padding:2px 5px; border-radius:4px; white-space:nowrap;">⚡ EXP</span></sc-if></div>
+                        <div style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono'; margin-top:1px;">{{ l.qtyMid }} × {{ l.price }} د.إ</div>
+                      </div>
+                      <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:13px;">{{ l.lineTotal }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:14px 18px; border-top:1px solid var(--c-border); display:flex; flex-direction:column; gap:8px; font-size:13px;">
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Subtotal</span><span style="font-family:'IBM Plex Mono';">{{ subtotal }}</span></div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button onClick="{{ flipPromo }}" style="cursor:pointer; font:inherit; font-size:11px; font-weight:600; color:{{ promoFg }}; background:{{ promoBg }}; border:1px solid {{ promoBd }}; border-radius:6px; padding:3px 9px;" style-hover="border-color:var(--c-primary);">{{ promoLabel }}</button>
+                <sc-if value="{{ promoOn }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto; color:var(--c-success); font-family:'IBM Plex Mono';">−{{ discount }}</span></sc-if>
+              </div>
+              <sc-if value="{{ anyExpress }}" hint-placeholder-val="{{ false }}"><div style="display:flex; justify-content:space-between; color:var(--c-warning);"><span>Express surcharge</span><span style="font-family:'IBM Plex Mono';">+{{ expressSurcharge }}</span></div></sc-if>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">VAT (18%)</span><span style="font-family:'IBM Plex Mono';">{{ vat }}</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Delivery</span><span style="font-family:'IBM Plex Mono';">{{ deliveryFee }}</span></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding-top:10px; margin-top:3px; border-top:1px solid var(--c-border);"><span style="font-weight:700; font-size:15px;">Total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:20px;">{{ total }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+            </div>
+            <div style="padding:0 18px 18px;">
+              <button onClick="{{ placeOrder }}" style="width:100%; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px; font:inherit; font-size:15px; font-weight:700; color:#fff; background:var(--c-primary); border:0; border-radius:11px; padding:14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Place order</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============================ SUCCESS VIEW ============================ -->
+  <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; padding:24px;" class="lb-scroll">
+      <div style="width:100%; max-width:440px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:18px; box-shadow:var(--sh-md); overflow:hidden;">
+        <div style="padding:34px 28px 26px; text-align:center; border-bottom:1px solid var(--c-border);">
+          <span style="width:72px; height:72px; border-radius:50%; background:var(--c-success-soft); color:var(--c-success); display:inline-flex; align-items:center; justify-content:center; animation:lbPop .3s cubic-bezier(.2,1.3,.5,1);"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span>
+          <div style="font-size:22px; font-weight:700; letter-spacing:-.01em; margin-top:16px;">Order placed</div>
+          <div style="font-size:13.5px; color:var(--c-text-3); margin-top:5px;">The order has been created and queued for processing.</div>
+          <div style="display:inline-flex; align-items:center; gap:8px; margin-top:16px; padding:8px 14px; background:var(--c-surface-2); border-radius:10px;"><span style="font-size:12px; color:var(--c-text-3);">Order</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px;">#XBPE-00032</span></div>
+        </div>
+        <div style="padding:20px 24px; display:flex; flex-direction:column; gap:11px; font-size:13.5px;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-3);">Customer</span><span style="font-weight:600;">{{ custName }}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-3);">Items</span><span style="font-weight:600; font-family:'IBM Plex Mono';">{{ itemsSummary }}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-3);">Fulfilment</span><span style="font-weight:600;">{{ deliveryLabel }}</span></div>
+          <sc-if value="{{ anyExpress }}" hint-placeholder-val="{{ false }}"><div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-3);">Priority</span><span style="display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--c-warning);"><span style="width:6px; height:6px; border-radius:50%; background:var(--c-warning);"></span>Express · 8h</span></div></sc-if>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-3);">Payment</span><span style="display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--{{ payStatusRef }});"><span style="width:6px; height:6px; border-radius:50%; background:var(--{{ payStatusRef }});"></span>{{ payStatusLabel }}</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid var(--c-border);"><span style="font-weight:700;">Total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:19px;">{{ total }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+        </div>
+        <div style="padding:6px 24px 24px; display:flex; flex-direction:column; gap:10px;">
+          <button onClick="{{ newOrder }}" style="width:100%; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px; font:inherit; font-size:15px; font-weight:700; color:#fff; background:var(--c-primary); border:0; border-radius:11px; padding:14px;" style-hover="background:var(--c-primary-hover);"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New order</button>
+          <div style="display:flex; gap:10px;">
+            <button style="flex:1; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13.5px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:10px; padding:11px;" style-hover="background:var(--c-surface-2);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="6"/><path d="M6 14H4v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Print</button>
+            <button style="flex:1; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13.5px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:10px; padding:11px;" style-hover="background:var(--c-surface-2);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>View order</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== CUSTOMER MODAL ===================== -->
+  <sc-if value="{{ custModal }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Select customer" onClick="{{ closeCust }}" style="position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,17,23,.5); animation:lbOv .14s ease;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:480px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-overlay); animation:lbMod .16s ease; max-height:90vh; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+          <div style="font-size:16px; font-weight:700;">Customer</div>
+          <button onClick="{{ closeCust }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:30px; height:30px; color:var(--c-text-2); background:transparent; border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div style="padding:14px 20px 0;">
+          <div style="display:flex; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:9px; padding:3px;">
+            <button onClick="{{ tabExisting }}" style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; padding:8px; border:0; border-radius:7px; background:{{ tabExBg }}; color:{{ tabExFg }};">Existing customer</button>
+            <button onClick="{{ tabNew }}" style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; padding:8px; border:0; border-radius:7px; background:{{ tabNewBg }}; color:{{ tabNewFg }};">New customer</button>
+          </div>
+        </div>
+
+        <!-- existing -->
+        <sc-if value="{{ tabIsExisting }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:14px 20px 4px;">
+            <div style="position:relative;">
+              <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+              <input value="{{ custSearch }}" onInput="{{ onSearch }}" type="search" placeholder="Search name or phone…" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:9px 11px 9px 33px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+            </div>
+          </div>
+          <div class="lb-scroll" style="flex:1; overflow:auto; padding:8px 12px 14px; min-height:160px; max-height:340px;">
+            <sc-for list="{{ existing }}" as="cu" hint-placeholder-count="5">
+              <button onClick="{{ cu.onPick }}" style="width:100%; cursor:pointer; font:inherit; text-align:left; display:flex; align-items:center; gap:11px; padding:10px; border:0; border-radius:10px; background:transparent;" style-hover="background:var(--c-surface-2);">
+                <span style="width:38px; height:38px; flex:none; border-radius:50%; background:var(--{{ cu.soft }}); color:var(--{{ cu.ref }}); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">{{ cu.initial }}</span>
+                <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">{{ cu.name }}</div><div style="font-size:11.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ cu.phone }} · {{ cu.area }}</div></div>
+                <span style="color:var(--c-text-3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- new -->
+        <sc-if value="{{ tabIsNew }}" hint-placeholder-val="{{ false }}">
+          <div class="lb-scroll" style="flex:1; overflow:auto; padding:16px 20px; display:flex; flex-direction:column; gap:13px;">
+            <div style="display:flex; gap:12px;">
+              <div style="flex:1;"><label for="nc-name" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Full name</label><input id="nc-name" value="{{ ncName }}" onInput="{{ onNcName }}" placeholder="e.g. Priya Sharma" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+              <div style="flex:1;"><label for="nc-phone" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Phone</label><input id="nc-phone" value="{{ ncPhone }}" onInput="{{ onNcPhone }}" placeholder="998 000 0000" style="width:100%; font-family:'IBM Plex Mono'; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+            </div>
+            <div><label for="nc-email" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Email</label><input id="nc-email" type="email" value="{{ ncEmail }}" onInput="{{ onNcEmail }}" placeholder="name@email.com" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+            <div><label for="nc-addr" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Address</label><textarea id="nc-addr" rows="2" value="{{ ncAddress }}" onInput="{{ onNcAddress }}" placeholder="Flat / building, street, city, ZIP" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px; resize:vertical;" style-focus="border-color:var(--c-primary);"></textarea></div>
+            <div><label for="nc-area" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Service area</label><select id="nc-area" value="{{ ncArea }}" onChange="{{ onNcArea }}" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);">
+              <sc-for list="{{ areas }}" as="ar" hint-placeholder-count="6"><option>{{ ar }}</option></sc-for>
+            </select></div>
+          </div>
+          <div style="padding:14px 20px; border-top:1px solid var(--c-border); display:flex; justify-content:flex-end; gap:10px;">
+            <button onClick="{{ closeCust }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-surface-2);">Cancel</button>
+            <button onClick="{{ addCustomer }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-primary-hover);">Add &amp; select</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.state = {
+      view:'pos', cat:'All', cart:{ wf1:2, wfk1:3, dc1:1 },
+      delivery:'home', dist:'5-10', area:'Downtown', pay:'cash', paidNow:false, promo:false, expressItems:{}, kgRaw:{}, notes:'',
+      customer:{ name:'Lavanya', phone:'998 999 856', email:'lavanya@mail.com', address:'Flat 2306, Main Road, Hyderabad 502100', area:'Downtown', initial:'L', av:'c-primary' },
+      custModal:false, custTab:'existing', custSearch:'',
+      nc:{ name:'', phone:'', email:'', address:'', area:'Downtown' },
+    };
+  }
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const G = (s,sz)=> html('<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const ICN = (s,sz)=> html('<svg width="'+(sz||18)+'" height="'+(sz||18)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const gi = {
+      shirt:'<path d="M8.5 3 5 5.5 6.5 9 8.5 8v12h7V8l2 1L19 5.5 15.5 3l-1.7 1.6a2.8 2.8 0 0 1-3.6 0Z"/>',
+      trousers:'<path d="M7 3h10l1 18h-4l-2-11-2 11H6Z"/>',
+      sheet:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 11h18M8 6v5"/>',
+      towel:'<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 3v18"/>',
+      pillow:'<rect x="3" y="7" width="18" height="10" rx="4"/>',
+      bag:'<path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+      suit:'<path d="M8 3 6 5v16h12V5l-2-2-4 5-4-5Z"/><path d="M12 8v9"/>',
+      blazer:'<path d="M7 3 5 6v15h14V6l-2-3-5 6-5-6Z"/>',
+      saree:'<path d="M5 4c4 3.5 10 3.5 14 0M5 21c1.5-8 3-12 7-17M19 21c-1.5-8-3-12-7-17"/>',
+      dress:'<path d="M9.5 3h5l-1.2 3.5L17 21H7l3.7-14.5L9.5 3Z"/>',
+      kurta:'<path d="M8.5 3 5 6l1.5 2.5L8.5 8v13h7V8l2 .5L19 6l-3.5-3-1.6 1.6a2.8 2.8 0 0 1-3.8 0Z"/><path d="M12 8v6"/>',
+      curtain:'<path d="M3 3h18M4 3c1.5 6 1.5 12 0 18M9 3c-.8 6-.8 12 0 18M15 3c.8 6 .8 12 0 18M20 3c1.5 6 1.5 12 0 18"/>',
+      blanket:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 5v14"/>',
+      bolt:'<path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z"/>',
+    };
+    const tintSoft = {'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+    // category -> accent tint
+    const CATTINT = { 'Wash & Fold':'c-primary','Dry Cleaning':'c-violet','Ironing':'c-info','Household':'c-cyan','Express':'c-warning' };
+
+    // id, name, category, icon, price, unit(pc|kg)
+    const PROD = [
+      ['wf1','T-Shirt / Polo','Wash & Fold','shirt',3.50,'pc'],
+      ['wf2','Trousers','Wash & Fold','trousers',5.00,'pc'],
+      ['wf3','Bedsheet','Wash & Fold','sheet',7.00,'pc'],
+      ['wfk1','Wash & Fold','Wash & Fold','bag',6.00,'kg'],
+      ['wfk2','Mixed Load','Wash & Fold','bag',5.00,'kg'],
+      ['dc1','Suit (2-pc)','Dry Cleaning','suit',22.00,'pc'],
+      ['dc2','Blazer','Dry Cleaning','blazer',14.00,'pc'],
+      ['dc3','Saree','Dry Cleaning','saree',16.00,'pc'],
+      ['dc4','Evening Dress','Dry Cleaning','dress',18.00,'pc'],
+      ['ir1','Shirt Press','Ironing','shirt',2.00,'pc'],
+      ['ir2','Trouser Press','Ironing','trousers',2.50,'pc'],
+      ['ir3','Kurta Press','Ironing','kurta',3.00,'pc'],
+      ['hh1','Curtains','Household','curtain',12.00,'pc'],
+      ['hh2','Blanket','Household','blanket',15.00,'pc'],
+      ['hhk1','Bulk Bedding','Household','blanket',8.00,'kg'],
+      ['ex1','Express Shirt','Express','shirt',5.00,'pc'],
+      ['ex2','Express Suit','Express','suit',30.00,'pc'],
+    ];
+    const byId={}; PROD.forEach(p=>{ byId[p[0]]={id:p[0],name:p[1],cat:p[2],icon:p[3],price:p[4],unit:p[5],tint:CATTINT[p[2]]}; });
+
+    const cart = this.state.cart;
+    const cats = ['All','Wash & Fold','Dry Cleaning','Ironing','Household','Express'];
+    const categories = cats.map(label=>{ const on=label===this.state.cat;
+      return { label, onClick:()=>this.setState({cat:label}), bg:on?'var(--c-primary)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border)', fg:on?'#fff':'var(--c-text-2)' }; });
+
+    const setQty=(id,dir)=>this.setState(s=>{ const kg=byId[id].unit==='kg'; const step=kg?0.5:1; const n=Math.round(((s.cart[id]||0)+dir*step)*10)/10; const c={...s.cart}; if(n<=0) delete c[id]; else c[id]=n; return {cart:c}; });
+    const setKg=(id,v)=>this.setState(s=>{ const n=parseFloat(v); return { kgRaw:{...s.kgRaw,[id]:v}, cart:{...s.cart,[id]:(isNaN(n)||n<0?0:Math.round(n*10)/10)} }; });
+    const removeLine=(id)=>this.setState(s=>{ const c={...s.cart}; delete c[id]; const k={...s.kgRaw}; delete k[id]; const e={...s.expressItems}; delete e[id]; return {cart:c,kgRaw:k,expressItems:e}; });
+    const toggleExpress=(id)=>this.setState(s=>{ const e={...s.expressItems}; if(e[id]) delete e[id]; else e[id]=true; return {expressItems:e}; });
+
+    const catalog = PROD.filter(p=> this.state.cat==='All' || p[2]===this.state.cat).map(p=>{
+      const id=p[0], rec=byId[id], qty=cart[id]||0, kg=rec.unit==='kg', exp=!!this.state.expressItems[id], inCart=qty>0;
+      return { name:rec.name, price:rec.price.toFixed(2), per: kg?'per kg':'per pc',
+        icon:G(gi[rec.icon]||gi.shirt,40), ref:rec.tint, soft:tintSoft[rec.tint],
+        inCart, isKg:kg, isPc:!kg, qtyBadge: kg?qty.toFixed(1):String(qty),
+        showStepper: inCart && !kg, showEditWeight: inCart && kg, showAdd: !inCart,
+        bd: inCart?'var(--c-primary)':'var(--c-border)',
+        expressOn:exp, expressPressed: exp?'true':'false',
+        expRowBg: exp?'#FEF1E0':'var(--c-surface-2)',
+        expFg: exp?'#B25E09':'var(--c-text-3)',
+        expTrack: exp?'#F59E0B':'var(--c-border-strong)',
+        expKnob: exp?'translateX(16px)':'translateX(0)',
+        toggleExpress:()=>toggleExpress(id),
+        onAdd:()=>this.setState(s=>{ if(kg) return {cart:{...s.cart,[id]:(s.cart[id]||1)}}; return {cart:{...s.cart,[id]:(s.cart[id]||0)+1}}; }),
+        inc:()=>setQty(id,1), dec:()=>setQty(id,-1) };
+    });
+
+    const ids = Object.keys(cart);
+    const mkLine=(id)=>{ const rec=byId[id], q=cart[id], kg=rec.unit==='kg'; const exp=!!this.state.expressItems[id];
+      return { id, cat:rec.cat, name:rec.name, ref:rec.tint, soft:tintSoft[rec.tint],
+        icon:G(gi[rec.icon]||gi.shirt,20), iconSm:G(gi[rec.icon]||gi.shirt,16),
+        price:rec.price.toFixed(2), per: kg?'/ kg':'/ pc',
+        qtyMid: kg?(q.toFixed(1)+' kg'):String(q), isKg:kg, isPc:!kg,
+        kgVal: (this.state.kgRaw[id]!==undefined ? this.state.kgRaw[id] : String(q)),
+        lineTotal:(rec.price*q).toFixed(2),
+        expressOn:exp, expBg:exp?'var(--c-warning-soft)':'var(--c-surface-2)', expFg:exp?'var(--c-warning)':'var(--c-text-3)', expBd:exp?'var(--c-warning)':'var(--c-border)',
+        toggleExpress:()=>toggleExpress(id), onKg:(e)=>setKg(id,e.target.value), remove:()=>removeLine(id),
+        inc:()=>setQty(id,1), dec:()=>setQty(id,-1) };
+    };
+    const lines = ids.map(mkLine);
+
+    // group by category (catalog order)
+    const groups = cats.filter(c=>c!=='All').map(c=>{
+      const gl = ids.filter(id=>byId[id].cat===c).map(mkLine);
+      if(!gl.length) return null;
+      const sub = gl.reduce((a,l)=>a+parseFloat(l.lineTotal),0);
+      const pcs = ids.filter(id=>byId[id].cat===c && byId[id].unit==='pc').reduce((a,id)=>a+cart[id],0);
+      const kgs = ids.filter(id=>byId[id].cat===c && byId[id].unit==='kg').reduce((a,id)=>a+cart[id],0);
+      const ql = [pcs?pcs+' pcs':'', kgs?kgs.toFixed(1)+' kg':''].filter(Boolean).join(' · ');
+      return { category:c, ref:CATTINT[c], lines:gl, subtotal:sub.toFixed(2), qtyLabel:ql };
+    }).filter(Boolean);
+
+    const itemCount = ids.length;
+    const piecesN = ids.filter(id=>byId[id].unit==='pc').reduce((a,id)=>a+cart[id],0);
+    const weightN = ids.filter(id=>byId[id].unit==='kg').reduce((a,id)=>a+cart[id],0);
+    const itemsSummary = [piecesN?piecesN+' pcs':'', weightN?weightN.toFixed(1)+' kg':''].filter(Boolean).join(' · ') || '0';
+
+    const subtotalN = ids.reduce((a,id)=>a+byId[id].price*cart[id],0);
+    const discountN = this.state.promo ? subtotalN*0.10 : 0;
+    const expressSurchargeN = ids.reduce((a,id)=> a + (this.state.expressItems[id] ? byId[id].price*cart[id]*0.5 : 0), 0);
+    const anyExpress = expressSurchargeN>0;
+    const DIST=[['0-5','0–5 km',5],['5-10','5–10 km',10],['10-15','10–15 km',15],['15-20','15–20 km',20]];
+    const distBand = DIST.find(d=>d[0]===this.state.dist)||DIST[1];
+    const deliveryFeeN = this.state.delivery==='store' ? 0 : distBand[2];
+    const vatN = (subtotalN-discountN+expressSurchargeN)*0.18;
+    const totalN = subtotalN - discountN + expressSurchargeN + vatN + deliveryFeeN;
+    const f=(n)=>n.toFixed(2);
+
+    const DEL=[
+      ['store','Pickup at store','0.00 د.إ','<path d="M3 9 5 4h14l2 5M4 9h16v11H4zM4 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>'],
+      ['home','Home delivery','By distance','<path d="M1 4h13v10H1zM14 8h4l3 3v3h-7z"/><circle cx="5.5" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/>'],
+      ['pickup','Pickup from home','By distance','<path d="M3 11 12 4l9 7M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>'],
+    ];
+    const deliveryOpts=DEL.map(([id,label,fee,p])=>{ const on=this.state.delivery===id;
+      return { label, fee, icon:ICN(p,20), onClick:()=>this.setState({delivery:id}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border-strong)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+    const distOpts=DIST.map(([id,label,fee])=>{ const on=this.state.dist===id;
+      return { label, fee:fee.toFixed(2)+' د.إ', onClick:()=>this.setState({dist:id}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border-strong)', fg:on?'var(--c-primary)':'var(--c-text)' }; });
+    const delLabel={store:'Pickup at store',home:'Home delivery',pickup:'Pickup from home'}[this.state.delivery];
+
+    const PAY=[['cash','Cash','<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>'],['card','Card','<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>'],['online','Online','<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10 18h4"/>']];
+    const payOpts=PAY.map(([id,label,p])=>{ const on=this.state.pay===id;
+      return { label, icon:ICN(p,17), onClick:()=>this.setState({pay:id}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border-strong)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+
+    // customers
+    const AV=['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const EX=[
+      {name:'Lavanya', phone:'998 999 856', email:'lavanya@mail.com', address:'Flat 2306, Main Road, Hyderabad 502100', area:'Downtown'},
+      {name:'Marcus Reed', phone:'628 114 8890', email:'marcus.r@mail.com', address:'12 Hill Street, Jubilee Hills, Hyderabad', area:'Jubilee Hills'},
+      {name:'Elena Cruz', phone:'510 992 3471', email:'elena.c@mail.com', address:'Apt 7B, Sector 4, Madhapur, Hyderabad', area:'Madhapur'},
+      {name:'Ade Mtm', phone:'770 220 1180', email:'ade.m@mail.com', address:'House 9, Lane 2, Gachibowli, Hyderabad', area:'Gachibowli'},
+      {name:'Hana Kim', phone:'669 401 7720', email:'hana.k@mail.com', address:'22 Park Avenue, Banjara Hills, Hyderabad', area:'Banjara Hills'},
+      {name:'Ramesh Gudupu', phone:'998 900 1201', email:'ramesh.g@mail.com', address:'Quarter 8, Begumpet, Hyderabad', area:'Begumpet'},
+    ];
+    const q=(this.state.custSearch||'').toLowerCase();
+    const existing = EX.filter(c=>!q || c.name.toLowerCase().includes(q) || c.phone.includes(q)).map((c,i)=>{
+      const av=AV[i%AV.length], initial=c.name.trim()[0].toUpperCase();
+      return { name:c.name, phone:c.phone, area:c.area, initial, ref:av, soft:tintSoft[av],
+        onPick:()=>this.setState({ customer:{...c, initial, av}, custModal:false }) };
+    });
+    const areas=['Downtown','Jubilee Hills','Banjara Hills','Madhapur','Gachibowli','Kukatpally','Begumpet'];
+    const AGENTS={
+      'Downtown':['Ramesh G.','RG','c-primary','2 jobs today'],
+      'Jubilee Hills':['Suresh K.','SK','c-violet','1 job today'],
+      'Banjara Hills':['Imran A.','IA','c-cyan','3 jobs today'],
+      'Madhapur':['Karan M.','KM','c-info','0 jobs today'],
+      'Gachibowli':['Suresh K.','SK','c-violet','1 job today'],
+      'Kukatpally':['Ramesh G.','RG','c-primary','2 jobs today'],
+      'Begumpet':['Imran A.','IA','c-cyan','3 jobs today'],
+    };
+    const ag=AGENTS[this.state.area]||AGENTS['Downtown'];
+
+    const cu=this.state.customer;
+    const custAvatar = cu ? cu.initial : '';
+    const custAv = cu ? (cu.av||'c-primary') : 'c-surface-3';
+
+    const setNc=(field)=>(e)=>this.setState(s=>({ nc:{...s.nc,[field]:e.target.value} }));
+    const addCustomer=()=>this.setState(s=>{ const n=s.nc; if(!n.name.trim()) return {}; const initial=n.name.trim()[0].toUpperCase();
+      return { customer:{...n, initial, av:'c-success'}, custModal:false, nc:{name:'',phone:'',email:'',address:'',area:'Downtown'} }; });
+
+    const now=new Date();
+
+    return {
+      isPos:this.state.view==='pos', isCheckout:this.state.view==='checkout', isSuccess:this.state.view==='success',
+      clock: now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),
+      categories, catalog, groups, lines, itemCount,
+      hasItems:itemCount>0, empty:itemCount===0,
+      subtotal:f(subtotalN), discount:f(discountN), vat:f(vatN), deliveryFee:f(deliveryFeeN), total:f(totalN),
+      expressSurcharge:f(expressSurchargeN), anyExpress, itemsSummary,
+      distOpts, showDist:this.state.delivery!=='store',
+      areas, area:this.state.area, onArea:(e)=>this.setState({area:e.target.value}),
+      agentName:ag[0], agentInitials:ag[1], agentRef:ag[2], agentJobs:ag[3],
+      notes:this.state.notes, onNotes:(e)=>this.setState({notes:e.target.value}),
+      promoOn:this.state.promo, flipPromo:()=>this.setState(s=>({promo:!s.promo})),
+      promoLabel:this.state.promo?'SAVE10 applied ✓':'+ Apply promo SAVE10',
+      promoFg:this.state.promo?'var(--c-success)':'var(--c-primary)',
+      promoBg:this.state.promo?'var(--c-success-soft)':'var(--c-primary-soft)',
+      promoBd:this.state.promo?'var(--c-success-soft)':'var(--c-primary-soft)',
+      readyBy:anyExpress?'Jun 18, 2026 · 8h':'Jun 20, 2026',
+      clearCart:()=>this.setState({cart:{}}),
+      checkoutDisabled: itemCount===0?'true':null,
+      checkoutBg: itemCount===0?'var(--c-border-strong)':'var(--c-primary)',
+      checkoutCursor: itemCount===0?'not-allowed':'pointer',
+      goCheckout:()=>{ if(itemCount>0) this.setState({view:'checkout'}); },
+      goPos:()=>this.setState({view:'pos'}),
+      deliveryOpts, payOpts, deliveryLabel:delLabel,
+      paidNow:this.state.paidNow, flipPaid:()=>this.setState(s=>({paidNow:!s.paidNow})),
+      paidTrack:this.state.paidNow?'var(--c-success)':'var(--c-border-strong)',
+      paidKnob:this.state.paidNow?'translateX(19px)':'translateX(0)',
+      payStatusLabel:this.state.paidNow?'Paid':'Unpaid', payStatusRef:this.state.paidNow?'c-success':'c-error',
+      placeOrder:()=>this.setState({view:'success'}),
+      newOrder:()=>this.setState({view:'pos', cart:{}, promo:false, paidNow:false, expressItems:{}, kgRaw:{}, notes:''}),
+      // customer
+      custName: cu?cu.name:'Walk-in customer', custMeta: cu?(cu.phone+' · '+cu.area):'No profile linked',
+      custBtn: cu?'Change':'Select', custAvatar, custAvRef:custAv, custAvSoft:tintSoft[custAv]||'c-surface-3',
+      custPhone:cu?cu.phone:'—', custEmail:cu?cu.email:'—', custAddress:cu?cu.address:'—', custArea:cu?cu.area:'—',
+      custModal:this.state.custModal, openCust:()=>this.setState({custModal:true,custTab:'existing'}),
+      closeCust:()=>this.setState({custModal:false}), stop:(e)=>e.stopPropagation(),
+      tabIsExisting:this.state.custTab==='existing', tabIsNew:this.state.custTab==='new',
+      tabExisting:()=>this.setState({custTab:'existing'}), tabNew:()=>this.setState({custTab:'new'}),
+      tabExBg:this.state.custTab==='existing'?'var(--c-surface)':'transparent', tabExFg:this.state.custTab==='existing'?'var(--c-text)':'var(--c-text-3)',
+      tabNewBg:this.state.custTab==='new'?'var(--c-surface)':'transparent', tabNewFg:this.state.custTab==='new'?'var(--c-text)':'var(--c-text-3)',
+      existing, custSearch:this.state.custSearch, onSearch:(e)=>this.setState({custSearch:e.target.value}),
+      areas,
+      ncName:this.state.nc.name, ncPhone:this.state.nc.phone, ncEmail:this.state.nc.email, ncAddress:this.state.nc.address, ncArea:this.state.nc.area,
+      onNcName:setNc('name'), onNcPhone:setNc('phone'), onNcEmail:setNc('email'), onNcAddress:setNc('address'), onNcArea:setNc('area'),
+      addCustomer,
+    };
+  }
+}
+</script>
+</body>
+</html>

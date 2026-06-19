@@ -1,50 +1,36 @@
 /**
- * Team Member Detail Panel
- *
- * Shows full details for an App Login (Staff/Agent/Plant) with
- * enable/disable toggle for agents and edit areas.
+ * Team Member (App Login) Detail — design-system tokens.
+ * Profile + invite code + agent controls (contact, enable, online, areas, vehicle).
+ * Wired to useTeamMembers / mutations + password reset.
  */
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import {
-    LCard,
-    LButton,
-    LAvatar,
-    LBadge,
-    LSpinner,
-    LToggle,
-    LPhoneInput,
-    useLToast,
-} from "@/components/laundry";
+import { LSpinner, useLToast } from "@/components/laundry";
 import { useTeamMembers, useTeamMemberMutations } from "@/hooks/use-team-members";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
-import {
-    ArrowLeft,
-    Copy,
-    MessageCircle,
-    MapPin,
-    Truck,
-    Check,
-    Power,
-    Phone,
-    Pencil,
-    KeyRound,
-} from "lucide-react";
+import { ChevronLeft, Copy, MessageCircle, MapPin, Truck, Check, Phone, Pencil, KeyRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
 
-const VEHICLE_LABELS: Record<string, string> = {
-    bike: "Bike",
-    scooter: "Scooter",
-    car: "Car",
-    van: "Van",
-};
+const MONO = "'IBM Plex Mono'";
+const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
+const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 31 + c.charCodeAt(0)) >>> 0; return TINTS[h % TINTS.length]; };
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
+const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, fontFamily: MONO, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
+const VEHICLE_LABELS: Record<string, string> = { bike: "Bike", scooter: "Scooter", car: "Car", van: "Van" };
 
 interface TeamMemberDetailPanelProps {
     teamMemberId: string;
     onClose?: () => void;
+}
+
+function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+    return (
+        <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => !disabled && onChange(!checked)} aria-label="Toggle" style={{ position: "relative", cursor: disabled ? "not-allowed" : "pointer", width: 44, height: 25, border: 0, borderRadius: 20, flex: "none", background: checked ? "var(--c-success)" : "var(--c-border-strong)", opacity: disabled ? 0.6 : 1 }}>
+            <span style={{ position: "absolute", top: 3, left: 3, width: 19, height: 19, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.3)", transition: "transform .15s", transform: checked ? "translateX(19px)" : "translateX(0)" }} />
+        </button>
+    );
 }
 
 export function TeamMemberDetailPanel({ teamMemberId, onClose }: TeamMemberDetailPanelProps) {
@@ -59,372 +45,150 @@ export function TeamMemberDetailPanel({ teamMemberId, onClose }: TeamMemberDetai
     const [editingPhone, setEditingPhone] = useState(false);
     const [phoneValue, setPhoneValue] = useState("");
     const [savingPhone, setSavingPhone] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const teamMember = teamMembers.find((tm) => tm.id === teamMemberId);
 
     const handleCopyInvite = () => {
         if (!teamMember) return;
-        const text = `${teamMember.name || teamMember.email}\nEmail: ${teamMember.email}\nInvite Code: ${teamMember.inviteCode}`;
-        navigator.clipboard.writeText(text);
+        navigator.clipboard.writeText(`${teamMember.name || teamMember.email}\nEmail: ${teamMember.email}\nInvite Code: ${teamMember.inviteCode}`);
+        setCopied(true); setTimeout(() => setCopied(false), 2000);
     };
-
     const handleSendPasswordReset = async () => {
         if (!teamMember?.email || teamMember.inviteStatus !== "accepted") return;
         setSendingReset(true);
         try {
             await sendPasswordResetEmail(auth, teamMember.email.trim());
-            addToast({
-                type: "success",
-                title: t("staff.passwordResetSent", "Reset email sent"),
-                description: t("staff.passwordResetSentDesc", "They will receive a link to reset their password at {{email}}", { email: teamMember.email }),
-            });
-        } catch (err: any) {
-            addToast({
-                type: "error",
-                title: t("staff.passwordResetFailed", "Could not send reset email"),
-                description: err.message || (err.code === "auth/user-not-found" ? t("auth.noUserForEmail", "No account found with this email") : ""),
-            });
-        } finally {
-            setSendingReset(false);
-        }
+            addToast({ type: "success", title: t("staff.passwordResetSent", "Reset email sent"), description: t("staff.passwordResetSentDesc", "They will receive a reset link at {{email}}", { email: teamMember.email }) });
+        } catch (err) {
+            addToast({ type: "error", title: t("staff.passwordResetFailed", "Could not send reset email"), description: err instanceof Error ? err.message : "" });
+        } finally { setSendingReset(false); }
     };
-
     const handleWhatsAppShare = () => {
         if (!teamMember) return;
         const link = `${window.location.origin}/${teamMember.memberType === "agent" ? "driver" : teamMember.memberType === "plant" ? "plant" : "staff"}/signup`;
-        const msg = t("staff.whatsappInviteMessage", {
-            name: teamMember.name || teamMember.email,
-            code: teamMember.inviteCode,
-            link,
-        });
+        const msg = String(t("staff.whatsappInviteMessage", { name: teamMember.name || teamMember.email, code: teamMember.inviteCode, link } as never));
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
+    const handleToggleActive = async (checked: boolean) => { if (!teamMember || teamMember.memberType !== "agent") return; setToggling(true); try { await updateTeamMember(teamMember.id, { isActive: checked }); } catch (e) { console.error(e); } finally { setToggling(false); } };
+    const handleToggleOnline = async (checked: boolean) => { if (!teamMember || teamMember.memberType !== "agent") return; setTogglingOnline(true); try { await updateTeamMember(teamMember.id, { isOnline: checked }); } catch (e) { console.error(e); } finally { setTogglingOnline(false); } };
+    const savePhone = async () => { if (!teamMember) return; setSavingPhone(true); try { await updateTeamMember(teamMember.id, { phone: phoneValue.trim() || undefined }); setEditingPhone(false); setPhoneValue(""); } catch (e) { console.error(e); } finally { setSavingPhone(false); } };
 
-    const handleToggleActive = async (checked: boolean) => {
-        if (!teamMember || teamMember.memberType !== "agent") return;
-        setToggling(true);
-        try {
-            await updateTeamMember(teamMember.id, { isActive: checked });
-        } catch (err) {
-            console.error("Failed to toggle agent:", err);
-        } finally {
-            setToggling(false);
-        }
-    };
-
-    const handleToggleOnline = async (checked: boolean) => {
-        if (!teamMember || teamMember.memberType !== "agent") return;
-        setTogglingOnline(true);
-        try {
-            await updateTeamMember(teamMember.id, { isOnline: checked });
-        } catch (err) {
-            console.error("Failed to set agent online status:", err);
-        } finally {
-            setTogglingOnline(false);
-        }
-    };
-
-    const startEditPhone = () => {
-        setPhoneValue(teamMember?.phone || "");
-        setEditingPhone(true);
-    };
-
-    const cancelEditPhone = () => {
-        setEditingPhone(false);
-        setPhoneValue("");
-    };
-
-    const savePhone = async () => {
-        if (!teamMember) return;
-        setSavingPhone(true);
-        try {
-            await updateTeamMember(teamMember.id, { phone: phoneValue.trim() || undefined });
-            setEditingPhone(false);
-            setPhoneValue("");
-        } catch (err) {
-            console.error("Failed to update agent phone:", err);
-        } finally {
-            setSavingPhone(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="h-full flex items-center justify-center">
-                <LSpinner size="lg" />
-            </div>
-        );
-    }
-
+    if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}><LSpinner size="lg" /></div>;
     if (!teamMember) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6">
-                <p className="text-lg font-medium">{t("staff.notFound")}</p>
-                <LButton variant="ghost" className="mt-4" onClick={onClose}>
-                    {t("common.goBack")}
-                </LButton>
+            <div style={{ textAlign: "center", padding: 48 }}>
+                <p style={{ color: "var(--c-text-3)" }}>{t("staff.notFound", "Not found")}</p>
+                <button onClick={onClose} style={{ marginTop: 16, cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 8, padding: "8px 14px" }}>{t("common.goBack", "Back")}</button>
             </div>
         );
     }
 
     const isAgent = teamMember.memberType === "agent";
     const isActive = teamMember.isActive !== false;
+    const ref = tintFor(teamMember.id);
+    const typeMeta = isAgent ? { label: t("staff.memberTypeAgent", "Delivery Agent"), tint: "c-success" } : teamMember.memberType === "plant" ? { label: t("staff.memberTypePlant", "Plant Operator"), tint: "c-cyan" } : { label: t("staff.memberTypeStaff", "Staff App"), tint: "c-info" };
+    const secLbl: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600 };
+    const ghostBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "7px 12px" };
+
+    const ToggleCard = ({ title, desc, checked, onChange, disabled, dotOnly }: { title: string; desc: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; dotOnly?: boolean }) => (
+        <div style={{ ...card, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ width: 40, height: 40, flex: "none", borderRadius: 10, background: checked ? "var(--c-success-soft)" : "var(--c-surface-2)", color: checked ? "var(--c-success)" : "var(--c-text-3)", display: "flex", alignItems: "center", justifyContent: "center" }}>{dotOnly ? <span style={{ width: 12, height: 12, borderRadius: "50%", background: checked ? "var(--c-success)" : "var(--c-text-3)" }} /> : <Check size={18} />}</span>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{title}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 2 }}>{desc}</div></div>
+            <Switch checked={checked} onChange={onChange} disabled={disabled} />
+        </div>
+    );
 
     return (
-        <div className="h-full flex flex-col overflow-y-auto min-w-0">
-            {/* Header */}
-            <div className="p-4 border-b border-border bg-card min-w-0">
-                <div className="flex items-center gap-3 mb-4">
-                    {onClose && (
-                        <LButton variant="ghost" size="icon" onClick={onClose}>
-                            <ArrowLeft className="h-5 w-5" />
-                        </LButton>
-                    )}
-                    <h2 className="text-lg font-semibold text-foreground">{t("staff.appLoginDetails", "App Login Details")}</h2>
-                </div>
+        <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
+            {/* header */}
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+                <button onClick={onClose} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
+                <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
+                    <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("staff.title", "Staff")}</button><span>/</span>
+                    <span style={{ color: "var(--c-text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teamMember.name || teamMember.email}</span>
+                </nav>
+            </header>
 
-                <div className="flex items-center gap-4">
-                    <LAvatar name={teamMember.name || teamMember.email} size="xl" />
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-semibold text-foreground truncate">
-                            {teamMember.name || teamMember.email}
-                        </h3>
-                        <p className="text-sm text-muted-foreground truncate">{teamMember.email}</p>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            <LBadge
-                                variant={
-                                    teamMember.memberType === "agent"
-                                        ? "success"
-                                        : teamMember.memberType === "plant"
-                                        ? "secondary"
-                                        : "outline"
-                                }
-                            >
-                                {teamMember.memberType === "staff"
-                                    ? t("staff.memberTypeStaff", "Staff App")
-                                    : teamMember.memberType === "agent"
-                                    ? t("staff.memberTypeAgent", "Delivery Agent")
-                                    : t("staff.memberTypePlant", "Plant Operator")}
-                            </LBadge>
-                            {teamMember.inviteStatus === "accepted" && (
-                                <LBadge variant="success">
-                                    <Check className="h-3 w-3 mr-1" />
-                                    {t("staff.inviteAccepted", "Active")}
-                                </LBadge>
-                            )}
-                            {isAgent && (
-                                <span
-                                    className={cn(
-                                        "inline-flex items-center gap-1.5 text-sm font-medium",
-                                        teamMember.isOnline ? "text-success" : "text-muted-foreground"
-                                    )}
-                                    title={t("staff.availabilityHint", "Agent opens the app and taps 'Go Online' to appear available")}
-                                >
-                                    <span
-                                        className={cn(
-                                            "w-2 h-2 rounded-full shrink-0",
-                                            teamMember.isOnline ? "bg-success animate-pulse" : "bg-muted-foreground"
-                                        )}
-                                    />
-                                    {teamMember.isOnline ? t("staff.online", "Online") : t("staff.availabilityAway", "Away")}
-                                </span>
-                            )}
-                            {isAgent && !isActive && (
-                                <LBadge variant="destructive">{t("staff.disabled", "Disabled")}</LBadge>
-                            )}
+            <div style={{ padding: "20px 22px 40px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
+                {/* profile */}
+                <div style={{ ...card, padding: "20px 22px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                        <span style={{ width: 56, height: 56, flex: "none", borderRadius: 14, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 600 }}>{(teamMember.name || teamMember.email).slice(0, 2).toUpperCase()}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 19, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teamMember.name || teamMember.email}</div>
+                            <div style={{ fontSize: 13, color: "var(--c-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teamMember.email}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 11.5, fontWeight: 600, color: `var(--${typeMeta.tint})`, background: `var(--${typeMeta.tint}-soft)`, padding: "3px 10px", borderRadius: 20 }}>{typeMeta.label}</span>
+                                {teamMember.inviteStatus === "accepted" && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 600, color: "var(--c-success)", background: "var(--c-success-soft)", padding: "3px 10px", borderRadius: 20 }}><Check size={11} />{t("staff.inviteAccepted", "Active")}</span>}
+                                {isAgent && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: teamMember.isOnline ? "var(--c-success)" : "var(--c-text-3)" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: teamMember.isOnline ? "var(--c-success)" : "var(--c-text-3)" }} />{teamMember.isOnline ? t("staff.online", "Online") : t("staff.availabilityAway", "Away")}</span>}
+                                {isAgent && !isActive && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-error)", background: "var(--c-error-soft)", padding: "3px 9px", borderRadius: 20 }}>{t("staff.disabled", "Disabled")}</span>}
+                            </div>
+                        </div>
+                    </div>
+                    {/* invite code */}
+                    <div style={{ marginTop: 16, background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 12, padding: 14 }}>
+                        <div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginBottom: 5 }}>{t("staff.inviteCode", "Invite code")}</div>
+                        <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18, letterSpacing: ".06em", color: "var(--c-primary)" }}>{teamMember.inviteCode}</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                            <button onClick={handleCopyInvite} style={ghostBtn}>{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? t("common.copied", "Copied") : t("common.copy", "Copy")}</button>
+                            <button onClick={handleWhatsAppShare} style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)" }}><MessageCircle size={14} />WhatsApp</button>
+                            {teamMember.inviteStatus === "accepted" && teamMember.email && <button onClick={handleSendPasswordReset} disabled={sendingReset} style={{ ...ghostBtn, opacity: sendingReset ? 0.6 : 1 }}><KeyRound size={14} />{sendingReset ? t("common.sending", "Sending…") : t("staff.sendPasswordReset", "Reset password")}</button>}
                         </div>
                     </div>
                 </div>
 
-                {/* Invite code + actions */}
-                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">{t("staff.inviteCode")}</p>
-                    <p className="text-lg font-mono font-semibold text-primary break-all">{teamMember.inviteCode}</p>
-                    <div className="flex flex-wrap gap-2 mt-2 min-w-0">
-                        <LButton variant="outline" size="sm" leftIcon={<Copy className="h-4 w-4 shrink-0" />} onClick={handleCopyInvite} className="shrink-0">
-                            {t("common.copy")}
-                        </LButton>
-                        <LButton variant="outline" size="sm" leftIcon={<MessageCircle className="h-4 w-4 shrink-0" />} onClick={handleWhatsAppShare} className="shrink-0">
-                            WhatsApp
-                        </LButton>
-                        {teamMember.inviteStatus === "accepted" && teamMember.email && (
-                            <LButton
-                                variant="outline"
-                                size="sm"
-                                leftIcon={<KeyRound className="h-4 w-4 shrink-0" />}
-                                onClick={handleSendPasswordReset}
-                                disabled={sendingReset}
-                                className="shrink-0"
-                            >
-                                {sendingReset ? t("common.sending", "Sending...") : t("staff.sendPasswordReset", "Send password reset")}
-                            </LButton>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Details */}
-            <div className="flex-1 p-4 space-y-4">
-                {/* Contact Number - Agents only (shown on order tracking & order details) */}
+                {/* contact (agents) */}
                 {isAgent && (
-                    <LCard variant="outlined" padding="md">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
-                                <Phone className="h-4 w-4" />
-                                {t("staff.contactNumber", "Contact Number")}
-                            </h4>
-                            {!editingPhone ? (
-                                <LButton variant="outline" size="sm" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={startEditPhone}>
-                                    {teamMember.phone ? t("common.edit", "Edit") : t("staff.addContact", "Add")}
-                                </LButton>
-                            ) : null}
+                    <div style={{ ...card, padding: "16px 18px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editingPhone ? 12 : 8 }}>
+                            <span style={secLbl}><Phone size={15} />{t("staff.contactNumber", "Contact Number")}</span>
+                            {!editingPhone && <button onClick={() => { setPhoneValue(teamMember.phone || ""); setEditingPhone(true); }} style={ghostBtn}><Pencil size={13} />{teamMember.phone ? t("common.edit", "Edit") : t("staff.addContact", "Add")}</button>}
                         </div>
                         {editingPhone ? (
-                            <div className="space-y-2">
-                                <LPhoneInput
-                                    value={phoneValue}
-                                    onValueChange={setPhoneValue}
-                                    helperText={t("staff.contactNumberHint", "Shown on order tracking so customers can call or WhatsApp the agent.")}
-                                />
-                                <div className="flex gap-2">
-                                    <LButton variant="primary" size="sm" onClick={savePhone} disabled={savingPhone}>
-                                        {savingPhone ? t("common.saving", "Saving...") : t("common.save", "Save")}
-                                    </LButton>
-                                    <LButton variant="outline" size="sm" onClick={cancelEditPhone} disabled={savingPhone}>
-                                        {t("common.cancel", "Cancel")}
-                                    </LButton>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                <input value={phoneValue} inputMode="numeric" onChange={(e) => setPhoneValue(e.target.value.replace(/[^\d+\s-]/g, ""))} placeholder="Phone number" style={fld} />
+                                <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("staff.contactNumberHint", "Shown on order tracking so customers can call or WhatsApp the agent.")}</div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <button onClick={savePhone} disabled={savingPhone} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 16px", opacity: savingPhone ? 0.6 : 1 }}>{savingPhone ? t("common.saving", "Saving…") : t("common.save", "Save")}</button>
+                                    <button onClick={() => { setEditingPhone(false); setPhoneValue(""); }} disabled={savingPhone} style={ghostBtn}>{t("common.cancel", "Cancel")}</button>
                                 </div>
                             </div>
                         ) : (
-                            <p className={cn("text-sm", teamMember.phone ? "text-foreground" : "text-muted-foreground")}>
-                                {teamMember.phone || t("staff.noContactSet", "No contact number set. Customers won’t see a number for this agent on tracking.")}
-                            </p>
+                            <div style={{ fontSize: 13, fontFamily: teamMember.phone ? MONO : undefined, color: teamMember.phone ? "var(--c-text)" : "var(--c-text-3)" }}>{teamMember.phone || t("staff.noContactSet", "No contact number set.")}</div>
                         )}
-                    </LCard>
+                    </div>
                 )}
 
-                {/* Enable/Disable - Agents only */}
-                {isAgent && (
-                    <LCard variant="outlined" padding="md">
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div
-                                    className={cn(
-                                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-                                        isActive ? "bg-success/10" : "bg-muted"
-                                    )}
-                                >
-                                    <Power className={cn("h-5 w-5", isActive ? "text-success" : "text-muted-foreground")} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-medium text-foreground">{t("staff.enableAgent", "Enable for Orders")}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t(
-                                            "staff.enableAgentDesc",
-                                            "When enabled, this agent appears in New Order and can receive delivery assignments."
-                                        )}
-                                    </p>
-                                </div>
-                            </div>
-                            <LToggle
-                                checked={isActive}
-                                onChange={handleToggleActive}
-                                disabled={toggling}
-                                className="shrink-0"
-                            />
-                        </div>
-                        {isActive && !teamMember.isOnline && (
-                            <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
-                                {t("staff.awayNote", "Agent is 'Away' until they open the Agent App and tap 'Go Online'.")}
-                            </p>
-                        )}
-                    </LCard>
-                )}
+                {/* enable / online (agents) */}
+                {isAgent && <ToggleCard title={t("staff.enableAgent", "Enable for Orders")} desc={t("staff.enableAgentDesc", "When enabled, this agent appears in New Order and can receive assignments.")} checked={isActive} onChange={handleToggleActive} disabled={toggling} />}
+                {isAgent && <ToggleCard title={t("staff.setAgentOnline", "Set Agent Online")} desc={t("staff.setAgentOnlineDesc", "You control availability. When on, the agent receives tasks.")} checked={teamMember.isOnline ?? false} onChange={handleToggleOnline} disabled={togglingOnline || !isActive} dotOnly />}
 
-                {/* Set Online - Owner control (Agents only) */}
+                {/* service areas (agents) */}
                 {isAgent && (
-                    <LCard variant="outlined" padding="md">
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div
-                                    className={cn(
-                                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-                                        teamMember.isOnline ? "bg-success/10" : "bg-muted"
-                                    )}
-                                >
-                                    <span
-                                        className={cn(
-                                            "w-3 h-3 rounded-full",
-                                            teamMember.isOnline ? "bg-success animate-pulse" : "bg-muted-foreground"
-                                        )}
-                                    />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-medium text-foreground">{t("staff.setAgentOnline", "Set Agent Online")}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t(
-                                            "staff.setAgentOnlineDesc",
-                                            "You control agent availability. When on, agent receives tasks. Agent app will update immediately."
-                                        )}
-                                    </p>
-                                </div>
-                            </div>
-                            <LToggle
-                                checked={teamMember.isOnline ?? false}
-                                onChange={handleToggleOnline}
-                                disabled={togglingOnline || !isActive}
-                                className="shrink-0"
-                            />
-                        </div>
-                    </LCard>
-                )}
-
-                {/* Service Areas - Agents only */}
-                {isAgent && (
-                    <LCard variant="outlined" padding="md">
-                        <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
-                                <MapPin className="h-4 w-4" />
-                                {t("staff.serviceAreas", "Service Areas")}
-                            </h4>
-                            <LButton variant="outline" size="sm" onClick={() => setAreasSheetOpen(true)}>
-                                {t("staff.editAreas", "Edit")}
-                            </LButton>
+                    <div style={{ ...card, padding: "16px 18px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={secLbl}><MapPin size={15} />{t("staff.serviceAreas", "Service Areas")}</span>
+                            <button onClick={() => setAreasSheetOpen(true)} style={ghostBtn}><Pencil size={13} />{t("staff.editAreas", "Edit")}</button>
                         </div>
                         {teamMember.serviceAreas && teamMember.serviceAreas.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {teamMember.serviceAreas.map((area) => (
-                                    <LBadge key={area} variant="outline" size="sm">
-                                        {area}
-                                    </LBadge>
-                                ))}
-                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{teamMember.serviceAreas.map((a) => <span key={a} style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "4px 10px" }}>{a}</span>)}</div>
                         ) : (
-                            <p className="text-sm text-muted-foreground">{t("staff.noAreasSelected", "No areas assigned. Agent will see all orders.")}</p>
+                            <div style={{ fontSize: 13, color: "var(--c-text-3)" }}>{t("staff.noAreasSelected", "No areas assigned. Agent will see all orders.")}</div>
                         )}
-                    </LCard>
+                    </div>
                 )}
 
-                {/* Vehicle - Agents only */}
+                {/* vehicle (agents) */}
                 {isAgent && teamMember.vehicle && (
-                    <LCard variant="outlined" padding="md">
-                        <h4 className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
-                            <Truck className="h-4 w-4" />
-                            {t("staff.vehicle", "Vehicle")}
-                        </h4>
-                        <p className="text-sm text-foreground">
-                            {VEHICLE_LABELS[teamMember.vehicle.type] || teamMember.vehicle.type}
-                            {teamMember.vehicle.number && ` • ${teamMember.vehicle.number}`}
-                        </p>
-                    </LCard>
+                    <div style={{ ...card, padding: "16px 18px" }}>
+                        <div style={{ ...secLbl, marginBottom: 8 }}><Truck size={15} />{t("staff.vehicle", "Vehicle")}</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{VEHICLE_LABELS[teamMember.vehicle.type] || teamMember.vehicle.type}{teamMember.vehicle.number ? ` · ${teamMember.vehicle.number}` : ""}</div>
+                    </div>
                 )}
             </div>
 
-            <TeamMemberAreasSheet
-                open={areasSheetOpen}
-                onClose={() => setAreasSheetOpen(false)}
-                teamMember={teamMember}
-            />
+            <TeamMemberAreasSheet open={areasSheetOpen} onClose={() => setAreasSheetOpen(false)} teamMember={teamMember} />
         </div>
     );
 }

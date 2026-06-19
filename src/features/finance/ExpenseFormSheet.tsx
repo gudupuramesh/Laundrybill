@@ -4,20 +4,17 @@
  * Add/edit expense form with laundry-specific categories
  */
 
-import { useState, useEffect } from "react";
-import {
-    LResponsiveDialog,
-    LTextInput,
-    LNumberInput,
-    LButton,
-    LSpacer,
-    LSelect,
-} from "@/components/laundry";
+import { useState, useEffect, type CSSProperties } from "react";
+import { LResponsiveDialog } from "@/components/laundry";
 import { useCurrency } from "@/hooks/use-currency";
 import { useExpenseMutations } from "@/hooks/use-finance";
 import type { Expense, ExpenseCategory } from "@/types/finance";
 import { Timestamp } from "firebase/firestore";
 import { useTranslation } from "react-i18next";
+
+const MONO = "'IBM Plex Mono'";
+const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
+const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
 
 interface ExpenseFormSheetProps {
     open: boolean;
@@ -161,72 +158,53 @@ export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFo
             title={isEdit ? t('finance.editExpense') : t('finance.addExpense')}
             size="md"
         >
-            <div className="space-y-4">
-                {/* Category Dropdown */}
-                <LSelect
-                    label={t('finance.category')}
-                    value={form.category}
-                    onChange={(value) => setForm({ ...form, category: value as ExpenseCategory | "other" })}
-                    options={categoryOptions}
-                    placeholder={t('expense.selectCategory')}
-                    required
-                />
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* Category */}
+                <div>
+                    <label style={lbl}>{t('finance.category', 'Category')}</label>
+                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory | "other" })} style={fld}>
+                        {Array.from(new Set(categoryOptions.map((o) => o.group))).map((group) => (
+                            <optgroup key={group} label={group}>
+                                {categoryOptions.filter((o) => o.group === group).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </optgroup>
+                        ))}
+                    </select>
+                </div>
 
-                {/* Custom Category Input - shown when "Other" is selected */}
                 {isOtherCategory && (
-                    <LTextInput
-                        label={t('expense.customCategoryName')}
-                        value={form.customCategory}
-                        onChange={(e) => setForm({ ...form, customCategory: e.target.value })}
-                        placeholder={t('expense.customCategoryPlaceholder')}
-                        required
-                    />
+                    <div>
+                        <label style={lbl}>{t('expense.customCategoryName', 'Custom category name')}</label>
+                        <input value={form.customCategory} onChange={(e) => setForm({ ...form, customCategory: e.target.value })} placeholder={t('expense.customCategoryPlaceholder', 'e.g. Cleaning supplies')} style={fld} />
+                    </div>
                 )}
 
-                <LTextInput
-                    label={t('finance.description')}
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder={t('finance.descriptionPlaceholder')}
-                    required
-                />
+                <div>
+                    <label style={lbl}>{t('finance.description', 'Description')}</label>
+                    <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('finance.descriptionPlaceholder', 'What was this expense for?')} style={fld} />
+                </div>
 
-                <LNumberInput
-                    label={t('finance.amount')}
-                    value={form.amount}
-                    onChange={(v) => setForm({ ...form, amount: v })}
-                    prefix={currencySymbol}
-                    min={0}
-                    required
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                        <label style={lbl}>{t('finance.amount', 'Amount')}</label>
+                        <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--c-border-strong)", borderRadius: 9, background: "var(--c-surface)" }}>
+                            <span style={{ fontFamily: MONO, fontSize: 13, color: "var(--c-text-3)", paddingLeft: 11 }}>{currencySymbol}</span>
+                            <input type="text" inputMode="decimal" value={form.amount || ""} placeholder="0" onChange={(e) => { const n = parseFloat(e.target.value); setForm({ ...form, amount: isNaN(n) || n < 0 ? 0 : n }); }} style={{ ...fld, border: 0, fontFamily: MONO, fontWeight: 700, paddingLeft: 8, background: "transparent" }} />
+                        </div>
+                    </div>
+                    <div>
+                        <label style={lbl}>{t('finance.date', 'Date')}</label>
+                        <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={fld} />
+                    </div>
+                </div>
 
-                <LTextInput
-                    label={t('finance.date')}
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    required
-                />
+                <div>
+                    <label style={lbl}>{t('finance.vendor', 'Vendor')} <span style={{ color: "var(--c-text-3)", fontWeight: 400 }}>· {t('common.optional', 'optional')}</span></label>
+                    <input value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder={t('finance.vendorPlaceholder', 'Who was paid?')} style={fld} />
+                </div>
 
-                <LTextInput
-                    label={`${t('finance.vendor')} (${t('common.optional')})`}
-                    value={form.vendor}
-                    onChange={(e) => setForm({ ...form, vendor: e.target.value })}
-                    placeholder={t('finance.vendorPlaceholder')}
-                />
-
-                <LSpacer size="md" />
-
-                <LButton
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    onClick={handleSubmit}
-                    loading={loading}
-                    disabled={!isValid}
-                >
-                    {isEdit ? t('common.saveChanges') : t('finance.addExpense')}
-                </LButton>
+                <button type="button" onClick={handleSubmit} disabled={!isValid || loading} style={{ width: "100%", marginTop: 4, cursor: (!isValid || loading) ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: (!isValid || loading) ? 0.55 : 1 }}>
+                    {loading ? t('common.loading', 'Saving…') : isEdit ? t('common.saveChanges', 'Save Changes') : t('finance.addExpense', 'Add Expense')}
+                </button>
             </div>
         </LResponsiveDialog>
     );

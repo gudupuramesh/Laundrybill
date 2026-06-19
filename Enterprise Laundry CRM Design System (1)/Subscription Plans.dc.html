@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-ink:#0B1330;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC; --c-warning:#9A5B00; --c-warning-soft:#FBEFD7; --c-error:#C2362F; --c-error-soft:#FBE6E5;
+    --c-violet:#6B3FD4; --c-violet-soft:#EEE9FD; --c-cyan:#0E6E8C; --c-cyan-soft:#E1F3F8; --c-info:#155CC0; --c-info-soft:#E4F0FC;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:8px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div><div style="font-size:17px; font-weight:600; letter-spacing:-.01em; line-height:1.1;">Subscription</div><div style="font-size:11.5px; color:var(--c-text-3);">Manage your LaundryBill plan</div></div>
+      <div style="flex:1;"></div>
+      <div role="group" aria-label="Billing cycle" style="display:flex; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:2px;">
+        <button onClick="{{ setMonthly }}" aria-pressed="{{ isMonthly }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 13px; border:0; border-radius:6px; background:{{ moBg }}; color:{{ moFg }};">Monthly</button>
+        <button onClick="{{ setYearly }}" aria-pressed="{{ isYearly }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 13px; border:0; border-radius:6px; background:{{ yrBg }}; color:{{ yrFg }};">Yearly <span style="color:var(--c-success);">−20%</span></button>
+      </div>
+    </header>
+
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:22px;">
+      <div style="max-width:1120px;">
+
+        <!-- CURRENT PLAN -->
+        <div style="background:linear-gradient(120deg,var(--c-ink),#16235A); color:#fff; border-radius:16px; padding:22px 24px; box-shadow:var(--sh-md); margin-bottom:20px; display:flex; align-items:center; gap:22px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:11.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:#8FB0F5;">Current plan</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#fff; background:rgba(255,255,255,.16); padding:3px 10px; border-radius:20px;"><span style="width:6px; height:6px; border-radius:50%; background:#4ADE80;"></span>Active</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:10px; margin-top:8px;"><span style="font-size:26px; font-weight:700; letter-spacing:-.01em;">Professional</span><span style="font-family:'IBM Plex Mono'; font-size:14px; color:#B9C6EE;">299 د.إ / mo</span></div>
+            <div style="font-size:13px; color:#B9C6EE; margin-top:6px;">3 branches · 25 staff seats · unlimited orders</div>
+          </div>
+          <div style="display:flex; gap:26px; flex-wrap:wrap;">
+            <div><div style="font-size:11px; color:#8FB0F5;">Renews on</div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px; margin-top:3px;">Jul 14, 2026</div></div>
+            <div><div style="font-size:11px; color:#8FB0F5;">Days left</div><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:16px; margin-top:3px; color:#FCD34D;">26 days</div></div>
+            <div><div style="font-size:11px; color:#8FB0F5;">Payment</div><div style="font-weight:600; font-size:14px; margin-top:3px;">•••• 4291</div></div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:rgba(255,255,255,.14); border:0; border-radius:9px; padding:10px 16px;" style-hover="background:rgba(255,255,255,.22);">Manage billing</button>
+          </div>
+        </div>
+
+        <!-- expiry progress -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:16px 20px; box-shadow:var(--sh-sm); margin-bottom:24px;">
+          <div style="display:flex; align-items:center; margin-bottom:9px;"><span style="font-size:12.5px; font-weight:600;">Billing period</span><span style="margin-left:auto; font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">Jun 14 → Jul 14, 2026</span></div>
+          <div style="height:8px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;"><div style="height:100%; width:13%; background:var(--c-primary); border-radius:6px;"></div></div>
+          <div style="display:flex; align-items:center; margin-top:9px; font-size:11.5px; color:var(--c-text-3);"><span>4 days used</span><span style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--c-warning); font-weight:600;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Auto-renews in 26 days</span></div>
+        </div>
+
+        <!-- PLAN CARDS -->
+        <div style="font-size:16px; font-weight:700; letter-spacing:-.01em; margin-bottom:14px;">Available plans</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-bottom:28px;">
+          <sc-for list="{{ plans }}" as="p" hint-placeholder-count="4">
+            <div style="position:relative; background:var(--c-surface); border:1.5px solid {{ p.bd }}; border-radius:16px; padding:22px 20px; box-shadow:{{ p.shadow }}; display:flex; flex-direction:column;">
+              <sc-if value="{{ p.popular }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; top:-11px; left:20px; font-size:10.5px; font-weight:700; color:#fff; background:var(--c-primary); padding:4px 11px; border-radius:20px;">MOST POPULAR</span></sc-if>
+              <div style="display:flex; align-items:center; gap:9px;"><span style="width:34px; height:34px; flex:none; border-radius:9px; background:var(--{{ p.soft }}); color:var(--{{ p.ref }}); display:flex; align-items:center; justify-content:center;">{{ p.icon }}</span><span style="font-size:16px; font-weight:700;">{{ p.name }}</span></div>
+              <div style="margin:14px 0 4px;"><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:30px; letter-spacing:-.02em;">{{ p.price }}</span><span style="font-size:12.5px; color:var(--c-text-3);"> د.إ / {{ cycleUnit }}</span></div>
+              <div style="font-size:12.5px; color:var(--c-text-3); margin-bottom:16px;">{{ p.desc }}</div>
+              <div style="display:flex; flex-direction:column; gap:9px; flex:1; margin-bottom:18px;">
+                <sc-for list="{{ p.feats }}" as="f" hint-placeholder-count="4">
+                  <div style="display:flex; align-items:flex-start; gap:9px; font-size:13px; color:var(--c-text-2);"><svg style="flex:none; margin-top:1px;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--{{ p.ref }})" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>{{ f }}</div>
+                </sc-for>
+              </div>
+              <button disabled="{{ p.btnDisabled }}" style="cursor:{{ p.btnCursor }}; width:100%; font:inherit; font-size:14px; font-weight:600; color:{{ p.btnFg }}; background:{{ p.btnBg }}; border:1px solid {{ p.btnBd }}; border-radius:10px; padding:11px;" style-hover="filter:brightness(.97);">{{ p.cta }}</button>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- COMPARISON -->
+        <div style="font-size:16px; font-weight:700; letter-spacing:-.01em; margin-bottom:14px;">Compare features</div>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:680px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:13px 20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Feature</th>
+                  <sc-for list="{{ compCols }}" as="c" hint-placeholder-count="4">
+                    <th style="padding:13px 14px; text-align:center; border-bottom:1px solid var(--c-border); background:{{ c.bg }};"><div style="font-size:13.5px; font-weight:700; color:{{ c.fg }};">{{ c.name }}</div><div style="font-size:10.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ c.price }}</div></th>
+                  </sc-for>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ compRows }}" as="r" hint-placeholder-count="8">
+                  <tr style="border-bottom:1px solid var(--c-border);" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:11px 20px; font-weight:500; color:var(--c-text-2);">{{ r.label }}</td>
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                      <td style="padding:11px 14px; text-align:center; background:{{ c.bg }};">{{ c.node }}</td>
+                    </sc-for>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="height:30px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { cycle:'monthly' };
+
+  renderVals(){
+    const h = React.createElement;
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const PI = (s)=> html('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',1],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const yearly = this.state.cycle==='yearly';
+    const cycleUnit = yearly ? 'yr' : 'mo';
+    const money = (mo)=> yearly ? (mo*12*0.8).toLocaleString('en-US') : String(mo);
+
+    // id, name, icon, ref, soft, monthly, desc, feats, popular, current
+    const P = [
+      {id:'starter', name:'Starter', ref:'c-cyan', soft:'c-cyan-soft', mo:99, desc:'For a single small shop.', popular:false, current:false,
+        icon:PI('<path d="M3 9 5 4h14l2 5M4 9h16v11H4z"/>'), feats:['1 branch','5 staff seats','500 orders / mo','Basic reports','Email support']},
+      {id:'pro', name:'Professional', ref:'c-primary', soft:'c-primary-soft', mo:299, desc:'For growing multi-branch ops.', popular:true, current:true,
+        icon:PI('<path d="M12 2 4 6v6c0 5 8 10 8 10s8-5 8-10V6Z"/>'), feats:['3 branches','25 staff seats','Unlimited orders','Advanced reports','Route management','Priority support']},
+      {id:'business', name:'Business', ref:'c-violet', soft:'c-violet-soft', mo:599, desc:'For established chains.', popular:false, current:false,
+        icon:PI('<path d="M3 21V8l6-4 6 4 6-4v17M9 21v-6h6v6"/>'), feats:['10 branches','100 staff seats','Unlimited orders','Custom reports & API','Driver & plant apps','Dedicated manager']},
+      {id:'enterprise', name:'Enterprise', ref:'c-text-2', soft:'c-surface-3', mo:0, desc:'Tailored for large networks.', popular:false, current:false,
+        icon:PI('<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 11h.01M15 11h.01"/>'), feats:['Unlimited branches','Unlimited seats','SLA & onboarding','SSO & audit logs','White-label apps','24/7 support']},
+    ];
+    const plans = P.map(p=>{
+      const price = p.id==='enterprise' ? 'Custom' : money(p.mo);
+      let cta='Upgrade', btnBg='var(--c-surface)', btnFg='var(--c-text)', btnBd='var(--c-border-strong)', dis=null, cur='pointer';
+      if(p.current){ cta='Current plan'; btnBg='var(--c-surface-2)'; btnFg='var(--c-text-3)'; btnBd='var(--c-border)'; dis='true'; cur='default'; }
+      else if(p.popular){ btnBg='var(--c-primary)'; btnFg='#fff'; btnBd='var(--c-primary)'; }
+      else if(p.id==='enterprise'){ cta='Contact sales'; }
+      else if(p.mo < 299){ cta='Downgrade'; }
+      return { name:p.name, icon:p.icon, ref:p.ref, soft:p.soft, price, desc:p.desc, feats:p.feats, popular:p.current?false:p.popular,
+        bd: p.current?'var(--c-primary)':(p.popular?'var(--c-primary)':'var(--c-border)'),
+        shadow: p.popular||p.current?'var(--sh-md)':'var(--sh-sm)',
+        cta, btnBg, btnFg, btnBd, btnDisabled:dis, btnCursor:cur };
+    });
+
+    // comparison
+    const COLS=[['Starter',99],['Professional',299],['Business',599],['Enterprise',-1]];
+    const compCols = COLS.map(([name,mo],i)=>({ name, price: mo<0?'Custom':(money(mo)+' د.إ'),
+      bg: name==='Professional'?'var(--c-primary-soft)':'transparent', fg: name==='Professional'?'var(--c-primary)':'var(--c-text)' }));
+    const yes = h('svg',{width:17,height:17,viewBox:'0 0 24 24',fill:'none',style:{display:'inline-block'}}, h('path',{d:'M20 6 9 17l-5-5',stroke:'var(--c-success)',strokeWidth:2.6,strokeLinecap:'round',strokeLinejoin:'round'}));
+    const no = h('span',{style:{color:'var(--c-text-3)',fontSize:'15px'}},'–');
+    const txt = (t)=> h('span',{style:{fontSize:'12.5px',fontWeight:600,fontFamily:"'IBM Plex Mono'"}}, t);
+    const ROWS=[
+      ['Branches', ['1','3','10','∞']],
+      ['Staff seats', ['5','25','100','∞']],
+      ['Monthly orders', ['500','∞','∞','∞']],
+      ['POS & order intake', [yes,yes,yes,yes]],
+      ['Route management', [no,yes,yes,yes]],
+      ['Driver & plant apps', [no,no,yes,yes]],
+      ['Advanced reports', [no,yes,yes,yes]],
+      ['API & integrations', [no,no,yes,yes]],
+      ['White-label apps', [no,no,no,yes]],
+      ['Support', [txt('Email'),txt('Priority'),txt('Manager'),txt('24/7')]],
+    ];
+    const compRows = ROWS.map(([label,vals])=>({ label, cells: vals.map((v,i)=>({
+      node: typeof v==='string' ? txt(v) : v,
+      bg: i===1 ? 'var(--c-primary-soft)' : 'transparent' })) }));
+
+    return {
+      navItems, plans, cycleUnit, compCols, compRows,
+      isMonthly:!yearly, isYearly:yearly,
+      setMonthly:()=>this.setState({cycle:'monthly'}), setYearly:()=>this.setState({cycle:'yearly'}),
+      moBg:!yearly?'var(--c-surface)':'transparent', moFg:!yearly?'var(--c-text)':'var(--c-text-3)',
+      yrBg:yearly?'var(--c-surface)':'transparent', yrFg:yearly?'var(--c-text)':'var(--c-text-3)',
+    };
+  }
+}
+</script>
+</body>
+</html>

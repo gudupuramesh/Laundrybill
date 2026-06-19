@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, query, where, limit, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext"; // Main Auth for Shop Admin
-import { LCard, LButton, LSpinner } from "@/components/laundry";
-import { Camera, Keyboard, ScanLine } from "lucide-react";
+import { LSpinner } from "@/components/laundry";
+import { Camera, Keyboard, ScanLine, AlertCircle, Search } from "lucide-react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { useTranslation } from "react-i18next";
 import { isAndroidScannerEnv } from "@/lib/android-scanner";
@@ -112,69 +112,66 @@ export function AdminScanPage() {
         }
     };
 
+    const seg = (on: boolean): CSSProperties => ({ flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, padding: "9px 12px", borderRadius: 8, border: 0, background: on ? "var(--c-surface)" : "transparent", color: on ? "var(--c-text)" : "var(--c-text-3)", boxShadow: on ? "var(--sh-sm)" : undefined });
+
     return (
-        <div className="space-y-6 max-w-md mx-auto p-4">
-            <div>
-                <h1 className="text-2xl font-bold">{t('scanner.title', 'Scan Order')}</h1>
-                <p className="text-muted-foreground">{t('scanner.subtitle', 'Admin Order Lookup')}</p>
-                {error && <p className="text-destructive text-sm mt-2">{error}</p>}
-            </div>
+        <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
+            {/* header */}
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 14, padding: "0 22px" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+                    <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}><ScanLine size={17} /></span>
+                    <div><div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("scanner.title", "Scan Order")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("scanner.subtitle", "Look up an order by QR or ID")}</div></div>
+                </div>
+            </header>
 
-            <div className="flex gap-2">
-                <LButton variant={scanMode === "camera" ? "primary" : "outline"} onClick={() => { setScanMode("camera"); setScannerActive(false); }} className="flex-1"><Camera className="mr-2 h-4 w-4" /> {t('scanner.camera', 'Camera')}</LButton>
-                <LButton variant={scanMode === "manual" ? "primary" : "outline"} onClick={() => setScanMode("manual")} className="flex-1"><Keyboard className="mr-2 h-4 w-4" /> {t('scanner.manual', 'Manual')}</LButton>
-            </div>
-
-            <LCard className="p-4 min-h-[300px] flex flex-col items-center justify-center">
-                {scanMode === "camera" ? (
-                    !scannerActive ? (
-                        <div className="flex flex-col items-center gap-4 w-full">
-                            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                                <ScanLine className="h-8 w-8 text-primary" />
-                            </div>
-                            <p className="text-muted-foreground text-center text-sm">{t('scanner.openScannerHint', 'Tap to open the camera and scan a QR code')}</p>
-                            <LButton variant="primary" size="lg" onClick={handleOpenScanner} className="gap-2">
-                                <Camera className="h-5 w-5" />
-                                {t('scanner.openScanner', 'Open scanner')}
-                            </LButton>
-                        </div>
-                    ) : isAndroidScannerEnv() ? (
-                        <div className="w-full aspect-square bg-muted rounded-lg flex flex-col items-center justify-center gap-3 p-6">
-                            <ScanLine className="h-12 w-12 text-primary" />
-                            <p className="text-center text-muted-foreground text-sm">{t('scanner.useDeviceCamera', 'Use your device camera to scan the QR code')}</p>
-                            <LButton variant="outline" size="sm" onClick={() => setScannerActive(false)}>{t('scanner.openScanner', 'Open scanner')}</LButton>
-                            {loading && <LSpinner />}
-                        </div>
-                    ) : (
-                        <div className="w-full aspect-square bg-black rounded-lg overflow-hidden relative">
-                            <Scanner
-                                onScan={r => {
-                                    if (r?.[0]?.rawValue && !loading) {
-                                        lookupOrder(r[0].rawValue);
-                                    }
-                                }}
-                                scanDelay={2000}
-                            />
-                            {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><LSpinner /></div>}
-                            <p className="absolute bottom-4 left-0 right-0 text-center text-white text-sm bg-black/50 py-1">
-                                {t('scanner.scanHint', 'Point at QR code')}
-                            </p>
-                        </div>
-                    )
-                ) : (
-                    <div className="w-full flex gap-2">
-                        <input
-                            className="flex-1 border rounded px-3 py-2"
-                            placeholder={t('scanner.enterIdPlaceholder', 'Order ID')}
-                            value={scanInput}
-                            onChange={e => setScanInput(e.target.value)}
-                        />
-                        <LButton onClick={() => lookupOrder(scanInput)}>
-                            {t('scanner.search', 'Go')}
-                        </LButton>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 22px 40px", minHeight: 0 }}>
+                <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* mode toggle */}
+                    <div role="group" aria-label="Scan mode" style={{ display: "flex", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: 3 }}>
+                        <button onClick={() => { setScanMode("camera"); setScannerActive(false); }} aria-pressed={scanMode === "camera"} style={seg(scanMode === "camera")}><Camera size={15} />{t("scanner.camera", "Camera")}</button>
+                        <button onClick={() => setScanMode("manual")} aria-pressed={scanMode === "manual"} style={seg(scanMode === "manual")}><Keyboard size={15} />{t("scanner.manual", "Manual")}</button>
                     </div>
-                )}
-            </LCard>
+
+                    {error && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, color: "var(--c-error)", background: "var(--c-error-soft)", border: "1px solid var(--c-error-soft)", borderRadius: 10, padding: "10px 13px" }}><AlertCircle size={15} />{error}</div>}
+
+                    {/* scan card */}
+                    <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)", padding: 18, minHeight: 320, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                        {scanMode === "camera" ? (
+                            !scannerActive ? (
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center" }}>
+                                    <span style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><ScanLine size={34} /></span>
+                                    <div style={{ fontSize: 13.5, color: "var(--c-text-3)", maxWidth: 280 }}>{t("scanner.openScannerHint", "Tap to open the camera and scan a garment or basket QR code.")}</div>
+                                    <button onClick={handleOpenScanner} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: "12px 22px", boxShadow: "var(--sh-sm)" }}><Camera size={18} />{t("scanner.openScanner", "Open scanner")}</button>
+                                </div>
+                            ) : isAndroidScannerEnv() ? (
+                                <div style={{ width: "100%", aspectRatio: "1/1", background: "var(--c-surface-2)", borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24, textAlign: "center" }}>
+                                    <ScanLine size={48} style={{ color: "var(--c-primary)" }} />
+                                    <div style={{ fontSize: 13, color: "var(--c-text-3)" }}>{t("scanner.useDeviceCamera", "Use your device camera to scan the QR code.")}</div>
+                                    <button onClick={() => setScannerActive(false)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "8px 16px" }}>{t("common.cancel", "Cancel")}</button>
+                                    {loading && <LSpinner />}
+                                </div>
+                            ) : (
+                                <div style={{ width: "100%", aspectRatio: "1/1", background: "#000", borderRadius: 12, overflow: "hidden", position: "relative" }}>
+                                    <Scanner onScan={(r) => { if (r?.[0]?.rawValue && !loading) lookupOrder(r[0].rawValue); }} scanDelay={2000} />
+                                    {loading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><LSpinner /></div>}
+                                    <div style={{ position: "absolute", left: 0, right: 0, bottom: 14, textAlign: "center", color: "#fff", fontSize: 13, background: "rgba(0,0,0,.5)", padding: "4px 0" }}>{t("scanner.scanHint", "Point at the QR code")}</div>
+                                </div>
+                            )
+                        ) : (
+                            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
+                                <div style={{ position: "relative" }}>
+                                    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
+                                    <input value={scanInput} onChange={(e) => setScanInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") lookupOrder(scanInput); }} placeholder={t("scanner.enterIdPlaceholder", "Order ID or number…")}
+                                        style={{ width: "100%", font: "inherit", fontSize: 14, fontFamily: "'IBM Plex Mono'", color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "12px 13px 12px 38px", outline: "none" }} />
+                                </div>
+                                <button onClick={() => lookupOrder(scanInput)} disabled={!scanInput.trim() || loading} style={{ width: "100%", cursor: (!scanInput.trim() || loading) ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 13, boxShadow: "var(--sh-sm)", opacity: (!scanInput.trim() || loading) ? 0.55 : 1 }}>{loading ? <LSpinner size="sm" /> : <Search size={17} />}{t("scanner.search", "Look up order")}</button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ fontSize: 11.5, color: "var(--c-text-3)", textAlign: "center" }}>{t("scanner.footerHint", "Scans a garment/basket tag or accepts a typed order ID, then opens the order.")}</div>
+                </div>
+            </div>
         </div>
     );
 }

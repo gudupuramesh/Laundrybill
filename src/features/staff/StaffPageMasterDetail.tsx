@@ -1,14 +1,11 @@
 /**
- * Staff Page (Master-Detail Layout)
- * 
- * Desktop: Side-by-side list + detail
- * Mobile: List + bottom sheet for staff detail
+ * Staff Page — full-page list (design system "Staff").
+ * Selecting a row shows the full-page detail panel (staff member or app login),
+ * matching the DS isList → isDetail flow. No master-detail side panel.
  */
 
 import { useState, useMemo } from "react";
-import { LMasterDetailLayout } from "@/components/layout/LMasterDetailLayout";
-import { LBottomSheet, LPageLoader } from "@/components/laundry";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { LPageLoader } from "@/components/laundry";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { useMinLoading } from "@/hooks/use-min-loading";
@@ -19,7 +16,6 @@ import { TeamMemberDetailPanel } from "./TeamMemberDetailPanel";
 
 export function StaffPageMasterDetail() {
     const { t } = useTranslation();
-    const isMobile = useIsMobile();
     const { loading } = useStaff();
     const { teamMembers } = useTeamMembers();
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -30,56 +26,23 @@ export function StaffPageMasterDetail() {
     );
 
     const showLoading = useMinLoading(loading, { minDuration: 700 });
-
-    const handleSelect = (id: string) => {
-        setSelectedId(id);
-    };
-
-    const handleClose = () => {
-        setSelectedId(null);
-    };
-
-    const detailPanel = selectedId && (
-        isTeamMember ? (
-            <TeamMemberDetailPanel teamMemberId={selectedId} onClose={handleClose} />
-        ) : (
-            <StaffDetailPanel staffId={selectedId} onClose={handleClose} />
-        )
-    );
+    const handleClose = () => setSelectedId(null);
 
     if (showLoading) {
-        return (
-            <div className="h-full">
-                <LPageLoader variant="machine" message={t('staff.loading')} />
-            </div>
-        );
+        return <div className="h-full"><LPageLoader variant="machine" message={t("staff.loading")} /></div>;
     }
 
     return (
-        <>
-            <LMasterDetailLayout
-                listPanel={
-                    <StaffList
-                        selectedId={selectedId}
-                        onSelect={handleSelect}
-                        onTabChange={() => setSelectedId(null)}
-                    />
-                }
-                detailPanel={detailPanel}
-                selectedId={selectedId}
-                adPosition="staff-sidebar"
-            />
-
-            {isMobile && (
-                <LBottomSheet
-                    open={!!selectedId}
-                    onClose={handleClose}
-                    title={isTeamMember ? t("staff.appLoginDetails", "App Login Details") : t("staff.details", "Staff Details")}
-                    snapPoints={[0.95]}
-                >
-                    {detailPanel}
-                </LBottomSheet>
+        <div style={{ height: "100%", minHeight: 0 }}>
+            {selectedId ? (
+                <div style={{ height: "100%", overflow: "auto", background: "var(--c-bg)" }}>
+                    {isTeamMember
+                        ? <TeamMemberDetailPanel teamMemberId={selectedId} onClose={handleClose} />
+                        : <StaffDetailPanel staffId={selectedId} onClose={handleClose} />}
+                </div>
+            ) : (
+                <StaffList onSelect={setSelectedId} onTabChange={handleClose} />
             )}
-        </>
+        </div>
     );
 }

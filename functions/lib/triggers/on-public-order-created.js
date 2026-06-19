@@ -28,6 +28,24 @@ exports.onPublicOrderCreated = (0, firestore_1.onDocumentCreated)("shops/{shopId
     const publicId = orderData.publicId || orderData.orderNumber;
     const customerName = orderData.customerName || "Customer";
     const orderNumber = orderData.orderNumber;
+    // ---------- Plant: a drop-off order enters the processing queue at creation ----------
+    // (Home-pickup orders enter the queue later, on pickup_completed — see on-order-updated.)
+    if (orderData.status === "pending" && orderData.deliveryType !== "pickup_home") {
+        try {
+            await (0, order_notifications_1.sendOrderNotification)({
+                shopId,
+                orderId,
+                publicId,
+                orderNumber,
+                customerName,
+                type: "plant_new_order",
+                recipient: "plant",
+            });
+        }
+        catch (err) {
+            console.error("Failed to send plant new-order FCM:", err);
+        }
+    }
     // ---------- Online order: customer email + shop + agent notifications ----------
     if (orderData.orderSource === "online") {
         const settings = await (0, platform_settings_1.getPlatformSettings)();
@@ -83,7 +101,7 @@ exports.onPublicOrderCreated = (0, firestore_1.onDocumentCreated)("shops/{shopId
                 console.error("Failed to send order confirmation email:", err);
             }
         }
-        // 2. FCM to shop and assigned agent
+        // 2. FCM to shop (owner) and assigned agent
         try {
             await (0, order_notifications_1.sendOrderNotification)({
                 shopId,
@@ -98,6 +116,20 @@ exports.onPublicOrderCreated = (0, firestore_1.onDocumentCreated)("shops/{shopId
         }
         catch (err) {
             console.error("Failed to send FCM for online order:", err);
+        }
+        // 3. Team-app staff + manager: a new online order needs confirmation/handling.
+        try {
+            await (0, order_notifications_1.sendOrderNotification)({
+                shopId, orderId, publicId, orderNumber, customerName,
+                type: "staff_new_online_order", recipient: "staff",
+            });
+            await (0, order_notifications_1.sendOrderNotification)({
+                shopId, orderId, publicId, orderNumber, customerName,
+                type: "manager_new_online_order", recipient: "manager",
+            });
+        }
+        catch (err) {
+            console.error("Failed to send staff/manager FCM for online order:", err);
         }
         return;
     }

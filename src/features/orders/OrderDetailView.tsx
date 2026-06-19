@@ -7,24 +7,10 @@
  * 2. OrderDetailPanel (Desktop right-pane split view)
  */
 
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
-import {
-    LCard,
-    LButton,
-    LAmount,
-    LCustomerInfo,
-    LOrderSummary,
-    LProgressStepper,
-    LTimelineItem,
-    LBadge,
-    LDivider,
-    LSpacer,
-    LSpinner,
-    LActionSheet,
-    LSelect,
-} from "@/components/laundry";
+import { LSpinner, LActionSheet, LSelect } from "@/components/laundry";
 import { useOrder, useOrderMutations } from "@/hooks/use-orders";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { StatusUpdateSheet } from "./StatusUpdateSheet";
@@ -46,14 +32,11 @@ import {
     Package,
     Truck,
     XCircle,
-    CreditCard,
     ChevronLeft,
-    Store,
-    Home,
     RefreshCw,
+    Shirt,
+    Check,
     Download,
-    User,
-    UserCog,
     Image as ImageIcon,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -63,12 +46,25 @@ import { isAndroidPrintEnv } from "@/lib/receipt-print";
 import { useReceiptPrint } from "@/context/ReceiptPrintContext";
 import { openWhatsAppTextOnly } from "@/lib/whatsappShare";
 import { useShop } from "@/hooks/use-shop";
+import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShopLimits } from "@/hooks/use-shop-limits";
-import type { OrderStatus } from "@/types/order";
-import { mapLegacyDeliveryType } from "@/types/order";
-import { PageWrapper } from "@/components/PageWrapper";
-import { cn } from "@/lib/utils";
+import type { OrderStatus, DeliveryType } from "@/types/order";
+import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
+
+const MONO = "'IBM Plex Mono'";
+const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
+const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 31 + c.charCodeAt(0)) >>> 0; return TINTS[h % TINTS.length]; };
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
+const secLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 14 };
+const hdrBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 12px" };
+
+const STATUS_TINT: Record<OrderStatus, string> = {
+    pending: "c-slate", processing: "c-info", ready: "c-primary", ready_for_pickup: "c-primary",
+    out_for_delivery: "c-cyan", picked_up: "c-success", delivered: "c-success",
+    pickup_scheduled: "c-warning", pickup_completed: "c-violet", cancelled: "c-error",
+};
+const TYPE_TINT: Record<DeliveryType, string> = { delivery_home: "c-success", pickup_store: "c-info", pickup_home: "c-violet" };
 
 const statusIcons: Record<OrderStatus, typeof Clock> = {
     pending: Clock,
@@ -89,13 +85,13 @@ interface OrderDetailViewProps {
     isEmbedded?: boolean; // True if used in split view (removes PageWrapper padding logic if needed)
 }
 
-export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDetailViewProps) {
+export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { markSeen } = useContext(SeenOnlineOrdersContext);
     const { order, loading } = useOrder(orderId);
     const { shop } = useShop();
-    const { currencySymbol } = useCurrency();
+    const { currencySymbol, formatAmount } = useCurrency();
     const { reassignAgent } = useOrderMutations();
     const { agents } = useAvailableAgents();
     const { hasFeature } = useShopLimits();
@@ -129,9 +125,9 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
             <div className="text-center py-12">
                 <p className="text-muted-foreground">{t('orders.notFound')}</p>
                 {onBack && (
-                    <LButton variant="ghost" onClick={onBack} className="mt-4">
+                    <button onClick={onBack} style={{ marginTop: 16, cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 8, padding: "8px 14px" }}>
                         {t('orders.backToOrders')}
-                    </LButton>
+                    </button>
                 )}
             </div>
         );
@@ -158,6 +154,8 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
                 phone: shop.phone,
                 address: location?.address ? `${location.address}, ${location.city || ''} ${location.pincode || ''}` : undefined,
                 gstNumber: shop.gstNumber,
+                currencySymbol,
+                currencyCode: shop.settings?.currency,
             });
         }
     };
@@ -170,6 +168,8 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
             name: shop.name || "LaundryBill",
             phone: shop.phone,
             address: location?.address ? `${location.address}, ${location.city || ""} ${location.pincode || ""}` : undefined,
+            currencySymbol,
+            currencyCode: shop.settings?.currency,
         };
         if (isAndroidPrintEnv()) {
             triggerReceiptPrint(order, shopInfo);
@@ -193,14 +193,6 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
             // Navigate to new order page with edit mode and order ID
             navigate(`/new-order?edit=${order.id}`);
         }
-    };
-
-    // Get status icon with animation class
-    const getStatusIconClass = () => {
-        if (order.status === "processing" || order.status === "picked_up") {
-            return "animate-spin";
-        }
-        return "";
     };
 
     // Calculate progress step index for the 4-step display (0–3 = current step, 4 = all done).
@@ -267,15 +259,6 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
         ];
     };
 
-    // Delivery type badge config
-    const deliveryTypeBadges = {
-        pickup_store: { icon: Store, label: t('orders.deliveryTypes.pickup'), className: "bg-blue-100 text-blue-700" },
-        delivery_home: { icon: Truck, label: t('orders.deliveryTypes.delivery'), className: "bg-green-100 text-green-700" },
-        pickup_home: { icon: Home, label: t('orders.deliveryTypes.collect'), className: "bg-purple-100 text-purple-700" },
-    };
-    const currentDeliveryType = mapLegacyDeliveryType(order.deliveryType);
-    const deliveryBadge = deliveryTypeBadges[currentDeliveryType];
-
     // Helper for status labels
     const getStatusLabel = (status: OrderStatus) => {
         switch (status) {
@@ -293,589 +276,204 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
         }
     };
 
-    // Helper to wrap content relative to embedding
-    const Container = isEmbedded ? 'div' : PageWrapper;
-    const containerProps = isEmbedded ? { className: 'h-full overflow-y-auto !p-0 bg-background' } : { className: '!p-0' };
+    const dtype = mapLegacyDeliveryType(order.deliveryType);
+    const stRef = STATUS_TINT[order.status] || 'c-slate';
+    const tyRef = TYPE_TINT[dtype];
+    const isHome = dtype === 'delivery_home' || dtype === 'pickup_home';
+    const steps = getProgressSteps();
+    const curStep = getProgressStep();
+    const placedAt = order.createdAt?.toDate?.();
+    const f = order.financials;
+    const hasPhotos = (order.damagePhotoUrls && order.damagePhotoUrls.length > 0) || !!order.pickupPhoto || !!order.deliveryPhoto || !!order.plantPhoto || !!order.items?.some((i) => i.damages?.length);
+    const stepTime = (id: string) => { const ev = order.timeline?.find((e) => e.status === id); return ev ? format(ev.timestamp.toDate(), 'h:mm a') : '—'; };
+    const photoThumb: CSSProperties = { display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--c-border)' };
 
     return (
-        <Container {...containerProps}>
-            <div className="relative">
-                {/* Premium Header with Clean Background */}
-                <div className={cn("relative overflow-hidden bg-card border-b border-border/60 px-4 pt-4 pb-16 md:pb-20", isEmbedded ? "rounded-t-none" : "")}>
-                    {/* Top Bar with Back and Actions */}
-                    <div className="flex items-center justify-between mb-4 relative z-10">
-                        {onBack ? (
-                            <button
-                                onClick={onBack}
-                                className="flex items-center gap-2 text-foreground/80 hover:text-primary transition-colors text-sm font-semibold"
-                            >
-                                <ChevronLeft className="h-5 w-5" />
-                                <span className="hidden sm:inline">{t('orders.backToOrders')}</span>
-                            </button>
-                        ) : (
-                            // Spacer if no back button to keep alignment
-                            <div />
-                        )}
+        <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--c-bg)' }}>
+                {/* header */}
+                <header style={{ position: 'sticky', top: 0, zIndex: 5, flex: 'none', minHeight: 58, background: 'var(--c-surface)', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 22px' }}>
+                    {onBack && <button onClick={onBack} aria-label="Back" style={{ cursor: 'pointer', width: 30, height: 30, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'transparent', border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>}
+                    <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--c-text-3)', minWidth: 0 }}>
+                        <button onClick={onBack} style={{ cursor: 'pointer', font: 'inherit', fontSize: 13, color: 'var(--c-text-2)', background: 'transparent', border: 0 }}>{t('orders.title', 'Orders')}</button><span>/</span>
+                        <span style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: MONO }}>#{order.publicId}</span>
+                    </nav>
+                    <div style={{ flex: 1 }} />
+                    <div className="lb-thin" style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto' }}>
+                        {hasFeature('qrScans') && <button onClick={() => setTagModalOpen(true)} style={hdrBtn}><Tag size={15} />{t('orders.printTags', 'Print Tag')}</button>}
+                        <button onClick={handleWhatsAppChat} style={{ ...hdrBtn, color: 'var(--c-success)', background: 'var(--c-success-soft)', borderColor: 'var(--c-success-soft)' }}><MessageCircle size={15} />{t('orders.whatsapp', 'Share')}</button>
+                        {canEdit && <button onClick={handleEdit} style={hdrBtn}><Edit size={15} />{t('common.edit', 'Edit')}</button>}
+                        <button onClick={handlePrintPreview} style={hdrBtn}><Printer size={15} />{t('orders.printReceipt', 'Print Bill')}</button>
+                        {canUpdateStatus && <button onClick={() => setStatusSheetOpen(true)} style={{ ...hdrBtn, color: '#fff', background: 'var(--c-primary)', border: 0, boxShadow: 'var(--sh-sm)' }}><RefreshCw size={15} />{t('orders.updateStatus', 'Update Status')}</button>}
+                        <button onClick={() => setActionSheetOpen(true)} aria-label="More actions" style={{ cursor: 'pointer', width: 34, height: 34, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'var(--c-surface)', border: '1px solid var(--c-border-strong)', borderRadius: 8 }}><MoreVertical size={16} /></button>
+                    </div>
+                </header>
 
-                        <LButton
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setActionSheetOpen(true)}
-                            className="text-foreground hover:bg-muted"
-                        >
-                            <MoreVertical className="h-5 w-5" />
-                        </LButton>
+                <div style={{ padding: '20px 22px 40px' }}>
+                    {/* title row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.01em', fontFamily: MONO }}>#{order.publicId}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})` }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: `var(--${stRef})` }} />{STATUS_LABELS[order.status]}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: `var(--${tyRef})`, background: `var(--${tyRef}-soft)`, padding: '5px 12px', borderRadius: 20 }}>{t(`orders.deliveryTypes.${dtype}`, dtype.replace('_', ' '))}</span>
+                        {order.orderSource === 'online' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--c-cyan)', background: 'var(--c-cyan-soft)', padding: '5px 10px', borderRadius: 20 }}><Globe size={13} />{t('orders.onlineOrders', 'Online')}</span>}
+                        {placedAt && <span style={{ fontSize: 13, color: 'var(--c-text-3)', marginLeft: 'auto' }}>{t('orders.placed', 'Placed')} {format(placedAt, 'MMM d, h:mm a')}</span>}
                     </div>
 
-                    {/* Order Info with Animated Icon */}
-                    <div className="flex items-center gap-4 relative z-10">
-                        {/* Animated Status Icon */}
-                        <div className="flex-shrink-0">
-                            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-primary/15 border border-primary/20 shadow-sm flex items-center justify-center">
-                                {(() => {
-                                    const Icon = statusIcons[order.status] || Clock;
-                                    return <Icon className={`h-6 w-6 md:h-7 md:w-7 text-primary ${getStatusIconClass()}`} />;
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Order Details */}
-                        <div className="text-foreground flex-1">
-                            <h1 className="text-xl md:text-2xl font-black tracking-tight">
-                                Order #{order.publicId}
-                            </h1>
-                            <p className="text-muted-foreground text-sm font-bold uppercase tracking-wider mt-0.5">
-                                {order.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                            </p>
-                        </div>
-
-                        {/* Order Source & Delivery Type Badges */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {order.orderSource === "online" && (
-                                <span className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-teal-50 text-teal-700 border border-teal-200/50 shadow-sm">
-                                    <Globe className="h-3.5 w-3.5" />
-                                    {t('orders.onlineOrders')}
-                                </span>
-                            )}
-                            {deliveryBadge && (
-                                <span className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border shadow-sm ${deliveryBadge.className.replace('bg-', 'bg-').replace('text-', 'text-').concat(' border-current/20')}`}>
-                                    <deliveryBadge.icon className="h-3.5 w-3.5" />
-                                    {deliveryBadge.label}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-
-            </div>
-
-            {/* Content with padding and Grid Layout */}
-            <div className="px-4 pt-4 pb-24 md:pb-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* LEFT COLUMN: Main Content */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* Progress Stepper Card */}
-                        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                            <LProgressStepper
-                                steps={getProgressSteps()}
-                                currentStep={getProgressStep()}
-                            />
-                        </div>
-
-                        {/* Order Items Summary */}
-                        <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
-                            <LOrderSummary
-                                items={order.items.map((item) => ({
-                                    id: item.id,
-                                    name: item.serviceName + (item.express ? " ⚡ Express" : ""),
-                                    categoryName: item.categoryName,
-                                    quantity: item.quantity,
-                                    price: item.unitPrice,
-                                    unit: item.unit,
-                                    express: item.express,
-                                    processingDays: item.turnaroundDays,
-                                }))}
-                                subtotal={order.financials.subtotal}
-                                discount={order.financials.discountAmount}
-                                delivery={order.financials.deliveryCharge}
-                                taxAmount={order.financials.taxAmount}
-                                taxRate={order.financials.taxRate}
-                                taxName={order.financials.taxName}
-                                total={order.financials.total}
-                            />
-                        </div>
-
-                        {/* Order Photos: damage/stain, pickup proof, delivery proof, plant proof */}
-                        {((order.damagePhotoUrls && order.damagePhotoUrls.length > 0) || order.pickupPhoto || order.deliveryPhoto || order.plantPhoto || order.items?.some((i) => i.damages?.length)) && (
-                            <LCard variant="outlined" padding="md">
-                                <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-                                    <ImageIcon className="h-4 w-4" />
-                                    {t('orders.photos', 'Order photos')}
-                                </h3>
-                                <div className="space-y-3">
-                                    {order.damagePhotoUrls && order.damagePhotoUrls.length > 0 && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-2">{t('orders.damageStainPhotos', 'Damage / stain photos')}</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {order.damagePhotoUrls.map((url, i) => (
-                                                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-border hover:opacity-90">
-                                                        <img src={url} alt={`Damage ${i + 1}`} className="h-24 w-24 object-cover" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {order.pickupPhoto && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-2">{t('orders.pickupProof', 'Pickup proof')}</p>
-                                            <a href={order.pickupPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
-                                                <img src={order.pickupPhoto} alt="Pickup proof" className="h-24 w-24 object-cover" />
-                                            </a>
-                                        </div>
-                                    )}
-                                    {order.deliveryPhoto && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-2">{t('orders.deliveryProof', 'Delivery proof')}</p>
-                                            <a href={order.deliveryPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
-                                                <img src={order.deliveryPhoto} alt="Delivery proof" className="h-24 w-24 object-cover" />
-                                            </a>
-                                        </div>
-                                    )}
-                                    {order.plantPhoto && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground mb-2">{t('orders.plantProof', 'Plant / processing proof')}</p>
-                                            <a href={order.plantPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
-                                                <img src={order.plantPhoto} alt="Plant proof" className="h-24 w-24 object-cover" />
-                                            </a>
-                                        </div>
-                                    )}
-                                    {order.items?.map((item, idx) =>
-                                        item.damages?.filter((d) => d.photoUrl).length ? (
-                                            <div key={idx}>
-                                                <p className="text-xs text-muted-foreground mb-2">{item.serviceName} – {t('orders.damageStainPhotos', 'Damage / stain photos')}</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {item.damages.filter((d) => d.photoUrl).map((d, i) => (
-                                                        <a key={i} href={d.photoUrl!} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-border hover:opacity-90">
-                                                            <img src={d.photoUrl!} alt={d.description || `Damage ${i + 1}`} className="h-24 w-24 object-cover" />
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : null
-                                    )}
-                                </div>
-                            </LCard>
-                        )}
-
-                        {/* Timeline */}
-                        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground mb-4">{t('orders.timeline')}</h3>
-                            <div className="space-y-0">
-                                {order.timeline?.map((event, index) => {
-                                    const Icon = statusIcons[event.status] || Clock;
+                    {/* stepper */}
+                    {order.status !== 'cancelled' && (
+                        <div style={{ ...card, padding: '22px 26px 18px', marginBottom: 16 }}>
+                            <div style={{ display: 'flex' }}>
+                                {steps.map((st, i) => {
+                                    const done = i < curStep, cur = i === curStep, active = done || cur;
                                     return (
-                                        <LTimelineItem
-                                            key={event.id || index}
-                                            icon={Icon}
-                                            title={getStatusLabel(event.status)}
-                                            description={event.notes}
-                                            timestamp={format(event.timestamp.toDate(), "MMM d, h:mm a")}
-                                            status={index === 0 ? "current" : "completed"}
-                                            isLast={index === (order.timeline?.length || 0) - 1}
-                                        />
+                                        <div key={st.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                                            {i > 0 && <div style={{ position: 'absolute', top: 14, left: 'calc(-50% + 16px)', right: 'calc(50% + 16px)', height: 2, background: i <= curStep ? 'var(--c-primary)' : 'var(--c-border-strong)' }} />}
+                                            <span style={{ position: 'relative', zIndex: 1, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, fontFamily: MONO, background: active ? 'var(--c-primary)' : 'var(--c-surface)', color: active ? '#fff' : 'var(--c-text-3)', border: `2px solid ${active ? 'var(--c-primary)' : 'var(--c-border-strong)'}` }}>{done ? <Check size={15} /> : i + 1}</span>
+                                            <span style={{ marginTop: 9, fontSize: 12.5, fontWeight: cur ? 600 : 500, color: cur ? 'var(--c-primary)' : done ? 'var(--c-text)' : 'var(--c-text-3)' }}>{st.label}</span>
+                                            <span style={{ marginTop: 2, fontSize: 10.5, color: 'var(--c-text-3)', fontFamily: MONO }}>{i <= curStep ? stepTime(st.id) : '—'}</span>
+                                        </div>
                                     );
                                 })}
-                                {/* Created By Staff */}
-                                {order.staffId && (
-                                    <div className="pt-4 mt-4 border-t border-border/60">
-                                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                                            <span>Created by:</span>
-                                            <span className="text-foreground">
-                                                {order.staffName || "Staff Member"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         </div>
-                    </div> {/* Closes LEFT COLUMN */}
+                    )}
 
-                    {/* RIGHT COLUMN: Sidebar */}
-                    <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
-                        
-                        {/* Expected Delivery / Scheduled Pickup */}
-                        {(order.expectedDelivery || order.scheduledPickupTime || order.deliverySlot) && (
-                            <div className="flex flex-col gap-3">
-                                {/* Pickup Info (for Home Pickup) */}
-                                {order.deliveryType === 'pickup_home' && (
-                                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 shadow-sm flex items-center gap-4">
-                                        <div className="p-3 bg-background rounded-xl shrink-0 border border-border/50 shadow-sm">
-                                            <Clock className="h-5 w-5 text-primary" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{t('orders.scheduledPickup', 'Scheduled Pickup')}</p>
-                                            <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                                {order.scheduledPickupDate && (
-                                                    <p className="font-bold text-foreground">
-                                                        {format(order.scheduledPickupDate.toDate(), "MMM d, yyyy")}
-                                                    </p>
-                                                )}
-                                                {order.scheduledPickupTime && (
-                                                    <LBadge variant="outline" className="text-[10px] py-0 font-bold border-primary/20 bg-primary/5 text-primary">
-                                                        {order.scheduledPickupTime}
-                                                    </LBadge>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Delivery Info */}
-                                {order.expectedDelivery && (
-                                    <div className={cn("rounded-2xl border border-border/60 p-4 shadow-sm flex items-center gap-4", order.deliveryType === 'pickup_home' ? "bg-card" : "bg-primary/5 border-primary/20")}>
-                                        <div className="p-3 bg-background rounded-xl shrink-0 border border-border/50 shadow-sm">
-                                            <Truck className="h-5 w-5 text-primary" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary/80">
-                                                {order.deliveryType === 'pickup_home' || order.deliveryType === 'pickup_store'
-                                                    ? t('orders.expectedReady', 'Expected Ready Date')
-                                                    : t('orders.expectedDelivery', 'Expected Delivery')}
-                                            </p>
-                                            <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                                <p className="text-base font-black tracking-tight text-foreground">
-                                                    {format(order.expectedDelivery.toDate(), "MMM d, yyyy")}
-                                                </p>
-                                                {/* Show delivery slot if Home Delivery */}
-                                                {order.deliveryType === 'delivery_home' && order.deliverySlot && (
-                                                    <LBadge variant="outline" className="text-[10px] py-0 font-bold border-primary/20 bg-background text-primary">
-                                                        {order.deliverySlot}
-                                                    </LBadge>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Customer Info */}
-                        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground mb-4">{t('customer.title')}</h3>
-                            <LCustomerInfo
-                                name={order.customerName}
-                                phone={order.customerPhone}
-                                subtitle={order.isGuest ? t('customer.guest') : undefined}
-                                size="md"
-                            />
-
-                            {(order.deliveryType === "delivery_home" || order.deliveryType === "pickup_home") && order.deliveryAddress && (
-                                <>
-                                    <LDivider className="my-4 border-dashed" />
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-muted rounded-xl shrink-0">
-                                            <MapPin className="h-4 w-4 text-primary" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold text-foreground leading-relaxed">{order.deliveryAddress}</p>
-                                            {order.deliveryArea && (
-                                                <div className="mt-2">
-                                                    <LBadge variant="outline" className="text-xs font-semibold px-2 py-0.5 bg-primary/5 text-primary border-primary/20">
-                                                        <MapPin className="h-3 w-3 mr-1 inline-block" /> {order.deliveryArea}
-                                                    </LBadge>
+                    <div className="lb-row" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                        {/* LEFT */}
+                        <div style={{ flex: 1.7, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* items */}
+                            <div style={{ ...card, overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600 }}>{t('orders.items', 'Items')}</div>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-primary)', background: 'var(--c-primary-soft)', padding: '2px 8px', borderRadius: 20 }}>{order.items.reduce((a, it) => a + it.quantity, 0)}</span>
+                                </div>
+                                {groupOrderItemsByCategory(order.items, (it) => it.categoryName || 'Other').map((group) => (
+                                    <div key={group.categoryName}>
+                                        <div style={{ padding: '8px 20px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--c-text-3)', background: 'var(--c-surface-2)', borderBottom: '1px solid var(--c-border)' }}>{group.categoryName}</div>
+                                        {group.items.map((it) => {
+                                            const ir = tintFor(it.categoryId || it.serviceName);
+                                            return (
+                                                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                                                    <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 9, background: `var(--${ir}-soft)`, color: `var(--${ir})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shirt size={20} strokeWidth={1.6} /></span>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>{it.serviceName}{it.express && <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 5px', borderRadius: 4 }}>⚡ EXP</span>}</div>
+                                                        <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}</div>
+                                                    </div>
+                                                    <span style={{ fontFamily: MONO, fontSize: 12.5, color: 'var(--c-text-2)', whiteSpace: 'nowrap' }}>{it.quantity} × {formatAmount(it.unitPrice)}</span>
+                                                    <span style={{ width: 72, textAlign: 'right', fontFamily: MONO, fontWeight: 600 }}>{formatAmount(it.total)}</span>
                                                 </div>
-                                            )}
-                                            {order.deliveryNotes && (
-                                                <p className="text-xs font-semibold text-muted-foreground mt-1.5 bg-muted/50 p-2 rounded-lg">{order.deliveryNotes}</p>
-                                            )}
-                                            {(order.deliveryLat != null && order.deliveryLng != null) && (
-                                                <a
-                                                    href={`https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 mt-2.5 text-xs font-bold text-primary hover:bg-primary/10 px-2 py-1 rounded-md transition-colors"
-                                                >
-                                                    <MapPin className="h-3 w-3" /> Get directions
-                                                </a>
-                                            )}
-                                        </div>
+                                            );
+                                        })}
                                     </div>
-                                </>
+                                ))}
+                                <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.subtotal', 'Subtotal')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.subtotal)}</span></div>
+                                    {f.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{t('checkout.discount', 'Discount')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.discountAmount)}</span></div>}
+                                    {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{f.taxName || 'VAT'} ({f.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(f.taxAmount || 0)}</span></div>}
+                                    {(f.deliveryCharge || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.deliveryCharge', 'Delivery')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.deliveryCharge)}</span></div>}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, fontSize: 15 }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(f.total)}</span></div>
+                                </div>
+                            </div>
+
+                            {/* photos */}
+                            {hasPhotos && (
+                                <div style={{ ...card, padding: '18px 20px' }}>
+                                    <div style={{ ...secLbl, display: 'flex', alignItems: 'center', gap: 7 }}><ImageIcon size={14} />{t('orders.photos', 'ORDER PHOTOS')}</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                                        {order.damagePhotoUrls?.map((url, i) => <a key={`d${i}`} href={url} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={url} alt={`Damage ${i + 1}`} style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>)}
+                                        {order.pickupPhoto && <a href={order.pickupPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.pickupPhoto} alt="Pickup proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
+                                        {order.deliveryPhoto && <a href={order.deliveryPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.deliveryPhoto} alt="Delivery proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
+                                        {order.plantPhoto && <a href={order.plantPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.plantPhoto} alt="Plant proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
+                                        {order.items?.flatMap((it, idx) => (it.damages || []).filter((d) => d.photoUrl).map((d, i) => <a key={`i${idx}-${i}`} href={d.photoUrl!} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={d.photoUrl!} alt={d.description || 'Damage'} style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>))}
+                                    </div>
+                                </div>
                             )}
-                        </div>
 
-                        {/* Assigned Agent (for pickup/delivery orders) */}
-                        {(order.deliveryType === "delivery_home" || order.deliveryType === "pickup_home") && (
-                            <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
-                                        {t('orders.assignedAgent')}
-                                    </h3>
-                                    {order.assignedAgentId && (
-                                        <LBadge variant="outline" className="text-[9px] uppercase font-bold tracking-wider py-0.5">
-                                            <UserCog className="h-3 w-3 mr-1" />
-                                            {t('orders.agent')}
-                                        </LBadge>
-                                    )}
-                                </div>
-
-                                {order.status !== "delivered" && order.status !== "cancelled" ? (
-                                    <div className="flex items-center gap-3">
-                                        <LSelect
-                                            value={order.assignedAgentId || ""}
-                                            onChange={async (value: string) => {
-                                                if (reassigning) return;
-                                                setReassigning(true);
-                                                try {
-                                                    const selectedAgent = agents.find(a => a.id === value);
-                                                    await reassignAgent(
-                                                        order.id,
-                                                        value || null,
-                                                        selectedAgent?.name || null
-                                                    );
-                                                } catch (error) {
-                                                    console.error("Failed to reassign agent:", error);
-                                                } finally {
-                                                    setReassigning(false);
-                                                }
-                                            }}
-                                            options={[
-                                                { value: "", label: t('orders.selectAgent', 'Select Agent') },
-                                                ...agents.map((agent) => ({
-                                                    value: agent.id,
-                                                    label: `${agent.name} ${agent.isOnline ? '🟢' : '⚪'}`,
-                                                }))
-                                            ]}
-                                            disabled={reassigning}
-                                            className="flex-1 rounded-xl"
-                                        />
-                                        {reassigning && <LSpinner size="sm" />}
-                                        {(() => {
-                                            const agent = agents.find(a => a.id === order.assignedAgentId);
-                                            return agent?.phone ? (
-                                                <LButton
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-10 w-10 p-0 rounded-xl bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20 shrink-0"
-                                                    onClick={() => window.open(`tel:${agent.phone}`)}
-                                                >
-                                                    <Phone className="h-4 w-4" />
-                                                </LButton>
-                                            ) : null;
-                                        })()}
-                                    </div>
-                                ) : (
-                                    order.assignedAgentId ? (
-                                        <div className="flex items-center justify-between bg-muted/30 p-3 rounded-xl border border-border/50">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                                    <User className="h-5 w-5 text-primary" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-foreground">{order.assignedAgentName}</p>
-                                                    {(() => {
-                                                        const agent = agents.find(a => a.id === order.assignedAgentId);
-                                                        return agent?.phone ? (
-                                                            <a href={`tel:${agent.phone}`} className="text-xs font-semibold text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
-                                                                <Phone className="h-3 w-3" />
-                                                                {agent.phone}
-                                                            </a>
-                                                        ) : null;
-                                                    })()}
-                                                </div>
+                            {/* timeline */}
+                            <div style={{ ...card, padding: '18px 20px' }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{t('orders.timeline', 'Activity timeline')}</div>
+                                {(order.timeline || []).map((event, index, arr) => {
+                                    const er = STATUS_TINT[event.status] || 'c-slate';
+                                    const last = index === arr.length - 1;
+                                    const Ic = statusIcons[event.status] || Clock;
+                                    return (
+                                        <div key={event.id || index} style={{ display: 'flex', gap: 13 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
+                                                <span style={{ width: 26, height: 26, borderRadius: '50%', background: `var(--${er}-soft)`, color: `var(--${er})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={13} /></span>
+                                                {!last && <span style={{ width: 2, flex: 1, background: 'var(--c-border)', minHeight: 12 }} />}
                                             </div>
-                                            {(() => {
-                                                const agent = agents.find(a => a.id === order.assignedAgentId);
-                                                return agent?.phone ? (
-                                                    <LButton
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-9 w-9 p-0 rounded-lg hover:bg-primary/10 hover:text-primary"
-                                                        onClick={() => window.open(`tel:${agent.phone}`)}
-                                                    >
-                                                        <Phone className="h-4 w-4" />
-                                                    </LButton>
-                                                ) : null;
-                                            })()}
+                                            <div style={{ flex: 1, paddingBottom: last ? 2 : 16 }}>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}><span style={{ fontSize: 13.5, fontWeight: 500 }}>{getStatusLabel(event.status)}</span><span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--c-text-3)', fontFamily: MONO }}>{format(event.timestamp.toDate(), 'MMM d, h:mm a')}</span></div>
+                                                {event.notes && <div style={{ fontSize: 12, color: 'var(--c-text-3)', marginTop: 2 }}>{event.notes}</div>}
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <p className="text-sm font-semibold text-muted-foreground italic bg-muted/50 p-3 rounded-xl text-center">
-                                            {t('orders.noAgentAssigned', 'No agent assigned')}
-                                        </p>
-                                    )
-                                )}
+                                    );
+                                })}
+                                {order.staffId && <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-border)', fontSize: 11, fontWeight: 600, color: 'var(--c-text-3)' }}>{t('orders.createdBy', 'Created by')} <span style={{ color: 'var(--c-text)' }}>{order.staffName || 'Staff'}</span></div>}
                             </div>
-                        )}
-
-                        {/* Payment Status */}
-                        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{t('checkout.payment')}</h3>
-                                <LBadge
-                                    variant={
-                                        order.paymentStatus === "paid" ? "success" :
-                                            order.paymentStatus === "partial" ? "warning" : "destructive"
-                                    }
-                                    className="font-bold tracking-wider"
-                                >
-                                    {order.paymentStatus === "paid" ? t('orders.paid') :
-                                        order.paymentStatus === "partial" ? t('orders.partial') : t('orders.unpaid')}
-                                </LBadge>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-sm font-semibold">
-                                    <span className="text-muted-foreground">{t('pos.total')}</span>
-                                    <LAmount value={order.financials.total} className="text-foreground" />
-                                </div>
-                                <div className="flex justify-between text-sm font-semibold">
-                                    <span className="text-muted-foreground">{t('orders.amountPaid')}</span>
-                                    <LAmount value={order.financials.amountPaid} className="text-foreground" />
-                                </div>
-                                {hasBalance && (
-                                    <div className="flex justify-between text-base font-black pt-2 border-t border-dashed border-border/80">
-                                        <span className="text-destructive">{t('orders.balanceDue')}</span>
-                                        <LAmount value={order.financials.balance} className="text-destructive" />
-                                    </div>
-                                )}
-                            </div>
-
-                            {hasBalance && (
-                                <>
-                                    <LSpacer size="md" />
-                                    <LButton
-                                        variant="primary"
-                                        fullWidth
-                                        leftIcon={<CreditCard className="h-4 w-4" />}
-                                        onClick={() => setPaymentSheetOpen(true)}
-                                        className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300"
-                                    >
-                                        {t('orders.collectPayment')}
-                                    </LButton>
-                                </>
-                            )}
                         </div>
 
-                        {/* Quick Actions Card (Embedded/Desktop) */}
-                        {isEmbedded && (
-                            <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-                                <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground mb-4">{t('orders.orderActions', 'Quick Actions')}</h3>
-                                <div className="flex flex-col gap-3">
-                                    {canUpdateStatus && (
-                                        <LButton
-                                            variant="primary"
-                                            fullWidth
-                                            className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300"
-                                            onClick={() => setStatusSheetOpen(true)}
-                                            leftIcon={<RefreshCw className="h-4 w-4" />}
-                                        >
-                                            {t('orders.updateStatus')}
-                                        </LButton>
-                                    )}
-                                    
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <LButton
-                                            variant="outline"
-                                            className="rounded-xl font-semibold bg-background"
-                                            onClick={handlePrintPreview}
-                                            leftIcon={<Printer className="h-4 w-4" />}
-                                        >
-                                            {t('orders.printReceipt')}
-                                        </LButton>
-                                        
-                                        <LButton
-                                            variant="outline"
-                                            className="rounded-xl font-semibold bg-background"
-                                            onClick={() => window.open(`tel:${order.customerPhone}`)}
-                                            leftIcon={<Phone className="h-4 w-4" />}
-                                        >
-                                            {t('orders.callCustomer', 'Call')}
-                                        </LButton>
-                                        
-                                        <LButton
-                                            variant="outline"
-                                            className="rounded-xl font-semibold bg-background"
-                                            onClick={handleWhatsAppChat}
-                                            leftIcon={<MessageCircle className="h-4 w-4 text-green-600" />}
-                                        >
-                                            WhatsApp
-                                        </LButton>
+                        {/* RIGHT */}
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* customer */}
+                            <div style={{ ...card, padding: '18px 20px' }}>
+                                <div style={secLbl}>{t('customer.title', 'CUSTOMER')}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <span style={{ width: 42, height: 42, flex: 'none', borderRadius: '50%', background: 'var(--c-primary-soft)', color: 'var(--c-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>{(order.customerName || '?').trim()[0]?.toUpperCase()}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{order.customerName || t('customer.guest', 'Guest')}</div><div style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: MONO }}>{order.customerPhone}</div></div>
+                                    {order.customerPhone && <button onClick={() => window.open(`tel:${order.customerPhone}`)} aria-label="Call" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Phone size={15} /></button>}
+                                </div>
+                            </div>
 
-                                        {hasFeature("qrScans") && (
-                                            <LButton
-                                                variant="outline"
-                                                className="rounded-xl font-semibold bg-background"
-                                                onClick={() => setTagModalOpen(true)}
-                                                leftIcon={<Tag className="h-4 w-4" />}
-                                            >
-                                                {t('orders.printTags', 'Tags')}
-                                            </LButton>
-                                        )}
-                                    </div>
-                                    
-                                    {(canEdit || canCancel) && (
-                                        <div className="flex gap-2 pt-3 border-t border-primary/10 mt-1">
-                                            {canEdit && (
-                                                <LButton
-                                                    variant="ghost"
-                                                    className="flex-1 rounded-xl text-muted-foreground hover:text-foreground bg-background/50 hover:bg-background"
-                                                    onClick={handleEdit}
-                                                    leftIcon={<Edit className="h-4 w-4" />}
-                                                >
-                                                    {t('orders.editOrder', 'Edit')}
-                                                </LButton>
-                                            )}
-                                            {canCancel && (
-                                                <LButton
-                                                    variant="ghost"
-                                                    className="flex-1 rounded-xl text-destructive hover:bg-destructive/10 bg-background/50"
-                                                    onClick={() => setCancelSheetOpen(true)}
-                                                    leftIcon={<Trash2 className="h-4 w-4" />}
-                                                >
-                                                    {t('orders.cancelOrder', 'Cancel')}
-                                                </LButton>
+                            {/* delivery & route */}
+                            {(isHome || order.expectedDelivery) && (
+                                <div style={{ ...card, padding: '18px 20px' }}>
+                                    <div style={secLbl}>{isHome ? t('orders.deliveryRoute', 'DELIVERY & ROUTE') : t('orders.fulfilment', 'FULFILMENT')}</div>
+                                    {isHome && order.deliveryAddress && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}><span style={{ color: 'var(--c-text-3)', flex: 'none', marginTop: 1 }}><MapPin size={16} /></span><span style={{ fontSize: 13, color: 'var(--c-text-2)' }}>{order.deliveryAddress}</span></div>}
+                                    {order.deliveryArea && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 12, paddingTop: 12, borderTop: isHome && order.deliveryAddress ? '1px solid var(--c-border)' : undefined }}><span style={{ color: 'var(--c-text-2)' }}>{t('checkout.serviceArea', 'Area')}</span><span style={{ fontWeight: 600 }}>{order.deliveryArea}</span></div>}
+                                    {order.expectedDelivery && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{dtype === 'delivery_home' ? t('orders.expectedDelivery', 'Expected') : t('orders.expectedReady', 'Ready by')}</span><span style={{ fontWeight: 600 }}>{format(order.expectedDelivery.toDate(), 'MMM d, yyyy')}</span></div>}
+                                    {isHome && (
+                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
+                                            <div style={{ fontSize: 13, color: 'var(--c-text-2)', marginBottom: 8 }}>{t('orders.assignedAgent', 'Driver')}</div>
+                                            {order.status !== 'delivered' && order.status !== 'cancelled' ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <LSelect value={order.assignedAgentId || ''} onChange={async (value: string) => { if (reassigning) return; setReassigning(true); try { const a = agents.find((x) => x.id === value); await reassignAgent(order.id, value || null, a?.name || null); } catch (e) { console.error(e); } finally { setReassigning(false); } }} options={[{ value: '', label: t('orders.selectAgent', 'Select Agent') }, ...agents.map((a) => ({ value: a.id, label: `${a.name} ${a.isOnline ? '🟢' : '⚪'}` }))]} disabled={reassigning} />
+                                                    </div>
+                                                    {reassigning && <LSpinner size="sm" />}
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--c-success)' }} />{order.assignedAgentName || t('orders.noAgentAssigned', 'No agent')}</div>
                                             )}
                                         </div>
                                     )}
                                 </div>
+                            )}
+
+                            {/* payment */}
+                            <div style={{ ...card, padding: '18px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 13 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: 'var(--c-text-3)' }}>{t('checkout.payment', 'PAYMENT')}</span>
+                                    {(() => { const pr = order.paymentStatus === 'paid' ? 'c-success' : order.paymentStatus === 'partial' ? 'c-warning' : 'c-error'; const pl = order.paymentStatus === 'paid' ? t('orders.paid', 'Paid') : order.paymentStatus === 'partial' ? t('orders.partial', 'Partial') : t('orders.unpaid', 'Unpaid'); return <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: `var(--${pr})`, background: `var(--${pr}-soft)`, padding: '3px 9px', borderRadius: 20 }}>{pl}</span>; })()}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{formatAmount(f.total)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.amountPaid', 'Paid')}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{formatAmount(f.amountPaid)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, color: hasBalance ? 'var(--c-error)' : 'var(--c-success)' }}>{t('orders.balanceDue', 'Balance')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, color: hasBalance ? 'var(--c-error)' : 'var(--c-success)' }}>{formatAmount(f.balance)}</span></div>
+                                </div>
+                                {hasBalance && <button onClick={() => setPaymentSheetOpen(true)} style={{ width: '100%', marginTop: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, font: 'inherit', fontSize: 13.5, fontWeight: 600, color: '#fff', background: 'var(--c-primary)', border: 0, borderRadius: 9, padding: 11 }}>{t('orders.collectPayment', 'Collect payment')}</button>}
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
 
-
-            </div>
-
-            {/* Mobile Fixed Action Button (Only if NOT embedded) */}
-            {!isEmbedded && canUpdateStatus && (
-                <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/90 to-transparent md:relative md:bottom-auto md:bg-none md:p-0 md:px-4 md:pb-4 z-20">
-                    <LButton
-                        variant="primary"
-                        size="lg"
-                        fullWidth
-                        className="rounded-2xl font-black shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300"
-                        onClick={() => setStatusSheetOpen(true)}
-                    >
-                        {t('orders.updateStatus')}
-                    </LButton>
-                </div>
-            )}
-
-            {/* Sheets */}
+            {/* Sheets (wiring unchanged) */}
             <StatusUpdateSheet
                 open={statusSheetOpen}
                 onClose={() => setStatusSheetOpen(false)}
                 order={order}
                 onSuccess={order?.orderSource === "online" && markSeen ? () => markSeen(order.id) : undefined}
             />
-
-            <PaymentCollectionSheet
-                open={paymentSheetOpen}
-                onClose={() => setPaymentSheetOpen(false)}
-                order={order}
-            />
-
+            <PaymentCollectionSheet open={paymentSheetOpen} onClose={() => setPaymentSheetOpen(false)} order={order} />
             <LActionSheet
                 open={actionSheetOpen}
                 onClose={() => setActionSheetOpen(false)}
@@ -890,19 +488,8 @@ export function OrderDetailView({ orderId, onBack, isEmbedded = false }: OrderDe
                     ...(canCancel ? [{ id: "cancel", label: t('orders.cancelOrder'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setCancelSheetOpen(true); } }] : []),
                 ]}
             />
-
-            <CancelOrderSheet
-                open={cancelSheetOpen}
-                onClose={() => setCancelSheetOpen(false)}
-                order={order}
-            />
-
-            {/* Tag Generator Modal */}
-            <TagGeneratorModal
-                open={tagModalOpen}
-                onClose={() => setTagModalOpen(false)}
-                order={order}
-            />
-        </Container>
+            <CancelOrderSheet open={cancelSheetOpen} onClose={() => setCancelSheetOpen(false)} order={order} />
+            <TagGeneratorModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} order={order} />
+        </div>
     );
 }

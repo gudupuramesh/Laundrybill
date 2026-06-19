@@ -49,12 +49,17 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)("shops/{shopId}/orde
             await (0, order_notifications_1.sendOrderNotification)(Object.assign(Object.assign({}, payload), { type: "order_out_for_delivery", recipient: after.assignedAgentId ? "both" : "shop", assignedAgentId: after.assignedAgentId || null }));
             return;
         }
-        // Status → cancelled: notify assigned agent (from before or after; use before so we notify who had it)
-        if (newStatus === "cancelled") {
+        // Status → pickup_completed: the home pickup just arrived → plant queue.
+        if (newStatus === "pickup_completed" && prevStatus !== "pickup_completed") {
+            await (0, order_notifications_1.sendOrderNotification)(Object.assign(Object.assign({}, payload), { type: "plant_new_order", recipient: "plant", assignedAgentId: null }));
+            return;
+        }
+        // Status → cancelled: notify the owner (shop) + the assigned agent who had
+        // it (use the prior agent), and the Team-app manager.
+        if (newStatus === "cancelled" && prevStatus !== "cancelled") {
             const agentToNotify = prevAgentId || newAgentId;
-            if (agentToNotify) {
-                await (0, order_notifications_1.sendOrderNotification)(Object.assign(Object.assign({}, payload), { type: "order_cancelled", recipient: "agent", assignedAgentId: agentToNotify }));
-            }
+            await (0, order_notifications_1.sendOrderNotification)(Object.assign(Object.assign({}, payload), { type: "order_cancelled", recipient: agentToNotify ? "both" : "shop", assignedAgentId: agentToNotify }));
+            await (0, order_notifications_1.sendOrderNotification)(Object.assign(Object.assign({}, payload), { type: "manager_order_cancelled", recipient: "manager", assignedAgentId: null }));
             return;
         }
         // assignedAgentId changed: notify new agent

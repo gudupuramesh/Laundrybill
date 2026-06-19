@@ -31,9 +31,18 @@ let handlerInstalled = false;
 
 /**
  * Registers an Expo push token and listens for notification taps.
- * Call once in the root App component, after the agent is authenticated.
+ * Call once per shell, after the team member is authenticated.
+ *
+ * `options.save` chooses WHERE the token is stored. Default = the agent store
+ * (`agentNotificationTokens`), so the agent shell stays unchanged. Plant/Staff/
+ * Manager shells pass `{ save: saveTeamMemberToken }` to store it on their
+ * `teamMembers` doc instead.
  */
-export function usePushNotifications(onNotificationTap?: (data: any) => void) {
+export function usePushNotifications(
+  onNotificationTap?: (data: any) => void,
+  options?: { save?: (token: string) => Promise<void> },
+) {
+  const save = options?.save ?? saveAgentToken;
   useEffect(() => {
     let subTap: { remove: () => void } | undefined;
     let cancelled = false;
@@ -90,7 +99,7 @@ export function usePushNotifications(onNotificationTap?: (data: any) => void) {
           projectId ? { projectId } : undefined,
         );
         const token = tokenData.data;
-        if (token && !cancelled) await saveAgentToken(token);
+        if (token && !cancelled) await save(token);
 
         subTap = Notifications.addNotificationResponseReceivedListener((response) => {
           const data = response.notification.request.content.data;
@@ -140,5 +149,35 @@ async function saveAgentToken(token: string) {
       );
   } catch (e) {
     console.error('Failed to save agent Expo push token:', e);
+  }
+}
+
+/**
+ * Save a Team-app member's (plant / staff / manager) Expo push token onto their
+ * own `teamMembers` doc. The backend `getTeamRolePushTargets` reads `pushToken`
+ * from there and targets by memberType/role. `getAgentId()` returns the resolved
+ * teamMember doc id for every role. Uses merge-set so the self-update Firestore
+ * rule (which requires inviteStatus unchanged) is satisfied.
+ */
+export async function saveTeamMemberToken(token: string) {
+  try {
+    const shopId = getShopId();
+    const memberId = getAgentId();
+    if (!shopId || !memberId) return;
+
+    await firestore()
+      .collection(`shops/${shopId}/teamMembers`)
+      .doc(memberId)
+      .set(
+        {
+          pushToken: token,
+          pushTokenType: 'expo',
+          pushTokenPlatform: Platform.OS,
+          pushTokenUpdatedAt: new Date(),
+        },
+        { merge: true },
+      );
+  } catch (e) {
+    console.error('Failed to save team member Expo push token:', e);
   }
 }

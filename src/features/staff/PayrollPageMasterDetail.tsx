@@ -1,14 +1,10 @@
 /**
- * Payroll Page (Master-Detail Layout)
- * 
- * Desktop: Staff list + selected staff's payroll breakdown
- * Mobile: List + bottom sheet for payroll detail
+ * Payroll Page — full-page list (design-system tokens).
+ * List (KPIs + month stepper + table) → full-page payroll detail on select.
  */
 
 import { useState } from "react";
-import { LMasterDetailLayout } from "@/components/layout/LMasterDetailLayout";
-import { LBottomSheet, LPageLoader } from "@/components/laundry";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { LPageLoader } from "@/components/laundry";
 import { useStaff } from "@/hooks/use-staff";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useTranslation } from "react-i18next";
@@ -17,67 +13,26 @@ import { PayrollDetailPanel } from "./PayrollDetailPanel";
 
 export function PayrollPageMasterDetail() {
     const { t } = useTranslation();
-    const isMobile = useIsMobile();
     const { loading: staffLoading } = useStaff();
     const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
 
-    // Use minimum loading duration to show animation properly
     const showLoading = useMinLoading(staffLoading, { minDuration: 700 });
+    const handleClose = () => setSelectedStaffId(null);
 
-    const handleStaffSelect = (id: string) => {
-        setSelectedStaffId(id);
-    };
-
-    const handleClose = () => {
-        setSelectedStaffId(null);
-    };
-
-    // Show page loader while initial staff data loads
     if (showLoading) {
-        return (
-            <div className="h-full">
-                <LPageLoader variant="cash" message={t('payroll.loading')} />
-            </div>
-        );
+        return <div className="h-full"><LPageLoader variant="cash" message={t("payroll.loading")} /></div>;
     }
 
     return (
-        <>
-            <LMasterDetailLayout
-                listPanel={
-                    <PayrollStaffList
-                        selectedId={selectedStaffId}
-                        onSelect={handleStaffSelect}
-                    />
-                }
-                detailPanel={
-                    selectedStaffId && (
-                        <PayrollDetailPanel
-                            staffId={selectedStaffId}
-                            onClose={handleClose}
-                        />
-                    )
-                }
-                selectedId={selectedStaffId}
-                adPosition="payroll-sidebar"
-            />
-            
-            {/* Mobile: Show detail in bottom sheet */}
-            {isMobile && (
-                <LBottomSheet
-                    open={!!selectedStaffId}
-                    onClose={handleClose}
-                    title="Payroll Details"
-                    snapPoints={[0.95]}
-                >
-                    {selectedStaffId && (
-                        <PayrollDetailPanel
-                            staffId={selectedStaffId}
-                            onClose={handleClose}
-                        />
-                    )}
-                </LBottomSheet>
+        <div style={{ height: "100%", minHeight: 0 }}>
+            {selectedStaffId ? (
+                <div style={{ height: "100%", overflow: "auto", background: "var(--c-bg)" }}>
+                    <PayrollDetailPanel staffId={selectedStaffId} month={currentMonth} onClose={handleClose} />
+                </div>
+            ) : (
+                <PayrollStaffList selectedId={selectedStaffId} onSelect={setSelectedStaffId} currentMonth={currentMonth} onMonthChange={setCurrentMonth} />
             )}
-        </>
+        </div>
     );
 }

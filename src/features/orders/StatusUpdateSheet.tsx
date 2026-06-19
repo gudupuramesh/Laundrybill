@@ -7,10 +7,6 @@
 import { useState } from "react";
 import {
     LResponsiveDialog,
-    LRadioGroup,
-    LTextArea,
-    LButton,
-    LSpacer,
     LConfirmDialog,
     useLToast,
 } from "@/components/laundry";
@@ -161,62 +157,51 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
             size="sm"
             snapPoints={[0.6]}
         >
-            <div className="space-y-6">
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 {/* Status Options */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                        {t('orders.newStatus')}
-                    </label>
-                    <LRadioGroup
-                        name="status"
-                        value={newStatus}
-                        onChange={(v) => setNewStatus(v as OrderStatus)}
-                        options={availableStatuses.map((status) => ({
-                            value: status,
-                            label: STATUS_LABELS[status],
-                            description: status === "cancelled" ? t('orders.cannotUndo') : undefined,
-                        }))}
-                    />
-
-                    {/* Notes */}
-                    <div className="pt-2">
-                        <LTextArea
-                            label={t('orders.notes')}
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder={t('orders.notesPlaceholder')}
-                            minRows={2}
-                        />
-                    </div>
-
-                    <LSpacer size="sm" />
-
-                    {/* Share status via WhatsApp */}
-                    <LButton
-                        variant="outline"
-                        size="lg"
-                        fullWidth
-                        className="rounded-xl border-green-600/30 text-green-700 hover:bg-green-50 hover:text-green-800 font-semibold transition-colors"
-                        leftIcon={<MessageCircle className="h-5 w-5 text-green-600" />}
-                        onClick={handleWhatsAppShare}
-                        disabled={!newStatus || loading}
-                    >
-                        {t("orders.shareStatusWhatsApp", "Share via WhatsApp")}
-                    </LButton>
-
-                    {/* Submit */}
-                    <LButton
-                        variant="primary"
-                        size="lg"
-                        fullWidth
-                        className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300"
-                        onClick={handleUpdateClick}
-                        loading={loading}
-                        disabled={!newStatus}
-                    >
-                        {t('orders.updateStatus')}
-                    </LButton>
+                <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{t('orders.newStatus', 'New Status')}</label>
+                    {availableStatuses.length === 0 ? (
+                        <div style={{ fontSize: 13, color: "var(--c-text-3)", background: "var(--c-surface-2)", borderRadius: 10, padding: 14, textAlign: "center" }}>{t('orders.noStatusChange', 'No further status changes available.')}</div>
+                    ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {availableStatuses.map((status) => {
+                                const on = newStatus === status;
+                                const danger = status === "cancelled";
+                                const accent = danger ? "var(--c-error)" : "var(--c-primary)";
+                                return (
+                                    <button key={status} type="button" onClick={() => setNewStatus(status)} aria-pressed={on}
+                                        style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", borderRadius: 11, border: `1.5px solid ${on ? accent : "var(--c-border)"}`, background: on ? (danger ? "var(--c-error-soft)" : "var(--c-primary-soft)") : "var(--c-surface)" }}>
+                                        <span style={{ width: 20, height: 20, flex: "none", borderRadius: "50%", border: `2px solid ${on ? accent : "var(--c-border-strong)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <span style={{ width: 10, height: 10, borderRadius: "50%", background: accent }} />}</span>
+                                        <span style={{ minWidth: 0 }}>
+                                            <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: on && danger ? "var(--c-error)" : "var(--c-text)" }}>{STATUS_LABELS[status]}</span>
+                                            {danger && <span style={{ display: "block", fontSize: 12, color: "var(--c-text-3)", marginTop: 1 }}>{t('orders.cannotUndo', 'This action cannot be undone')}</span>}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
+
+                {/* Notes */}
+                <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 7 }}>{t('orders.notes', 'Notes (optional)')}</label>
+                    <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={t('orders.notesPlaceholder', 'Add any notes about this status change…')}
+                        style={{ width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "11px 12px", resize: "vertical", outline: "none" }} />
+                </div>
+
+                {/* Share status via WhatsApp */}
+                <button type="button" onClick={handleWhatsAppShare} disabled={!newStatus || loading}
+                    style={{ width: "100%", cursor: !newStatus ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--c-success)", background: "var(--c-success-soft)", border: "1px solid var(--c-success-soft)", borderRadius: 11, padding: 13, opacity: !newStatus ? 0.55 : 1 }}>
+                    <MessageCircle size={18} />{t("orders.shareStatusWhatsApp", "Share via WhatsApp")}
+                </button>
+
+                {/* Submit */}
+                <button type="button" onClick={handleUpdateClick} disabled={!newStatus || loading}
+                    style={{ width: "100%", cursor: (!newStatus || loading) ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: (!newStatus || loading) ? 0.55 : 1 }}>
+                    {loading ? t('common.loading', 'Please wait…') : t('orders.updateStatus', 'Update Status')}
+                </button>
             </div>
             {/* Cancel confirmation dialog */}
             <LConfirmDialog

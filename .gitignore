@@ -44,3 +44,13 @@ dist-ssr
 
 # Local Claude Code tooling
 .claude/
+
+# Local EAS build artifacts (do not commit)
+build-*.aab
+build-*.ipa
+
+# Store / marketing assets (not source)
+driver/feature.html
+driver/feature-2x.png
+driver/play-feature-graphic.png
+driver/store-screenshots/

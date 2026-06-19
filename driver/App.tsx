@@ -26,7 +26,7 @@ import { colors, fonts } from './src/theme';
 import { DriverAuthProvider, useDriverAuth } from './src/lib/DriverAuthContext';
 import { CurrencyProvider } from './src/lib/currency';
 import { NavProvider, type TabKey, type Route } from './src/lib/nav';
-import { usePushNotifications } from './src/lib/usePushNotifications';
+import { usePushNotifications, saveTeamMemberToken } from './src/lib/usePushNotifications';
 
 import LoginScreen from './src/screens/LoginScreen';
 import TodayScreen from './src/screens/TodayScreen';
@@ -228,6 +228,14 @@ function PlantShell() {
     return () => sub.remove();
   }, [goBack]);
 
+  // Open an order from a push-notification tap → Inbound + the order detail.
+  const openPlantOrder = useCallback((data: any) => {
+    if (!data?.orderId) return;
+    setTabState('plantInbound');
+    setStack([{ name: 'plantOrderDetail', orderId: data.orderId }]);
+  }, []);
+  usePushNotifications(openPlantOrder, { save: saveTeamMemberToken });
+
   const top = stack[stack.length - 1];
 
   const renderTab = () => {
@@ -365,6 +373,14 @@ function StaffShell() {
     });
     return () => sub.remove();
   }, [creating, createSub, createStep, goBack, closeCreate]);
+
+  // Open an order from a push-notification tap → Orders + the order detail.
+  const openStaffOrder = useCallback((data: any) => {
+    if (!data?.orderId) return;
+    setTabState('staffOrders');
+    setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+  }, []);
+  usePushNotifications(openStaffOrder, { save: saveTeamMemberToken });
 
   const top = stack[stack.length - 1];
 
@@ -573,6 +589,14 @@ function ManagerShell() {
     });
     return () => sub.remove();
   }, [creating, createSub, createStep, goBack, closeCreate]);
+
+  // Open an order from a push-notification tap → Orders + the order detail.
+  const openManagerOrder = useCallback((data: any) => {
+    if (!data?.orderId) return;
+    setTabState('manOrders');
+    setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+  }, []);
+  usePushNotifications(openManagerOrder, { save: saveTeamMemberToken });
 
   const top = stack[stack.length - 1];
 

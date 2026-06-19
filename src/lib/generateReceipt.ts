@@ -22,6 +22,22 @@ interface ShopInfo {
     phone?: string;
     address?: string;
     gstNumber?: string;
+    /** Shop currency — symbol (e.g. ₹, د.إ, $) and/or ISO code (INR, AED, USD). */
+    currencySymbol?: string;
+    currencyCode?: string;
+}
+
+/**
+ * jsPDF's built-in Helvetica only renders Latin-1, so glyphs like ₹ or د.إ
+ * print as blanks/boxes. Use the symbol when it's ASCII-safe (e.g. $, £ is not),
+ * otherwise fall back to a readable ASCII label from the ISO code.
+ */
+function currencyLabel(symbol?: string, code?: string): string {
+    if (symbol && /^[\x20-\x7E]+$/.test(symbol.trim())) return symbol.trim();
+    const c = (code || "").toUpperCase();
+    if (c === "INR") return "Rs.";
+    if (c) return c; // AED, USD, GBP, SAR, …
+    return "Rs.";
 }
 
 // Constants for Layout
@@ -38,6 +54,9 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     const contentHeight = pageHeight - MARGIN - FOOTER_HEIGHT; // Max Y allowed for content
 
     let y = MARGIN + 5; // Start tighter at top
+
+    const cur = currencyLabel(shopInfo.currencySymbol, shopInfo.currencyCode);
+    const money = (n: number) => `${cur} ${(n || 0).toFixed(2)}`;
 
     // --- HELPERS ---
 
@@ -161,7 +180,7 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
 
         // Price
         const itemTotal = item.quantity * item.unitPrice;
-        const totalStr = `Rs. ${itemTotal.toFixed(2)}`;
+        const totalStr = money(itemTotal);
         doc.setFont(FONT_NORMAL, "bold");
         const totalWidth = doc.getTextWidth(totalStr);
         doc.text(totalStr, pageWidth - MARGIN - totalWidth, y);
@@ -173,7 +192,7 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
 
-        let detailText = `${item.quantity} x Rs.${item.unitPrice}`;
+        let detailText = `${item.quantity} x ${cur}${item.unitPrice}`;
         doc.text(detailText, MARGIN, y);
 
         // Express charge line
@@ -183,7 +202,7 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
             const expressCharge = Math.round(itemTotal * (expressMultiplier - 1));
             doc.setFontSize(8);
             doc.setTextColor(200, 100, 0);
-            doc.text(`Express Charge (${expressMultiplier}x): +Rs.${expressCharge}`, MARGIN, y);
+            doc.text(`Express Charge (${expressMultiplier}x): +${cur}${expressCharge}`, MARGIN, y);
         }
 
         y += 6; // Compact spacer
@@ -194,22 +213,22 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     // 6. TOTALS
     checkOverflow(60); // Ensure space for entire Totals
 
-    row("Subtotal", `Rs. ${order.financials.subtotal.toFixed(2)}`);
+    row("Subtotal", money(order.financials.subtotal));
 
     if (order.financials.expressCharge > 0) {
-        row("Express Charges", `Rs. ${order.financials.expressCharge.toFixed(2)}`);
+        row("Express Charges", money(order.financials.expressCharge));
     }
     if (order.financials.deliveryCharge > 0) {
-        row("Delivery Charge", `Rs. ${order.financials.deliveryCharge.toFixed(2)}`);
+        row("Delivery Charge", money(order.financials.deliveryCharge));
     }
 
     // Add Tax Row
     if ((order.financials.taxAmount || 0) > 0) {
-        row("Tax", `Rs. ${(order.financials.taxAmount || 0).toFixed(2)}`);
+        row("Tax", money(order.financials.taxAmount || 0));
     }
 
     if (order.financials.discountAmount > 0) {
-        row("Discount", `- Rs. ${order.financials.discountAmount.toFixed(2)}`, 10, "normal", [0, 128, 0]);
+        row("Discount", `- ${money(order.financials.discountAmount)}`, 10, "normal", [0, 128, 0]);
     }
 
     y += 2;
@@ -218,17 +237,17 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     doc.setFontSize(14);
     doc.setTextColor(0, 0, 0);
     const totalLabel = "TOTAL";
-    const totalVal = `Rs. ${order.financials.total.toFixed(2)}`;
+    const totalVal = money(order.financials.total);
     doc.text(totalLabel, MARGIN, y);
     doc.text(totalVal, pageWidth - MARGIN - doc.getTextWidth(totalVal), y);
     y += 8;
 
-    row("Amount Paid", `Rs. ${order.financials.amountPaid.toFixed(2)}`, 10);
+    row("Amount Paid", money(order.financials.amountPaid), 10);
 
     if (order.financials.balance > 0) {
-        row("Balance Due", `Rs. ${order.financials.balance.toFixed(2)}`, 11, "bold", [220, 38, 38]);
+        row("Balance Due", money(order.financials.balance), 11, "bold", [220, 38, 38]);
     } else {
-        row("Balance Due", `Rs. 0.00`, 11, "bold", [0, 128, 0]);
+        row("Balance Due", money(0), 11, "bold", [0, 128, 0]);
     }
 
     y += 4;

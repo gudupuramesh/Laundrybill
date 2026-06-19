@@ -1,7 +1,12 @@
-import { useState } from "react";
-import { Zap, Plus, Minus, Edit2 } from "lucide-react";
+/**
+ * POS catalog item card — 1000% to the design system (POS Order.dc.html):
+ * category-tinted hero + line icon + qty badge · name · mono price · inline
+ * express toggle · Add to List / stepper / Edit Weight. One line per item.
+ */
+
+import { useState, type CSSProperties } from "react";
+import { Shirt, Plus, Minus, Pencil } from "lucide-react";
 import { useCurrency } from "@/hooks/use-currency";
-import { cn } from "@/lib/utils";
 import type { InventoryItem } from "@/types/inventory";
 import type { CartItem } from "./useCart";
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
@@ -13,159 +18,92 @@ interface POSItemCardProps {
     onAdd: (item: InventoryItem, express: boolean) => void;
     onUpdateQuantity: (itemId: string, newQty: number) => void;
     onRemoveItem: (itemId: string) => void;
+    onToggleExpress: (itemId: string) => void;
 }
 
-export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemoveItem }: POSItemCardProps) {
+const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
+function tintFor(categoryId?: string): string {
+    let h = 0;
+    for (const ch of categoryId || "x") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return TINTS[h % TINTS.length];
+}
+
+export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemoveItem, onToggleExpress }: POSItemCardProps) {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
-    const [express, setExpress] = useState(false);
-    
-    const isWeight = isWeightUnit(item.pricingType);
-    const matchedCartItem = cartItems.find(
-        (i) => i.service.id === item.id && i.express === express
-    );
-    const cartQuantity = matchedCartItem ? matchedCartItem.quantity : 0;
-    const inCart = cartQuantity > 0;
+    const [pendingExpress, setPendingExpress] = useState(false);
 
-    const unitLabel = getTranslatedUnit(item.pricingType === "piece" ? "piece" : item.pricingType);
+    const isKg = isWeightUnit(item.pricingType);
+    const line = cartItems.find((i) => i.service.id === item.id);
+    const qty = line?.quantity ?? 0;
+    const inCart = qty > 0;
+    const express = inCart ? !!line?.express : pendingExpress;
+
     const name = getTranslatedItemName(item.name);
-    const price = express ? item.basePrice * (item.expressMultiplier || 1.5) : item.basePrice;
+    const unitLabel = getTranslatedUnit(item.pricingType === "piece" ? "piece" : item.pricingType);
+    const ref = tintFor(item.categoryId);
+    const soft = `${ref}-soft`;
 
-    // Total quantity in cart (across both express & normal) for showing general badge
-    const totalQtyInCart = cartItems
-        .filter((i) => i.service.id === item.id)
-        .reduce((sum, i) => sum + i.quantity, 0);
-
-    const handleIncrement = () => {
-        if (matchedCartItem) {
-            onUpdateQuantity(matchedCartItem.id, matchedCartItem.quantity + 1);
-        } else {
-            onAdd(item, express);
-        }
-    };
-
-    const handleDecrement = () => {
-        if (matchedCartItem) {
-            if (matchedCartItem.quantity <= 1) {
-                onRemoveItem(matchedCartItem.id);
-            } else {
-                onUpdateQuantity(matchedCartItem.id, matchedCartItem.quantity - 1);
-            }
-        }
-    };
+    const toggleExpress = () => { if (inCart && line) onToggleExpress(line.id); else setPendingExpress((v) => !v); };
+    const expFg = express ? "var(--c-warning)" : "var(--c-text-3)";
 
     return (
-        <div className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
-            {/* Image / fallback */}
-            <div className="relative h-20 w-full overflow-hidden bg-muted">
+        <div style={{ display: "flex", flexDirection: "column", background: "var(--c-surface)", border: `1.5px solid ${inCart ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 13, overflow: "hidden", boxShadow: "var(--sh-sm)", position: "relative" }}>
+            {/* hero */}
+            <div style={{ aspectRatio: "1.5 / 1", background: `var(--${soft})`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
                 {item.imageUrl ? (
-                    <img 
-                        src={item.imageUrl} 
-                        alt={name} 
-                        className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105" 
-                        loading="lazy" 
-                    />
+                    <img src={item.imageUrl} alt={name} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
-                    <div 
-                        className="flex h-full w-full items-center justify-center transition-colors duration-300 group-hover:bg-primary/10" 
-                        style={{ background: "hsl(var(--primary) / 0.06)" }}
-                    >
-                        <span className="text-3xl font-extrabold transition-transform duration-300 group-hover:scale-110" style={{ color: "hsl(var(--primary))" }}>
-                            {name.charAt(0).toUpperCase()}
-                        </span>
-                    </div>
+                    <Shirt size={40} strokeWidth={1.6} />
                 )}
-                {totalQtyInCart > 0 && (
-                    <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground shadow ring-2 ring-card animate-pulse-soft">
-                        {totalQtyInCart}
-                    </span>
+                {inCart && (
+                    <span style={{ position: "absolute", top: 8, right: 8, minWidth: 22, height: 22, padding: "0 6px", borderRadius: 11, background: "var(--c-primary)", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "'IBM Plex Mono'", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--sh-sm)" }}>{isKg ? qty.toFixed(1) : qty}</span>
                 )}
             </div>
 
-            {/* Body */}
-            <div className="flex flex-1 flex-col gap-2 p-3">
-                <p className="text-xs font-bold text-foreground truncate">{name}</p>
-                
-                <div className="flex items-baseline justify-between">
-                    <span className="text-base font-extrabold text-primary tabular-nums">{formatAmount(price)}</span>
-                    <span className="text-[10px] font-semibold text-muted-foreground">{t('pos.per', 'per')} {unitLabel}</span>
+            {/* body */}
+            <div style={{ padding: "10px 11px 11px", display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
+                <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 4 }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono'", fontWeight: 700, fontSize: 15, color: "var(--c-primary)" }}>{formatAmount(item.basePrice)}</span>
+                        <span style={{ fontSize: 10.5, color: "var(--c-text-3)" }}>{t("pos.per", "per")} {unitLabel}</span>
+                    </div>
                 </div>
 
-                {/* Express toggle — prominent chip */}
-                <button
-                    type="button"
-                    onClick={() => setExpress((v) => !v)}
-                    aria-pressed={express}
-                    className={cn(
-                        "flex items-center justify-between rounded-lg border px-2 py-1.5 transition-all duration-200 cursor-pointer",
-                        express 
-                            ? "border-warning/30 bg-warning/5 text-warning shadow-sm shadow-warning/5" 
-                            : "border-border bg-background hover:border-warning/30 hover:bg-warning/5/10"
-                    )}
-                >
-                    <span className={cn("flex items-center gap-1.5 text-[10px] font-bold transition-colors uppercase tracking-wider", express ? "text-warning" : "text-muted-foreground")}>
-                        <Zap className="h-3 w-3" fill={express ? "currentColor" : "none"} />
-                        {t('pos.express', 'Express')}
-                    </span>
-                    <span className={cn(
-                        "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
-                        express ? "bg-warning" : "bg-muted-foreground/20"
-                    )}>
-                        <span className={cn(
-                            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-200",
-                            express ? "left-[18px]" : "left-0.5"
-                        )} />
+                {/* express toggle row */}
+                <button type="button" onClick={toggleExpress} aria-pressed={express}
+                    style={{ cursor: "pointer", font: "inherit", display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", borderRadius: 8, border: 0, background: express ? "var(--c-warning-soft)" : "var(--c-surface-2)" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill={expFg}><path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z" /></svg>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em", color: expFg }}>{t("pos.express", "EXPRESS")}</span>
+                    <span style={{ marginLeft: "auto", position: "relative", width: 34, height: 19, borderRadius: 20, background: express ? "var(--c-warning)" : "var(--c-border-strong)", flex: "none" }}>
+                        <span style={{ position: "absolute", top: 2, left: 2, width: 15, height: 15, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.3)", transition: "transform .15s", transform: express ? "translateX(15px)" : "translateX(0)" }} />
                     </span>
                 </button>
 
-                {/* Bottom Actions: Stepper or Add button */}
-                <div className="mt-auto pt-2">
-                    {inCart && !isWeight ? (
-                        <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-1">
-                            <button
-                                type="button"
-                                onClick={handleDecrement}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-card text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-all duration-150 active:scale-95 cursor-pointer"
-                            >
-                                <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="text-sm font-extrabold text-primary tabular-nums px-2">
-                                {cartQuantity}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={handleIncrement}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-card text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-all duration-150 active:scale-95 cursor-pointer"
-                            >
-                                <Plus className="h-4 w-4" />
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={() => onAdd(item, express)}
-                            className={cn(
-                                "w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-bold transition-all duration-200 active:scale-98 cursor-pointer",
-                                inCart && isWeight
-                                    ? "bg-primary text-primary-foreground hover:bg-primary-dark"
-                                    : "bg-primary/8 text-primary hover:bg-primary hover:text-primary-foreground"
-                            )}
-                        >
-                            {inCart && isWeight ? (
-                                <>
-                                    <Edit2 className="h-3.5 w-3.5" />
-                                    {t('pos.editWeight', 'Edit Weight')}
-                                </>
-                            ) : (
-                                <>
-                                    <Plus className="h-3.5 w-3.5" />
-                                    {t('pos.addToList', 'Add to List')}
-                                </>
-                            )}
-                        </button>
-                    )}
-                </div>
+                {/* action: stepper (pc in cart) · edit weight (kg in cart) · add */}
+                {inCart && !isKg ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: 3 }}>
+                        <button type="button" onClick={() => (qty <= 1 ? onRemoveItem(line!.id) : onUpdateQuantity(line!.id, qty - 1))} aria-label="Decrease" style={stepBtn("var(--c-text-2)")}><Minus size={14} strokeWidth={2.6} /></button>
+                        <span style={{ fontFamily: "'IBM Plex Mono'", fontWeight: 700, fontSize: 14 }}>{qty}</span>
+                        <button type="button" onClick={() => onUpdateQuantity(line!.id, qty + 1)} aria-label="Increase" style={stepBtn("var(--c-primary)")}><Plus size={14} strokeWidth={2.6} /></button>
+                    </div>
+                ) : inCart && isKg ? (
+                    <button type="button" onClick={() => onAdd(item, express)}
+                        style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: 9 }}>
+                        <Pencil size={14} />{t("pos.editWeight", "Edit Weight")}
+                    </button>
+                ) : (
+                    <button type="button" onClick={() => onAdd(item, express)}
+                        style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-primary)", background: "transparent", border: 0, padding: 6 }}>
+                        <Plus size={14} strokeWidth={2.2} />{t("pos.addToList", "Add to List")}
+                    </button>
+                )}
             </div>
         </div>
     );
+}
+
+function stepBtn(color: string): CSSProperties {
+    return { cursor: "pointer", width: 30, height: 28, display: "flex", alignItems: "center", justifyContent: "center", font: "inherit", color, background: "transparent", border: 0, borderRadius: 7 };
 }

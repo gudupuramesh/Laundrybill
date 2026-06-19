@@ -100,9 +100,10 @@ service cloud.firestore {
       }
       
       // Orders subcollection
-      // Allow public read for tracking purposes (user must know trackingId or publicId)
+      // Orders carry customer PII (name, phone, address). NOT public — public
+      // tracking goes through the phone-verified `trackOrder` callable (Admin SDK).
       match /orders/{orderId} {
-        allow read: if true;  // Public access for tracking
+        allow read: if isShopMember(shopId) || isShopOwner(shopId) || isSuperAdmin();
         allow create: if isShopMember(shopId) || isShopOwner(shopId);
         allow update: if isShopMember(shopId) || isShopOwner(shopId);
         allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
@@ -185,9 +186,12 @@ service cloud.firestore {
       }
     }
     
-    // Collection group query for orders (needed for tracking)
+    // Collection-group orders: NO public read (would allow enumerating every
+    // shop's orders by sequential order number). Super Admin only; shop members
+    // read orders within their own shop via the nested /shops/.../orders rule,
+    // and customers track via the phone-verified `trackOrder` callable.
     match /{path=**}/orders/{orderId} {
-      allow read: if true;  // Allow public read for tracking
+      allow read: if isSuperAdmin();
     }
     
     // Collection group for teamMembers (needed for app auth by invite code)

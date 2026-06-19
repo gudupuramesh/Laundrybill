@@ -5,11 +5,11 @@
 
   :root {
     /* Primary - Brand Blue (#1B61E5 — design.md / owner app) */
-    --primary: 219 80% 50%;
+    --primary: 223 78% 47%;           /* #1A4FD6 — Enterprise CRM design system */
     --primary-foreground: 0 0% 100%;
-    --primary-dark: 220 77% 45%;
-    --primary-light: 219 82% 63%;
-    --primary-muted: 218 90% 95%;
+    --primary-dark: 224 78% 40%;      /* #1640B4 */
+    --primary-light: 221 84% 62%;     /* #4D7CF0 */
+    --primary-muted: 224 78% 95%;     /* #EAEFFC */
 
     /* Secondary - Amber */
     --secondary: 38 92% 50%;
@@ -18,17 +18,17 @@
     --secondary-muted: 38 80% 94%;
 
     /* Semantic Colors */
-    --success: 142 76% 36%;           /* #16A34A */
+    --success: 152 65% 34%;           /* #1E8E5A */
     --success-foreground: 0 0% 100%;
-    --success-muted: 141 50% 93%;     /* #E6F6EC */
+    --success-muted: 150 50% 93%;     /* #E3F4EC */
 
-    --warning: 38 92% 50%;            /* #F59E0B */
-    --warning-foreground: 0 0% 0%;
-    --warning-muted: 34 86% 95%;      /* #FEF1E6 */
+    --warning: 35 100% 30%;           /* #9A5B00 */
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 38 80% 91%;      /* #FBEFD7 */
 
-    --destructive: 4 75% 53%;         /* #E1382D */
+    --destructive: 3 61% 47%;         /* #C2362F */
     --destructive-foreground: 0 0% 100%;
-    --destructive-muted: 2 79% 96%;   /* #FDECEC */
+    --destructive-muted: 4 73% 94%;   /* #FBE6E5 */
 
     /* Gray Scale */
     --gray-50: 210 20% 98%;
@@ -43,24 +43,39 @@
     --gray-900: 221 39% 11%;
 
     /* Base — owner-app tokens (mobile/src/theme.ts) */
-    --background: 220 38% 97%;        /* #F4F6FA */
-    --foreground: 231 28% 14%;        /* #1A1D2E */
+    --background: 225 24% 96%;        /* #F4F5F8 */
+    --foreground: 218 24% 9%;         /* #11151C */
 
     --card: 0 0% 100%;
-    --card-foreground: 231 28% 14%;
+    --card-foreground: 218 24% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 231 28% 14%;
+    --popover-foreground: 218 24% 9%;
 
-    --muted: 216 33% 97%;             /* #F7F9FC surfaceMuted */
-    --muted-foreground: 218 12% 40%;  /* #5B6473 textSecondary */
+    --muted: 220 22% 95%;             /* #F1F3F6 surface-2 */
+    --muted-foreground: 214 14% 34%;  /* #4A5563 text-2 */
 
-    --accent: 218 90% 95%;
-    --accent-foreground: 219 80% 50%;
+    --accent: 224 78% 95%;            /* #EAEFFC primary-soft */
+    --accent-foreground: 223 78% 47%;
 
-    --border: 220 22% 92%;            /* #E6E9EF */
-    --input: 220 22% 92%;
-    --ring: 219 80% 50%;
+    --border: 220 21% 92%;            /* #E5E8EE */
+    --input: 220 21% 92%;
+    --ring: 221 83% 53%;              /* #2563EB */
+
+    /* === Enterprise CRM design-system raw tokens (used by the dashboard) === */
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-primary-tint:#9DB6EE;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E0F2F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
 
     /* Radius */
     --radius: 0.5rem;
@@ -85,15 +100,15 @@
     --safe-area-inset-right: env(safe-area-inset-right, 0px);
 
     /* Sidebar */
-    /* Sidebar — owner-app navy (#0F1E36 darkBlue) */
-    --sidebar-background: 217 56% 14%;        /* #0F1E36 */
-    --sidebar-foreground: 216 30% 80%;        /* light slate text */
-    --sidebar-primary: 219 80% 50%;           /* active item = brand blue */
+    /* Sidebar — design system: white surface, soft-blue active */
+    --sidebar-background: 0 0% 100%;          /* #FFFFFF */
+    --sidebar-foreground: 214 14% 34%;        /* #4A5563 text-2 */
+    --sidebar-primary: 223 78% 47%;           /* #1A4FD6 */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 45% 20%;            /* hover = lighter navy */
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 40% 22%;
-    --sidebar-ring: 219 80% 50%;
+    --sidebar-accent: 224 78% 95%;            /* #EAEFFC active/hover bg */
+    --sidebar-accent-foreground: 223 78% 47%; /* active text = primary */
+    --sidebar-border: 220 21% 92%;            /* #E5E8EE */
+    --sidebar-ring: 221 83% 53%;
   }
 
   .dark {
@@ -127,7 +142,7 @@
   }
 
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -149,9 +164,14 @@
   h4,
   h5,
   h6 {
-    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Mono for numbers / IDs / totals (design system) */
+  .font-mono, .tabular-nums {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
   }
 }
 
@@ -590,4 +610,14 @@
 
 *::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+/* Dashboard (design system) responsive rows */
+@media (max-width: 1080px) {
+  .lb-row { flex-direction: column !important; }
+  .lb-row > * { width: 100% !important; flex: none !important; }
+  .lb-kpi { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 560px) {
+  .lb-kpi { grid-template-columns: 1fr !important; }
 }

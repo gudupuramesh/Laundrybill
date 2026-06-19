@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --c-slate:#5A6675;   --c-slate-soft:#EEF1F5;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:1040px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ============================ LIST VIEW ============================ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+        <div style="display:flex; align-items:baseline; gap:9px;">
+          <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Orders</span>
+          <span style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">248 total</span>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="position:relative;">
+          <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <input value="{{ search }}" onInput="{{ onSearch }}" type="search" placeholder="Search order, customer, phone…" style="width:260px; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:8px 11px 8px 33px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+        </div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></svg>Filters</button>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New Order</button>
+      </header>
+
+      <!-- status pipeline tabs -->
+      <div class="lb-thin" style="flex:none; background:var(--c-surface); border-bottom:1px solid var(--c-border); padding:10px 22px; display:flex; gap:8px; overflow-x:auto;">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="8">
+          <button onClick="{{ t.onClick }}" style="cursor:pointer; white-space:nowrap; font:inherit; display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; padding:7px 13px; border-radius:9px; border:1px solid {{ t.bd }}; background:{{ t.bg }}; color:{{ t.fg }};" style-hover="border-color:var(--c-border-strong);">
+            <span style="width:7px; height:7px; border-radius:50%; background:var(--{{ t.dot }});"></span>{{ t.label }}
+            <span style="font-family:'IBM Plex Mono'; font-size:11.5px; color:{{ t.countFg }}; background:{{ t.countBg }}; padding:1px 7px; border-radius:10px;">{{ t.count }}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:18px 22px 40px;">
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:920px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="padding:10px 8px 10px 18px; width:34px; border-bottom:1px solid var(--c-border);"><input type="checkbox" aria-label="Select all" style="width:15px; height:15px; accent-color:var(--c-primary);" /></th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-2); border-bottom:1px solid var(--c-border);">Order ▾</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Customer</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Type</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Payment</th>
+                  <th style="text-align:right; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Total</th>
+                  <th style="text-align:right; padding:10px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+                  <tr onClick="{{ r.onOpen }}" tabIndex="0" onKeyDown="{{ r.onKey }}" role="button" style="border-bottom:1px solid var(--c-border); cursor:pointer;" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:11px 8px 11px 18px;" onClick="{{ r.stop }}"><input type="checkbox" aria-label="Select order" style="width:15px; height:15px; accent-color:var(--c-primary);" /></td>
+                    <td style="padding:11px 14px; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.id }}</td>
+                    <td style="padding:11px 14px;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="width:30px; height:30px; flex:none; border-radius:50%; background:var(--{{ r.avSoft }}); color:var(--{{ r.avRef }}); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600;">{{ r.initial }}</span>
+                        <div><div style="font-weight:500;">{{ r.customer }}</div><div style="font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ r.items }}</div></div>
+                      </div>
+                    </td>
+                    <td style="padding:11px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--{{ r.typeRef }});"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ r.typeRef }});"></span>{{ r.type }}</span></td>
+                    <td style="padding:11px 14px;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--{{ r.stSoft }}); color:var(--{{ r.stRef }});"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ r.stRef }});"></span>{{ r.status }}</span></td>
+                    <td style="padding:11px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--{{ r.payRef }});">{{ r.payment }}</span></td>
+                    <td style="padding:11px 14px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.total }}<span style="font-size:9.5px; color:var(--c-text-3); margin-left:2px;">د.إ</span></td>
+                    <td style="padding:11px 18px; text-align:right; color:var(--c-text-3); font-size:12px;">{{ r.updated }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:1px solid var(--c-border); font-size:12px; color:var(--c-text-3);">
+            <span>Showing {{ rowCount }} of 248</span>
+            <div style="margin-left:auto; display:flex; gap:4px;">
+              <button aria-label="Previous" style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">‹</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:6px;">1</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">2</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">3</button>
+              <button aria-label="Next" style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============================ DETAIL VIEW ============================ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:12px;">
+        <button onClick="{{ goList }}" aria-label="Back" style="cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <nav aria-label="Breadcrumb" style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--c-text-3);">
+          <button onClick="{{ goList }}" style="cursor:pointer; font:inherit; font-size:13px; color:var(--c-text-2); background:transparent; border:0;" style-hover="color:var(--c-primary);">Orders</button><span>/</span>
+          <span style="color:var(--c-text); font-weight:600; font-family:'IBM Plex Mono';" aria-current="page">{{ d.id }}</span>
+        </nav>
+        <div style="flex:1;"></div>
+        <div class="lb-thin" style="display:flex; align-items:center; gap:8px; overflow-x:auto;">
+          <button title="Print garment tag" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 12px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 8.4 13.6 1.4a2 2 0 0 0-1.4-.6H5a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l7 7a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8Z"/><circle cx="7.5" cy="7.5" r="1.3" fill="currentColor"/></svg>Print Tag</button>
+          <button title="Share on WhatsApp" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); border:1px solid var(--c-success-soft); border-radius:8px; padding:8px 12px;" style-hover="filter:brightness(.97);"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3Zm0 16.4c-1.4 0-2.8-.4-4-1.1l-.3-.2-2.7.7.7-2.6-.2-.3A7.4 7.4 0 1 1 12 19.4Zm4.3-5.5c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6 6 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.5c-.1-.2 0-.4.1-.5l.4-.4.2-.4v-.4l-.7-1.7c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.4 0-.6.3a2.6 2.6 0 0 0-.8 1.9c0 1.1.8 2.2 1 2.4.1.2 1.6 2.5 4 3.5 1.4.6 1.9.6 2.6.5.4 0 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1l-.6-.3Z"/></svg>Share</button>
+          <button title="Edit order" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 12px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</button>
+          <button title="Print bill / invoice" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 12px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="6"/><path d="M6 14H4v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Print Bill</button>
+          <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/></svg>Update Status</button>
+        </div>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <!-- title row -->
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap;">
+          <span style="font-size:24px; font-weight:700; letter-spacing:-.01em; font-family:'IBM Plex Mono';">{{ d.id }}</span>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; background:var(--{{ d.stSoft }}); color:var(--{{ d.stRef }});"><span style="width:6px; height:6px; border-radius:50%; background:var(--{{ d.stRef }});"></span>{{ d.status }}</span>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--{{ d.typeRef }}); background:var(--{{ d.typeSoft }}); padding:5px 12px; border-radius:20px;">{{ d.type }}</span>
+          <span style="font-size:13px; color:var(--c-text-3); margin-left:auto;">Placed {{ d.placed }}</span>
+        </div>
+
+        <!-- stepper -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:22px 26px 18px; box-shadow:var(--sh-sm); margin-bottom:16px;">
+          <div style="display:flex;">
+            <sc-for list="{{ d.steps }}" as="st" hint-placeholder-count="5">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; position:relative;">
+                <div style="position:absolute; top:14px; left:calc(-50% + 16px); right:calc(50% + 16px); height:2px; background:{{ st.lineColor }}; display:{{ st.lineDisplay }};"></div>
+                <span style="position:relative; z-index:1; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; font-family:'IBM Plex Mono'; background:{{ st.dotBg }}; color:{{ st.dotFg }}; border:2px solid {{ st.dotBorder }};">{{ st.inner }}</span>
+                <span style="margin-top:9px; font-size:12.5px; font-weight:{{ st.weight }}; color:{{ st.labelColor }};">{{ st.label }}</span>
+                <span style="margin-top:2px; font-size:10.5px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ st.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="lb-row" style="display:flex; gap:16px; align-items:flex-start;">
+          <!-- LEFT -->
+          <div style="flex:1.7; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- items -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-sm); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:10px; padding:15px 20px; border-bottom:1px solid var(--c-border);"><div style="font-size:14px; font-weight:600;">Items</div><span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">{{ d.itemCount }}</span></div>
+              <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:13px; padding:12px 20px; border-bottom:1px solid var(--c-border);">
+                  <span style="width:42px; height:42px; flex:none; border-radius:9px; background:var(--{{ it.soft }}); color:var(--{{ it.ref }}); display:flex; align-items:center; justify-content:center;">{{ it.icon }}</span>
+                  <div style="flex:1; min-width:0;"><div style="font-size:13.5px; font-weight:600;">{{ it.name }}</div><div style="font-size:11.5px; color:var(--c-text-3);">{{ it.service }}</div></div>
+                  <span style="font-family:'IBM Plex Mono'; font-size:12.5px; color:var(--c-text-2);">{{ it.qty }} × {{ it.price }}</span>
+                  <span style="width:64px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ it.total }}</span>
+                </div>
+              </sc-for>
+              <div style="padding:14px 20px; display:flex; flex-direction:column; gap:8px; font-size:13px;">
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Subtotal</span><span style="font-family:'IBM Plex Mono';">{{ d.subtotal }}</span></div>
+                <div style="display:flex; justify-content:space-between; color:var(--c-success);"><span>Discount</span><span style="font-family:'IBM Plex Mono';">−{{ d.discount }}</span></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">VAT (18%)</span><span style="font-family:'IBM Plex Mono';">{{ d.vat }}</span></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Delivery</span><span style="font-family:'IBM Plex Mono';">{{ d.delivery }}</span></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-top:10px; margin-top:2px; border-top:1px solid var(--c-border);"><span style="font-weight:700; font-size:15px;">Total</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:19px;">{{ d.total }}<span style="font-size:11px; color:var(--c-text-3); margin-left:3px;">د.إ</span></span></div>
+              </div>
+            </div>
+            <!-- timeline -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Activity timeline</div>
+              <sc-for list="{{ d.timeline }}" as="t" hint-placeholder-count="4">
+                <div style="display:flex; gap:13px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; flex:none;">
+                    <span style="width:26px; height:26px; border-radius:50%; background:var(--{{ t.soft }}); color:var(--{{ t.ref }}); display:flex; align-items:center; justify-content:center;">{{ t.icon }}</span>
+                    <span style="width:2px; flex:1; background:var(--c-border); display:{{ t.line }}; min-height:12px;"></span>
+                  </div>
+                  <div style="flex:1; padding-bottom:{{ t.pad }};"><div style="display:flex; align-items:baseline; gap:10px;"><span style="font-size:13.5px; font-weight:500;">{{ t.title }}</span><span style="margin-left:auto; font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ t.time }}</span></div><sc-if value="{{ t.sub }}" hint-placeholder-val=""><div style="font-size:12px; color:var(--c-text-3); margin-top:2px;">{{ t.sub }}</div></sc-if></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- RIGHT -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- customer -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">CUSTOMER</div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <span style="width:42px; height:42px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-weight:600;">{{ d.custInitial }}</span>
+                <div style="flex:1;"><div style="font-weight:600; font-size:14px;">{{ d.customer }}</div><div style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ d.phone }}</div></div>
+                <button aria-label="Call" style="cursor:pointer; width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--c-primary); background:var(--c-primary-soft); border:0; border-radius:8px;" style-hover="filter:brightness(.96);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></button>
+              </div>
+            </div>
+            <!-- delivery & route -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">DELIVERY &amp; ROUTE</div>
+              <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:13px;"><span style="color:var(--c-text-3); flex:none; margin-top:1px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><span style="font-size:13px; color:var(--c-text-2);">{{ d.address }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; padding-top:13px; border-top:1px solid var(--c-border);"><span style="color:var(--c-text-2);">Route</span><span style="font-weight:600;">{{ d.route }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:9px;"><span style="color:var(--c-text-2);">Driver</span><span style="display:inline-flex; align-items:center; gap:6px; font-weight:600;"><span style="width:7px; height:7px; border-radius:50%; background:var(--c-success);"></span>{{ d.driver }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:9px;"><span style="color:var(--c-text-2);">Expected</span><span style="font-weight:600;">{{ d.eta }}</span></div>
+            </div>
+            <!-- payment -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; margin-bottom:13px;"><span style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3);">PAYMENT</span><span style="margin-left:auto; font-size:10.5px; font-weight:600; color:var(--{{ d.payRef }}); background:var(--{{ d.paySoft }}); padding:3px 9px; border-radius:20px;">{{ d.payment }}</span></div>
+              <div style="display:flex; flex-direction:column; gap:10px; font-size:13.5px;">
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Total</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.total }}<span style="font-size:10px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:var(--c-text-2);">Paid</span><span style="font-family:'IBM Plex Mono'; font-weight:600;">{{ d.paid }}<span style="font-size:10px; color:var(--c-text-3); margin-left:2px;">د.إ</span></span></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--c-border);"><span style="font-weight:700; color:{{ d.dueColor }};">Balance</span><span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px; color:{{ d.dueColor }};">{{ d.due }}<span style="font-size:10px; margin-left:2px;">د.إ</span></span></div>
+              </div>
+              <sc-if value="{{ d.hasDue }}" hint-placeholder-val="{{ true }}">
+                <button style="width:100%; margin-top:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13.5px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:9px; padding:11px;" style-hover="background:var(--c-primary-hover);">Collect payment</button>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'list', tab:'All', selected:0, search:'' };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const G = (s)=> html('<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const TI = (s)=> html('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',1],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const ST = {
+      'Received':{ref:'c-slate', soft:'c-slate-soft'},
+      'Washing':{ref:'c-info', soft:'c-info-soft'},
+      'Ironing':{ref:'c-violet', soft:'c-violet-soft'},
+      'Ready':{ref:'c-primary', soft:'c-primary-soft'},
+      'Out for delivery':{ref:'c-cyan', soft:'c-cyan-soft'},
+      'Delivered':{ref:'c-success', soft:'c-success-soft'},
+      'On hold':{ref:'c-warning', soft:'c-warning-soft'},
+    };
+    const TYPE={ 'Home delivery':{ref:'c-success', soft:'c-success-soft'}, 'Shop pickup':{ref:'c-info', soft:'c-info-soft'}, 'Pickup from home':{ref:'c-violet', soft:'c-violet-soft'} };
+    const AV=['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const avSoft={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+
+    // id, customer, items, type, status, payment(Paid/Unpaid/Partial), totalN, updated
+    const O = [
+      ['#LB-04821','Lavanya','10 pcs','Home delivery','Washing','Unpaid',48,'6m ago'],
+      ['#LB-04820','Marcus Reed','4 pcs','Shop pickup','Ready','Paid',22.5,'14m ago'],
+      ['#LB-04819','Elena Cruz','18 pcs','Home delivery','Ironing','Partial',76,'31m ago'],
+      ['#LB-04818','David Okafor','6 pcs','Pickup from home','Received','Unpaid',31,'48m ago'],
+      ['#LB-04817','Hana Kim','2 pcs','Home delivery','Out for delivery','Paid',18,'1h ago'],
+      ['#LB-04816','Tom Becker','12 pcs','Shop pickup','On hold','Unpaid',54,'2h ago'],
+      ['#LB-04815','Sara Lin','8 pcs','Home delivery','Delivered','Paid',39,'3h ago'],
+      ['#LB-04814','Ade Mtm','3 pcs','Shop pickup','Washing','Paid',15,'3h ago'],
+      ['#LB-04813','Priya Nair','22 pcs','Home delivery','Received','Unpaid',88,'4h ago'],
+      ['#LB-04812','Karan Mehta','5 pcs','Pickup from home','Delivered','Paid',27,'5h ago'],
+      ['#LB-04811','Hana Kim','9 pcs','Home delivery','Ready','Partial',44,'6h ago'],
+      ['#LB-04810','Sana Iqbal','7 pcs','Shop pickup','Delivered','Paid',33,'Yesterday'],
+    ];
+    const money=(n)=>n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+    const PAY={ Paid:'c-success', Unpaid:'c-error', Partial:'c-warning' };
+
+    const tabDefs=[['All','c-text-3'],['Received','c-slate'],['Washing','c-info'],['Ironing','c-violet'],['Ready','c-primary'],['Out for delivery','c-cyan'],['Delivered','c-success'],['On hold','c-warning']];
+    const counts={All:248, Received:18, Washing:24, Ironing:12, Ready:37, 'Out for delivery':9, Delivered:41, 'On hold':3};
+    const tab=this.state.tab;
+    const tabs=tabDefs.map(([label,dot])=>{ const on=label===tab;
+      return { label, dot, count:counts[label], onClick:()=>this.setState({tab:label}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border)', fg:on?'var(--c-primary)':'var(--c-text-2)',
+        countBg:on?'var(--c-surface)':'var(--c-surface-2)', countFg:on?'var(--c-primary)':'var(--c-text-3)' }; });
+
+    const q=(this.state.search||'').toLowerCase();
+    const rows = O.map((o,i)=>({o,i})).filter(({o})=> (tab==='All'||o[4]===tab) && (!q||o[0].toLowerCase().includes(q)||o[1].toLowerCase().includes(q)) ).map(({o,i})=>{
+      const [id,customer,items,type,status,pay,total,updated]=o; const av=AV[i%AV.length];
+      return { id, customer, items, type, status, updated,
+        initial:customer.trim()[0], avRef:av, avSoft:avSoft[av],
+        typeRef:TYPE[type].ref, stRef:ST[status].ref, stSoft:ST[status].soft,
+        payment:pay, payRef:PAY[pay], total:money(total),
+        onOpen:()=>this.setState({view:'detail', selected:i}),
+        stop:(e)=>e.stopPropagation(),
+        onKey:(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); this.setState({view:'detail', selected:i}); } } };
+    });
+
+    // ===== detail =====
+    const o=O[this.state.selected]||O[0]; const [id,customer,items,type,status,pay,total]=o;
+    const gi={ shirt:'<path d="M8.5 3 5 5.5 6.5 9 8.5 8v12h7V8l2 1L19 5.5 15.5 3l-1.7 1.6a2.8 2.8 0 0 1-3.6 0Z"/>', trousers:'<path d="M7 3h10l1 18h-4l-2-11-2 11H6Z"/>', sheet:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 11h18M8 6v5"/>', suit:'<path d="M8 3 6 5v16h12V5l-2-2-4 5-4-5Z"/><path d="M12 8v9"/>' };
+    const detItems=[
+      {name:'T-Shirt / Polo', service:'Wash & Iron', qty:4, price:3.5, icon:G(gi.shirt), ref:'c-primary', soft:'c-primary-soft'},
+      {name:'Trousers', service:'Wash & Fold', qty:3, price:5, icon:G(gi.trousers), ref:'c-info', soft:'c-info-soft'},
+      {name:'Bedsheet', service:'Wash & Fold', qty:2, price:7, icon:G(gi.sheet), ref:'c-cyan', soft:'c-cyan-soft'},
+    ].map(it=>({ ...it, price:it.price.toFixed(2), total:(it.qty*it.price).toFixed(2) }));
+    const subtotalN=detItems.reduce((a,it)=>a+parseFloat(it.total),0);
+    const discountN=10, vatN=(subtotalN-discountN)*0.18, deliveryN= type==='Home delivery'?5:0;
+    const totalN=subtotalN-discountN+vatN+deliveryN;
+    const paidN= pay==='Paid'?totalN : (pay==='Partial'?totalN/2:0);
+    const dueN=totalN-paidN;
+
+    // stepper from status
+    const order=['Received','Washing','Ironing','Ready','Delivered'];
+    const stIndex= status==='Out for delivery'?3 : (status==='On hold'?1 : Math.max(0, order.indexOf(status)));
+    const times=['10:02 PM','10:11 PM','11:30 PM','—','—'];
+    const check='✓';
+    const steps=order.map((label,i)=>{ const done=i<stIndex, cur=i===stIndex;
+      return { label, inner: done?check:String(i+1),
+        dotBg: done||cur?'var(--c-primary)':'var(--c-surface)', dotFg: done||cur?'#fff':'var(--c-text-3)',
+        dotBorder: done||cur?'var(--c-primary)':'var(--c-border-strong)',
+        labelColor: cur?'var(--c-primary)':(done?'var(--c-text)':'var(--c-text-3)'), weight:cur?'600':'500',
+        time: i<=stIndex?times[i]:'—',
+        lineDisplay:i===0?'none':'block', lineColor:i<=stIndex?'var(--c-primary)':'var(--c-border-strong)' };
+    });
+
+    const timeline=[
+      {title:'Order placed', sub:'Created by Ramesh Gudupu', time:'10:02 PM', soft:'c-primary-soft', ref:'c-primary', icon:TI('<path d="M12 5v14M5 12h14"/>')},
+      {title:'Moved to Washing', sub:'', time:'10:11 PM', soft:'c-info-soft', ref:'c-info', icon:TI('<circle cx="12" cy="12" r="9"/>')},
+      {title:'Agent assigned · ramesh', sub:'', time:'10:51 PM', soft:'c-success-soft', ref:'c-success', icon:TI('<circle cx="12" cy="8" r="3"/><path d="M6 20a6 6 0 0 1 12 0"/>')},
+      {title:'SMS sent to customer', sub:'Status update notification', time:'10:52 PM', soft:'c-surface-3', ref:'c-text-3', icon:TI('<path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z"/>')},
+    ].map((t,k,arr)=>({ ...t, line:k===arr.length-1?'none':'block', pad:k===arr.length-1?'2px':'16px' }));
+
+    const d={
+      id, customer, type, status, placed:'Jun 17, 10:02 PM',
+      stRef:ST[status].ref, stSoft:ST[status].soft, typeRef:TYPE[type].ref, typeSoft:TYPE[type].soft,
+      custInitial:customer.trim()[0], phone:'998 999 856',
+      itemCount: detItems.reduce((a,it)=>a+it.qty,0)+' pcs', items:detItems,
+      subtotal:money(subtotalN), discount:money(discountN), vat:money(vatN), delivery:money(deliveryN), total:money(totalN),
+      paid:money(paidN), due:money(dueN), dueColor: dueN>0?'var(--c-error)':'var(--c-success)', hasDue: dueN>0,
+      payment:pay, payRef:PAY[pay], paySoft: pay==='Paid'?'c-success-soft':(pay==='Partial'?'c-warning-soft':'c-error-soft'),
+      steps, timeline,
+      address:'Flat 2306, Main Road, Hyderabad 502100', route:'Route #3', driver:'ramesh', eta:'Jun 20, 2026',
+    };
+
+    return {
+      navItems,
+      isList:this.state.view==='list', isDetail:this.state.view==='detail',
+      goList:()=>this.setState({view:'list'}),
+      search:this.state.search, onSearch:(e)=>this.setState({search:e.target.value}),
+      tabs, rows, rowCount:rows.length, d,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -20,14 +20,17 @@ interface PublicOrderSuccessSheetProps {
   open: boolean;
   onClose: () => void;
   publicId: string;
+  /** Customer phone (verifier) so the just-placed order can load. */
+  phone: string;
 }
 
 export function PublicOrderSuccessSheet({
   open,
   onClose,
   publicId,
+  phone,
 }: PublicOrderSuccessSheetProps) {
-  const { data, loading, error } = useOrderTracking(publicId);
+  const { data, loading, error } = useOrderTracking(publicId, phone);
   const { formatAmount } = useCurrencyByShopId(data?.shopId || null);
 
   const trackingUrl = `${window.location.origin}/track/${publicId}`;

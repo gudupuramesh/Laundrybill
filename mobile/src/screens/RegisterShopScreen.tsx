@@ -366,10 +366,6 @@ export default function RegisterShopScreen({
       alert(t('mobile.fillRequiredShop'));
       return;
     }
-    if (!formData.terms) {
-      alert(t('mobile.agreeTermsFirst'));
-      return;
-    }
 
     setLoading(true);
     try {
@@ -763,14 +759,6 @@ export default function RegisterShopScreen({
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-
-          {/* Section 4: Legal */}
-          <View style={styles.legalSection}>
-            <TouchableOpacity onPress={() => handleChange('terms', !formData.terms)} style={styles.checkboxTouch}>
-              <MaterialIcons name={formData.terms ? "check-box" : "check-box-outline-blank"} size={22} color={formData.terms ? colors.primary : colors.textMuted} />
-            </TouchableOpacity>
-            <Text style={styles.legalText}>{t('mobile.agreeTermsRegister')}</Text>
           </View>
 
         </ScrollView>

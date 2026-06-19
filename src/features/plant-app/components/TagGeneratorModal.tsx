@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { Order } from "@/types/order";
 import { useShop } from "@/hooks/use-shop";
-import { LResponsiveDialog, LButton } from "@/components/laundry";
+import { LResponsiveDialog } from "@/components/laundry";
 import { Printer, Tag, ShoppingBag, ArrowLeft, Download } from "lucide-react";
 import { format } from "date-fns";
 import QRCode from "qrcode";
@@ -667,88 +667,54 @@ export function TagGeneratorModal({ open, onClose, order }: TagGeneratorModalPro
         >
             {step === "select" ? (
                 /* Step 1: Select Tag Type */
-                <div className="space-y-6">
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => setTagType("basket")}
-                            className={`flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all duration-300 ${tagType === "basket"
-                                ? "border-primary bg-primary/10 text-primary shadow-md shadow-primary/20 scale-[1.02]"
-                                : "border-border/50 hover:bg-muted/50 hover:border-primary/50 text-muted-foreground"
-                                }`}
-                        >
-                            <ShoppingBag className="h-8 w-8" />
-                            <span className="font-bold text-lg">{t('plant.basketTag', 'Basket Tag')}</span>
-                            <span className="text-xs text-center opacity-80">
-                                Single tag for the whole bag
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setTagType("items")}
-                            className={`flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all duration-300 ${tagType === "items"
-                                ? "border-primary bg-primary/10 text-primary shadow-md shadow-primary/20 scale-[1.02]"
-                                : "border-border/50 hover:bg-muted/50 hover:border-primary/50 text-muted-foreground"
-                                }`}
-                        >
-                            <Tag className="h-8 w-8" />
-                            <span className="font-bold text-lg">{t('plant.itemTags', 'Item Tags')}</span>
-                            <span className="text-xs text-center opacity-80">
-                                {totalQuantity} tags (one per garment)
-                            </span>
-                        </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                    <div style={{ display: "flex", gap: 14 }}>
+                        {([
+                            { key: "basket" as TagType, Icon: ShoppingBag, title: t('plant.basketTag', 'Basket Tag'), sub: t('plant.basketTagDesc', 'Single tag for the whole bag') },
+                            { key: "items" as TagType, Icon: Tag, title: t('plant.itemTags', 'Item Tags'), sub: `${totalQuantity} ${t('plant.tagsPerGarment', 'tags (one per garment)')}` },
+                        ]).map(({ key, Icon, title, sub }) => {
+                            const on = tagType === key;
+                            return (
+                                <button key={key} type="button" onClick={() => setTagType(key)}
+                                    style={{ flex: 1, cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 12px", borderRadius: 14, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)" }}>
+                                    <Icon size={28} strokeWidth={1.7} style={{ color: on ? "var(--c-primary)" : "var(--c-text-3)" }} />
+                                    <span style={{ fontSize: 16, fontWeight: 700, color: on ? "var(--c-primary)" : "var(--c-text)" }}>{title}</span>
+                                    <span style={{ fontSize: 12, textAlign: "center", color: on ? "var(--c-primary)" : "var(--c-text-3)" }}>{sub}</span>
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    {/* Label format: Standard vs Roll (image size) */}
-                    <div className="space-y-3">
-                        <span className="text-sm font-bold text-foreground">{t('plant.labelFormat', 'Label format')}</span>
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setLabelFormat("standard")}
-                                className={`flex-1 flex flex-col items-start gap-1 p-4 rounded-xl border-2 transition-all duration-300 text-left ${labelFormat === "standard"
-                                    ? "border-primary bg-primary/5 text-primary shadow-sm"
-                                    : "border-border/50 hover:bg-muted/50"
-                                    }`}
-                            >
-                                <span className="font-bold text-sm">{t('plant.option1Standard', 'Option 1: Standard')}</span>
-                                <span className="text-xs opacity-80">80mm width, one tag per block</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setLabelFormat("roll")}
-                                className={`flex-1 flex flex-col items-start gap-1 p-4 rounded-xl border-2 transition-all duration-300 text-left ${labelFormat === "roll"
-                                    ? "border-primary bg-primary/5 text-primary shadow-sm"
-                                    : "border-border/50 hover:bg-muted/50"
-                                    }`}
-                            >
-                                <span className="font-bold text-sm">{t('plant.option2Roll', 'Option 2: Roll labels')}</span>
-                                <span className="text-xs opacity-80">50mm×100mm paper, 15mm×100mm tags, 3 per row</span>
-                            </button>
+                    {/* Label format: Standard vs Roll */}
+                    <div>
+                        <span style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{t('plant.labelFormat', 'Label format')}</span>
+                        <div style={{ display: "flex", gap: 12 }}>
+                            {([
+                                { key: "standard" as LabelFormat, title: t('plant.option1Standard', 'Option 1: Standard'), sub: "80mm width, one tag per block" },
+                                { key: "roll" as LabelFormat, title: t('plant.option2Roll', 'Option 2: Roll labels'), sub: "50mm×100mm paper, 15mm×100mm tags, 3 per row" },
+                            ]).map(({ key, title, sub }) => {
+                                const on = labelFormat === key;
+                                return (
+                                    <button key={key} type="button" onClick={() => setLabelFormat(key)}
+                                        style={{ flex: 1, cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", flexDirection: "column", gap: 3, padding: "13px 15px", borderRadius: 11, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)" }}>
+                                        <span style={{ fontSize: 13.5, fontWeight: 700, color: on ? "var(--c-primary)" : "var(--c-text)" }}>{title}</span>
+                                        <span style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{sub}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
                     {/* Order Info Summary */}
-                    <div className="bg-gradient-to-br from-muted/30 to-background border border-border/50 p-5 rounded-2xl shadow-sm">
-                        <div className="flex justify-between text-sm mb-3">
-                            <span className="text-muted-foreground font-medium">Order:</span>
-                            <span className="font-black">{order.orderNumber}</span>
-                        </div>
-                        <div className="flex justify-between text-sm mb-3">
-                            <span className="text-muted-foreground font-medium">Customer:</span>
-                            <span className="font-semibold">{order.customerName}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground font-medium">Items:</span>
-                            <span className="font-black text-primary">{totalQuantity}</span>
-                        </div>
+                    <div style={{ background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--c-text-3)" }}>{t('orders.order', 'Order')}:</span><span style={{ fontWeight: 700, fontFamily: "'IBM Plex Mono'" }}>{order.orderNumber}</span></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--c-text-3)" }}>{t('customer.title', 'Customer')}:</span><span style={{ fontWeight: 600 }}>{order.customerName}</span></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: "var(--c-text-3)" }}>{t('orders.items', 'Items')}:</span><span style={{ fontWeight: 700, fontFamily: "'IBM Plex Mono'", color: "var(--c-primary)" }}>{totalQuantity}</span></div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4">
-                        <LButton variant="outline" className="rounded-xl" onClick={onClose}>
-                            {t('common.cancel', 'Cancel')}
-                        </LButton>
-                        <LButton className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300" onClick={generatePreviews} disabled={generating}>
-                            {generating ? t('common.loading', 'Loading...') : t('plant.generatePreview', 'Generate Preview')}
-                        </LButton>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 4 }}>
+                        <button type="button" onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "10px 18px" }}>{t('common.cancel', 'Cancel')}</button>
+                        <button type="button" onClick={generatePreviews} disabled={generating} style={{ cursor: generating ? "wait" : "pointer", font: "inherit", fontSize: 13.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: "10px 18px", boxShadow: "var(--sh-sm)", opacity: generating ? 0.6 : 1 }}>{generating ? t('common.loading', 'Loading...') : t('plant.generatePreview', 'Generate Preview')}</button>
                     </div>
                 </div>
             ) : (
@@ -904,18 +870,10 @@ export function TagGeneratorModal({ open, onClose, order }: TagGeneratorModalPro
                     </p>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end gap-3 pt-4">
-                        <LButton variant="outline" className="rounded-xl" onClick={onClose}>
-                            {t('common.cancel', 'Cancel')}
-                        </LButton>
-                        <LButton variant="outline" onClick={handleDownload} disabled={downloading} className="rounded-xl gap-2 hover:bg-primary/5 hover:text-primary transition-colors">
-                            <Download className="h-4 w-4" />
-                            {downloading ? t('common.loading', 'Loading...') : t('plant.downloadPdf', 'Download PDF')}
-                        </LButton>
-                        <LButton onClick={handlePrint} className="rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 gap-2">
-                            <Printer className="h-4 w-4" />
-                            {t('plant.print', 'Print')}
-                        </LButton>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 4 }}>
+                        <button type="button" onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "10px 18px" }}>{t('common.cancel', 'Cancel')}</button>
+                        <button type="button" onClick={handleDownload} disabled={downloading} style={{ cursor: downloading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "10px 18px", opacity: downloading ? 0.6 : 1 }}><Download size={16} />{downloading ? t('common.loading', 'Loading...') : t('plant.downloadPdf', 'Download PDF')}</button>
+                        <button type="button" onClick={handlePrint} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: "10px 18px", boxShadow: "var(--sh-sm)" }}><Printer size={16} />{t('plant.print', 'Print')}</button>
                     </div>
                 </div>
             )}

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- top bar -->
+    <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+      <div style="display:flex; align-items:baseline; gap:10px;">
+        <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Attendance</span>
+        <span style="font-size:12px; color:var(--c-text-3);">Tue, Jun 18 2026</span>
+      </div>
+      <div style="flex:1;"></div>
+      <!-- view toggle -->
+      <div role="group" aria-label="View" style="display:flex; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:8px; padding:2px;">
+        <button onClick="{{ setDay }}" aria-pressed="{{ isDay }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 13px; border:0; border-radius:6px; background:{{ dayBg }}; color:{{ dayFg }};">Day</button>
+        <button onClick="{{ setMonth }}" aria-pressed="{{ isMonth }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 13px; border:0; border-radius:6px; background:{{ monthBg }}; color:{{ monthFg }};">Month</button>
+      </div>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Export</button>
+      <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>Mark attendance</button>
+    </header>
+
+    <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+
+      <!-- KPI row -->
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:18px;">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm);">
+            <div style="display:flex; align-items:center; gap:9px;">
+              <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span>
+              <span style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ k.label }}</span>
+            </div>
+            <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:24px; letter-spacing:-.02em; margin-top:11px; color:{{ k.color }};">{{ k.value }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- toolbar: branch filter -->
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+        <sc-for list="{{ branches }}" as="b" hint-placeholder-count="4">
+          <button onClick="{{ b.onClick }}" style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:20px; border:1px solid {{ b.bd }}; background:{{ b.bg }}; color:{{ b.fg }};" style-hover="border-color:var(--c-border-strong);">{{ b.label }}</button>
+        </sc-for>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <sc-for list="{{ legend }}" as="lg" hint-placeholder-count="5">
+            <span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--c-text-2);"><span style="width:9px; height:9px; border-radius:50%; background:var(--{{ lg.ref }});"></span>{{ lg.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- ============ DAY VIEW ============ -->
+      <sc-if value="{{ isDay }}" hint-placeholder-val="{{ true }}">
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:820px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:10px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Staff</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Shift</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Clock in</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Clock out</th>
+                  <th style="text-align:right; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Hours</th>
+                  <th style="text-align:left; padding:10px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                  <th style="text-align:right; padding:10px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ roster }}" as="r" hint-placeholder-count="10">
+                  <tr style="border-bottom:1px solid var(--c-border);" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:9px 18px;">
+                      <div style="display:flex; align-items:center; gap:11px;">
+                        <span style="width:34px; height:34px; flex:none; border-radius:50%; background:var(--{{ r.avSoft }}); color:var(--{{ r.avRef }}); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">{{ r.initials }}</span>
+                        <div><div style="font-weight:600;">{{ r.name }}</div><div style="font-size:11px; color:var(--c-text-3);">{{ r.role }} · {{ r.branch }}</div></div>
+                      </div>
+                    </td>
+                    <td style="padding:9px 14px; color:var(--c-text-2); font-family:'IBM Plex Mono'; font-size:12.5px;">{{ r.shift }}</td>
+                    <td style="padding:9px 14px;"><input value="{{ r.cinVal }}" onInput="{{ r.onIn }}" placeholder="––:––" inputMode="numeric" aria-label="Clock in time" style="width:64px; font-family:'IBM Plex Mono'; font-weight:600; font-size:13px; color:{{ r.inColor }}; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px; padding:6px 9px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" /></td>
+                    <td style="padding:9px 14px;"><input value="{{ r.coutVal }}" onInput="{{ r.onOut }}" placeholder="––:––" inputMode="numeric" aria-label="Clock out time" style="width:64px; font-family:'IBM Plex Mono'; font-weight:600; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px; padding:6px 9px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" /></td>
+                    <td style="padding:9px 14px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.hours }}</td>
+                    <td style="padding:9px 14px;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--{{ r.stSoft }}); color:var(--{{ r.stRef }});"><span style="width:6px; height:6px; border-radius:50%; background:var(--{{ r.stRef }});"></span>{{ r.statusLabel }}</span></td>
+                    <td style="padding:9px 18px; text-align:right;">
+                      <button onClick="{{ r.onAction }}" disabled="{{ r.actionDisabled }}" style="cursor:{{ r.actionCursor }}; font:inherit; font-size:12px; font-weight:600; color:{{ r.actionFg }}; background:{{ r.actionBg }}; border:1px solid {{ r.actionBd }}; border-radius:7px; padding:6px 12px;" style-hover="filter:brightness(.97);">{{ r.actionLabel }}</button>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ============ MONTH VIEW ============ -->
+      <sc-if value="{{ isMonth }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="border-collapse:collapse; font-size:12px; min-width:880px; width:100%;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="position:sticky; left:0; z-index:1; background:var(--c-surface-2); text-align:left; padding:10px 16px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border); min-width:180px;">Staff</th>
+                  <sc-for list="{{ monthDays }}" as="d" hint-placeholder-count="21">
+                    <th style="padding:8px 0; width:26px; text-align:center; font-family:'IBM Plex Mono'; font-size:10px; font-weight:600; color:{{ d.color }}; border-bottom:1px solid var(--c-border);">{{ d.n }}</th>
+                  </sc-for>
+                  <th style="text-align:right; padding:10px 16px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ monthRows }}" as="r" hint-placeholder-count="10">
+                  <tr style="border-bottom:1px solid var(--c-border);" style-hover="background:var(--c-surface-2);">
+                    <td style="position:sticky; left:0; z-index:1; background:var(--c-surface); padding:8px 16px;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="width:28px; height:28px; flex:none; border-radius:50%; background:var(--{{ r.avSoft }}); color:var(--{{ r.avRef }}); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600;">{{ r.initials }}</span>
+                        <div style="min-width:0;"><div style="font-weight:600; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ r.name }}</div><div style="font-size:10.5px; color:var(--c-text-3);">{{ r.role }}</div></div>
+                      </div>
+                    </td>
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="21">
+                      <td style="padding:3px 0; text-align:center;"><span title="{{ c.title }}" style="display:inline-block; width:15px; height:15px; border-radius:4px; background:var(--{{ c.bg }});"></span></td>
+                    </sc-for>
+                    <td style="padding:8px 16px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600; color:{{ r.pctColor }};">{{ r.pct }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'day', branch:'All', entries:{} };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',1],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',0],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    const ST = {
+      present:{label:'Present', ref:'c-success', soft:'c-success-soft'},
+      late:{label:'Late', ref:'c-warning', soft:'c-warning-soft'},
+      absent:{label:'Absent', ref:'c-error', soft:'c-error-soft'},
+      leave:{label:'On leave', ref:'c-violet', soft:'c-violet-soft'},
+      off:{label:'Off', ref:'c-text-3', soft:'c-surface-3'},
+    };
+    const AV=['c-primary','c-info','c-violet','c-cyan','c-success','c-warning'];
+    const avSoft={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft'};
+
+    // name, initials, role, branch, shift, status, clockIn, clockOut, hours
+    const STAFF = [
+      ['Ramesh Gudupu','RG','Manager','Downtown','9:00–18:00','present','8:54','—','—'],
+      ['Suresh Kumar','SK','Driver','Downtown','8:00–17:00','present','7:58','—','—'],
+      ['Imran Ali','IA','Driver','Uptown','8:00–17:00','leave','—','—','—'],
+      ['Priya Nair','PN','Front Desk','Downtown','9:00–18:00','present','9:02','—','—'],
+      ['Anil Reddy','AR','Washer','Plant','7:00–16:00','late','7:36','—','—'],
+      ['Fatima Sheikh','FS','Presser','Plant','7:00–16:00','present','6:58','—','—'],
+      ['Mohan Das','MD','Front Desk','Uptown','9:00–18:00','off','—','—','—'],
+      ['Lakshmi V','LV','Washer','Plant','7:00–16:00','present','7:01','—','—'],
+      ['Karan Mehta','KM','Driver','Downtown','8:00–17:00','absent','—','—','—'],
+      ['Sana Iqbal','SI','Presser','Plant','7:00–16:00','late','7:41','—','—'],
+    ];
+
+    const branchSel = this.state.branch;
+    const branchList = ['All','Downtown','Uptown','Plant'];
+    const branches = branchList.map(label=>{ const on=label===branchSel;
+      return { label, onClick:()=>this.setState({branch:label}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary-soft)':'var(--c-border)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+
+    const filtered = STAFF.filter(s=> branchSel==='All' || s[3]===branchSel);
+
+    // day roster with live clock-out
+    const entries=this.state.entries;
+    const toMin=(t)=>{ if(!/^\d{1,2}:\d{2}$/.test(t||'')) return null; const [h,m]=t.split(':').map(Number); return h*60+m; };
+    const nowHM=()=>{ const d=new Date(); return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'); };
+    const setField=(name,field,val)=>this.setState(p=>({ entries:{...p.entries,[name]:{...p.entries[name],[field]:val}} }));
+    const roster = filtered.map((s,i)=>{
+      const [name,initials,role,branch,shift,status0,cin0,cout0]=s;
+      const e=entries[name]||{};
+      const cin = e.in!==undefined ? e.in : (cin0==='—'?'':cin0);
+      const cout = e.out!==undefined ? e.out : (cout0==='—'?'':cout0);
+      let hours='—'; const a=toMin(cin), b=toMin(cout);
+      if(a!=null&&b!=null){ let m=b-a; if(m<0)m+=1440; hours=(m/60).toFixed(1)+'h'; }
+      const av=AV[i%AV.length], st=ST[status0];
+      const hasIn=!!cin, hasOut=!!cout, done=hasIn&&hasOut;
+      const stamp=()=>{ if(!hasIn) setField(name,'in',nowHM()); else if(!hasOut) setField(name,'out',nowHM()); };
+      return {
+        name, initials, role, branch, shift,
+        cinVal:cin, coutVal:cout, hours,
+        inColor: status0==='late' ? 'var(--c-warning)' : 'var(--c-text)',
+        statusLabel: st.label, stRef: st.ref, stSoft: st.soft,
+        avRef:av, avSoft:avSoft[av],
+        onIn:(ev)=>setField(name,'in',ev.target.value), onOut:(ev)=>setField(name,'out',ev.target.value),
+        actionLabel: !hasIn ? 'Clock in' : (!hasOut ? 'Clock out' : 'Done'),
+        actionFg: done ? 'var(--c-text-3)' : '#fff',
+        actionBg: done ? 'var(--c-surface)' : 'var(--c-primary)',
+        actionBd: done ? 'var(--c-border)' : 'var(--c-primary)',
+        actionCursor: done ? 'default' : 'pointer', actionDisabled: done ? 'true' : null,
+        onAction: stamp,
+      };
+    });
+
+    // KPIs (from full staff, today)
+    const cnt=(st)=>STAFF.filter(s=>s[5]===st).length;
+    const kpis = [
+      {label:'Present', value:String(cnt('present')+cnt('late')), icon:I('<path d="M20 6 9 17l-5-5"/>'), ref:'c-success', softRef:'c-success-soft', color:'var(--c-text)'},
+      {label:'Late', value:String(cnt('late')), icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), ref:'c-warning', softRef:'c-warning-soft', color:'var(--c-text)'},
+      {label:'Absent', value:String(cnt('absent')), icon:I('<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/>'), ref:'c-error', softRef:'c-error-soft', color:'var(--c-text)'},
+      {label:'On leave', value:String(cnt('leave')), icon:I('<path d="M3 7h18v13H3zM3 11h18M8 3v4M16 3v4"/>'), ref:'c-violet', softRef:'c-violet-soft', color:'var(--c-text)'},
+      {label:'Avg check-in', value:'8:01', icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/>'), ref:'c-info', softRef:'c-info-soft', color:'var(--c-text)'},
+    ];
+
+    const legend = [
+      {label:'Present', ref:'c-success'}, {label:'Late', ref:'c-warning'},
+      {label:'Absent', ref:'c-error'}, {label:'Leave', ref:'c-violet'}, {label:'Off', ref:'c-text-3'},
+    ];
+
+    // month grid: days 1..21
+    const NDAYS=21;
+    const monthDays = Array.from({length:NDAYS},(_,i)=>{ const n=i+1; const isSun=(n%7===0);
+      return { n:String(n), color: isSun?'var(--c-text-3)':'var(--c-text-2)' }; });
+    const stBg={present:'c-success', late:'c-warning', absent:'c-error', leave:'c-violet', off:'c-surface-3'};
+    const monthRows = filtered.map((s,si)=>{
+      const [name,initials,role,branch,shift,status0]=s; const av=AV[si%AV.length];
+      let present=0, working=0;
+      const cells = Array.from({length:NDAYS},(_,i)=>{ const day=i+1; const sun=(day%7===0);
+        let st;
+        if(sun) st='off';
+        else { const seed=(day*7+si*5)%100;
+          if(status0==='leave' && day>14) st='leave';
+          else if(seed<7) st='absent';
+          else if(seed<20) st='late';
+          else st='present';
+        }
+        if(st!=='off') working++;
+        if(st==='present'||st==='late') present++;
+        return { bg:stBg[st], title: 'Day '+day+' · '+ST[st].label };
+      });
+      const pct = working? Math.round(present/working*100):0;
+      return { name, initials, role, cells, avRef:av, avSoft:avSoft[av],
+        pct: pct+'%', pctColor: pct>=95?'var(--c-success)':(pct>=85?'var(--c-warning)':'var(--c-error)') };
+    });
+
+    return {
+      navItems,
+      isDay:this.state.view==='day', isMonth:this.state.view==='month',
+      setDay:()=>this.setState({view:'day'}), setMonth:()=>this.setState({view:'month'}),
+      dayBg:this.state.view==='day'?'var(--c-surface)':'transparent', dayFg:this.state.view==='day'?'var(--c-text)':'var(--c-text-3)',
+      monthBg:this.state.view==='month'?'var(--c-surface)':'transparent', monthFg:this.state.view==='month'?'var(--c-text)':'var(--c-text-3)',
+      branches, kpis, legend, roster, monthDays, monthRows,
+    };
+  }
+}
+</script>
+</body>
+</html>

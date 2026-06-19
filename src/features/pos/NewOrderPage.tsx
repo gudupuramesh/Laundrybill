@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LChipSelect, LSkeleton, LEmptyState } from "@/components/laundry";
+import { LSkeleton, LEmptyState } from "@/components/laundry";
 import { useCart } from "./useCart";
 import { useInventory } from "@/hooks/use-inventory";
 import { useOrder } from "@/hooks/use-orders";
@@ -17,8 +17,8 @@ import { useShop } from "@/hooks/use-shop";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { POSItemCard } from "./POSItemCard";
-import { CustomerDetailsCard } from "./CustomerDetailsCard";
-import { OrderSummaryPanel } from "./OrderSummaryPanel";
+import { POSCart } from "./POSCart";
+import { CustomerModal } from "./CustomerModal";
 import { ItemDetailSheet } from "./ItemDetailSheet";
 import { CheckoutSheet } from "./CheckoutSheet";
 import { OrderSuccessSheet } from "./OrderSuccessSheet";
@@ -52,12 +52,8 @@ export function NewOrderPage() {
 
     const [view, setView] = useState<"build" | "checkout">("build");
     const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+    const [custOpen, setCustOpen] = useState(false);
     const [itemDetailSheet, setItemDetailSheet] = useState<{ open: boolean; item?: InventoryItem; express?: boolean; cartItemId?: string }>({ open: false });
-
-    // Default category
-    useEffect(() => {
-        if (categories.length > 0 && !selectedCategory) setSelectedCategory(categories[0].id);
-    }, [categories, selectedCategory]);
 
     // Tax settings → cart
     useEffect(() => {
@@ -172,96 +168,52 @@ export function NewOrderPage() {
 
     return (
         <>
-            <div className="mx-auto max-w-[1500px] p-4 lg:p-6 space-y-6">
-                {isEditMode && (
-                    <div className="flex justify-end">
-                        <LButton 
-                            variant="outline" 
-                            onClick={() => navigate('/orders')} 
-                            className="rounded-xl border-border/80 text-foreground cursor-pointer"
-                        >
-                            {t('common.cancel', 'Cancel')}
-                        </LButton>
+            <div className="pos-body" style={{ height: "calc(100vh - 56px)", display: "flex", overflow: "hidden", background: "var(--c-bg)" }}>
+                {/* catalog */}
+                <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                    <div style={{ padding: "14px 18px 12px", display: "flex", flexDirection: "column", gap: 12, borderBottom: "1px solid var(--c-border)", background: "var(--c-surface)" }}>
+                        {isEditMode && (
+                            <button onClick={() => navigate('/orders')} style={{ alignSelf: "flex-start", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0 }}>← {t('common.cancel', 'Cancel edit')}</button>
+                        )}
+                        <div style={{ position: "relative" }}>
+                            <Search size={17} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
+                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('pos.searchCatalog', 'Search items or scan a tag…')}
+                                style={{ width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px 11px 38px", outline: "none" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+                            {[{ id: "", label: t('common.all', 'All') }, ...categoryOptions].map((c) => {
+                                const on = selectedCategory === c.id;
+                                return (
+                                    <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)}
+                                        style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.label}</button>
+                                );
+                            })}
+                        </div>
                     </div>
-                )}
-
-                <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
-                    {/* Left column */}
-                    <div className="space-y-6">
-                        <CustomerDetailsCard
-                            customerId={cart.customerId}
-                            customerName={cart.customerName}
-                            customerPhone={cart.customerPhone}
-                            onSelectCustomer={handleSelectCustomer}
-                            onClearCustomer={() => cart.setCustomer(undefined, undefined, undefined, false)}
-                        />
-
-                        {/* Garments & Services */}
-                        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-                            <div className="mb-4">
-                                <h2 className="text-base font-extrabold text-foreground">
-                                    {t('pos.selectGarmentsServices', 'Select Garments & Services')}
-                                </h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">{t('pos.selectGarmentsServicesDesc', 'Filter by category or search items')}</p>
+                    <div style={{ flex: 1, overflow: "auto", padding: "16px 18px 24px" }}>
+                        {loading ? (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 13 }}>
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <LSkeleton key={i} height={210} className="rounded-xl" />)}
                             </div>
-
-                            {categoryOptions.length > 0 && (
-                                <div className="mb-4">
-                                    <LChipSelect
-                                        options={categoryOptions}
-                                        value={selectedCategory}
-                                        onChange={(v) => setSelectedCategory(v as string)}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="relative mb-5">
-                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <input
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder={t('pos.searchCatalog', 'Search catalog items…')}
-                                    className="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                                />
+                        ) : filteredItems.length > 0 ? (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 13 }}>
+                                {filteredItems.map((item) => (
+                                    <POSItemCard key={item.id} item={item} cartItems={cart.items} onAdd={handleAddItem}
+                                        onUpdateQuantity={(itemId, newQty) => cart.updateItem(itemId, { quantity: newQty })}
+                                        onRemoveItem={cart.removeItem} onToggleExpress={cart.toggleItemExpress} />
+                                ))}
                             </div>
-
-                            {loading ? (
-                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                                    {[1, 2, 3, 4, 5, 6].map((i) => <LSkeleton key={i} height={180} className="rounded-xl" />)}
-                                </div>
-                            ) : filteredItems.length > 0 ? (
-                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                                    {filteredItems.map((item) => (
-                                        <POSItemCard
-                                            key={item.id}
-                                            item={item}
-                                            cartItems={cart.items}
-                                            onAdd={handleAddItem}
-                                            onUpdateQuantity={(itemId, newQty) => cart.updateItem(itemId, { quantity: newQty })}
-                                            onRemoveItem={cart.removeItem}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <LEmptyState
-                                    icon={<Package className="h-8 w-8" />}
-                                    title={t('pos.noServicesFound', 'No items found')}
-                                    description={t('pos.tryChangingFilter', 'Try another category or search.')}
-                                />
-                            )}
-                        </section>
+                        ) : (
+                            <LEmptyState icon={<Package className="h-8 w-8" />} title={t('pos.noServicesFound', 'No items found')} description={t('pos.tryChangingFilter', 'Try another category or search.')} />
+                        )}
                     </div>
+                </section>
 
-                    {/* Right column — Order Summary (sticky on desktop) */}
-                    <div className="lg:sticky lg:top-6 lg:self-start lg:h-[calc(100vh-88px)]">
-                        <OrderSummaryPanel
-                            cart={cart}
-                            onCheckout={handleCheckout}
-                            onItemClick={(item) => setItemDetailSheet({ open: true, item: item.service, express: item.express, cartItemId: item.id })}
-                        />
-                    </div>
-                </div>
+                {/* cart */}
+                <POSCart cart={cart} onCheckout={handleCheckout} onOpenCustomer={() => setCustOpen(true)} />
             </div>
+
+            <CustomerModal open={custOpen} onClose={() => setCustOpen(false)} onSelect={(c) => { handleSelectCustomer(c); }} />
 
             {/* Sheets */}
             <ItemDetailSheet

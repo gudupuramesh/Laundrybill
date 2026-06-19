@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  :root{
+    --c-bg:#F4F5F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E5E8EE; --c-border-strong:#CCD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#828B98;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-soft:#EAEFFC; --c-primary-tint:#9DB6EE;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#9A5B00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#155CC0;    --c-info-soft:#E4F0FC;
+    --c-violet:#6B3FD4;  --c-violet-soft:#EEE9FD;
+    --c-cyan:#0E6E8C;    --c-cyan-soft:#E1F3F8;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 16px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
+    --sh-overlay:0 16px 48px rgba(16,24,40,.2),0 2px 8px rgba(16,24,40,.08);
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:6px; }
+  .lb-scroll::-webkit-scrollbar{ width:9px; height:9px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:#C7CDD8; border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .lb-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .lb-thin::-webkit-scrollbar{ height:0; width:0; }
+  @keyframes lbOv{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes lbMod{ from{ transform:translateY(8px) scale(.985); opacity:0; } to{ transform:translateY(0) scale(1); opacity:1; } }
+  @media (max-width:1040px){ .lb-row{ flex-direction:column !important; } .lb-row > *{ width:100% !important; } }
+  @media (max-width:720px){ .lb-nav{ display:none !important; } }
+</style>
+</helmet>
+
+<div style="display:flex; height:100vh; background:var(--c-bg); color:var(--c-text); font-size:14px; line-height:1.45; overflow:hidden;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="lb-nav" style="width:218px; flex:none; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 18px 16px;">
+      <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <div style="font-size:16px; font-weight:700; letter-spacing:-.01em;">Laundry<span style="color:var(--c-primary);">Bill</span></div>
+    </div>
+    <nav class="lb-thin" style="flex:1; overflow:auto; padding:4px 10px;">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="16">
+        <a href="#" aria-current="{{ n.current }}" style="display:flex; align-items:center; gap:11px; padding:8px 11px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:{{ n.weight }}; color:{{ n.fg }}; background:{{ n.bg }}; margin-bottom:1px;" style-hover="background:var(--c-surface-2);">
+          <span style="width:17px; height:17px; flex:none; display:flex; align-items:center; justify-content:center;">{{ n.icon }}</span>
+          {{ n.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--c-border);">
+      <span style="width:32px; height:32px; flex:none; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">RG</span>
+      <div style="flex:1; min-width:0;"><div style="font-weight:600; font-size:13px;">Xbxn</div><div style="font-size:11px; color:var(--c-text-3);">Admin</div></div>
+      <button aria-label="Log out" style="cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--c-text-3); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2); color:var(--c-text);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4m0 0 4-4m-4 4 4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ============================ DETAIL VIEW ============================ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:12px;">
+        <button onClick="{{ goList }}" aria-label="Back" style="cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; color:var(--c-text-2); background:transparent; border:0; border-radius:7px;" style-hover="background:var(--c-surface-2);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <nav aria-label="Breadcrumb" style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--c-text-3);">
+          <button onClick="{{ goList }}" style="cursor:pointer; font:inherit; font-size:13px; color:var(--c-text-2); background:transparent; border:0;" style-hover="color:var(--c-primary);">Expenses</button><span>/</span>
+          <span style="color:var(--c-text); font-weight:600; font-family:'IBM Plex Mono';" aria-current="page">{{ x.ref }}</span>
+        </nav>
+        <div style="flex:1;"></div>
+        <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:8px 13px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</button>
+      </header>
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <div class="lb-row" style="display:flex; gap:16px; align-items:flex-start; max-width:1000px;">
+          <div style="flex:1.5; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <!-- amount header -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:22px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; gap:13px;">
+                <span style="width:50px; height:50px; flex:none; border-radius:13px; background:var(--{{ x.soft }}); color:var(--{{ x.ref2 }}); display:flex; align-items:center; justify-content:center;">{{ x.icon }}</span>
+                <div style="flex:1;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <span style="font-size:12px; font-weight:600; color:var(--{{ x.ref2 }}); background:var(--{{ x.soft }}); padding:3px 10px; border-radius:20px;">{{ x.category }}</span>
+                    <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--{{ x.stRef }}); background:var(--{{ x.stSoft }}); padding:3px 10px; border-radius:20px;"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ x.stRef }});"></span>{{ x.status }}</span>
+                  </div>
+                  <div style="font-size:13px; color:var(--c-text-2); margin-top:6px;">{{ x.desc }}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:30px; letter-spacing:-.02em;">{{ x.amount }}</div>
+                  <div style="font-size:11px; color:var(--c-text-3);">د.إ</div>
+                </div>
+              </div>
+            </div>
+            <!-- meta grid -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">DETAILS</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <sc-for list="{{ x.meta }}" as="m" hint-placeholder-count="6">
+                  <div><div style="font-size:11px; color:var(--c-text-3);">{{ m.k }}</div><div style="font-size:13.5px; font-weight:500; margin-top:3px;">{{ m.v }}</div></div>
+                </sc-for>
+              </div>
+              <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--c-border);"><div style="font-size:11px; color:var(--c-text-3);">Notes</div><div style="font-size:13px; color:var(--c-text-2); margin-top:4px;">{{ x.notes }}</div></div>
+            </div>
+            <!-- audit -->
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:16px;">ACTIVITY</div>
+              <sc-for list="{{ x.audit }}" as="a" hint-placeholder-count="3">
+                <div style="display:flex; gap:13px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; flex:none;">
+                    <span style="width:26px; height:26px; border-radius:50%; background:var(--{{ a.soft }}); color:var(--{{ a.ref }}); display:flex; align-items:center; justify-content:center;">{{ a.icon }}</span>
+                    <span style="width:2px; flex:1; background:var(--c-border); display:{{ a.line }}; min-height:12px;"></span>
+                  </div>
+                  <div style="flex:1; padding-bottom:{{ a.pad }};"><div style="display:flex; align-items:baseline; gap:10px;"><span style="font-size:13.5px; font-weight:500;">{{ a.title }}</span><span style="margin-left:auto; font-size:11px; color:var(--c-text-3); font-family:'IBM Plex Mono';">{{ a.time }}</span></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <!-- receipt -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--c-text-3); margin-bottom:14px;">RECEIPT</div>
+              <div style="border:1px solid var(--c-border); border-radius:10px; background:var(--c-surface-2); aspect-ratio:3/4; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--c-text-3);">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17l-2-1-2 1-2-1-2 1-2-1-2 1V2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+                <div style="font-size:12px; font-weight:500;">receipt-{{ x.refLower }}.pdf</div>
+                <div style="font-size:11px;">240 KB · uploaded</div>
+              </div>
+              <button style="width:100%; margin-top:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:9px; padding:10px;" style-hover="background:var(--c-surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Download</button>
+            </div>
+            <sc-if value="{{ x.pending }}" hint-placeholder-val="{{ false }}">
+              <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:18px 20px; box-shadow:var(--sh-sm);">
+                <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Approval pending</div>
+                <div style="font-size:12px; color:var(--c-text-3); margin-bottom:13px;">This expense needs manager approval before payout.</div>
+                <div style="display:flex; gap:10px;">
+                  <button style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-success); border:0; border-radius:9px; padding:10px;" style-hover="filter:brightness(.96);">Approve</button>
+                  <button style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-error); background:var(--c-error-soft); border:0; border-radius:9px; padding:10px;" style-hover="filter:brightness(.97);">Reject</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ============================ OVERVIEW + LIST ============================ -->
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+      <header style="flex:none; height:58px; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 22px; gap:14px;">
+        <span style="font-size:17px; font-weight:600; letter-spacing:-.01em;">Expenses</span>
+        <div role="tablist" style="display:flex; gap:2px; margin-left:8px;">
+          <button role="tab" onClick="{{ setOverview }}" aria-selected="{{ isOverview }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:{{ ovFg }}; background:transparent; border:0; border-bottom:2px solid {{ ovBd }}; padding:8px 12px;">Overview</button>
+          <button role="tab" onClick="{{ setListTab }}" aria-selected="{{ isListTab }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:{{ liFg }}; background:transparent; border:0; border-bottom:2px solid {{ liBd }}; padding:8px 12px;">All expenses</button>
+        </div>
+        <div style="flex:1;"></div>
+        <button onClick="{{ openAdd }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:8px 14px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add Expense</button>
+      </header>
+
+      <div class="lb-scroll" style="flex:1; overflow:auto; padding:20px 22px 40px;">
+        <!-- KPI row -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:15px 16px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <span style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center;">{{ k.icon }}</span>
+                <span style="font-size:11.5px; color:var(--c-text-3); font-weight:500;">{{ k.label }}</span>
+              </div>
+              <div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:23px; letter-spacing:-.02em; margin-top:11px;">{{ k.value }}</div>
+              <div style="font-size:11.5px; color:var(--{{ k.deltaRef }}); font-weight:600; margin-top:4px;">{{ k.delta }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- OVERVIEW -->
+        <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+          <div class="lb-row" style="display:flex; gap:16px; margin-bottom:16px;">
+            <!-- trend -->
+            <div style="flex:1.5; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:flex-start; margin-bottom:18px;"><div><div style="font-size:14px; font-weight:600;">Monthly spend</div><div style="font-size:12px; color:var(--c-text-3);">Last 8 months</div></div><div style="margin-left:auto; text-align:right;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:18px;">{{ trendTotal }} <span style="font-size:11px; color:var(--c-text-3);">د.إ</span></div><div style="font-size:11.5px; color:{{ trendColor }}; font-weight:600;">{{ trendDelta }}</div></div></div>
+              <div style="display:flex; align-items:flex-end; gap:10px; height:150px;">
+                <sc-for list="{{ bars }}" as="b" hint-placeholder-count="8">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:7px;">
+                    <div style="width:100%; max-width:30px; height:{{ b.h }}; background:{{ b.fill }}; border-radius:5px 5px 0 0;"></div>
+                    <span style="font-size:10px; color:var(--c-text-3);">{{ b.m }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <!-- category breakdown -->
+            <div style="flex:1; min-width:0; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-sm);">
+              <div style="font-size:14px; font-weight:600; margin-bottom:16px;">By category</div>
+              <div style="display:flex; flex-direction:column; gap:13px;">
+                <sc-for list="{{ breakdown }}" as="c" hint-placeholder-count="6">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="width:7px; height:7px; border-radius:50%; background:var(--{{ c.ref }});"></span><span style="font-size:12.5px; color:var(--c-text-2);">{{ c.label }}</span><span style="margin-left:auto; font-family:'IBM Plex Mono'; font-weight:600; font-size:12.5px;">{{ c.amount }}</span></div>
+                    <div style="height:6px; background:var(--c-surface-2); border-radius:6px; overflow:hidden;"><div style="height:100%; width:{{ c.w }}; background:var(--{{ c.ref }}); border-radius:6px;"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- list table (shown in both, full in list tab) -->
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--c-border);">
+            <div style="font-size:14px; font-weight:600;">{{ tableTitle }}</div>
+            <sc-if value="{{ isListTab }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-left:auto; display:flex; gap:7px;">
+                <sc-for list="{{ catFilters }}" as="f" hint-placeholder-count="5">
+                  <button onClick="{{ f.onClick }}" style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid {{ f.bd }}; background:{{ f.bg }}; color:{{ f.fg }};" style-hover="border-color:var(--c-border-strong);">{{ f.label }}</button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:760px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:9px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Date</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Category</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Vendor / description</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Method</th>
+                  <th style="text-align:left; padding:9px 14px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                  <th style="text-align:right; padding:9px 18px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+                  <tr onClick="{{ r.onOpen }}" tabIndex="0" onKeyDown="{{ r.onKey }}" role="button" style="border-bottom:1px solid var(--c-border); cursor:pointer;" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:10px 18px; color:var(--c-text-2); font-family:'IBM Plex Mono'; font-size:12.5px; white-space:nowrap;">{{ r.date }}</td>
+                    <td style="padding:10px 14px;"><span style="display:inline-flex; align-items:center; gap:7px;"><span style="width:26px; height:26px; flex:none; border-radius:7px; background:var(--{{ r.soft }}); color:var(--{{ r.ref }}); display:flex; align-items:center; justify-content:center;">{{ r.icon }}</span><span style="font-weight:500;">{{ r.category }}</span></span></td>
+                    <td style="padding:10px 14px;"><div style="font-weight:500;">{{ r.vendor }}</div><div style="font-size:11.5px; color:var(--c-text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">{{ r.desc }}</div></td>
+                    <td style="padding:10px 14px; color:var(--c-text-2); font-size:12.5px;">{{ r.method }}</td>
+                    <td style="padding:10px 14px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px; background:var(--{{ r.stSoft }}); color:var(--{{ r.stRef }});"><span style="width:5px; height:5px; border-radius:50%; background:var(--{{ r.stRef }});"></span>{{ r.status }}</span></td>
+                    <td style="padding:10px 18px; text-align:right; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.amount }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- ===================== ADD EXPENSE MODAL ===================== -->
+  <sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Add expense" onClick="{{ closeAdd }}" style="position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,17,23,.5); animation:lbOv .14s ease;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:500px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; box-shadow:var(--sh-overlay); animation:lbMod .16s ease; max-height:92vh; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--c-border);">
+          <div style="font-size:16px; font-weight:700;">Add expense</div>
+          <button onClick="{{ closeAdd }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:30px; height:30px; color:var(--c-text-2); background:transparent; border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div class="lb-scroll" style="padding:20px; overflow:auto; display:flex; flex-direction:column; gap:16px;">
+          <!-- amount -->
+          <div>
+            <label for="ex-amt" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Amount</label>
+            <div style="display:flex; align-items:center; gap:8px; border:1px solid var(--c-border-strong); border-radius:10px; padding:4px 14px;" style-focus-within="border-color:var(--c-primary);">
+              <span style="font-size:13px; color:var(--c-text-3);">د.إ</span>
+              <input id="ex-amt" value="{{ fAmount }}" onInput="{{ onAmount }}" inputMode="decimal" placeholder="0.00" style="flex:1; border:0; outline:none; background:transparent; font-family:'IBM Plex Mono'; font-weight:700; font-size:22px; color:var(--c-text); padding:8px 0;" />
+            </div>
+          </div>
+          <!-- category -->
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Category</div>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+              <sc-for list="{{ catOptions }}" as="c" hint-placeholder-count="8">
+                <button onClick="{{ c.onClick }}" style="cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; gap:6px; padding:11px 6px; border-radius:10px; border:1.5px solid {{ c.bd }}; background:{{ c.bg }};" style-hover="border-color:var(--c-primary);">
+                  <span style="color:var(--{{ c.ref }});">{{ c.icon }}</span>
+                  <span style="font-size:10.5px; font-weight:600; color:{{ c.fg }}; text-align:center;">{{ c.label }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1;"><label for="ex-date" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Date</label><input id="ex-date" value="Jun 18, 2026" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+            <div style="flex:1;"><label for="ex-vendor" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Vendor</label><input id="ex-vendor" placeholder="e.g. Sani Detergent Co" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" /></div>
+          </div>
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Payment method</div>
+            <div style="display:flex; gap:8px;">
+              <sc-for list="{{ methodOptions }}" as="m" hint-placeholder-count="4">
+                <button onClick="{{ m.onClick }}" style="cursor:pointer; flex:1; font:inherit; font-size:12.5px; font-weight:600; padding:9px; border-radius:8px; border:1.5px solid {{ m.bd }}; background:{{ m.bg }}; color:{{ m.fg }};" style-hover="border-color:var(--c-primary);">{{ m.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div><label for="ex-note" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Description</label><textarea id="ex-note" rows="2" placeholder="What was this for?" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 11px; resize:vertical;" style-focus="border-color:var(--c-primary);"></textarea></div>
+          <!-- receipt upload -->
+          <label style="cursor:pointer; display:flex; align-items:center; gap:12px; padding:13px; border:1.5px dashed var(--c-border-strong); border-radius:10px; background:var(--c-surface-2); color:var(--c-text-3);" style-hover="border-color:var(--c-primary); color:var(--c-primary);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14"/></svg>
+            <div style="flex:1;"><div style="font-size:12.5px; font-weight:600;">Attach receipt</div><div style="font-size:11px;">PNG, JPG or PDF up to 10 MB</div></div>
+            <input type="file" accept="image/*,application/pdf" style="display:none;" />
+          </label>
+          <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+            <div><div style="font-size:13px; font-weight:600;">Recurring monthly</div><div style="font-size:11.5px; color:var(--c-text-3);">Auto-log this expense each month</div></div>
+            <button role="switch" aria-checked="{{ recurring }}" onClick="{{ flipRecurring }}" aria-label="Recurring" style="position:relative; cursor:pointer; width:44px; height:25px; border:0; border-radius:20px; flex:none; background:{{ recTrack }};"><span style="position:absolute; top:3px; left:3px; width:19px; height:19px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ recKnob }};"></span></button>
+          </label>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 20px; border-top:1px solid var(--c-border);">
+          <button onClick="{{ closeAdd }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:8px; padding:9px 16px;" style-hover="background:var(--c-surface-2);">Cancel</button>
+          <button onClick="{{ closeAdd }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:9px 18px;" style-hover="background:var(--c-primary-hover);">Save expense</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view:'main', tab:'overview', selected:0, addOpen:false, catFilter:'All', form:{amount:'', cat:'Supplies', method:'Card'}, recurring:false };
+
+  renderVals(){
+    const html = (svg)=> React.createElement('span',{ dangerouslySetInnerHTML:{__html:svg}, style:{display:'inline-flex', lineHeight:0} });
+    const S = (s)=> html('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const I = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const CI = (s)=> html('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const TI = (s)=> html('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+    const BI = (s)=> html('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>');
+
+    const nav = [
+      ['Dashboard','<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',0],
+      ['New Order','<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',0],
+      ['Orders','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>',0],
+      ['Customers','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 7a3 3 0 0 1 0 6M20.5 20a4.5 4.5 0 0 0-3-4.2"/>',0],
+      ['Services','<path d="M8 3.5 5.5 6V20h13V6L16 3.5l-1.6 1.3a3 3 0 0 1-4.8 0Z"/>',0],
+      ['Staff','<circle cx="12" cy="7" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',0],
+      ['Attendance','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4"/>',0],
+      ['Payroll','<path d="M6 4h7a4 4 0 0 1 0 8H6M6 8h10M6 12h7l-3 8"/>',0],
+      ['Expenses','<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h6"/>',1],
+      ['Reports','<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M9 13v4M12 11v6M15 15v2"/>',0],
+      ['Apps','<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',0],
+      ['Scan','<path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M3 12h18"/>',0],
+      ['Public Ordering Page','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',0],
+      ['Subscription','<path d="M3 7h18v12H3zM3 11h18M7 15h4"/>',0],
+      ['Settings','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2"/>',0],
+    ];
+    const navItems = nav.map(([label,p,active])=>({ label, icon:S(p), current:active?'page':'false',
+      weight:active?'600':'500', fg:active?'var(--c-primary)':'var(--c-text-2)', bg:active?'var(--c-primary-soft)':'transparent' }));
+
+    // category meta: icon path, tint
+    const CAT = {
+      Supplies:{ref:'c-primary', icon:'<path d="M21 8 12 3 3 8l9 5 9-5ZM3 8v8l9 5 9-5V8"/>'},
+      Utilities:{ref:'c-info', icon:'<path d="M13 2 4 14h7l-2 8 9-12h-7l2-8Z"/>'},
+      Rent:{ref:'c-violet', icon:'<path d="M3 21V8l9-5 9 5v13M9 21v-6h6v6"/>'},
+      Maintenance:{ref:'c-warning', icon:'<path d="M14 6a4 4 0 0 0-5 5l-6 6 3 3 6-6a4 4 0 0 0 5-5l-3 3-2-2 2-2Z"/>'},
+      Transport:{ref:'c-cyan', icon:'<path d="M1 5h13v9H1zM14 8h4l3 3v3h-7z"/><circle cx="5.5" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/>'},
+      Marketing:{ref:'c-success', icon:'<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1ZM16 8a5 5 0 0 1 0 8"/>'},
+      Misc:{ref:'c-text-3', icon:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'},
+    };
+    const tintSoft={'c-primary':'c-primary-soft','c-info':'c-info-soft','c-violet':'c-violet-soft','c-cyan':'c-cyan-soft','c-success':'c-success-soft','c-warning':'c-warning-soft','c-text-3':'c-surface-3'};
+    const STAT={ Paid:{ref:'c-success', soft:'c-success-soft'}, Pending:{ref:'c-warning', soft:'c-warning-soft'} };
+
+    // date, category, vendor, desc, amountN, method, status
+    const E = [
+      ['Jun 17','Supplies','Sani Detergent Co','Detergent + softener restock',1240,'Bank transfer','Paid'],
+      ['Jun 16','Utilities','City Power','Electricity — June',820,'Auto-debit','Paid'],
+      ['Jun 15','Transport','FuelMax','Van fuel — route 3',180,'Cash','Paid'],
+      ['Jun 14','Maintenance','CoolTech Services','Dryer #2 belt repair',340,'Card','Pending'],
+      ['Jun 12','Rent','Prime Estates','Plant rent — June',4000,'Bank transfer','Paid'],
+      ['Jun 11','Supplies','PackRight','Poly bags + hanger tags',290,'Card','Paid'],
+      ['Jun 10','Marketing','AdReach Media','Neighborhood flyers',220,'Card','Pending'],
+      ['Jun 09','Transport','FuelMax','Van fuel — route 1',175,'Cash','Paid'],
+      ['Jun 08','Utilities','AquaWorks','Water — June',410,'Auto-debit','Paid'],
+      ['Jun 06','Misc','Office Depot','Printer ink + paper',95,'Cash','Paid'],
+    ];
+    const money=(n)=>n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+    const money0=(n)=>n.toLocaleString('en-US');
+
+    const catFilter=this.state.catFilter;
+    const filtered = E.map((e,i)=>({e,i})).filter(({e})=> catFilter==='All' || e[1]===catFilter);
+    const rows = filtered.map(({e,i})=>{
+      const [date,cat,vendor,desc,amt,method,status]=e; const cm=CAT[cat];
+      return { date, category:cat, vendor, desc, method, amount:money(amt),
+        icon:CI(cm.icon), ref:cm.ref, soft:tintSoft[cm.ref],
+        status, stRef:STAT[status].ref, stSoft:STAT[status].soft,
+        onOpen:()=>this.setState({view:'detail', selected:i}),
+        onKey:(ev)=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); this.setState({view:'detail', selected:i}); } } };
+    });
+
+    const totalMonth = E.reduce((a,e)=>a+e[4],0);
+    const pending = E.filter(e=>e[6]==='Pending');
+    const pendingSum = pending.reduce((a,e)=>a+e[4],0);
+    const prevMonth=6700;
+    const trendPct=Math.round((totalMonth-prevMonth)/prevMonth*100);
+    const trendUp=trendPct>=0;
+    const trendStr=(trendUp?'▲ ':'▼ ')+Math.abs(trendPct)+'%';
+    const trendColor=trendUp?'var(--c-error)':'var(--c-success)';
+    const kpis=[
+      {label:'This month', value:money0(totalMonth), icon:I('<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>'), ref:'c-primary', softRef:'c-primary-soft', delta:trendStr+' vs last month', deltaRef:trendUp?'c-error':'c-success'},
+      {label:'Categories', value:'7', icon:I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>'), ref:'c-info', softRef:'c-info-soft', delta:'across operations', deltaRef:'c-text-3'},
+      {label:'Pending approval', value:String(pending.length), icon:I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), ref:'c-warning', softRef:'c-warning-soft', delta:money0(pendingSum)+' د.إ', deltaRef:'c-warning'},
+      {label:'Avg / day', value:money0(Math.round(totalMonth/30)), icon:I('<path d="M3 17l5-5 4 3 6-7"/><path d="M3 21h18"/>'), ref:'c-success', softRef:'c-success-soft', delta:'this month', deltaRef:'c-text-3'},
+    ];
+
+    // trend
+    const tvals=[5900,6400,5600,6900,6200,7100,6700,totalMonth]; const tmax=Math.max(...tvals)*1.12;
+    const tm=['Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+    const bars=tvals.map((v,i)=>({ h:(v/tmax*100).toFixed(1)+'%', m:tm[i], fill: i===tvals.length-1?'var(--c-primary)':'var(--c-primary-tint)' }));
+
+    // breakdown by category
+    const sums={}; E.forEach(e=>{ sums[e[1]]=(sums[e[1]]||0)+e[4]; });
+    const bmax=Math.max(...Object.values(sums));
+    const breakdown=Object.keys(sums).sort((a,b)=>sums[b]-sums[a]).map(cat=>({ label:cat, ref:CAT[cat].ref, amount:money0(sums[cat]), w:(sums[cat]/bmax*100).toFixed(0)+'%' }));
+
+    const catFilters=['All','Supplies','Utilities','Rent','Transport'].map(label=>{ const on=label===catFilter;
+      return { label, onClick:()=>this.setState({catFilter:label}),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary-soft)':'var(--c-border)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+
+    // detail
+    const e=E[this.state.selected]||E[0]; const [date,cat,vendor,desc,amt,method,status]=e; const cm=CAT[cat];
+    const ref='EXP-'+String(2040-this.state.selected).padStart(4,'0');
+    const x={
+      ref, refLower:ref.toLowerCase(), category:cat, icon:BI(cm.icon), ref2:cm.ref, soft:tintSoft[cm.ref],
+      status, stRef:STAT[status].ref, stSoft:STAT[status].soft, pending: status==='Pending',
+      amount:money(amt), desc,
+      meta:[ {k:'Vendor', v:vendor}, {k:'Date', v:date+', 2026'}, {k:'Payment method', v:method},
+             {k:'Paid by', v:'Ramesh Gudupu'}, {k:'Branch', v:'Downtown'}, {k:'Reference', v:ref} ],
+      notes: desc+'. Logged against the '+cat.toLowerCase()+' budget for June.',
+      audit:[
+        {title:'Expense recorded', time:date+', 2026', soft:'c-primary-soft', ref:'c-primary', icon:TI('<path d="M12 5v14M5 12h14"/>')},
+        status==='Pending'
+          ? {title:'Awaiting approval', time:'1 day ago', soft:'c-warning-soft', ref:'c-warning', icon:TI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')}
+          : {title:'Approved & paid', time:date+', 2026', soft:'c-success-soft', ref:'c-success', icon:TI('<path d="M5 12l4 4 10-10"/>')},
+      ].map((a,k,arr)=>({ ...a, line:k===arr.length-1?'none':'block', pad:k===arr.length-1?'2px':'16px' })),
+    };
+
+    // add modal options
+    const catOptions=Object.keys(CAT).map(label=>{ const on=this.state.form.cat===label;
+      return { label, icon:I(CAT[label].icon), ref:CAT[label].ref,
+        onClick:()=>this.setState(s=>({form:{...s.form,cat:label}})),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+    const methodOptions=['Cash','Card','Bank transfer','Auto-debit'].map(label=>{ const on=this.state.form.method===label;
+      return { label, onClick:()=>this.setState(s=>({form:{...s.form,method:label}})),
+        bg:on?'var(--c-primary-soft)':'var(--c-surface)', bd:on?'var(--c-primary)':'var(--c-border-strong)', fg:on?'var(--c-primary)':'var(--c-text-2)' }; });
+
+    return {
+      navItems,
+      isMain:this.state.view==='main', isDetail:this.state.view==='detail',
+      goList:()=>this.setState({view:'main'}),
+      isOverview:this.state.tab==='overview', isListTab:this.state.tab==='list',
+      setOverview:()=>this.setState({tab:'overview'}), setListTab:()=>this.setState({tab:'list'}),
+      ovFg:this.state.tab==='overview'?'var(--c-primary)':'var(--c-text-3)', ovBd:this.state.tab==='overview'?'var(--c-primary)':'transparent',
+      liFg:this.state.tab==='list'?'var(--c-primary)':'var(--c-text-3)', liBd:this.state.tab==='list'?'var(--c-primary)':'transparent',
+      tableTitle:this.state.tab==='overview'?'Recent expenses':'All expenses',
+      kpis, bars, breakdown, catFilters, rows, x,
+      trendTotal:money0(totalMonth), trendDelta:trendStr+' vs last', trendColor,
+      addOpen:this.state.addOpen, openAdd:()=>this.setState({addOpen:true}), closeAdd:()=>this.setState({addOpen:false}), stop:(e)=>e.stopPropagation(),
+      catOptions, methodOptions,
+      fAmount:this.state.form.amount, onAmount:(e)=>this.setState(s=>({form:{...s.form,amount:e.target.value}})),
+      recurring:this.state.recurring, flipRecurring:()=>this.setState(s=>({recurring:!s.recurring})),
+      recTrack:this.state.recurring?'var(--c-primary)':'var(--c-border-strong)', recKnob:this.state.recurring?'translateX(19px)':'translateX(0)',
+    };
+  }
+}
+</script>
+</body>
+</html>

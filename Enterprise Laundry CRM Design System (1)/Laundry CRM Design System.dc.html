@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  ::selection{ background:rgba(26,79,214,.18); }
+
+  /* ---- LIGHT (default) ---- */
+  [data-dstheme]{
+    --c-bg:#F5F6F8; --c-surface:#FFFFFF; --c-surface-2:#F1F3F6; --c-surface-3:#E9ECF1;
+    --c-border:#E2E6EC; --c-border-strong:#CBD2DC;
+    --c-text:#11151C; --c-text-2:#4A5563; --c-text-3:#7A8595;
+    --c-primary:#1A4FD6; --c-primary-hover:#1640B4; --c-primary-active:#11338E; --c-primary-soft:#E7EDFC;
+    --c-ring:#2563EB;
+    --c-success:#1E8E5A; --c-success-soft:#E3F4EC;
+    --c-warning:#B26A00; --c-warning-soft:#FBEFD7;
+    --c-error:#C2362F;   --c-error-soft:#FBE6E5;
+    --c-info:#1A6FD6;    --c-info-soft:#E4F0FC;
+    --sh-sm:0 1px 2px rgba(16,24,40,.06);
+    --sh-md:0 2px 6px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+    --sh-overlay:0 16px 40px rgba(16,24,40,.18),0 2px 6px rgba(16,24,40,.06);
+    /* laundry status */
+    --st-received-bg:#EEF1F5; --st-received-fg:#475467;
+    --st-washing-bg:#E4F0FC;  --st-washing-fg:#155CC0;
+    --st-ironing-bg:#EEE9FD;  --st-ironing-fg:#6B3FD4;
+    --st-ready-bg:#E3F4EC;    --st-ready-fg:#146F47;
+    --st-delivery-bg:#E1F3F8; --st-delivery-fg:#0E6E8C;
+    --st-delivered-bg:#ECEFF3;--st-delivered-fg:#5A6675;
+    --st-hold-bg:#FBEFD7;     --st-hold-fg:#9A5B00;
+    --st-cancelled-bg:#FBE6E5;--st-cancelled-fg:#B42318;
+  }
+  /* ---- DARK ---- */
+  [data-dstheme="dark"]{
+    --c-bg:#0E1117; --c-surface:#161B22; --c-surface-2:#1C232D; --c-surface-3:#222B36;
+    --c-border:#2A323D; --c-border-strong:#3A4452;
+    --c-text:#E6EAF0; --c-text-2:#A6B0BE; --c-text-3:#6E7886;
+    --c-primary:#4D7CF0; --c-primary-hover:#5E89F2; --c-primary-active:#7AA0F5; --c-primary-soft:#16224A;
+    --c-ring:#6E9BF5;
+    --c-success:#3FB985; --c-success-soft:#11281E;
+    --c-warning:#E0A94F; --c-warning-soft:#2A2110;
+    --c-error:#F2867C;   --c-error-soft:#2E1614;
+    --c-info:#5BA0F5;    --c-info-soft:#0F2238;
+    --sh-sm:0 1px 2px rgba(0,0,0,.4);
+    --sh-md:0 2px 8px rgba(0,0,0,.5);
+    --sh-overlay:0 16px 48px rgba(0,0,0,.6);
+    --st-received-bg:#21282F; --st-received-fg:#9AA6B2;
+    --st-washing-bg:#13233B;  --st-washing-fg:#7FB0F6;
+    --st-ironing-bg:#211A3A;  --st-ironing-fg:#B49BF5;
+    --st-ready-bg:#11281E;    --st-ready-fg:#54C892;
+    --st-delivery-bg:#0E2730; --st-delivery-fg:#5FC2DE;
+    --st-delivered-bg:#222B36;--st-delivered-fg:#9AA6B2;
+    --st-hold-bg:#2A2110;     --st-hold-fg:#E0A94F;
+    --st-cancelled-bg:#2E1614;--st-cancelled-fg:#F2867C;
+  }
+  :focus:not(:focus-visible){ outline:none; }
+  :focus-visible{ outline:2px solid var(--c-ring); outline-offset:2px; border-radius:4px; }
+  @keyframes lbToastIn{ from{ transform:translateY(12px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+  @keyframes lbOverlayIn{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes lbDrawerIn{ from{ transform:translateX(100%); } to{ transform:translateX(0); } }
+  @keyframes lbModalIn{ from{ transform:translateY(8px) scale(.98); opacity:0; } to{ transform:translateY(0) scale(1); opacity:1; } }
+  .lb-scroll::-webkit-scrollbar{ width:10px; height:10px; }
+  .lb-scroll::-webkit-scrollbar-thumb{ background:var(--c-border-strong); border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  span:hover > .lb-tip, button:focus-visible + .lb-tip{ opacity:1 !important; }
+</style>
+</helmet>
+
+<div data-dstheme="{{ theme }}" style="background:var(--c-bg); color:var(--c-text); min-height:100vh; display:flex; font-size:14px; line-height:1.45;">
+
+  <!-- ============ SIDEBAR NAV ============ -->
+  <aside style="width:236px; flex:none; position:sticky; top:0; align-self:flex-start; height:100vh; background:var(--c-surface); border-right:1px solid var(--c-border); display:flex; flex-direction:column; padding:18px 0;">
+    <div style="display:flex; align-items:center; gap:10px; padding:0 18px 16px;">
+      <div style="width:34px; height:34px; flex:none; border-radius:8px; background:var(--c-primary); display:flex; align-items:center; justify-content:center; box-shadow:var(--sh-sm);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="var(--c-primary)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:700; font-size:14px; letter-spacing:-.01em; line-height:1.1;">Laundry Bill</div>
+        <div style="font-size:11px; color:var(--c-text-3); font-weight:500;">CRM · Design System</div>
+      </div>
+    </div>
+    <nav style="flex:1; overflow:auto; padding:4px 10px;" class="lb-scroll">
+      <sc-for list="{{ navSections }}" as="sec" hint-placeholder-count="9">
+        <a href="{{ sec.href }}" style="display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px; text-decoration:none; color:var(--c-text-2); font-size:13px; font-weight:500; margin-bottom:1px;" style-hover="background:var(--c-surface-2); color:var(--c-text);">
+          <span style="width:5px; height:5px; border-radius:50%; background:var(--c-border-strong); flex:none;"></span>
+          {{ sec.label }}
+        </a>
+      </sc-for>
+    </nav>
+    <div style="padding:12px 18px 0; border-top:1px solid var(--c-border); margin-top:8px; font-size:11px; color:var(--c-text-3);">
+      v1.0 · WCAG 2.1 AA
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- top bar -->
+    <header style="position:sticky; top:0; z-index:20; background:var(--c-surface); border-bottom:1px solid var(--c-border); padding:12px 28px; display:flex; align-items:center; gap:16px;">
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:12px; color:var(--c-text-3); font-weight:500;">Enterprise SaaS · Operational UI</div>
+        <div style="font-size:16px; font-weight:600; letter-spacing:-.01em;">Design System Reference</div>
+      </div>
+
+      <!-- density toggle -->
+      <div role="group" aria-label="Density" style="display:flex; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px; padding:2px;">
+        <button onClick="{{ setCompact }}" aria-pressed="{{ isCompact }}" style="border:0; cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 11px; border-radius:5px; background:{{ compactBg }}; color:{{ compactFg }};">Compact</button>
+        <button onClick="{{ setComfortable }}" aria-pressed="{{ isComfortable }}" style="border:0; cursor:pointer; font:inherit; font-size:12px; font-weight:600; padding:5px 11px; border-radius:5px; background:{{ comfortableBg }}; color:{{ comfortableFg }};">Comfortable</button>
+      </div>
+
+      <!-- theme toggle -->
+      <button onClick="{{ toggleTheme }}" aria-label="Toggle color theme" style="display:flex; align-items:center; gap:7px; cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:7px; padding:6px 12px;" style-hover="border-color:var(--c-border-strong); color:var(--c-text);">
+        <span style="width:14px; height:14px; border-radius:50%; background:var(--c-primary); display:inline-block;"></span>
+        {{ themeLabel }}
+      </button>
+    </header>
+
+    <main class="lb-scroll" style="flex:1; overflow:auto; padding:32px 28px 80px; max-width:1180px; width:100%;">
+
+      <!-- ===== HERO / BRAND ===== -->
+      <section id="brand" style="margin-bottom:44px;">
+        <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:20px;">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:26px; box-shadow:var(--sh-sm);">
+            <span style="display:inline-block; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--c-primary); background:var(--c-primary-soft); padding:4px 9px; border-radius:5px;">Foundation</span>
+            <h1 style="font-size:28px; font-weight:700; letter-spacing:-.02em; margin:14px 0 8px;">A utilitarian system for fast operations</h1>
+            <p style="color:var(--c-text-2); margin:0; max-width:62ch; font-size:14px;">High-density, keyboard-first UI for laundry order intake, status tracking, billing and routing. Built for speed at the front desk and clarity in the field — no decorative gradients, no glassmorphism, just clean operational surfaces.</p>
+            <div style="display:flex; gap:18px; margin-top:20px; flex-wrap:wrap;">
+              <div><div style="font-family:'IBM Plex Mono'; font-size:20px; font-weight:600;">4px</div><div style="font-size:12px; color:var(--c-text-3);">Base spacing unit</div></div>
+              <div style="width:1px; background:var(--c-border);"></div>
+              <div><div style="font-family:'IBM Plex Mono'; font-size:20px; font-weight:600;">13–14px</div><div style="font-size:12px; color:var(--c-text-3);">Operational text size</div></div>
+              <div style="width:1px; background:var(--c-border);"></div>
+              <div><div style="font-family:'IBM Plex Mono'; font-size:20px; font-weight:600;">AA</div><div style="font-size:12px; color:var(--c-text-3);">Contrast target</div></div>
+            </div>
+          </div>
+          <div style="background:linear-gradient(150deg,#1A4FD6,#11338E); border-radius:10px; padding:26px; color:#fff; display:flex; flex-direction:column; justify-content:space-between; box-shadow:var(--sh-md);">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:46px; height:46px; border-radius:11px; background:rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M8 3.5 5 6v14.5h14V6l-3-2.5-2 1.6a3 3 0 0 1-4 0L8 3.5Z" fill="#fff"/><path d="M7 13l2.6-2.6L12 13l3-3.2 2.2 2.2" stroke="#1A4FD6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div><div style="font-weight:700; font-size:18px;">Laundry Bill</div><div style="font-size:12px; opacity:.8;">Owner App · CRM</div></div>
+            </div>
+            <div style="margin-top:24px;">
+              <div style="font-size:12px; opacity:.75; margin-bottom:6px;">Brand primary</div>
+              <div style="font-family:'IBM Plex Mono'; font-size:20px; font-weight:600;">#1A4FD6</div>
+              <div style="display:flex; gap:6px; margin-top:12px;">
+                <span style="flex:1; height:8px; border-radius:4px; background:#11338E;"></span>
+                <span style="flex:1; height:8px; border-radius:4px; background:#1A4FD6;"></span>
+                <span style="flex:1; height:8px; border-radius:4px; background:#4D7CF0;"></span>
+                <span style="flex:1; height:8px; border-radius:4px; background:#9DBAF6;"></span>
+                <span style="flex:1; height:8px; border-radius:4px; background:#E7EDFC;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== COLOR TOKENS ===== -->
+      <section id="color" style="margin-bottom:44px;">
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:4px;">
+          <h2 style="font-size:18px; font-weight:600; margin:0;">Color tokens</h2>
+          <span style="font-size:12px; color:var(--c-text-3);">Core neutrals · brand · semantic utilities</span>
+        </div>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Every value is a CSS variable resolving per theme. Swatches below reflect the active <strong>{{ themeLabel }}</strong> theme.</p>
+
+        <div style="font-size:12px; font-weight:600; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">Core &amp; neutrals</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; margin-bottom:24px;">
+          <sc-for list="{{ coreSwatches }}" as="sw" hint-placeholder-count="9">
+            <div style="border:1px solid var(--c-border); border-radius:8px; overflow:hidden; background:var(--c-surface);">
+              <div style="height:56px; background:var(--{{ sw.ref }}); border-bottom:1px solid var(--c-border);"></div>
+              <div style="padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono'; font-size:11.5px; font-weight:500;">{{ sw.token }}</div>
+                <div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">{{ sw.role }}</div>
+                <div style="font-family:'IBM Plex Mono'; font-size:10.5px; color:var(--c-text-2); margin-top:5px;">{{ sw.hex }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-size:12px; font-weight:600; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">Semantic utilities</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px;">
+          <sc-for list="{{ semanticSwatches }}" as="sm" hint-placeholder-count="4">
+            <div style="border:1px solid var(--c-border); border-radius:8px; padding:13px; background:var(--c-surface);">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <span style="width:22px; height:22px; border-radius:6px; background:var(--{{ sm.ref }}); flex:none;"></span>
+                <div style="font-weight:600; font-size:13px;">{{ sm.name }}</div>
+                <span style="margin-left:auto; font-size:11px; font-weight:600; color:var(--{{ sm.ref }}); background:var(--{{ sm.softRef }}); padding:3px 8px; border-radius:20px;">{{ sm.label }}</span>
+              </div>
+              <div style="font-size:12px; color:var(--c-text-2); margin-top:9px;">{{ sm.use }}</div>
+              <div style="display:flex; gap:8px; margin-top:10px; font-family:'IBM Plex Mono'; font-size:10.5px; color:var(--c-text-3);">
+                <span>solid {{ sm.hex }}</span><span>· soft {{ sm.softHex }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- ===== LAUNDRY STATUS MAP ===== -->
+      <section id="status" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Order status badges</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Each operational state maps to one fixed color so staff scan a queue instantly. Use the pill form in tables and the dot form inline.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; overflow:hidden;">
+          <sc-for list="{{ statuses }}" as="st" hint-placeholder-count="8">
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 16px; border-bottom:1px solid var(--c-border);">
+              <span style="display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:4px 10px 4px 8px; border-radius:20px; background:var(--st-{{ st.key }}-bg); color:var(--st-{{ st.key }}-fg); white-space:nowrap;">
+                <span style="width:7px; height:7px; border-radius:50%; background:var(--st-{{ st.key }}-fg);"></span>{{ st.label }}
+              </span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--c-text-2);">
+                <span style="width:8px; height:8px; border-radius:50%; background:var(--st-{{ st.key }}-fg);"></span>Dot inline
+              </span>
+              <span style="font-size:13px; color:var(--c-text-2); flex:1;">{{ st.desc }}</span>
+              <span style="font-family:'IBM Plex Mono'; font-size:11px; color:var(--c-text-3); white-space:nowrap;">--st-{{ st.key }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- ===== TYPOGRAPHY ===== -->
+      <section id="type" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Typography</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;"><strong>IBM Plex Sans</strong> for all UI text, <strong>IBM Plex Mono</strong> with tabular figures for IDs, totals and quantities — so numeric columns align perfectly.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; overflow:hidden;">
+          <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="8">
+            <div style="display:flex; align-items:center; gap:20px; padding:14px 18px; border-bottom:1px solid var(--c-border);">
+              <div style="width:150px; flex:none;">
+                <div style="font-weight:600; font-size:13px;">{{ t.name }}</div>
+                <div style="font-family:'IBM Plex Mono'; font-size:11px; color:var(--c-text-3); margin-top:2px;">{{ t.spec }}</div>
+                <div style="font-size:11px; color:var(--c-text-3); margin-top:1px;">{{ t.use }}</div>
+              </div>
+              <div style="flex:1; min-width:0; font-family:{{ t.family }}; font-size:{{ t.px }}px; font-weight:{{ t.w }}; line-height:1.2; letter-spacing:{{ t.ls }}; color:var(--c-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.sample }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- ===== SPACING / RADII / SHADOW ===== -->
+      <section id="primitives" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Spacing, radius &amp; elevation</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">A 4px base grid. Small radii and restrained shadows keep the UI flat and operational.</p>
+        <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:16px;">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:16px;">
+            <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:12px;">Spacing</div>
+            <sc-for list="{{ spacing }}" as="sp" hint-placeholder-count="8">
+              <div style="display:flex; align-items:center; gap:12px; margin-bottom:9px;">
+                <span style="font-family:'IBM Plex Mono'; font-size:11px; width:62px; color:var(--c-text-2);">{{ sp.token }}</span>
+                <span style="height:12px; width:{{ sp.px }}px; background:var(--c-primary); border-radius:2px;"></span>
+                <span style="font-family:'IBM Plex Mono'; font-size:11px; color:var(--c-text-3); margin-left:auto;">{{ sp.px }}px</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:16px;">
+            <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:12px;">Radius</div>
+            <sc-for list="{{ radii }}" as="r" hint-placeholder-count="5">
+              <div style="display:flex; align-items:center; gap:12px; margin-bottom:11px;">
+                <span style="width:34px; height:34px; flex:none; background:var(--c-primary-soft); border:1px solid var(--c-primary); border-radius:{{ r.px }}px;"></span>
+                <span style="font-family:'IBM Plex Mono'; font-size:11.5px;">{{ r.token }}</span>
+                <span style="font-family:'IBM Plex Mono'; font-size:11px; color:var(--c-text-3); margin-left:auto;">{{ r.px }}px</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:16px;">
+            <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:12px;">Elevation</div>
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:8px; box-shadow:var(--sh-sm); padding:10px 12px; font-size:12px;">shadow-sm · cards</div>
+              <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:8px; box-shadow:var(--sh-md); padding:10px 12px; font-size:12px;">shadow-md · popovers</div>
+              <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:8px; box-shadow:var(--sh-overlay); padding:10px 12px; font-size:12px;">shadow-overlay · modals</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== BUTTONS ===== -->
+      <section id="buttons" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Buttons</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Hover any button; tab through to see the <strong>:focus-visible</strong> ring. Disabled buttons remain non-focusable.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:22px;">
+          <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:18px;">
+            <button style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:1px solid var(--c-primary); border-radius:7px; padding:8px 16px; box-shadow:var(--sh-sm);" style-hover="background:var(--c-primary-hover); border-color:var(--c-primary-hover);" style-active="background:var(--c-primary-active);">New order</button>
+            <button style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-surface-2); border-color:var(--c-text-3);">Secondary</button>
+            <button style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-primary); background:transparent; border:1px solid transparent; border-radius:7px; padding:8px 14px;" style-hover="background:var(--c-primary-soft);">Ghost</button>
+            <button style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-error); border:1px solid var(--c-error); border-radius:7px; padding:8px 16px;" style-hover="filter:brightness(.94);">Delete</button>
+            <button disabled style="cursor:not-allowed; font:inherit; font-size:13px; font-weight:600; color:var(--c-text-3); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px; padding:8px 16px; opacity:.7;">Disabled</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+            <button style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:6px; padding:5px 11px;" style-hover="background:var(--c-primary-hover);">Small</button>
+            <button style="cursor:pointer; font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:8px; padding:11px 20px;" style-hover="background:var(--c-primary-hover);">Large</button>
+            <button aria-label="Add" style="cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px;" style-hover="background:var(--c-surface-2);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button style="cursor:pointer; display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:7px; padding:8px 15px;" style-hover="background:var(--c-primary-hover);">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Process order
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== FORM CONTROLS ===== -->
+      <section id="forms" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Form controls</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Labels are programmatically tied to inputs. Errors use text + color + icon (never color alone).</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <label for="lb-name" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Customer name</label>
+              <input id="lb-name" type="text" placeholder="e.g. Priya Sharma" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" />
+            </div>
+            <div>
+              <label for="lb-phone" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Phone <span style="color:var(--c-text-3); font-weight:400;">· used for SMS updates</span></label>
+              <input id="lb-phone" type="tel" value="+1 415 552 0118" style="width:100%; font-family:'IBM Plex Mono'; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:9px 11px;" style-focus="border-color:var(--c-primary);" />
+            </div>
+            <div>
+              <label for="lb-err" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Pickup ZIP</label>
+              <input id="lb-err" type="text" value="9410" aria-invalid="true" aria-describedby="lb-err-msg" style="width:100%; font-family:'IBM Plex Mono'; font-size:13px; color:var(--c-text); background:var(--c-error-soft); border:1px solid var(--c-error); border-radius:7px; padding:9px 11px;" />
+              <div id="lb-err-msg" style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--c-error); margin-top:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></svg>
+                Enter a valid 5-digit ZIP code.
+              </div>
+            </div>
+            <div>
+              <label for="lb-select" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Service type</label>
+              <select id="lb-select" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:9px 11px;" style-focus="border-color:var(--c-primary);">
+                <option>Wash &amp; Fold</option><option>Dry Cleaning</option><option>Ironing only</option><option>Express (24h)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:18px;">
+            <div>
+              <label for="lb-search" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Search orders</label>
+              <div style="position:relative;">
+                <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--c-text-3);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+                <input id="lb-search" type="search" placeholder="Order #, customer, phone…" style="width:100%; font:inherit; font-size:13px; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:7px; padding:9px 11px 9px 32px;" style-focus="border-color:var(--c-primary); background:var(--c-surface);" />
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:11px;">
+              <div style="font-size:12px; font-weight:600;">Add-ons</div>
+              <label style="display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;"><input type="checkbox" checked style="width:16px; height:16px; accent-color:var(--c-primary); cursor:pointer;" />Fabric softener</label>
+              <label style="display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;"><input type="checkbox" style="width:16px; height:16px; accent-color:var(--c-primary); cursor:pointer;" />Stain treatment</label>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:11px;">
+              <div style="font-size:12px; font-weight:600;">Priority</div>
+              <label style="display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;"><input type="radio" name="prio" checked style="width:16px; height:16px; accent-color:var(--c-primary); cursor:pointer;" />Standard turnaround</label>
+              <label style="display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;"><input type="radio" name="prio" style="width:16px; height:16px; accent-color:var(--c-primary); cursor:pointer;" />Express (+$8.00)</label>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div><div style="font-size:13px; font-weight:600;">Send SMS updates</div><div style="font-size:12px; color:var(--c-text-3);">Notify on every status change</div></div>
+              <button role="switch" aria-checked="{{ demoToggle }}" onClick="{{ flipToggle }}" aria-label="Send SMS updates" style="position:relative; cursor:pointer; width:42px; height:24px; border:0; border-radius:20px; flex:none; transition:background .15s; background:{{ toggleTrack }};">
+                <span style="position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; transform:{{ toggleKnob }};"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== DATA TABLE ===== -->
+      <section id="table" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Data table — order queue</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Sticky header, sortable columns, hover &amp; selected row states. Row height follows the <strong>{{ density }}</strong> density setting in the top bar.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; overflow:hidden; box-shadow:var(--sh-sm);">
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--c-border);">
+            <div style="font-weight:600; font-size:13px;">Active orders</div>
+            <span style="font-size:11px; font-weight:600; color:var(--c-primary); background:var(--c-primary-soft); padding:2px 8px; border-radius:20px;">6</span>
+            <div style="margin-left:auto; display:flex; gap:8px;">
+              <button style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:6px; padding:5px 11px;" style-hover="background:var(--c-surface-2);">Filter</button>
+              <button style="cursor:pointer; font:inherit; font-size:12px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:6px; padding:5px 11px;" style-hover="background:var(--c-primary-hover);">Export</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;" class="lb-scroll">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:760px;">
+              <thead>
+                <tr style="background:var(--c-surface-2);">
+                  <th style="text-align:left; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border); width:34px;"><input type="checkbox" style="width:15px; height:15px; accent-color:var(--c-primary);" aria-label="Select all" /></th>
+                  <th style="text-align:left; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-2); border-bottom:1px solid var(--c-border);"><span style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">Order ▾</span></th>
+                  <th style="text-align:left; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Customer</th>
+                  <th style="text-align:left; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Items</th>
+                  <th style="text-align:left; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Status</th>
+                  <th style="text-align:right; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Total</th>
+                  <th style="text-align:right; padding:{{ rowPad }}; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--c-text-3); border-bottom:1px solid var(--c-border);">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ orders }}" as="o" hint-placeholder-count="6">
+                  <tr style="border-bottom:1px solid var(--c-border); background:{{ o.rowBg }};" style-hover="background:var(--c-surface-2);">
+                    <td style="padding:{{ rowPad }};"><input type="checkbox" style="width:15px; height:15px; accent-color:var(--c-primary);" aria-label="Select order" /></td>
+                    <td style="padding:{{ rowPad }}; font-family:'IBM Plex Mono'; font-weight:500; color:var(--c-text);">{{ o.id }}</td>
+                    <td style="padding:{{ rowPad }};"><div style="font-weight:500;">{{ o.customer }}</div><div style="font-size:11px; color:var(--c-text-3);">{{ o.phone }}</div></td>
+                    <td style="padding:{{ rowPad }}; color:var(--c-text-2); font-family:'IBM Plex Mono';">{{ o.items }}</td>
+                    <td style="padding:{{ rowPad }};"><span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; padding:3px 9px 3px 7px; border-radius:20px; background:var(--st-{{ o.statusKey }}-bg); color:var(--st-{{ o.statusKey }}-fg); white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; background:var(--st-{{ o.statusKey }}-fg);"></span>{{ o.statusLabel }}</span></td>
+                    <td style="padding:{{ rowPad }}; text-align:right; font-family:'IBM Plex Mono'; font-weight:500;">{{ o.total }}</td>
+                    <td style="padding:{{ rowPad }}; text-align:right; color:var(--c-text-3); font-size:12px;">{{ o.updated }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 16px; border-top:1px solid var(--c-border); font-size:12px; color:var(--c-text-3);">
+            <span>Showing 1–6 of 248</span>
+            <div style="margin-left:auto; display:flex; gap:4px;">
+              <button aria-label="Previous page" style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">‹</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; font-weight:600; color:#fff; background:var(--c-primary); border:1px solid var(--c-primary); border-radius:6px;">1</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">2</button>
+              <button style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">3</button>
+              <button aria-label="Next page" style="cursor:pointer; width:28px; height:28px; font:inherit; color:var(--c-text-2); background:var(--c-surface); border:1px solid var(--c-border); border-radius:6px;" style-hover="background:var(--c-surface-2);">›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CARDS / STAT TILES ===== -->
+      <section id="cards" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Cards &amp; stat tiles</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">KPI tiles use mono tabular figures and a colored delta. Keep them flat — border + subtle shadow, no glow.</p>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:16px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:16px; box-shadow:var(--sh-sm);">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:28px; height:28px; border-radius:7px; background:var(--{{ k.softRef }}); color:var(--{{ k.ref }}); display:flex; align-items:center; justify-content:center; flex:none;">
+                  <span style="width:9px; height:9px; border-radius:2px; background:currentColor;"></span>
+                </span>
+                <span style="font-size:12px; color:var(--c-text-3); font-weight:500;">{{ k.label }}</span>
+              </div>
+              <div style="font-family:'IBM Plex Mono'; font-size:26px; font-weight:600; margin-top:12px; letter-spacing:-.02em;">{{ k.value }}</div>
+              <div style="display:flex; align-items:center; gap:5px; margin-top:5px; font-size:12px; color:var(--{{ k.ref }}); font-weight:600;">{{ k.delta }}<span style="color:var(--c-text-3); font-weight:400;">{{ k.sub }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; box-shadow:var(--sh-sm); overflow:hidden;">
+          <div style="padding:16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--c-border);">
+            <div style="width:40px; height:40px; border-radius:50%; background:var(--c-primary-soft); color:var(--c-primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:'IBM Plex Mono';">PS</div>
+            <div style="flex:1;"><div style="font-weight:600;">Priya Sharma</div><div style="font-size:12px; color:var(--c-text-3);">Member since 2023 · 48 orders</div></div>
+            <span style="font-size:11px; font-weight:600; color:var(--c-success); background:var(--c-success-soft); padding:4px 10px; border-radius:20px;">Premium plan</span>
+          </div>
+          <div style="padding:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+            <div><div style="font-size:11px; color:var(--c-text-3);">Lifetime value</div><div style="font-family:'IBM Plex Mono'; font-weight:600; font-size:16px;">$3,418.00</div></div>
+            <div><div style="font-size:11px; color:var(--c-text-3);">Avg. turnaround</div><div style="font-family:'IBM Plex Mono'; font-weight:600; font-size:16px;">26h</div></div>
+            <div><div style="font-size:11px; color:var(--c-text-3);">Open balance</div><div style="font-family:'IBM Plex Mono'; font-weight:600; font-size:16px; color:var(--c-warning);">$42.50</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== NAVIGATION ===== -->
+      <section id="nav" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Navigation patterns</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Tabs, breadcrumbs and a compact sidebar item set — all fully tabbable with clear active states.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:22px;">
+          <div>
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:10px;">Breadcrumbs</div>
+            <nav aria-label="Breadcrumb" style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--c-text-3);">
+              <a href="#" style="color:var(--c-text-2); text-decoration:none;" style-hover="color:var(--c-primary);">Orders</a><span>/</span>
+              <a href="#" style="color:var(--c-text-2); text-decoration:none;" style-hover="color:var(--c-primary);">Active</a><span>/</span>
+              <span style="color:var(--c-text); font-weight:600;" aria-current="page">#LB-04821</span>
+            </nav>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:10px;">Tabs</div>
+            <div role="tablist" style="display:flex; gap:2px; border-bottom:1px solid var(--c-border);">
+              <button role="tab" aria-selected="true" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-primary); background:transparent; border:0; border-bottom:2px solid var(--c-primary); padding:9px 14px; margin-bottom:-1px;">Details</button>
+              <button role="tab" aria-selected="false" style="cursor:pointer; font:inherit; font-size:13px; font-weight:500; color:var(--c-text-3); background:transparent; border:0; border-bottom:2px solid transparent; padding:9px 14px; margin-bottom:-1px;" style-hover="color:var(--c-text);">Items</button>
+              <button role="tab" aria-selected="false" style="cursor:pointer; font:inherit; font-size:13px; font-weight:500; color:var(--c-text-3); background:transparent; border:0; border-bottom:2px solid transparent; padding:9px 14px; margin-bottom:-1px;" style-hover="color:var(--c-text);">Billing</button>
+              <button role="tab" aria-selected="false" style="cursor:pointer; font:inherit; font-size:13px; font-weight:500; color:var(--c-text-3); background:transparent; border:0; border-bottom:2px solid transparent; padding:9px 14px; margin-bottom:-1px;" style-hover="color:var(--c-text);">History</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--c-text-3); margin-bottom:10px;">Sidebar items</div>
+            <div style="max-width:230px; display:flex; flex-direction:column; gap:2px;">
+              <sc-for list="{{ sidebarDemo }}" as="d" hint-placeholder-count="4">
+                <a href="#" style="display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:7px; text-decoration:none; font-size:13px; font-weight:500; color:{{ d.fg }}; background:{{ d.bg }};" style-hover="background:var(--c-surface-2);">
+                  <span style="width:7px; height:7px; border-radius:2px; background:{{ d.dot }};"></span>{{ d.label }}
+                  <span style="margin-left:auto; font-size:11px; font-family:'IBM Plex Mono'; color:var(--c-text-3);">{{ d.count }}</span>
+                </a>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== OVERLAYS ===== -->
+      <section id="overlays" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Overlays &amp; feedback</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Modal, drawer, toast and tooltip. Each traps focus where appropriate and is dismissible with the keyboard.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+          <button onClick="{{ openModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-primary-hover);">Open modal</button>
+          <button onClick="{{ openDrawer }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-surface-2);">Open drawer</button>
+          <button onClick="{{ showToast }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-surface-2);">Show toast</button>
+          <span style="position:relative; display:inline-block;">
+            <button aria-describedby="lb-tip" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-surface-2);">Hover for tooltip</button>
+            <span id="lb-tip" role="tooltip" class="lb-tip" style="position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); white-space:nowrap; font-size:12px; font-weight:500; color:#fff; background:#1f2733; padding:6px 10px; border-radius:6px; opacity:0; pointer-events:none; transition:opacity .12s; box-shadow:var(--sh-md);">Shortcut: ⌘ N</span>
+          </span>
+          <span style="font-size:12px; color:var(--c-text-3);">Inline banner →</span>
+          <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:var(--c-info); background:var(--c-info-soft); border:1px solid var(--c-info); border-radius:8px; padding:9px 13px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/></svg>
+            Route #3 has 4 stops remaining.
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== ACCESSIBILITY ===== -->
+      <section id="a11y" style="margin-bottom:44px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Keyboard &amp; accessibility</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Press <kbd style="font-family:'IBM Plex Mono'; font-size:11px; background:var(--c-surface-2); border:1px solid var(--c-border-strong); border-bottom-width:2px; border-radius:4px; padding:1px 5px;">Tab</kbd> to move focus through the chips below — every stop shows the same 2px ring.</p>
+        <div style="background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px; padding:20px; display:grid; grid-template-columns:1.1fr 1fr; gap:20px;">
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:12px;">Focus order demo</div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+                <button style="cursor:pointer; font:inherit; font-size:12.5px; font-weight:500; color:var(--c-text); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:20px; padding:6px 13px;" style-hover="border-color:var(--c-border-strong);">{{ c }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ a11yRules }}" as="a" hint-placeholder-count="4">
+              <div style="display:flex; gap:9px; align-items:flex-start; font-size:13px;">
+                <span style="width:16px; height:16px; flex:none; margin-top:1px; border-radius:5px; background:var(--c-success-soft); color:var(--c-success); display:flex; align-items:center; justify-content:center;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>
+                </span>
+                <span style="color:var(--c-text-2);">{{ a }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TOKEN CODE REFERENCE ===== -->
+      <section id="code" style="margin-bottom:20px;">
+        <h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Token reference — Tailwind &amp; CSS</h2>
+        <p style="color:var(--c-text-2); margin:0 0 18px; font-size:13px;">Drop these into <code style="font-family:'IBM Plex Mono'; font-size:12px; background:var(--c-surface-2); padding:1px 5px; border-radius:4px;">tailwind.config.js</code> and a global stylesheet to wire the system in React.</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div style="background:#0d1320; border:1px solid var(--c-border); border-radius:10px; overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08);"><span style="width:9px; height:9px; border-radius:50%; background:#ff5f57;"></span><span style="width:9px; height:9px; border-radius:50%; background:#febc2e;"></span><span style="width:9px; height:9px; border-radius:50%; background:#28c840;"></span><span style="font-size:11px; color:#7a8595; margin-left:6px; font-family:IBM Plex Mono;">tailwind.config.js</span></div>
+            <pre class="lb-scroll" style="margin:0; padding:14px 16px; overflow:auto; font-family:'IBM Plex Mono'; font-size:11.5px; line-height:1.65; color:#c8d2e0;">{{ tailwindCode }}</pre>
+          </div>
+          <div style="background:#0d1320; border:1px solid var(--c-border); border-radius:10px; overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08);"><span style="width:9px; height:9px; border-radius:50%; background:#ff5f57;"></span><span style="width:9px; height:9px; border-radius:50%; background:#febc2e;"></span><span style="width:9px; height:9px; border-radius:50%; background:#28c840;"></span><span style="font-size:11px; color:#7a8595; margin-left:6px; font-family:IBM Plex Mono;">tokens.css + StatusBadge.tsx</span></div>
+            <pre class="lb-scroll" style="margin:0; padding:14px 16px; overflow:auto; font-family:'IBM Plex Mono'; font-size:11.5px; line-height:1.65; color:#c8d2e0;">{{ cssCode }}</pre>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== MODAL ===== -->
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Confirm action" style="position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,17,23,.55); animation:lbOverlayIn .14s ease;" onClick="{{ closeModal }}">
+      <div onClick="{{ stop }}" style="width:100%; max-width:420px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; box-shadow:var(--sh-overlay); padding:22px; animation:lbModalIn .16s ease;">
+        <div style="display:flex; align-items:flex-start; gap:13px;">
+          <span style="width:38px; height:38px; flex:none; border-radius:9px; background:var(--c-warning-soft); color:var(--c-warning); display:flex; align-items:center; justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17v.5"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          </span>
+          <div>
+            <div style="font-size:16px; font-weight:600;">Mark order as Delivered?</div>
+            <div style="font-size:13px; color:var(--c-text-2); margin-top:5px;">Order <span style="font-family:'IBM Plex Mono';">#LB-04821</span> will be closed and the customer notified by SMS. This cannot be undone.</div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-surface-2);">Cancel</button>
+          <button onClick="{{ closeModal }}" style="cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:7px; padding:8px 16px;" style-hover="background:var(--c-primary-hover);">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== DRAWER ===== -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Order details" style="position:fixed; inset:0; z-index:60; background:rgba(13,17,23,.55); animation:lbOverlayIn .14s ease;" onClick="{{ closeDrawer }}">
+      <div onClick="{{ stop }}" style="position:absolute; top:0; right:0; height:100%; width:380px; max-width:90vw; background:var(--c-surface); border-left:1px solid var(--c-border); box-shadow:var(--sh-overlay); animation:lbDrawerIn .2s ease; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--c-border);">
+          <div style="font-weight:600;">Order #LB-04821</div>
+          <span style="font-size:11.5px; font-weight:600; padding:3px 9px 3px 7px; border-radius:20px; background:var(--st-washing-bg); color:var(--st-washing-fg); display:inline-flex; align-items:center; gap:6px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--st-washing-fg);"></span>Washing</span>
+          <button onClick="{{ closeDrawer }}" aria-label="Close" style="margin-left:auto; cursor:pointer; width:30px; height:30px; color:var(--c-text-2); background:transparent; border:1px solid var(--c-border); border-radius:7px;" style-hover="background:var(--c-surface-2);">✕</button>
+        </div>
+        <div class="lb-scroll" style="flex:1; overflow:auto; padding:18px; display:flex; flex-direction:column; gap:16px;">
+          <div><div style="font-size:11px; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Customer</div><div style="font-weight:600;">Priya Sharma</div><div style="font-size:12px; color:var(--c-text-3); font-family:'IBM Plex Mono';">+1 415 552 0118</div></div>
+          <div><div style="font-size:11px; color:var(--c-text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Items</div>
+            <div style="display:flex; flex-direction:column; gap:7px;">
+              <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Wash &amp; Fold · 8 lb</span><span style="font-family:'IBM Plex Mono';">$24.00</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Dry clean · 2 shirts</span><span style="font-family:'IBM Plex Mono';">$16.00</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Express surcharge</span><span style="font-family:'IBM Plex Mono';">$8.00</span></div>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-top:1px solid var(--c-border); padding-top:13px; font-weight:600;"><span>Total</span><span style="font-family:'IBM Plex Mono';">$48.00</span></div>
+        </div>
+        <div style="padding:14px 18px; border-top:1px solid var(--c-border); display:flex; gap:10px;">
+          <button style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-surface); border:1px solid var(--c-border-strong); border-radius:7px; padding:9px;" style-hover="background:var(--c-surface-2);">Print ticket</button>
+          <button style="flex:1; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--c-primary); border:0; border-radius:7px; padding:9px;" style-hover="background:var(--c-primary-hover);">Advance status</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== TOAST ===== -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div role="status" aria-live="polite" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:70; display:flex; align-items:center; gap:11px; background:var(--c-surface); border:1px solid var(--c-border); border-left:3px solid var(--c-success); border-radius:9px; box-shadow:var(--sh-overlay); padding:12px 16px; animation:lbToastIn .18s ease;">
+      <span style="width:22px; height:22px; flex:none; border-radius:6px; background:var(--c-success-soft); color:var(--c-success); display:flex; align-items:center; justify-content:center;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>
+      </span>
+      <div><div style="font-size:13px; font-weight:600;">Order marked Ready</div><div style="font-size:12px; color:var(--c-text-3);">#LB-04821 · customer notified</div></div>
+      <button onClick="{{ hideToast }}" aria-label="Dismiss" style="margin-left:8px; cursor:pointer; color:var(--c-text-3); background:transparent; border:0; font-size:15px;">✕</button>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme:'light', density:'compact', modal:false, drawer:false, toast:false, demoToggle:true };
+
+  componentDidMount(){
+    this._key = (e)=>{ if(e.key==='Escape'){ this.setState({modal:false, drawer:false}); } };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount(){ window.removeEventListener('keydown', this._key); clearTimeout(this._t); }
+
+  fireToast(){ this.setState({toast:true}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:false}), 3400); }
+
+  renderVals(){
+    const dark = this.state.theme==='dark';
+    const compact = this.state.density==='compact';
+    const hx = (l,d)=> dark ? d : l;
+
+    const coreSwatches = [
+      {token:'--c-bg', role:'App background', ref:'c-bg', hex:hx('#F5F6F8','#0E1117')},
+      {token:'--c-surface', role:'Card / panel', ref:'c-surface', hex:hx('#FFFFFF','#161B22')},
+      {token:'--c-surface-2', role:'Subtle fill', ref:'c-surface-2', hex:hx('#F1F3F6','#1C232D')},
+      {token:'--c-border', role:'Default border', ref:'c-border', hex:hx('#E2E6EC','#2A323D')},
+      {token:'--c-border-strong', role:'Strong border', ref:'c-border-strong', hex:hx('#CBD2DC','#3A4452')},
+      {token:'--c-text', role:'Primary text', ref:'c-text', hex:hx('#11151C','#E6EAF0')},
+      {token:'--c-text-2', role:'Secondary text', ref:'c-text-2', hex:hx('#4A5563','#A6B0BE')},
+      {token:'--c-text-3', role:'Muted text', ref:'c-text-3', hex:hx('#7A8595','#6E7886')},
+      {token:'--c-primary', role:'Brand / action', ref:'c-primary', hex:hx('#1A4FD6','#4D7CF0')},
+      {token:'--c-primary-soft', role:'Brand tint', ref:'c-primary-soft', hex:hx('#E7EDFC','#16224A')},
+    ];
+    const semanticSwatches = [
+      {name:'Success', label:'Ready', use:'Order ready · payment confirmed', ref:'c-success', softRef:'c-success-soft', hex:hx('#1E8E5A','#3FB985'), softHex:hx('#E3F4EC','#11281E')},
+      {name:'Warning', label:'On hold', use:'Action needed · balance due', ref:'c-warning', softRef:'c-warning-soft', hex:hx('#B26A00','#E0A94F'), softHex:hx('#FBEFD7','#2A2110')},
+      {name:'Error', label:'Failed', use:'Validation · cancelled order', ref:'c-error', softRef:'c-error-soft', hex:hx('#C2362F','#F2867C'), softHex:hx('#FBE6E5','#2E1614')},
+      {name:'Info', label:'Processing', use:'In progress · neutral notices', ref:'c-info', softRef:'c-info-soft', hex:hx('#1A6FD6','#5BA0F5'), softHex:hx('#E4F0FC','#0F2238')},
+    ];
+    const statuses = [
+      {key:'received', label:'Received', desc:'Intake complete, awaiting wash'},
+      {key:'washing', label:'Washing', desc:'In the wash cycle'},
+      {key:'ironing', label:'Ironing', desc:'Pressing / finishing'},
+      {key:'ready', label:'Ready', desc:'Ready for pickup or dispatch'},
+      {key:'delivery', label:'Out for delivery', desc:'On a driver route'},
+      {key:'delivered', label:'Delivered', desc:'Closed and fulfilled'},
+      {key:'hold', label:'On hold', desc:'Blocked — balance or issue'},
+      {key:'cancelled', label:'Cancelled', desc:'Voided before fulfilment'},
+    ];
+    const typeScale = [
+      {name:'Display', spec:'28 / 700 / -2%', use:'Page titles', px:'28', w:'700', ls:'-.02em', family:"'IBM Plex Sans'", sample:'Order Intake'},
+      {name:'Heading 1', spec:'22 / 600 / -1%', use:'Section headers', px:'22', w:'600', ls:'-.01em', family:"'IBM Plex Sans'", sample:'Customer Details'},
+      {name:'Heading 2', spec:'18 / 600', use:'Card titles', px:'18', w:'600', ls:'0', family:"'IBM Plex Sans'", sample:'Active orders'},
+      {name:'Body', spec:'14 / 400', use:'Default UI text', px:'14', w:'400', ls:'0', family:"'IBM Plex Sans'", sample:'Standard wash & fold, returned next day.'},
+      {name:'Body strong', spec:'14 / 600', use:'Labels, emphasis', px:'14', w:'600', ls:'0', family:"'IBM Plex Sans'", sample:'Pickup scheduled · 4:30 PM'},
+      {name:'Small', spec:'13 / 400', use:'Table / secondary', px:'13', w:'400', ls:'0', family:"'IBM Plex Sans'", sample:'Updated 6 minutes ago'},
+      {name:'Caption', spec:'12 / 500', use:'Hints, meta, badges', px:'12', w:'500', ls:'.01em', family:"'IBM Plex Sans'", sample:'OPTIONAL · max 20 lb'},
+      {name:'Mono / data', spec:'13 / 500 · tabular', use:'IDs, totals, qty', px:'14', w:'500', ls:'0', family:"'IBM Plex Mono'", sample:'#LB-04821 · $128.50 · 8 lb'},
+    ];
+    const spacing = [
+      {token:'space-1', px:'4'},{token:'space-2', px:'8'},{token:'space-3', px:'12'},{token:'space-4', px:'16'},
+      {token:'space-5', px:'20'},{token:'space-6', px:'24'},{token:'space-8', px:'32'},{token:'space-10', px:'40'},
+    ];
+    const radii = [
+      {token:'radius-none', px:'0'},{token:'radius-sm', px:'4'},{token:'radius-md', px:'6'},{token:'radius-lg', px:'8'},{token:'radius-xl', px:'12'},
+    ];
+    const orders = [
+      {id:'#LB-04821', customer:'Priya Sharma', phone:'+1 415 552 0118', items:'10 pcs', statusKey:'washing', statusLabel:'Washing', total:'$48.00', updated:'6m ago', sel:false},
+      {id:'#LB-04820', customer:'Marcus Reed', phone:'+1 628 114 8890', items:'4 pcs', statusKey:'ready', statusLabel:'Ready', total:'$22.50', updated:'14m ago', sel:true},
+      {id:'#LB-04819', customer:'Elena Cruz', phone:'+1 510 992 3471', items:'18 pcs', statusKey:'ironing', statusLabel:'Ironing', total:'$76.00', updated:'31m ago', sel:false},
+      {id:'#LB-04818', customer:'David Okafor', phone:'+1 415 778 2204', items:'6 pcs', statusKey:'received', statusLabel:'Received', total:'$31.00', updated:'48m ago', sel:false},
+      {id:'#LB-04817', customer:'Hana Kim', phone:'+1 669 401 7720', items:'2 pcs', statusKey:'delivery', statusLabel:'Out for delivery', total:'$18.00', updated:'1h ago', sel:false},
+      {id:'#LB-04816', customer:'Tom Becker', phone:'+1 408 220 5567', items:'12 pcs', statusKey:'hold', statusLabel:'On hold', total:'$54.00', updated:'2h ago', sel:false},
+    ].map(o=>({ ...o, rowBg: o.sel ? 'var(--c-primary-soft)' : 'transparent' }));
+    const kpis = [
+      {label:'Orders today', value:'128', delta:'▲ 12%', sub:'vs. yesterday', ref:'c-success', softRef:'c-success-soft'},
+      {label:'Revenue (24h)', value:'$3.4k', delta:'▲ 8%', sub:'on target', ref:'c-info', softRef:'c-info-soft'},
+      {label:'Ready for pickup', value:'37', delta:'● live', sub:'queue', ref:'c-primary', softRef:'c-primary-soft'},
+      {label:'Overdue', value:'5', delta:'▲ 2', sub:'needs action', ref:'c-warning', softRef:'c-warning-soft'},
+    ];
+    const sidebarDemo = [
+      {label:'All orders', count:'248', active:true},
+      {label:'Ready', count:'37', active:false},
+      {label:'Routes', count:'3', active:false},
+      {label:'Invoices', count:'12', active:false},
+    ].map(d=>({
+      label:d.label, count:d.count,
+      fg: d.active ? 'var(--c-primary)' : 'var(--c-text-2)',
+      bg: d.active ? 'var(--c-primary-soft)' : 'transparent',
+      dot: d.active ? 'var(--c-primary)' : 'var(--c-border-strong)',
+    }));
+    const chips = ['New order','Customers','Routes','Invoices','Subscriptions','Settings'];
+    const a11yRules = [
+      'Every control reaches a visible 2px :focus-visible ring; mouse clicks stay clean.',
+      'Status is never color-only — a label and dot accompany every badge.',
+      'Inputs use <label for>, aria-invalid and aria-describedby for errors.',
+      'Modals & drawers set role="dialog" aria-modal and close on Escape.',
+    ];
+
+    const tailwindCode =
+`// tailwind.config.js
+export default {
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          DEFAULT: '#1A4FD6',
+          hover:   '#1640B4',
+          soft:    '#E7EDFC',
+        },
+        surface: { DEFAULT:'#FFFFFF', sub:'#F1F3F6' },
+        ink:  { DEFAULT:'#11151C', 2:'#4A5563', 3:'#7A8595' },
+        line: { DEFAULT:'#E2E6EC', strong:'#CBD2DC' },
+        ok:'#1E8E5A', warn:'#B26A00',
+        err:'#C2362F', info:'#1A6FD6',
+        // laundry states
+        st: {
+          received:'#475467', washing:'#155CC0',
+          ironing:'#6B3FD4',  ready:'#146F47',
+          delivery:'#0E6E8C', delivered:'#5A6675',
+          hold:'#9A5B00',     cancelled:'#B42318',
+        },
+      },
+      fontFamily: {
+        sans: ['IBM Plex Sans','system-ui','sans-serif'],
+        mono: ['IBM Plex Mono','ui-monospace'],
+      },
+      borderRadius: { sm:'4px', md:'6px', lg:'8px', xl:'12px' },
+      boxShadow: {
+        sm:'0 1px 2px rgba(16,24,40,.06)',
+        md:'0 2px 6px rgba(16,24,40,.08)',
+      },
+      ringColor: { DEFAULT:'#2563EB' },
+    },
+  },
+};`;
+
+    const cssCode =
+`/* tokens.css — semantic + dark */
+:root {
+  --c-bg:#F5F6F8;       --c-surface:#FFFFFF;
+  --c-text:#11151C;     --c-primary:#1A4FD6;
+  --c-ring:#2563EB;
+}
+[data-theme="dark"] {
+  --c-bg:#0E1117;       --c-surface:#161B22;
+  --c-text:#E6EAF0;     --c-primary:#4D7CF0;
+  --c-ring:#6E9BF5;
+}
+:focus-visible {
+  outline:2px solid var(--c-ring);
+  outline-offset:2px;
+}
+
+/* StatusBadge.tsx */
+const MAP = {
+  received:'st-received', washing:'st-washing',
+  ironing:'st-ironing',   ready:'st-ready',
+  delivery:'st-delivery', delivered:'st-delivered',
+  hold:'st-hold',         cancelled:'st-cancelled',
+} as const;
+
+export function StatusBadge({ status, label }:{
+  status: keyof typeof MAP; label: string;
+}) {
+  return (
+    <span role="status"
+      className={\`badge badge--\${status}\`}>
+      <span className="badge__dot" aria-hidden />
+      {label}
+    </span>
+  );
+}`;
+
+    return {
+      theme:this.state.theme,
+      isDark:dark,
+      themeLabel: dark ? 'Dark' : 'Light',
+      toggleTheme: ()=>this.setState(s=>({theme:s.theme==='light'?'dark':'light'})),
+      density:this.state.density,
+      isCompact: compact, isComfortable: !compact,
+      setCompact: ()=>this.setState({density:'compact'}),
+      setComfortable: ()=>this.setState({density:'comfortable'}),
+      compactBg: compact ? 'var(--c-surface)' : 'transparent',
+      compactFg: compact ? 'var(--c-text)' : 'var(--c-text-3)',
+      comfortableBg: !compact ? 'var(--c-surface)' : 'transparent',
+      comfortableFg: !compact ? 'var(--c-text)' : 'var(--c-text-3)',
+      rowPad: compact ? '7px 14px' : '12px 14px',
+      demoToggle:this.state.demoToggle,
+      flipToggle: ()=>this.setState(s=>({demoToggle:!s.demoToggle})),
+      toggleTrack: this.state.demoToggle ? 'var(--c-primary)' : 'var(--c-border-strong)',
+      toggleKnob: this.state.demoToggle ? 'translateX(18px)' : 'translateX(0)',
+      modalOpen:this.state.modal, openModal:()=>this.setState({modal:true}), closeModal:()=>this.setState({modal:false}),
+      drawerOpen:this.state.drawer, openDrawer:()=>this.setState({drawer:true}), closeDrawer:()=>this.setState({drawer:false}),
+      toast:this.state.toast, showToast:()=>this.fireToast(), hideToast:()=>this.setState({toast:false}),
+      stop:(e)=>{ e.stopPropagation(); },
+      navSections:[
+        {label:'Brand & foundation', href:'#brand'},
+        {label:'Color tokens', href:'#color'},
+        {label:'Status badges', href:'#status'},
+        {label:'Typography', href:'#type'},
+        {label:'Spacing & elevation', href:'#primitives'},
+        {label:'Buttons', href:'#buttons'},
+        {label:'Form controls', href:'#forms'},
+        {label:'Data table', href:'#table'},
+        {label:'Cards & stat tiles', href:'#cards'},
+        {label:'Navigation', href:'#nav'},
+        {label:'Overlays & feedback', href:'#overlays'},
+        {label:'Keyboard & a11y', href:'#a11y'},
+        {label:'Token reference', href:'#code'},
+      ],
+      coreSwatches, semanticSwatches, statuses, typeScale, spacing, radii,
+      orders, kpis, sidebarDemo, chips, a11yRules, tailwindCode, cssCode,
+    };
+  }
+}
+</script>
+</body>
+</html>

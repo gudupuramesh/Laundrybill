@@ -68,6 +68,10 @@ export function PublicTrackingPage() {
     // Support both /track/:trackingId and /track/:shopId/:publicId
     const effectiveTrackingId = publicId || trackingId || "";
     const [searchQuery, setSearchQuery] = useState(effectiveTrackingId);
+    const [phoneInput, setPhoneInput] = useState("");
+    // Phone is the verifier — tracking only runs once the customer confirms the
+    // mobile number on the order (prevents enumerating orders by number alone).
+    const [phoneVerified, setPhoneVerified] = useState("");
 
     // Force public tracking page to always render in English, regardless
     // of the app/user language preference.
@@ -87,11 +91,14 @@ export function PublicTrackingPage() {
 
     // Order IDs are now globally unique (format: XXXX-00001)
     // Legacy IDs (A-001) may still exist but will match the first shop
-    const { data, loading, error } = useOrderTracking(effectiveTrackingId);
+    const { data, loading, error } = useOrderTracking(effectiveTrackingId, phoneVerified);
 
     const handleSearch = () => {
-        if (searchQuery.trim()) {
-            navigate(`/track/${searchQuery.trim()}`);
+        const code = searchQuery.trim();
+        const ph = phoneInput.replace(/\D/g, "");
+        if (code && ph.length >= 10) {
+            setPhoneVerified(ph);
+            if (code !== effectiveTrackingId) navigate(`/track/${code}`);
         }
     };
 
@@ -108,8 +115,9 @@ export function PublicTrackingPage() {
         return statusConfig[status] || statusConfig.pending;
     };
 
-    // Search Form (shown when no tracking ID in URL)
-    if (!effectiveTrackingId) {
+    // Search / verify form — shown when there's no order number yet OR the
+    // customer hasn't confirmed the phone on the order (the tracking verifier).
+    if (!effectiveTrackingId || !phoneVerified) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-primary to-primary-dark flex flex-col">
                 {/* Header */}
@@ -135,6 +143,19 @@ export function PublicTrackingPage() {
                             placeholder={t('tracking.orderIdPlaceholder')}
                             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                         />
+                        <LSpacer size="sm" />
+                        <LTextInput
+                            label={t('tracking.phoneVerify', 'Mobile number on the order')}
+                            value={phoneInput}
+                            onChange={(e) => setPhoneInput(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
+                            placeholder={t('tracking.phoneVerifyPlaceholder', 'e.g. 9876543210')}
+                            inputMode="tel"
+                            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                        />
+                        <LSpacer size="xs" />
+                        <p className="text-xs text-muted-foreground">
+                            {t('tracking.phoneVerifyHint', 'For your privacy, we confirm the mobile number used on the order.')}
+                        </p>
                         <LSpacer size="md" />
                         <LButton
                             variant="primary"
@@ -142,7 +163,7 @@ export function PublicTrackingPage() {
                             fullWidth
                             leftIcon={<Search className="h-5 w-5" />}
                             onClick={handleSearch}
-                            disabled={!searchQuery.trim()}
+                            disabled={!searchQuery.trim() || phoneInput.replace(/\D/g, "").length < 10}
                         >
                             {t('tracking.trackOrder')}
                         </LButton>
@@ -478,7 +499,7 @@ export function PublicTrackingPage() {
                         size="lg"
                         fullWidth
                         leftIcon={<FileText className="h-5 w-5" />}
-                        onClick={() => navigate(`/receipt/${data.publicId}`)}
+                        onClick={() => navigate(`/receipt/${data.publicId}`, { state: { phone: phoneVerified } })}
                     >
                         {t('tracking.viewReceipt', 'View receipt')}
                     </LButton>

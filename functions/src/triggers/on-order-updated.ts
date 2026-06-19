@@ -62,17 +62,33 @@ export const onOrderUpdated = onDocumentUpdated(
         return;
       }
 
-      // Status → cancelled: notify assigned agent (from before or after; use before so we notify who had it)
-      if (newStatus === "cancelled") {
+      // Status → pickup_completed: the home pickup just arrived → plant queue.
+      if (newStatus === "pickup_completed" && prevStatus !== "pickup_completed") {
+        await sendOrderNotification({
+          ...payload,
+          type: "plant_new_order",
+          recipient: "plant",
+          assignedAgentId: null,
+        });
+        return;
+      }
+
+      // Status → cancelled: notify the owner (shop) + the assigned agent who had
+      // it (use the prior agent), and the Team-app manager.
+      if (newStatus === "cancelled" && prevStatus !== "cancelled") {
         const agentToNotify = prevAgentId || newAgentId;
-        if (agentToNotify) {
-          await sendOrderNotification({
-            ...payload,
-            type: "order_cancelled",
-            recipient: "agent",
-            assignedAgentId: agentToNotify,
-          });
-        }
+        await sendOrderNotification({
+          ...payload,
+          type: "order_cancelled",
+          recipient: agentToNotify ? "both" : "shop",
+          assignedAgentId: agentToNotify,
+        });
+        await sendOrderNotification({
+          ...payload,
+          type: "manager_order_cancelled",
+          recipient: "manager",
+          assignedAgentId: null,
+        });
         return;
       }
 
