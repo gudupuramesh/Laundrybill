@@ -1,16 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useDriverAuth } from "@/features/driver-app/DriverAuthContext";
-import { LCard, LButton, LSpinner, LBadge, LStatusBadge } from "@/components/laundry";
-import { ScanLine, AlertCircle, Package, User, RefreshCw, Camera, Keyboard } from "lucide-react";
+import { ScanLine, AlertCircle, Package, User, RefreshCw, Camera, Keyboard, Loader2 } from "lucide-react";
 import type { Order } from "@/types/order";
 import { format } from "date-fns";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
 type ScanMode = "camera" | "manual";
+
+const STATUS_COLOR: Record<string, string> = {
+    pending: "c-text-3",
+    processing: "c-info",
+    ready: "c-success",
+    ready_for_pickup: "c-success",
+    out_for_delivery: "c-cyan",
+    picked_up: "c-success",
+    delivered: "c-success",
+    pickup_completed: "c-violet",
+    cancelled: "c-error",
+};
 
 export function PlantScanPage() {
     const { t } = useTranslation();
@@ -122,55 +133,51 @@ export function PlantScanPage() {
 
     const itemInfo = getItemFromOrder();
 
+    const seg = (active: boolean): CSSProperties => ({
+        flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+        font: "inherit", fontSize: 13.5, fontWeight: 600, borderRadius: 9, padding: "10px 0",
+        color: active ? "#fff" : "var(--c-text-2)",
+        background: active ? "var(--c-primary)" : "var(--c-surface)",
+        border: `1px solid ${active ? "var(--c-primary)" : "var(--c-border-strong)"}`,
+    });
+
+    const statusToken = order ? (STATUS_COLOR[order.status] ?? "c-text-3") : "c-text-3";
+
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-gray-100">
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 520, margin: "0 auto" }}>
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>
                     {t('plant.scan.title', 'Scan & Identify')}
-                </h1>
-                <p className="text-gray-500">
+                </div>
+                <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 3 }}>
                     {t('plant.scan.subtitle', 'Scan a tag QR code to identify the order or item')}
-                </p>
+                </div>
             </div>
 
             {/* Mode Toggle */}
-            <div className="flex gap-2">
-                <LButton
-                    variant={scanMode === "camera" ? "primary" : "outline"}
-                    onClick={() => setScanMode("camera")}
-                    className="flex-1 gap-2"
-                >
-                    <Camera className="h-4 w-4" />
-                    Camera
-                </LButton>
-                <LButton
-                    variant={scanMode === "manual" ? "primary" : "outline"}
-                    onClick={() => setScanMode("manual")}
-                    className="flex-1 gap-2"
-                >
-                    <Keyboard className="h-4 w-4" />
-                    Manual / USB
-                </LButton>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <button style={seg(scanMode === "camera")} onClick={() => setScanMode("camera")}>
+                    <Camera size={16} /> Camera
+                </button>
+                <button style={seg(scanMode === "manual")} onClick={() => setScanMode("manual")}>
+                    <Keyboard size={16} /> Manual / USB
+                </button>
             </div>
 
             {/* Scanner Section */}
             {!order && (
-                <LCard className="p-4">
+                <div style={{ ...card, padding: 16 }}>
                     {scanMode === "camera" ? (
                         /* Camera Scanner */
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-full max-w-md aspect-square bg-black rounded-lg overflow-hidden relative">
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#000", borderRadius: 10, overflow: "hidden", position: "relative" }}>
                                 {cameraError ? (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 text-center">
-                                        <AlertCircle className="h-12 w-12 mb-4 text-red-400" />
-                                        <p className="font-medium">{cameraError}</p>
-                                        <LButton
-                                            variant="outline"
-                                            className="mt-4"
-                                            onClick={() => setCameraError(null)}
-                                        >
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 16, textAlign: "center" }}>
+                                        <AlertCircle size={48} color="var(--c-error)" style={{ marginBottom: 16 }} />
+                                        <p style={{ fontWeight: 600, margin: 0 }}>{cameraError}</p>
+                                        <button style={{ ...btnOutline, marginTop: 16, background: "transparent", color: "#fff", borderColor: "rgba(255,255,255,.5)" }} onClick={() => setCameraError(null)}>
                                             Retry
-                                        </LButton>
+                                        </button>
                                     </div>
                                 ) : (
                                     <Scanner
@@ -197,50 +204,42 @@ export function PlantScanPage() {
                                     />
                                 )}
                                 {cameraError && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-4 text-center z-10">
-                                        <AlertCircle className="h-12 w-12 mb-4 text-red-400" />
-                                        <p className="font-medium mb-2">{cameraError}</p>
-                                        <p className="text-sm text-white/70 mb-4">Please use Manual Mode to enter the ID.</p>
-                                        <div className="flex gap-2">
-                                            <LButton
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setCameraError(null)}
-                                            >
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.8)", color: "#fff", padding: 16, textAlign: "center", zIndex: 10 }}>
+                                        <AlertCircle size={48} color="var(--c-error)" style={{ marginBottom: 16 }} />
+                                        <p style={{ fontWeight: 600, marginBottom: 8 }}>{cameraError}</p>
+                                        <p style={{ fontSize: 13, color: "rgba(255,255,255,.7)", marginBottom: 16 }}>Please use Manual Mode to enter the ID.</p>
+                                        <div style={{ display: "flex", gap: 8 }}>
+                                            <button style={{ ...btnOutline, background: "transparent", color: "#fff", borderColor: "rgba(255,255,255,.5)", padding: "8px 14px", fontSize: 13 }} onClick={() => setCameraError(null)}>
                                                 Retry
-                                            </LButton>
-                                            <LButton
-                                                variant="primary"
-                                                size="sm"
-                                                onClick={() => setScanMode("manual")}
-                                            >
+                                            </button>
+                                            <button style={{ ...btnPrimary, padding: "8px 14px", fontSize: 13 }} onClick={() => setScanMode("manual")}>
                                                 Switch to Manual
-                                            </LButton>
+                                            </button>
                                         </div>
                                     </div>
                                 )}
                                 {loading && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                        <LSpinner size="lg" />
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)" }}>
+                                        <Loader2 size={32} color="#fff" className="animate-spin" />
                                     </div>
                                 )}
                             </div>
-                            <p className="text-sm text-muted-foreground text-center">
+                            <p style={{ fontSize: 13, color: "var(--c-text-3)", textAlign: "center", margin: 0 }}>
                                 Point your camera at a QR code on the tag
                             </p>
                         </div>
                     ) : (
                         /* Manual Input */
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                                <ScanLine className="h-8 w-8 text-primary" />
-                            </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                            <ChipIcon soft="c-primary-soft" refColor="c-primary">
+                                <ScanLine size={16} />
+                            </ChipIcon>
 
-                            <div className="w-full max-w-md">
-                                <label className="block text-sm font-medium text-muted-foreground mb-2 text-center">
+                            <div style={{ width: "100%" }}>
+                                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--c-text-3)", marginBottom: 8, textAlign: "center" }}>
                                     {t('plant.scan.inputLabel', 'Scan QR or enter Order ID')}
                                 </label>
-                                <div className="flex gap-2">
+                                <div style={{ display: "flex", gap: 8 }}>
                                     <input
                                         ref={inputRef}
                                         type="text"
@@ -248,59 +247,66 @@ export function PlantScanPage() {
                                         onChange={(e) => setScanInput(e.target.value)}
                                         onKeyDown={handleKeyDown}
                                         placeholder="Paste or scan Order ID..."
-                                        className="flex-1 px-4 py-3 border border-border rounded-lg bg-background text-lg text-center font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                                        style={{ flex: 1, fontFamily: MONO, fontSize: 15, textAlign: "center", color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 9, padding: "11px 13px", outline: "none" }}
                                         autoFocus
                                     />
-                                    <LButton onClick={handleManualLookup} disabled={loading || !scanInput.trim()}>
-                                        {loading ? <LSpinner size="sm" /> : t('plant.scan.lookup', 'Lookup')}
-                                    </LButton>
+                                    <button
+                                        onClick={handleManualLookup}
+                                        disabled={loading || !scanInput.trim()}
+                                        style={{ ...btnPrimary, padding: "0 20px", opacity: (loading || !scanInput.trim()) ? 0.6 : 1 }}
+                                    >
+                                        {loading ? <Loader2 size={16} className="animate-spin" /> : t('plant.scan.lookup', 'Lookup')}
+                                    </button>
                                 </div>
                             </div>
 
-                            <p className="text-xs text-muted-foreground text-center">
+                            <p style={{ fontSize: 11.5, color: "var(--c-text-3)", textAlign: "center", margin: 0 }}>
                                 {t('plant.scan.hint', 'USB barcode scanners work automatically. Just scan!')}
                             </p>
                         </div>
                     )}
-                </LCard>
+                </div>
             )}
 
             {/* Error State */}
             {error && (
-                <LCard className="p-4 border-destructive bg-destructive/5">
-                    <div className="flex items-center gap-3 text-destructive">
-                        <AlertCircle className="h-5 w-5 shrink-0" />
-                        <span className="font-medium">{error}</span>
+                <div style={{ ...card, marginTop: 14, padding: "12px 16px", borderColor: "var(--c-error)", background: "var(--c-error-soft)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--c-error)" }}>
+                        <AlertCircle size={18} style={{ flex: "none" }} />
+                        <span style={{ fontWeight: 600 }}>{error}</span>
                     </div>
-                </LCard>
+                </div>
             )}
 
             {/* Order Result */}
             {order && (
-                <LCard className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold">{t('plant.scan.result', 'Found Order')}</h3>
-                        <LButton variant="ghost" size="sm" onClick={resetScan}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
+                <div style={{ ...card, marginTop: 14, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{t('plant.scan.result', 'Found Order')}</h3>
+                        <button style={btnGhost} onClick={resetScan}>
+                            <RefreshCw size={16} />
                             {t('plant.scan.scanAnother', 'Scan Another')}
-                        </LButton>
+                        </button>
                     </div>
 
                     {/* Order Header */}
-                    <div className="flex items-start gap-4 p-4 bg-muted/30 rounded-lg">
-                        <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            <Package className="h-6 w-6 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-lg">{order.orderNumber}</span>
-                                <LStatusBadge status={order.status} />
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 14, background: "var(--c-surface-2)", borderRadius: 10 }}>
+                        <ChipIcon soft="c-primary-soft" refColor="c-primary">
+                            <Package size={16} />
+                        </ChipIcon>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 16 }}>{order.orderNumber}</span>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: `var(--${statusToken}-soft)`, color: `var(--${statusToken})` }}>
+                                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${statusToken})` }} />
+                                    {String(order.status).replace(/_/g, " ").toUpperCase()}
+                                </span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                                <User className="h-4 w-4" />
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--c-text-2)", marginTop: 5 }}>
+                                <User size={14} />
                                 <span>{order.customerName}</span>
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p style={{ fontSize: 12.5, color: "var(--c-text-3)", marginTop: 4, marginBottom: 0 }}>
                                 Created: {order.createdAt?.toDate ? format(order.createdAt.toDate(), "dd MMM, hh:mm a") : "N/A"}
                             </p>
                         </div>
@@ -308,17 +314,17 @@ export function PlantScanPage() {
 
                     {/* Item Info (if scanned an item tag) */}
                     {itemInfo && (
-                        <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg">
-                            <div className="flex items-center justify-between">
+                        <div style={{ padding: 14, border: "1px solid var(--c-primary)", background: "var(--c-primary-soft)", borderRadius: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <div>
-                                    <p className="text-sm text-muted-foreground">{t('plant.scan.specificItem', 'Specific Item')}</p>
-                                    <p className="font-bold text-lg">{itemInfo.item.serviceName}</p>
+                                    <p style={{ fontSize: 12, color: "var(--c-text-3)", margin: 0 }}>{t('plant.scan.specificItem', 'Specific Item')}</p>
+                                    <p style={{ fontWeight: 700, fontSize: 16, margin: "2px 0 0" }}>{itemInfo.item.serviceName}</p>
                                     {itemInfo.item.categoryName && (
-                                        <p className="text-sm text-muted-foreground">{itemInfo.item.categoryName}</p>
+                                        <p style={{ fontSize: 12.5, color: "var(--c-text-3)", margin: "2px 0 0" }}>{itemInfo.item.categoryName}</p>
                                     )}
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-3xl font-black text-primary">
+                                <div style={{ textAlign: "right" }}>
+                                    <p style={{ fontFamily: MONO, fontSize: 28, fontWeight: 700, color: "var(--c-primary)", margin: 0 }}>
                                         {itemInfo.position}/{itemInfo.total}
                                     </p>
                                 </div>
@@ -328,34 +334,44 @@ export function PlantScanPage() {
 
                     {/* All Items */}
                     <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">
+                        <p style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 8 }}>
                             {t('plant.scan.allItems', 'All Items')} ({order.items.length})
                         </p>
-                        <div className="divide-y">
+                        <div>
                             {order.items.map((item, idx) => (
-                                <div key={item.id || idx} className="py-2 flex justify-between items-center">
+                                <div key={item.id || idx} style={{ padding: "9px 0", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: idx === 0 ? "none" : "1px solid var(--c-border)" }}>
                                     <div>
-                                        <p className="font-medium">{item.serviceName}</p>
-                                        <p className="text-sm text-muted-foreground">
+                                        <p style={{ fontWeight: 600, margin: 0 }}>{item.serviceName}</p>
+                                        <p style={{ fontSize: 12.5, color: "var(--c-text-3)", margin: "2px 0 0" }}>
                                             {item.categoryName} • {item.quantity} {item.unit}
                                         </p>
                                     </div>
-                                    {item.express && <LBadge variant="warning">Express</LBadge>}
+                                    {item.express && (
+                                        <span style={{ display: "inline-flex", alignItems: "center", fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: "var(--c-warning-soft)", color: "var(--c-warning)" }}>
+                                            Express
+                                        </span>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* View Full Details */}
-                    <LButton
-                        variant="primary"
-                        fullWidth
+                    <button
+                        style={{ ...btnPrimary, width: "100%" }}
                         onClick={() => navigate(`/plant/orders/${order.id}`)}
                     >
                         {t('plant.scan.viewDetails', 'View Full Order Details')}
-                    </LButton>
-                </LCard>
+                    </button>
+                </div>
             )}
         </div>
     );
 }
+
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)" };
+const btnPrimary: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "10px 16px", boxShadow: "var(--sh-sm)" };
+const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 9, padding: "10px 16px" };
+const btnGhost: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0, padding: "8px 10px" };
+function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) { return <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${soft})`, color: `var(--${refColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</span>; }

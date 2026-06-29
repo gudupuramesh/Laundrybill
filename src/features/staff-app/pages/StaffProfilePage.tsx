@@ -1,73 +1,38 @@
 /**
- * Staff Profile Page
- * 
- * View profile details and preferences
- * Matches Admin Settings aesthetic while being staff-specific (read-only)
+ * Staff Profile — built to the Enterprise Laundry CRM design system (--c-* tokens).
+ * Single-column: identity header · account details · preferences (language) · help + sign out.
  */
 
-import { useState } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStaffAuth } from "../StaffAuthContext";
-import {
-    LCard,
-    LBadge,
-    LLanguageSelector,
-    LDivider,
-    useLToast,
-} from "@/components/laundry";
-import {
-    Phone,
-    Mail,
-    Building2,
-    LogOut,
-    User,
-    Settings,
-    Globe,
-    HelpCircle,
-    ArrowLeft,
-} from "lucide-react";
+import { LLanguageSelector, useLToast } from "@/components/laundry";
+import { Phone, Mail, Building2, LogOut, User, Globe, HelpCircle, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { PageWrapper } from "@/components/PageWrapper";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
 
-type ProfileSection = "account" | "preferences";
-
-interface ProfileNavItem {
-    id: ProfileSection;
-    icon: React.ReactNode;
-    title: string;
-    subtitle?: string;
-}
+const card: CSSProperties = {
+    background: "var(--c-surface)", border: "1px solid var(--c-border)",
+    borderRadius: 12, boxShadow: "var(--sh-sm)",
+};
+const secHead: CSSProperties = { padding: "14px 18px", borderBottom: "1px solid var(--c-border)", fontSize: 13, fontWeight: 700, letterSpacing: ".03em", color: "var(--c-text-2)", textTransform: "uppercase" };
 
 export function StaffProfilePage() {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { staff, shopName, signOut, firebaseUser } = useStaffAuth();
-    const isMobile = useIsMobile();
     const { addToast } = useLToast();
-
-    const [selectedSection, setSelectedSection] = useState<ProfileSection>("account");
-    const [mobileShowDetail, setMobileShowDetail] = useState(false);
-
-    const navItems: ProfileNavItem[] = [
-        { id: "account", icon: <User className="h-5 w-5" />, title: t("staff.profile.accountDetails"), subtitle: t("common.phone") },
-        { id: "preferences", icon: <Settings className="h-5 w-5" />, title: t("settings.preferences"), subtitle: t("settings.language") },
-    ];
 
     const handleSignOut = () => {
         signOut();
-        navigate("/staff/login");
+        navigate("/team/login");
     };
 
     const handleLanguageChange = async (lang: string) => {
         if (firebaseUser) {
             try {
-                await updateDoc(doc(db, "users", firebaseUser.uid), {
-                    language: lang
-                });
+                await updateDoc(doc(db, "users", firebaseUser.uid), { language: lang });
                 addToast({ type: "success", title: "Language updated" });
             } catch (err) {
                 console.error("Failed to sync language", err);
@@ -75,215 +40,81 @@ export function StaffProfilePage() {
         }
     };
 
-    const handleSectionClick = (section: ProfileSection) => {
-        setSelectedSection(section);
-        if (isMobile) {
-            setMobileShowDetail(true);
-        }
-    };
+    return (
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 720, margin: "0 auto" }}>
 
-    // Render left panel (navigation list) - matches Admin Settings structure
-    const renderNavPanel = () => (
-        <div className="h-full overflow-y-auto">
-            {/* Profile Header - OUTSIDE cards */}
-            <div className="p-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary-muted flex items-center justify-center">
-                        <User className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-foreground truncate">{shopName || staff?.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{staff?.phone || staff?.email}</p>
-                        <p className="text-xs text-primary capitalize">{staff?.role || "Staff"}</p>
-                    </div>
+            {/* ===== Identity ===== */}
+            <div style={{ ...card, display: "flex", alignItems: "center", gap: 14, padding: "18px 20px", marginBottom: 16 }}>
+                <span style={{ width: 52, height: 52, flex: "none", borderRadius: "50%", background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <User size={26} />
+                </span>
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{staff?.name || shopName}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>{staff?.phone || staff?.email}</div>
+                    <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "capitalize", color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 9px", borderRadius: 20 }}>
+                        {staff?.role || "Staff"}
+                    </span>
                 </div>
             </div>
 
-            {/* Navigation Items Card */}
-            <div className="p-2 space-y-2">
-                <LCard variant="outlined" className="p-0 overflow-hidden">
-                    {navItems.map((item, index) => (
-                        <div key={item.id}>
-                            <button
-                                onClick={() => handleSectionClick(item.id)}
-                                className={cn(
-                                    "w-full flex items-center gap-3 p-4 transition-colors text-left",
-                                    selectedSection === item.id && !isMobile
-                                        ? "bg-primary/10"
-                                        : "hover:bg-muted"
-                                )}
-                            >
-                                <div className={cn(
-                                    "p-2 rounded-lg",
-                                    selectedSection === item.id && !isMobile ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                                )}>
-                                    {item.icon}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={cn("font-medium text-sm", selectedSection === item.id && !isMobile && "text-primary")}>{item.title}</p>
-                                    {item.subtitle && (
-                                        <p className="text-xs text-muted-foreground">{item.subtitle}</p>
-                                    )}
-                                </div>
-                                {!isMobile && (
-                                    <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                )}
-                            </button>
-                            {index < navItems.length - 1 && <LDivider />}
-                        </div>
-                    ))}
-                </LCard>
-
-                <div className="h-1" />
-
-                {/* Help & Support Card */}
-                <LCard variant="outlined" className="p-0 overflow-hidden">
-                    <button className="w-full flex items-center gap-3 p-4 transition-colors text-left hover:bg-muted">
-                        <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                        <span className="font-medium text-foreground text-sm">{t("settings.helpSupport")}</span>
-                    </button>
-                </LCard>
-
-                <div className="h-1" />
-
-                {/* Sign Out Card */}
-                <LCard variant="outlined" className="p-0 overflow-hidden">
-                    <button
-                        onClick={handleSignOut}
-                        className="w-full flex items-center gap-3 p-4 transition-colors text-left hover:bg-destructive/10"
-                    >
-                        <LogOut className="h-5 w-5 text-destructive" />
-                        <span className="font-medium text-destructive text-sm">{t("auth.signOut")}</span>
-                    </button>
-                </LCard>
+            {/* ===== Account details ===== */}
+            <div style={{ ...card, overflow: "hidden", marginBottom: 16 }}>
+                <div style={secHead}>{t("staff.profile.accountDetails", "Account details")}</div>
+                <Row icon={<Phone size={16} />} label={t("common.phone", "Phone")} value={staff?.phone} />
+                <Row icon={<Mail size={16} />} label={t("common.email", "Email")} value={firebaseUser?.email || undefined} />
+                <Row icon={<Building2 size={16} />} label={t("common.shop", "Shop")} value={shopName || undefined} last />
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 18px", borderTop: "1px solid var(--c-border)" }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", marginRight: "auto" }}>{t("staff.profile.accountStatus", "Status")}</span>
+                    <Pill ref_="c-success" soft="c-success-soft">{t("staff.profile.active", "Active")}</Pill>
+                    {firebaseUser?.emailVerified && <Pill ref_="c-info" soft="c-info-soft">{t("staff.profile.verified", "Verified")}</Pill>}
+                </div>
             </div>
+
+            {/* ===== Preferences ===== */}
+            <div style={{ ...card, overflow: "hidden", marginBottom: 16 }}>
+                <div style={secHead}>{t("settings.preferences", "Preferences")}</div>
+                <div style={{ padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", marginBottom: 12 }}>
+                        <Globe size={16} style={{ color: "var(--c-text-3)" }} />
+                        {t("settings.language", "Language")}
+                    </div>
+                    <LLanguageSelector variant="list" onLanguageChange={handleLanguageChange} />
+                </div>
+            </div>
+
+            {/* ===== Help + Sign out ===== */}
+            <div style={{ ...card, overflow: "hidden" }}>
+                <button onClick={() => navigate("/staff")} style={rowBtn}>
+                    <HelpCircle size={18} style={{ color: "var(--c-text-3)" }} />
+                    <span style={{ flex: 1, textAlign: "left", fontSize: 14, fontWeight: 600 }}>{t("settings.helpSupport", "Help & Support")}</span>
+                    <ChevronRight size={17} style={{ color: "var(--c-text-3)" }} />
+                </button>
+                <button onClick={handleSignOut} style={{ ...rowBtn, borderTop: "1px solid var(--c-border)" }}>
+                    <LogOut size={18} style={{ color: "var(--c-error)" }} />
+                    <span style={{ flex: 1, textAlign: "left", fontSize: 14, fontWeight: 600, color: "var(--c-error)" }}>{t("auth.signOut", "Sign out")}</span>
+                </button>
+            </div>
+
+            <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--c-text-3)", marginTop: 24 }}>LaundryBill</p>
         </div>
     );
+}
 
-    // Render detail panel content
-    const renderDetailPanel = () => {
-        if (selectedSection === "account") {
-            return (
-                <LCard title={t("staff.profile.accountDetails")}>
-                    <div className="divide-y divide-border">
-                        <ProfileItem icon={Phone} label={t("common.phone")} value={staff?.phone} />
-                        {firebaseUser?.email && (
-                            <ProfileItem icon={Mail} label={t("common.email")} value={firebaseUser.email} />
-                        )}
-                        <ProfileItem icon={Building2} label={t("common.shop")} value={shopName || undefined} />
-                    </div>
+const rowBtn: CSSProperties = { width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: "15px 18px", font: "inherit", background: "transparent", border: 0 };
 
-                    {/* Account Status */}
-                    <div className="p-4 border-t border-border">
-                        <p className="text-xs text-muted-foreground uppercase mb-2">{t("staff.profile.accountStatus")}</p>
-                        <div className="flex items-center gap-2">
-                            <LBadge variant="success" size="sm">{t("staff.profile.active")}</LBadge>
-                            {firebaseUser?.emailVerified && (
-                                <LBadge variant="default" size="sm">{t("staff.profile.verified")}</LBadge>
-                            )}
-                        </div>
-                    </div>
-                </LCard>
-            );
-        }
-
-        if (selectedSection === "preferences") {
-            return (
-                <LCard title={t("settings.preferences")}>
-                    <div className="p-4">
-                        <div className="mb-4">
-                            <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-muted-foreground" />
-                                {t("settings.language")}
-                            </label>
-                        </div>
-                        <LLanguageSelector
-                            variant="list"
-                            onLanguageChange={handleLanguageChange}
-                        />
-                    </div>
-                </LCard>
-            );
-        }
-
-        return null;
-    };
-
-    // Mobile: Show detail view with back button
-    if (isMobile && mobileShowDetail) {
-        return (
-            <PageWrapper maxWidth="md">
-                {/* Page Header with Back */}
-                <div className="flex items-center gap-3 mb-4">
-                    <button
-                        onClick={() => setMobileShowDetail(false)}
-                        className="p-2 rounded-lg hover:bg-muted transition-colors"
-                    >
-                        <ArrowLeft className="h-5 w-5" />
-                    </button>
-                    <h1 className="text-xl font-bold">
-                        {navItems.find(i => i.id === selectedSection)?.title || t("common.profile")}
-                    </h1>
-                </div>
-                <div className="space-y-6">
-                    {renderDetailPanel()}
-                </div>
-            </PageWrapper>
-        );
-    }
-
-    // Mobile: Show nav panel
-    if (isMobile) {
-        return (
-            <PageWrapper maxWidth="md">
-                {/* Page Header */}
-                <h1 className="text-xl font-bold mb-4">{t("common.profile")}</h1>
-                <div className="space-y-4">
-                    {renderNavPanel()}
-                    <p className="text-center text-xs text-muted-foreground">
-                        LaundryBill v1.0.0
-                    </p>
-                </div>
-            </PageWrapper>
-        );
-    }
-
-    // Desktop: Master-Detail Layout - matches Admin Settings structure
+function Row({ icon, label, value, last }: { icon: ReactNode; label: string; value?: string; last?: boolean }) {
+    if (!value) return null;
     return (
-        <div className="flex h-[calc(100vh-64px)]">
-            {/* Left Panel - Nav (fixed width like Admin) */}
-            <div className="w-[320px] flex-shrink-0 border-r border-border bg-card overflow-hidden">
-                {renderNavPanel()}
-            </div>
-
-            {/* Right Panel - Detail (flex-1 to fill remaining space) */}
-            <div className="flex-1 bg-background overflow-hidden">
-                <div className="p-6 overflow-y-auto h-full">
-                    <h1 className="text-2xl font-bold mb-6">{t("settings.title")}</h1>
-                    {renderDetailPanel()}
-                    <p className="text-center text-xs text-muted-foreground pt-8">
-                        LaundryBill v1.0.0
-                    </p>
-                </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", borderBottom: last ? "none" : "1px solid var(--c-border)" }}>
+            <span style={{ width: 32, height: 32, flex: "none", borderRadius: 8, background: "var(--c-surface-2)", color: "var(--c-text-3)", display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</span>
+            <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)" }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{value}</div>
             </div>
         </div>
     );
 }
 
-// Helper component
-function ProfileItem({ icon: Icon, label, value }: { icon: any; label: string; value?: string }) {
-    if (!value) return null;
-    return (
-        <div className="flex items-center gap-4 p-4">
-            <div className="p-2 bg-muted rounded-lg">
-                <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-                <p className="text-xs text-muted-foreground uppercase">{label}</p>
-                <p className="text-sm font-medium">{value}</p>
-            </div>
-        </div>
-    );
+function Pill({ children, ref_, soft }: { children: ReactNode; ref_: string; soft: string }) {
+    return <span style={{ fontSize: 11, fontWeight: 600, color: `var(--${ref_})`, background: `var(--${soft})`, padding: "3px 10px", borderRadius: 20 }}>{children}</span>;
 }

@@ -52,6 +52,7 @@ export default function OrderReviewScreen({
   draftOrder,
   editOrderId,
   editOrder,
+  selfAssignAsAgent = false,
 }: {
   onBack: () => void,
   onPlaceOrder: (order: PlacedOrder) => void,
@@ -59,6 +60,7 @@ export default function OrderReviewScreen({
   draftOrder: DraftOrderPayload | null,
   editOrderId?: string | null,
   editOrder?: any,
+  selfAssignAsAgent?: boolean, // agent portal: a new order is auto-assigned to the creating agent
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -359,9 +361,10 @@ export default function OrderReviewScreen({
         deliveryAddress: deliveryType === 'pickup_store' ? null : draftOrder.customer.address || null,
         deliveryNotes: notes.trim() || null,
         expectedDelivery: deliveryDate,
-        assignedAgentId: isHomeType ? assignedAgentId : null,
-        assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
-        assignedAt: isHomeType && assignedAgentId ? new Date() : null,
+        // Agent portal: a new order is auto-assigned to the agent who created it; otherwise use the picker (home types only).
+        assignedAgentId: selfAssignAsAgent ? (getAgentId() || null) : (isHomeType ? assignedAgentId : null),
+        assignedAgentName: selfAssignAsAgent ? (getAgentName() || null) : (isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null),
+        assignedAt: selfAssignAsAgent ? new Date() : (isHomeType && assignedAgentId ? new Date() : null),
         deliveryArea: isHomeType ? (selectedArea || null) : null,
         damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
         staffId: getAgentId() || 'staff',

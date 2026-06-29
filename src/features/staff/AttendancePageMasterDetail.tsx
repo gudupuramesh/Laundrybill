@@ -8,6 +8,7 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { LSpinner } from "@/components/laundry";
 import { useStaff, useAttendance, useAttendanceMutations } from "@/hooks/use-staff";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { AttendanceStatus } from "@/types/staff";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useTranslation } from "react-i18next";
@@ -34,6 +35,7 @@ const QUICK: { status: AttendanceStatus; short: string; tint: string }[] = [
 
 export function AttendancePageMasterDetail() {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const [view, setView] = useState<"day" | "month">("day");
     const now = useMemo(() => new Date(), []);
     const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
@@ -98,7 +100,7 @@ export function AttendancePageMasterDetail() {
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("attendance.title", "Attendance")}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button onClick={prevMonth} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
@@ -116,9 +118,9 @@ export function AttendancePageMasterDetail() {
                 )}
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPI row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 18 }}>
                     {kpis.map((k) => (
                         <div key={k.label} style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "15px 16px", boxShadow: "var(--sh-sm)" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>

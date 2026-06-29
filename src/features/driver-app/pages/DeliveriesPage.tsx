@@ -1,6 +1,6 @@
 /**
  * Deliveries Page - Driver App
- * 
+ *
  * List of delivery tasks assigned to the current agent.
  * Features:
  * - Filter tabs: Pending, Completed, All
@@ -8,20 +8,11 @@
  * - Quick actions: Call, Navigate
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDriverTasks, type DriverTask } from "../hooks/use-driver-tasks";
-import {
-    LCard,
-    LButton,
-    LBadge,
-    LSpinner,
-    LEmptyState,
-    LChipSelect,
-    LAmount,
-} from "@/components/laundry";
-import { PageWrapper } from "@/components/PageWrapper";
+import { useCurrency } from "@/hooks/use-currency";
 import {
     Phone,
     Navigation,
@@ -31,6 +22,7 @@ import {
     ChevronRight,
     Truck,
     Banknote,
+    Loader2,
 } from "lucide-react";
 import { format, isToday, isTomorrow } from "date-fns";
 
@@ -39,6 +31,7 @@ type FilterTab = "pending" | "overdue" | "upcoming" | "completed" | "all";
 export function DeliveriesPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const { formatAmount } = useCurrency();
     const [filter, setFilter] = useState<FilterTab>("pending");
 
     const { deliveryTasks, loading } = useDriverTasks({ type: "delivery" });
@@ -105,28 +98,28 @@ export function DeliveriesPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <LSpinner size="lg" />
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+                <Loader2 className="animate-spin" size={28} style={{ color: "var(--c-primary)" }} />
             </div>
         );
     }
 
     return (
-        <PageWrapper maxWidth="lg">
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 720, margin: "0 auto" }}>
             {/* Header */}
-            <div className="mb-4">
-                <h1 className="text-xl font-bold text-foreground">
+            <div style={{ marginBottom: 16 }}>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-.01em" }}>
                     {t("agent.deliveries", "Deliveries")}
                 </h1>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4, fontSize: 13, color: "var(--c-text-3)" }}>
                     <span>{pendingCount} {t("agent.pendingDeliveries", "pending deliveries")}</span>
                     {totalToCollect > 0 && (
                         <>
                             <span>•</span>
-                            <span className="flex items-center gap-1 text-success font-medium">
-                                <Banknote className="h-4 w-4" />
-                                <LAmount value={totalToCollect} />
-                                {t("agent.toCollect", "to collect")}
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--c-success)", fontWeight: 600, fontFamily: MONO }}>
+                                <Banknote size={15} />
+                                {formatAmount(totalToCollect)}
+                                <span style={{ fontFamily: "inherit" }}>{t("agent.toCollect", "to collect")}</span>
                             </span>
                         </>
                     )}
@@ -134,26 +127,51 @@ export function DeliveriesPage() {
             </div>
 
             {/* Filter Tabs */}
-            <LChipSelect
-                options={filterOptions}
-                value={filter}
-                onChange={(v) => setFilter(v as FilterTab)}
-                className="mb-4"
-            />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                {filterOptions.map((opt) => {
+                    const active = filter === opt.id;
+                    return (
+                        <button
+                            key={opt.id}
+                            onClick={() => setFilter(opt.id as FilterTab)}
+                            style={{
+                                cursor: "pointer",
+                                font: "inherit",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: "8px 14px",
+                                borderRadius: 20,
+                                color: active ? "#fff" : "var(--c-text-2)",
+                                background: active ? "var(--c-primary)" : "var(--c-surface)",
+                                border: `1px solid ${active ? "var(--c-primary)" : "var(--c-border)"}`,
+                                boxShadow: active ? "var(--sh-sm)" : "none",
+                            }}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
 
             {/* Task List */}
             {filteredTasks.length === 0 ? (
-                <LEmptyState
-                    icon={<Truck className="h-12 w-12 text-muted-foreground" />}
-                    title={filter === "pending"
-                        ? t("agent.noPendingDeliveries", "No pending deliveries")
-                        : t("agent.noDeliveries", "No deliveries found")}
-                    description={filter === "pending"
-                        ? t("agent.noPendingDeliveriesDesc", "You'll see new delivery tasks here when ready")
-                        : undefined}
-                />
+                <div style={{ ...card, padding: "48px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                    <ChipIcon soft="c-surface-2" refColor="c-text-3"><Truck size={20} /></ChipIcon>
+                    <div>
+                        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--c-text-2)" }}>
+                            {filter === "pending"
+                                ? t("agent.noPendingDeliveries", "No pending deliveries")
+                                : t("agent.noDeliveries", "No deliveries found")}
+                        </p>
+                        {filter === "pending" && (
+                            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--c-text-3)" }}>
+                                {t("agent.noPendingDeliveriesDesc", "You'll see new delivery tasks here when ready")}
+                            </p>
+                        )}
+                    </div>
+                </div>
             ) : (
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {filteredTasks.map((task) => (
                         <DeliveryTaskCard
                             key={task.id}
@@ -164,7 +182,7 @@ export function DeliveriesPage() {
                     ))}
                 </div>
             )}
-        </PageWrapper>
+        </div>
     );
 }
 
@@ -176,93 +194,109 @@ interface TaskCardProps {
 
 function DeliveryTaskCard({ task, formatScheduledDate, onClick }: TaskCardProps) {
     const { t } = useTranslation();
+    const { formatAmount } = useCurrency();
     const isCompleted = task.status === "completed";
     const hasAmount = (task.amountToCollect || 0) > 0;
 
+    const payment: { ref: string; label: string } | null = task.paymentStatus
+        ? task.paymentStatus === "paid"
+            ? { ref: "c-success", label: t("agent.paid", "Paid") }
+            : task.paymentStatus === "partial"
+                ? { ref: "c-warning", label: t("agent.partial", "Partial") }
+                : { ref: "c-error", label: t("agent.unpaid", "Unpaid") }
+        : null;
+
     return (
-        <LCard
-            variant="outlined"
-            padding="md"
-            interactive
+        <div
             onClick={onClick}
-            className={isCompleted ? "opacity-75" : "border-l-4 border-l-primary"}
+            style={{
+                ...card,
+                padding: "14px 16px",
+                cursor: "pointer",
+                opacity: isCompleted ? 0.75 : 1,
+                borderLeft: isCompleted ? "1px solid var(--c-border)" : "3px solid var(--c-primary)",
+            }}
         >
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                    <LBadge variant={isCompleted ? "muted" : "default"} size="sm">
-                        {isCompleted ? (
-                            <><CheckCircle2 className="h-3 w-3 mr-1" />{t("agent.delivered", "Delivered")}</>
-                        ) : (
-                            <><Truck className="h-3 w-3 mr-1" />{t("agent.delivery", "DELIVERY")}</>
-                        )}
-                    </LBadge>
-                    <span className="font-bold text-foreground">#{task.orderPublicId}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    {hasAmount && !isCompleted && (
-                        <LBadge variant="success" size="sm">
-                            <LAmount value={task.amountToCollect || 0} />
-                        </LBadge>
+            {/* Top row: type badge + order number + amount + chevron */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+                    {isCompleted ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: "var(--c-success-soft)", color: "var(--c-success)" }}>
+                            <CheckCircle2 size={12} />{t("agent.delivered", "Delivered")}
+                        </span>
+                    ) : (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: "var(--c-cyan-soft)", color: "var(--c-cyan)" }}>
+                            <Truck size={12} />{t("agent.delivery", "DELIVERY")}
+                        </span>
                     )}
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700 }}>#{task.orderPublicId}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
+                    {hasAmount && !isCompleted && (
+                        <span style={{ display: "inline-flex", alignItems: "center", fontFamily: MONO, fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: "var(--c-success-soft)", color: "var(--c-success)" }}>
+                            {formatAmount(task.amountToCollect || 0)}
+                        </span>
+                    )}
+                    <ChevronRight size={18} style={{ color: "var(--c-text-3)" }} />
                 </div>
             </div>
 
-            <p className="font-medium text-foreground">{task.customer.name}</p>
-            <p className="text-sm text-muted-foreground line-clamp-1 mb-2">
+            {/* Customer */}
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--c-text)" }}>{task.customer.name}</p>
+            <p style={{ margin: "2px 0 10px", fontSize: 13, color: "var(--c-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {task.customer.address}
             </p>
 
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatScheduledDate(task.scheduledDate)}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                        <Package className="h-3 w-3" />
+            {/* Meta row: date + items + payment */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--c-text-3)" }}>
+                    <Clock size={13} />
+                    {formatScheduledDate(task.scheduledDate)}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--c-text-3)" }}>
+                        <Package size={13} />
                         {task.itemCount} {t("agent.items", "items")}
                     </span>
-                    {task.paymentStatus && (
-                        <LBadge
-                            variant={task.paymentStatus === "paid" ? "success" : task.paymentStatus === "partial" ? "warning" : "destructive"}
-                            size="sm"
-                        >
-                            {task.paymentStatus === "paid" ? t("agent.paid", "Paid") :
-                                task.paymentStatus === "partial" ? t("agent.partial", "Partial") :
-                                    t("agent.unpaid", "Unpaid")}
-                        </LBadge>
+                    {payment && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: `var(--${payment.ref}-soft)`, color: `var(--${payment.ref})` }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${payment.ref})` }} />{payment.label}
+                        </span>
                     )}
                 </div>
             </div>
 
             {/* Quick Actions - Only show for pending tasks */}
             {!isCompleted && (
-                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-                    <LButton
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<Phone className="h-4 w-4" />}
+                <div style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--c-border)" }}>
+                    <button
+                        style={{ ...btnOutline, padding: "8px 14px", fontSize: 13 }}
                         onClick={(e) => {
                             e.stopPropagation();
                             window.open(`tel:${task.customer.phone}`);
                         }}
                     >
+                        <Phone size={15} />
                         {t("common.call", "Call")}
-                    </LButton>
-                    <LButton
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<Navigation className="h-4 w-4" />}
+                    </button>
+                    <button
+                        style={{ ...btnPrimary, padding: "8px 14px", fontSize: 13 }}
                         onClick={(e) => {
                             e.stopPropagation();
                             window.open(`https://maps.google.com/?q=${encodeURIComponent(task.customer.address)}`);
                         }}
                     >
+                        <Navigation size={15} />
                         {t("agent.navigate", "Navigate")}
-                    </LButton>
+                    </button>
                 </div>
             )}
-        </LCard>
+        </div>
     );
 }
+
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)" };
+const btnPrimary: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "10px 16px", boxShadow: "var(--sh-sm)" };
+const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 9, padding: "10px 16px" };
+function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) { return <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${soft})`, color: `var(--${refColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</span>; }

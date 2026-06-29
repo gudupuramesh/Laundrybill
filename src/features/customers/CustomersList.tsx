@@ -11,6 +11,7 @@ import { LEmptyState, LSpinner, useLToast } from "@/components/laundry";
 import { useCustomers, useCustomerStats } from "@/hooks/use-customers";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShopLimits } from "@/hooks/use-shop-limits";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import { Users, Search, Plus, ChevronRight, UserCheck, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -50,6 +51,7 @@ function Kpi({ icon, value, label, tint }: { icon: ReactNode; value: ReactNode; 
 
 export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const navigate = useNavigate();
     const location = useLocation();
     const { formatAmount } = useCurrency();
@@ -91,7 +93,7 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
     return (
         <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("customers.title", "Customers")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{stats.totalCustomers} {t("customers.total", "total")}</span>
@@ -108,9 +110,9 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
             </header>
 
             {/* body */}
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPIs */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 14, marginBottom: 18 }}>
                     <Kpi icon={<Users size={18} />} value={stats.totalCustomers} label={t("customers.total", "Total customers")} tint="c-primary" />
                     <Kpi icon={<UserCheck size={18} />} value={stats.activeCustomers} label={t("customers.active", "Active customers")} tint="c-success" />
                     <Kpi icon={<UserPlus size={18} />} value={stats.newThisMonth} label={t("customers.newMonth", "New this month")} tint="c-violet" />

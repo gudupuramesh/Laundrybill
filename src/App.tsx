@@ -43,16 +43,14 @@ import {
   StaffAuthProvider,
   StaffProtectedRoute,
   StaffAppLayout,
-  StaffLoginPage,
-  StaffSignupPage,
   StaffHomePage,
   StaffProfilePage,
 } from "@/features/staff-app";
+import { TeamLoginPage, TeamSignupPage } from "@/features/team-auth";
 import {
   DriverAuthProvider,
   DriverProtectedRoute,
   DriverAppLayout,
-  DriverLoginPage, // Exported from index.ts usually, but checking import
 } from "@/features/driver-app";
 import { TodayPage } from "@/features/driver-app/pages/TodayPage";
 import { PickupsPage } from "@/features/driver-app/pages/PickupsPage";
@@ -63,7 +61,6 @@ import { DriverProfilePage } from "@/features/driver-app/pages/DriverProfilePage
 import { PlantProtectedRoute } from "@/features/plant-app/PlantProtectedRoute";
 import { PlantLayout } from "@/features/plant-app/PlantLayout";
 import { PlantDashboard } from "@/features/plant-app/pages/PlantDashboard";
-import { PlantLoginPage } from "@/features/plant-app/pages/PlantLoginPage";
 import { PlantInboundPage } from "@/features/plant-app/pages/PlantInboundPage";
 import { PlantProcessingPage } from "@/features/plant-app/pages/PlantProcessingPage";
 import { PlantReadyPage } from "@/features/plant-app/pages/PlantReadyPage";
@@ -92,14 +89,20 @@ function App() {
             <Route path="/receipt/:orderId" element={<PublicReceiptPage />} />
             <Route path="/order/:shopSlug" element={<PublicOrderPage />} />
 
+            {/* Unified Team login/signup — one entry for staff, plant & agents.
+                Resolves the member's role and routes them to the right portal. */}
+            <Route path="/team" element={<Navigate to="/team/login" replace />} />
+            <Route path="/team/login" element={<TeamLoginPage />} />
+            <Route path="/team/signup" element={<TeamSignupPage />} />
+
             {/* Staff App routes */}
             <Route
               path="/staff/*"
               element={
                 <StaffAuthProvider>
                   <Routes>
-                    <Route path="login" element={<StaffLoginPage />} />
-                    <Route path="signup" element={<StaffSignupPage />} />
+                    <Route path="login" element={<Navigate to="/team/login" replace />} />
+                    <Route path="signup" element={<Navigate to="/team/signup" replace />} />
                     <Route
                       element={
                         <StaffProtectedRoute>
@@ -128,8 +131,8 @@ function App() {
               element={
                 <DriverAuthProvider>
                   <Routes>
-                    <Route path="login" element={<DriverLoginPage />} />
-                    <Route path="signup" element={<DriverLoginPage />} />
+                    <Route path="login" element={<Navigate to="/team/login" replace />} />
+                    <Route path="signup" element={<Navigate to="/team/signup" replace />} />
                     <Route
                       element={
                         <DriverProtectedRoute>
@@ -138,6 +141,7 @@ function App() {
                       }
                     >
                       <Route index element={<TodayPage />} />
+                      <Route path="orders/new" element={<NewOrderPage />} />
                       <Route path="pickups" element={<PickupsPage />} />
                       <Route path="pickups/:orderId" element={<PickupDetailPage />} />
                       <Route path="deliveries" element={<DeliveriesPage />} />
@@ -156,8 +160,8 @@ function App() {
               element={
                 <DriverAuthProvider>
                   <Routes>
-                    {/* Dedicated Plant Login Page */}
-                    <Route path="login" element={<PlantLoginPage />} />
+                    {/* Plant login is handled by the unified team login */}
+                    <Route path="login" element={<Navigate to="/team/login" replace />} />
                     <Route
                       element={
                         <PlantProtectedRoute>

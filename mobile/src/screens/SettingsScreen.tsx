@@ -30,6 +30,7 @@ export default function SettingsScreen({
   onCreateStaffLogin,
   onExpenseList,
   onServiceAreas,
+  onPrinterSettings,
   onFeedback,
 }: {
   onManageServices: () => void,
@@ -41,6 +42,7 @@ export default function SettingsScreen({
   onCreateStaffLogin?: () => void,
   onExpenseList?: () => void,
   onServiceAreas?: () => void,
+  onPrinterSettings?: () => void,
   onFeedback?: () => void,
 }) {
   const { t } = useTranslation();
@@ -722,7 +724,7 @@ export default function SettingsScreen({
                 style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
               />
             </View>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={openTaxEditor}>
+            <TouchableOpacity style={onPrinterSettings ? styles.listItem : styles.listItemNoBorder} onPress={openTaxEditor}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
                   <MaterialIcons name="receipt" size={18} color={colors.success} />
@@ -734,6 +736,20 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
+            {onPrinterSettings ? (
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={onPrinterSettings}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                    <MaterialIcons name="print" size={18} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>{t('mobile.bluetoothPrinter', { defaultValue: 'Bluetooth Printer' })}</Text>
+                    <Text style={styles.listItemSubtext}>{t('mobile.bluetoothPrinterSub', { defaultValue: 'Connect a thermal printer for QR tags' })}</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 

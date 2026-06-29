@@ -34,10 +34,12 @@ import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import FeedbackScreen from './src/screens/FeedbackScreen';
 import ServiceAreasScreen from './src/screens/ServiceAreasScreen';
+import PrinterSettingsScreen from './src/screens/PrinterSettingsScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
 import { usePlanLimits } from './src/lib/usePlanLimits';
+import { claimMobileSession, teardownMobileSession } from './src/lib/sessionGuard';
 import { useMergedOrdersUsed } from './src/lib/useBillingPeriodOrderCount';
 import { useAppUpdateChecker } from './src/lib/useAppUpdateChecker';
 import UpdateModal from './src/components/UpdateModal';
@@ -151,7 +153,10 @@ function MainLayout() {
   const pendingRegistrationRef = useRef<{ email: string } | null>(null);
   const forceSetupFlowRef = useRef(false);
   const createOrderRef = useRef<CreateOrderScreenRef>(null);
-  
+  // A customer just created from the order flow's Add Customer screen — handed to
+  // CreateOrderScreen on remount so it auto-selects and jumps to the items step.
+  const [pendingOrderCustomer, setPendingOrderCustomer] = useState<{ id: string; name: string; phone: string; email: string | null; address: string | null } | null>(null);
+
   // Firebase Auth State
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<any>(null); // from @react-native-firebase/auth
@@ -289,8 +294,14 @@ function MainLayout() {
         // Sync RevenueCat identity with Firebase user
         if (currentUser?.uid) {
           loginRevenueCat(currentUser.uid).catch((e) => console.warn("[RevenueCat] login error", e));
+          // One active mobile session per account — sign out if used on another phone.
+          claimMobileSession(currentUser.uid, () => {
+            Alert.alert('Signed out', 'Your account was signed in on another device.');
+            auth().signOut().catch(() => {});
+          }).catch(() => {});
         } else {
           logoutRevenueCat().catch(() => {});
+          teardownMobileSession();
         }
         if (currentUser) {
           try {
@@ -487,6 +498,11 @@ function MainLayout() {
   const currentShopId = getShopIdFn();
   const appOrdersUsed = useMergedOrdersUsed(appSubData, currentShopId);
   const appPlanLimits = usePlanLimits(appSubData);
+  // Team logins are a Pro+/Business feature — hide the create-login entry on plans with no allowance (Free, Pro, trial). (-1 = unlimited)
+  const canCreateLogins =
+    (appPlanLimits.maxStaff ?? 0) !== 0 ||
+    (appPlanLimits.maxAgents ?? 0) !== 0 ||
+    (appPlanLimits.maxPlantStaff ?? 0) !== 0;
 
   React.useEffect(() => {
     if (!currentShopId) return;
@@ -580,9 +596,10 @@ function MainLayout() {
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                  onStaffList={() => setActiveScreen('STAFF_LIST')}
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
-                 onCreateStaffLogin={SHOW_STAFF_LOGINS ? () => { setStaffLoginPrefill(null); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
+                 onCreateStaffLogin={SHOW_STAFF_LOGINS && canCreateLogins ? () => { setStaffLoginPrefill(null); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
                  onServiceAreas={() => setActiveScreen('SERVICE_AREAS')}
+                 onPrinterSettings={() => setActiveScreen('PRINTER_SETTINGS')}
                  onFeedback={() => setActiveScreen('FEEDBACK')}
                />;
       default:
@@ -744,6 +761,7 @@ function MainLayout() {
           onBack={() => setActiveScreen(null)}
           onViewStaff={(id: string) => setActiveScreen(`STAFF_DETAIL_${id}`)}
           onAddStaff={() => {/* TODO: CreateStaffScreen */}}
+          canCreateLogins={canCreateLogins}
         />
       </View>
     );
@@ -757,7 +775,7 @@ function MainLayout() {
         <StaffDetailScreen
           onBack={() => setActiveScreen('STAFF_LIST')}
           staffId={sid}
-          onCreateLogin={(prefill) => { setStaffLoginPrefill(prefill); setActiveScreen('CREATE_STAFF_LOGIN'); }}
+          onCreateLogin={canCreateLogins ? (prefill) => { setStaffLoginPrefill(prefill); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
         />
       </View>
     );
@@ -790,12 +808,22 @@ function MainLayout() {
     );
   }
 
+  if (activeScreen === 'PRINTER_SETTINGS') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <PrinterSettingsScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
   if (activeScreen === 'CREATE_STAFF_LOGIN') {
     return (
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <CreateStaffLoginScreen
           prefill={staffLoginPrefill}
+          planLimits={appPlanLimits}
           onBack={() => setActiveScreen(staffLoginPrefill?.linkedStaffId ? `STAFF_DETAIL_${staffLoginPrefill.linkedStaffId}` : 'STAFF_LIST')}
         />
       </View>
@@ -849,7 +877,7 @@ function MainLayout() {
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <AddCustomerScreen
           onBack={() => setActiveScreen(null)}
-          onCreated={(id: string) => setActiveScreen(`CUSTOMER_DETAILS_${id}`)}
+          onCreated={(customer) => setActiveScreen(`CUSTOMER_DETAILS_${customer.id}`)}
         />
       </View>
     );
@@ -862,7 +890,7 @@ function MainLayout() {
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <AddCustomerScreen
           onBack={() => setActiveScreen('CREATE_ORDER')}
-          onCreated={() => setActiveScreen('CREATE_ORDER')}
+          onCreated={(customer) => { setPendingOrderCustomer(customer); setActiveScreen('CREATE_ORDER'); }}
         />
       </View>
     );
@@ -979,6 +1007,8 @@ function MainLayout() {
             editOrder={editingOrder}
             onAddCustomer={() => setActiveScreen('ADD_CUSTOMER_FROM_ORDER')}
             onEditCustomerDetail={(id) => setActiveScreen(`EDIT_CUSTOMER_FROM_ORDER_${id}`)}
+            initialCustomer={pendingOrderCustomer}
+            onInitialCustomerConsumed={() => setPendingOrderCustomer(null)}
           />
           {activeScreen === 'ORDER_REVIEW' && (
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background }}>

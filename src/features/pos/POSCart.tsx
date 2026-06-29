@@ -4,8 +4,10 @@
  * stepper or kg input, line total) · Subtotal / Express surcharge / VAT / Total · Checkout.
  */
 
-import { Shirt, Plus, Minus, ShoppingBag } from "lucide-react";
+import { useState } from "react";
+import { Shirt, Plus, Minus, ShoppingBag, ChevronUp, ChevronDown } from "lucide-react";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { getTranslatedItemName, isWeightUnit } from "@/lib/inventory-translations";
 import type { useCart } from "./useCart";
 
@@ -21,6 +23,8 @@ const MONO = "'IBM Plex Mono'";
 
 export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; onCheckout: () => void; onOpenCustomer: () => void }) {
     const { formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
+    const [expanded, setExpanded] = useState(false);
     const items = cart.items;
     const empty = items.length === 0;
 
@@ -48,10 +52,34 @@ export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; o
     const custMeta = cart.customerPhone || "Tap to add a customer";
     const initials = (cart.customerName || "WC").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
+    // ── Mobile, collapsed: a sticky bottom bar (tap the summary to expand the full cart, or checkout directly)
+    if (isMobile && !expanded) {
+        return (
+            <div style={{ position: "fixed", left: 0, right: 0, bottom: "calc(64px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "var(--c-surface)", borderTop: "1px solid var(--c-border)", boxShadow: "0 -3px 16px rgba(0,0,0,0.10)", padding: "10px 12px", display: "flex", alignItems: "center", gap: 9 }}>
+                <button onClick={() => setExpanded(true)} style={{ flex: 1, minWidth: 0, cursor: "pointer", font: "inherit", display: "flex", alignItems: "center", gap: 11, textAlign: "left", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 11, padding: "8px 12px" }}>
+                    <span style={{ position: "relative", width: 34, height: 34, flex: "none", borderRadius: 9, background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <ShoppingBag size={18} strokeWidth={1.9} />
+                        {!empty && <span style={{ position: "absolute", top: -6, right: -6, minWidth: 17, height: 17, padding: "0 4px", borderRadius: 9, background: "var(--c-primary)", color: "#fff", fontSize: 10, fontWeight: 700, fontFamily: MONO, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--c-surface)" }}>{items.length}</span>}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 11, color: "var(--c-text-3)", lineHeight: 1.2 }}>{empty ? "No items yet" : "View order"}</span>
+                        <span style={{ display: "block", fontSize: 16, fontWeight: 700, fontFamily: MONO, lineHeight: 1.25 }}>{formatAmount(total)}</span>
+                    </span>
+                    <ChevronUp size={17} style={{ flex: "none", color: "var(--c-text-3)" }} />
+                </button>
+                <button onClick={onCheckout} disabled={empty} style={{ cursor: empty ? "not-allowed" : "pointer", font: "inherit", fontSize: 14.5, fontWeight: 700, color: "#fff", background: empty ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 11, padding: "13px 18px", whiteSpace: "nowrap", boxShadow: empty ? "none" : "var(--sh-sm)" }}>Checkout</button>
+            </div>
+        );
+    }
+
+    const overlay = isMobile; // mobile + expanded → full-screen sheet; desktop → 392px side panel
     return (
-        <aside style={{ width: 392, flex: "none", background: "var(--c-surface)", borderLeft: "1px solid var(--c-border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <aside style={overlay
+            ? { position: "fixed", inset: 0, zIndex: 50, background: "var(--c-surface)", display: "flex", flexDirection: "column", minHeight: 0 }
+            : { width: 392, flex: "none", background: "var(--c-surface)", borderLeft: "1px solid var(--c-border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
             {/* header */}
             <div style={{ padding: "15px 18px", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 10 }}>
+                {overlay && <button onClick={() => setExpanded(false)} aria-label="Back to products" style={{ cursor: "pointer", width: 32, height: 32, flex: "none", marginLeft: -4, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0 }}><ChevronDown size={22} /></button>}
                 <div style={{ fontSize: 15, fontWeight: 700 }}>Current order</div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 9px", borderRadius: 20, fontFamily: MONO }}>{items.length}</span>
                 {!empty && <button onClick={() => cart.clearCart()} style={{ marginLeft: "auto", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-error)", background: "transparent", border: 0 }}>Clear</button>}
@@ -130,7 +158,7 @@ export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; o
             )}
 
             {/* totals */}
-            <div style={{ borderTop: "1px solid var(--c-border)", padding: "14px 18px 16px" }}>
+            <div style={{ borderTop: "1px solid var(--c-border)", padding: overlay ? "14px 18px calc(16px + env(safe-area-inset-bottom, 0px))" : "14px 18px 16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
                     <Row label="Subtotal" value={formatAmount(subtotal)} />
                     {discount > 0 && <Row label="Discount" value={`−${formatAmount(discount)}`} color="var(--c-success)" />}
@@ -142,7 +170,7 @@ export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; o
                         <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(total)}</span>
                     </div>
                 </div>
-                <button onClick={onCheckout} disabled={empty} style={{ width: "100%", marginTop: 14, cursor: empty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: empty ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)" }}>
+                <button onClick={() => { setExpanded(false); onCheckout(); }} disabled={empty} style={{ width: "100%", marginTop: 14, cursor: empty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: empty ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)" }}>
                     Checkout <span style={{ fontFamily: MONO }}>· {formatAmount(total)}</span>
                 </button>
             </div>

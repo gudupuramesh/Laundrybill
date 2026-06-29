@@ -1,16 +1,19 @@
 /**
- * Canonical subscription tiers: Free + one paid plan (Pro).
- * Legacy Firestore values pro_plus / business are treated as Pro.
+ * Canonical subscription tiers: Free, Pro, Pro+, Business.
+ * Legacy aliases (proplus, enterprise, premium, starter) are normalized here.
  */
 
-export type CanonicalPlanId = "free" | "pro";
+export type CanonicalPlanId = "free" | "pro" | "pro_plus" | "business";
 
 export function normalizePlanId(planId: string | undefined | null): CanonicalPlanId {
-    const r = String(planId ?? "").toLowerCase().trim();
-    if (r === "pro" || r === "pro_plus" || r === "business") return "pro";
+    const r = String(planId ?? "").toLowerCase().replace(/[_\s-]/g, "");
+    if (r === "proplus" || r === "pro+") return "pro_plus";
+    if (r === "business" || r === "enterprise" || r === "premium") return "business";
+    if (r === "pro" || r === "starter") return "pro";
     return "free";
 }
 
 export function planDisplayName(planId: string | undefined | null): string {
-    return normalizePlanId(planId) === "pro" ? "Pro" : "Free";
+    const c = normalizePlanId(planId);
+    return c === "business" ? "Business" : c === "pro_plus" ? "Pro+" : c === "pro" ? "Pro" : "Free";
 }

@@ -65,7 +65,7 @@ export function StaffAppLayout() {
     // Handle sign out
     const handleSignOut = () => {
         signOut();
-        navigate("/staff/login");
+        navigate("/team/login");
     };
 
     // Create translated tab items for mobile bottom bar (matching Admin pattern)

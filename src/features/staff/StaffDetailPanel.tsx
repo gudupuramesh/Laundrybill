@@ -15,6 +15,7 @@ import type { MemberType } from "@/types/staff";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -30,6 +31,7 @@ interface StaffDetailPanelProps {
 
 export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { formatAmount } = useCurrency();
     const { staff: staffList, loading } = useStaff();
     const { updateStaff, deactivateStaff } = useStaffMutations();
@@ -92,7 +94,7 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 16px" : "0 22px" }}>
                 <button onClick={onClose} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("staff.title", "Staff")}</button><span>/</span>
@@ -103,9 +105,9 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                 <button onClick={handleDeactivate} style={{ ...hdrBtn, color: staff.isActive ? "var(--c-error)" : "var(--c-success)", borderColor: staff.isActive ? "var(--c-error)" : "var(--c-success)" }}><Power size={15} />{staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")}</button>
             </header>
 
-            <div style={{ padding: "20px 22px 40px" }}>
+            <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
                 {/* profile header */}
-                <div style={{ ...card, padding: "20px 22px", display: "flex", alignItems: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ ...card, padding: isMobile ? "16px 16px" : "20px 22px", display: "flex", alignItems: "center", gap: isMobile ? 14 : 18, marginBottom: 16, flexWrap: "wrap" }}>
                     <span style={{ width: 60, height: 60, flex: "none", borderRadius: 16, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, fontWeight: 600 }}>{initials}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -126,7 +128,7 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                 </div>
 
                 {/* stat tiles */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 16 }}>
                     {stats.map((s) => (
                         <div key={s.label} style={{ ...card, padding: "15px 16px" }}>
                             <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{s.label}</div>
@@ -135,9 +137,9 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                     ))}
                 </div>
 
-                <div className="lb-row" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div className="lb-row" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "flex-start" }}>
                     {/* LEFT */}
-                    <div style={{ flex: 1.6, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ flex: 1.6, width: isMobile ? "100%" : undefined, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                         {/* attendance */}
                         <div style={{ ...card, padding: "18px 20px" }}>
                             <div style={{ display: "flex", alignItems: "center", marginBottom: 15 }}>
@@ -183,7 +185,7 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                     </div>
 
                     {/* RIGHT */}
-                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ flex: 1, width: isMobile ? "100%" : undefined, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                         {/* contact */}
                         <div style={{ ...card, padding: "18px 20px" }}>
                             <div style={secLbl}>{t("staff.contactDetails", "CONTACT & INFO")}</div>

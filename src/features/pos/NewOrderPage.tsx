@@ -8,12 +8,14 @@
  */
 
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { LSkeleton, LEmptyState } from "@/components/laundry";
 import { useCart } from "./useCart";
 import { useInventory } from "@/hooks/use-inventory";
 import { useOrder } from "@/hooks/use-orders";
 import { useShop } from "@/hooks/use-shop";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useDriverAuthOptional } from "@/features/driver-app/DriverAuthContext";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { POSItemCard } from "./POSItemCard";
@@ -33,6 +35,13 @@ import { LButton, useLToast } from "@/components/laundry";
 export function NewOrderPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
+    // Shared POS page reused by the staff app (/staff/*) and the agent portal (/agent/*) —
+    // keep navigation in-context.
+    const isStaffApp = location.pathname.startsWith('/staff');
+    const isAgentApp = location.pathname.startsWith('/agent');
+    const agent = useDriverAuthOptional()?.agent;
+    const ordersBase = isAgentApp ? '/agent' : isStaffApp ? '/staff/orders' : '/orders';
     const [searchParams] = useSearchParams();
     const editOrderId = searchParams.get('edit');
     const isEditMode = !!editOrderId && editOrderId !== 'true';
@@ -42,9 +51,17 @@ export function NewOrderPage() {
     const { categories, items, loading: inventoryLoading } = useInventory();
     const { shop } = useShop();
     const { addToast } = useLToast();
+    const isMobile = useIsMobile();
 
     const { order: editOrder, loading: orderLoading } = useOrder(isEditMode ? editOrderId : '');
     const loading = inventoryLoading || orderLoading;
+
+    // Agents may only edit orders assigned to them.
+    useEffect(() => {
+        if (isAgentApp && isEditMode && editOrder && agent && editOrder.assignedAgentId !== agent.id) {
+            navigate('/agent', { replace: true });
+        }
+    }, [isAgentApp, isEditMode, editOrder, agent, navigate]);
 
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -131,7 +148,7 @@ export function NewOrderPage() {
                 </div>
                 <div className="flex w-full max-w-xs flex-col gap-3 pt-4">
                     <LButton variant="primary" size="lg" onClick={() => navigate('/settings/subscription')}>{t('subscription.upgradeNow', 'Upgrade Now')}</LButton>
-                    <LButton variant="ghost" onClick={() => navigate('/dashboard')}>{t('common.backToDashboard', 'Back to Dashboard')}</LButton>
+                    <LButton variant="ghost" onClick={() => navigate(isAgentApp ? '/agent' : isStaffApp ? '/staff' : '/dashboard')}>{t('common.backToDashboard', 'Back to Dashboard')}</LButton>
                 </div>
             </div>
         );
@@ -173,7 +190,7 @@ export function NewOrderPage() {
                 <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                     <div style={{ padding: "14px 18px 12px", display: "flex", flexDirection: "column", gap: 12, borderBottom: "1px solid var(--c-border)", background: "var(--c-surface)" }}>
                         {isEditMode && (
-                            <button onClick={() => navigate('/orders')} style={{ alignSelf: "flex-start", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0 }}>← {t('common.cancel', 'Cancel edit')}</button>
+                            <button onClick={() => navigate(ordersBase)} style={{ alignSelf: "flex-start", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0 }}>← {t('common.cancel', 'Cancel edit')}</button>
                         )}
                         <div style={{ position: "relative" }}>
                             <Search size={17} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
@@ -190,7 +207,7 @@ export function NewOrderPage() {
                             })}
                         </div>
                     </div>
-                    <div style={{ flex: 1, overflow: "auto", padding: "16px 18px 24px" }}>
+                    <div style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px 156px" : "16px 18px 24px" }}>
                         {loading ? (
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 13 }}>
                                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <LSkeleton key={i} height={210} className="rounded-xl" />)}
@@ -243,7 +260,7 @@ export function NewOrderPage() {
                 onViewOrder={() => {
                     const id = successOrderId;
                     setSuccessOrderId(null);
-                    if (id) navigate(`/orders/${id}`);
+                    if (id) navigate(isAgentApp ? '/agent' : `${ordersBase}/${id}`);
                 }}
             />
         </>

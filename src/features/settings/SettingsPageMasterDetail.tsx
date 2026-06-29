@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/features/auth/AuthContext";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { COUNTRIES, getCountry } from "@/config/countries";
 import { reverseGeocode } from "@/lib/geocoding";
 import { useTranslation } from "react-i18next";
@@ -97,6 +98,7 @@ export function SettingsPageMasterDetail() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const isMobile = useIsMobile();
 
     const { addToast } = useLToast();
     const { currencySymbol } = useCurrency();
@@ -413,7 +415,7 @@ export function SettingsPageMasterDetail() {
     const lbl: CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--c-text-2)" };
     const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, padding: 22, boxShadow: "var(--sh-sm)" };
     const cardTitle: CSSProperties = { fontSize: 14, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 9 };
-    const grid2: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
+    const grid2: CSSProperties = { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 };
 
     const cur = TABS.find((tb) => tb.id === selectedSection) || TABS[0];
     // Phone prefix follows the selected country (e.g. UAE → +971).
@@ -457,24 +459,27 @@ export function SettingsPageMasterDetail() {
                 </button>
             </header>
 
-            <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
                 {/* settings nav rail */}
                 <nav
                     className="lb-thin"
                     style={{
-                        width: 236,
+                        width: isMobile ? "100%" : 236,
                         flex: "none",
                         background: "var(--c-surface)",
-                        borderRight: "1px solid var(--c-border)",
-                        padding: "14px 12px",
+                        borderRight: isMobile ? "none" : "1px solid var(--c-border)",
+                        borderBottom: isMobile ? "1px solid var(--c-border)" : "none",
+                        padding: isMobile ? "10px 12px" : "14px 12px",
                         display: "flex",
-                        flexDirection: "column",
+                        flexDirection: isMobile ? "row" : "column",
+                        alignItems: isMobile ? "center" : "stretch",
                         gap: 3,
-                        overflow: "auto",
+                        overflowX: isMobile ? "auto" : "hidden",
+                        overflowY: isMobile ? "hidden" : "auto",
                     }}
                 >
                     {/* profile chip */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px 14px", marginBottom: 4, borderBottom: "1px solid var(--c-border)" }}>
+                    <div style={{ display: isMobile ? "none" : "flex", alignItems: "center", gap: 10, padding: "8px 10px 14px", marginBottom: 4, borderBottom: "1px solid var(--c-border)" }}>
                         <span style={{ width: 38, height: 38, flex: "none", borderRadius: "50%", overflow: "hidden", background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>
                             {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (shopName || user?.displayName || "S").slice(0, 1).toUpperCase()}
                         </span>
@@ -506,6 +511,8 @@ export function SettingsPageMasterDetail() {
                                     fontWeight: on ? 600 : 500,
                                     color: on ? "var(--c-primary)" : "var(--c-text-2)",
                                     background: on ? "var(--c-primary-soft)" : "transparent",
+                                    flex: isMobile ? "none" : undefined,
+                                    whiteSpace: isMobile ? "nowrap" : undefined,
                                 }}
                             >
                                 <Icon size={17} style={{ color: on ? "var(--c-primary)" : "var(--c-text-3)" }} />
@@ -514,16 +521,20 @@ export function SettingsPageMasterDetail() {
                         );
                     })}
 
-                    <div style={{ height: 1, background: "var(--c-border)", margin: "10px 4px" }} />
+                    <div style={{ height: 1, background: "var(--c-border)", margin: "10px 4px", display: isMobile ? "none" : "block" }} />
 
-                    {/* secondary links */}
-                    <NavLinkRow icon={<CreditCard size={17} />} label="Subscription & billing" onClick={() => navigate("/settings/subscription")} />
-                    <NavLinkRow icon={<Receipt size={17} />} label="Payment history" onClick={() => navigate("/settings/payment-history")} />
-                    <NavLinkRow icon={<HelpCircle size={17} />} label="Help & support" onClick={() => navigate("/help")} />
+                    {/* secondary links — hidden in the mobile horizontal strip; reachable from elsewhere */}
+                    {!isMobile && (
+                        <>
+                            <NavLinkRow icon={<CreditCard size={17} />} label="Subscription & billing" onClick={() => navigate("/settings/subscription")} />
+                            <NavLinkRow icon={<Receipt size={17} />} label="Payment history" onClick={() => navigate("/settings/payment-history")} />
+                            <NavLinkRow icon={<HelpCircle size={17} />} label="Help & support" onClick={() => navigate("/help")} />
+                        </>
+                    )}
                     <button
                         onClick={signOut}
                         style={{
-                            display: "flex",
+                            display: isMobile ? "none" : "flex",
                             alignItems: "center",
                             gap: 11,
                             padding: "10px 12px",
@@ -545,7 +556,16 @@ export function SettingsPageMasterDetail() {
                 </nav>
 
                 {/* content */}
-                <div className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
+                <div
+                    className="lb-scroll"
+                    style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: "auto",
+                        padding: isMobile ? 16 : 24,
+                        paddingBottom: isMobile ? "calc(88px + env(safe-area-inset-bottom, 0px))" : 24,
+                    }}
+                >
                     {loading ? (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
                             <div style={{ width: 32, height: 32, border: "3px solid var(--c-border)", borderTopColor: "var(--c-primary)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />

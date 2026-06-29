@@ -187,7 +187,10 @@ export function useInventoryMutations() {
             updatedAt: serverTimestamp(),
         };
 
-        // Add optional imageUrl if provided
+        // Add optional fields only if provided (Firestore rejects undefined)
+        if (data.subCategory) {
+            itemData.subCategory = data.subCategory;
+        }
         if (data.imageUrl) {
             itemData.imageUrl = data.imageUrl;
         }
@@ -211,6 +214,7 @@ export function useInventoryMutations() {
 
         // Copy all fields except timestamps
         if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+        if (data.subCategory !== undefined) updateData.subCategory = data.subCategory;
         if (data.description !== undefined) updateData.description = data.description;
         if (data.basePrice !== undefined) updateData.basePrice = data.basePrice;
         if (data.pricingType !== undefined) updateData.pricingType = data.pricingType;

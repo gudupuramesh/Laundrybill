@@ -10,7 +10,6 @@ export { DriverProtectedRoute } from "./DriverProtectedRoute";
 export { DriverAppLayout } from "./DriverAppLayout";
 
 // Pages (to be added)
-export { DriverLoginPage } from "./pages/DriverLoginPage";
 export { TodayPage } from "./pages/TodayPage";
 export { PickupsPage } from "./pages/PickupsPage";
 export { PickupDetailPage } from "./pages/PickupDetailPage";

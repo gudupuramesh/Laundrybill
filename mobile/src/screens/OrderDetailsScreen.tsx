@@ -13,6 +13,8 @@ import { formatCurrency, normalizePhoneForCountry, toE164 } from '../lib/currenc
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { printerService } from '../lib/printerService';
+import type { TagRow } from '../lib/escpos';
 import { colors, fonts, radii, shadows } from '../theme';
 import { HelpButton } from '../components/HelpButton';
 
@@ -125,6 +127,11 @@ function getQRImageUrl(data: string, size: number = 200): string {
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// The "service" is the category (Wash & Fold / Iron / Dry Clean), not the garment (serviceName).
+function svcOf(it: any): string {
+  return ((it?.categoryName || '') as string).trim() || 'Other';
 }
 
 /** Returns the index of `currentStatus` in the flow (handles cross-flow aliases). */
@@ -338,21 +345,34 @@ export default function OrderDetailsScreen({
     [t],
   );
 
-  /** Expand items by quantity for individual QR tags */
+  /** Services (= categories) grouped → one tag per service (basket / "order" tab). */
+  const serviceGroups = useMemo(() => {
+    if (!order?.items) return [] as { name: string; qty: number }[];
+    const m = new Map<string, number>();
+    (order.items || []).forEach((it: any) => m.set(svcOf(it), (m.get(svcOf(it)) || 0) + Math.max(1, Math.floor(it.quantity || 1))));
+    return Array.from(m).map(([name, qty]) => ({ name, qty }));
+  }, [order]);
+
+  /** Expand items by quantity for individual QR tags — labelled with the service, numbered within it. */
   const itemTags = useMemo(() => {
     if (!order?.items) return [];
-    const tags: { index: number; total: number; serviceName: string; categoryName: string; quantity: number; unitPrice: number; qrData: string }[] = [];
-    let totalQty = 0;
-    (order.items || []).forEach((item: any) => { totalQty += (item.quantity || 1); });
+    const tags: { index: number; idxInService: number; serviceTotal: number; service: string; itemName: string; quantity: number; unitPrice: number; qrData: string }[] = [];
+    const totals = new Map<string, number>();
+    (order.items || []).forEach((it: any) => totals.set(svcOf(it), (totals.get(svcOf(it)) || 0) + Math.max(1, Math.floor(it.quantity || 1))));
+    const per = new Map<string, number>();
     let idx = 0;
     (order.items || []).forEach((item: any) => {
+      const svc = svcOf(item);
       for (let q = 0; q < (item.quantity || 1); q++) {
         idx++;
+        const c = (per.get(svc) || 0) + 1;
+        per.set(svc, c);
         tags.push({
           index: idx,
-          total: totalQty,
-          serviceName: item.serviceName || '',
-          categoryName: item.categoryName || '',
+          idxInService: c,
+          serviceTotal: totals.get(svc) || (item.quantity || 1),
+          service: svc,
+          itemName: item.serviceName || '',
           quantity: item.quantity || 1,
           unitPrice: item.unitPrice || 0,
           qrData: `${orderId}:${idx}`,
@@ -559,42 +579,97 @@ export default function OrderDetailsScreen({
     } catch (e) {}
   };
 
-  /** Print QR codes — thermal (2-inch / 48mm) or standard (A4/Letter) */
-  const handlePrintQR = async (mode: 'thermal' | 'standard') => {
+  /** Build the 50mm × 60mm tag HTML for the active tab. */
+  const buildTagsHtml = (): string => {
+    const shopName = shopData?.name || 'LaundryBill';
+    const customer = order?.customerName || t('mobile.guestLabel');
+    const meta = `#${publicId} · ${customer}`;
+    // 'order' tab = one tag PER SERVICE (service + qty); 'items' tab = one tag per garment (numbered within its service).
+    const tags = qrTab === 'order'
+      ? serviceGroups.map((g) => ({ url: getQRImageUrl(orderId, 320), service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}` }))
+      : itemTags.map((tag) => ({ url: getQRImageUrl(tag.qrData, 320), service: tag.service, line2: `${tag.idxInService}/${tag.serviceTotal}` }));
+
+    const blocks = tags.map((tg) => `
+      <div class="tag">
+        <div class="shop">${escHtml(shopName)}</div>
+        <img class="qr" src="${tg.url}" />
+        <div class="title">${escHtml(tg.service)}</div>
+        <div class="sub">${escHtml(tg.line2)}</div>
+        <div class="meta">${escHtml(meta)}</div>
+      </div>`).join('');
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+      <style>
+        @page { size: 50mm 60mm; margin: 0; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
+        html, body { margin:0; padding:0; }
+        .tag { width:50mm; height:60mm; padding:3mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow:hidden; page-break-after:always; }
+        .tag:last-child { page-break-after:auto; }
+        .shop { font-size:8pt; font-weight:700; color:#000; line-height:1.1; }
+        .qr { width:32mm; height:32mm; margin-top:1.5mm; }
+        .title { font-size:11pt; font-weight:700; margin-top:1.5mm; line-height:1.1; }
+        .sub { font-size:10pt; font-weight:700; color:#000; margin-top:0.5mm; line-height:1.1; }
+        .meta { font-size:7.5pt; color:#555; margin-top:1mm; line-height:1.2; }
+      </style></head><body>${blocks}</body></html>`;
+  };
+
+  /** Render the tags to a PDF whose pages are exactly 50mm × 60mm (in PDF points). */
+  const generateTagsPdf = async (): Promise<string> => {
+    const MM_TO_PT = 72 / 25.4;
+    const { uri } = await Print.printToFileAsync({
+      html: buildTagsHtml(),
+      width: Math.round(50 * MM_TO_PT),
+      height: Math.round(60 * MM_TO_PT),
+    });
+    return uri;
+  };
+
+  /** Print → native print dialog (send to a connected printer). */
+  const handlePrintTags = async () => {
     try {
-      const isThermal = mode === 'thermal';
-      const pageWidth = isThermal ? '48mm' : '210mm';
-      const qrSize = isThermal ? 120 : 200;
-      const fontSize = isThermal ? '10px' : '14px';
-      const smallFont = isThermal ? '8px' : '11px';
-
-      let bodyContent = '';
-
-      if (qrTab === 'order') {
-        const qrUrl = getQRImageUrl(orderId, qrSize);
-        bodyContent = `
-          <div style="text-align:center;padding:${isThermal ? '4mm 2mm' : '20px'};">
-            <img src="${qrUrl}" style="width:${qrSize}px;height:${qrSize}px;" />
-            <div style="font-size:${fontSize};font-weight:800;margin-top:6px;">#${escHtml(publicId)}</div>
-            <div style="font-size:${smallFont};color:#666;margin-top:2px;">${escHtml(order?.customerName || t('mobile.guestLabel'))} · ${escHtml(t('mobile.itemsCountShort', { count: (order?.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) }))}</div>
-          </div>`;
-      } else {
-        bodyContent = itemTags.map((tag) => `
-          <div style="text-align:center;padding:${isThermal ? '3mm 2mm' : '16px'};${isThermal ? '' : 'display:inline-block;width:48%;margin:1%;'}border:1px dashed #ccc;border-radius:4px;page-break-inside:avoid;margin-bottom:${isThermal ? '2mm' : '8px'};">
-            <img src="${getQRImageUrl(tag.qrData, qrSize)}" style="width:${isThermal ? 100 : 150}px;height:${isThermal ? 100 : 150}px;" />
-            <div style="font-size:${smallFont};font-weight:700;color:#666;margin-top:4px;">${escHtml(t('mobile.tagIndex', { index: tag.index, total: tag.total }))}</div>
-            <div style="font-size:${fontSize};font-weight:700;margin-top:2px;">${escHtml(tag.serviceName)}</div>
-            <div style="font-size:${smallFont};color:#666;">${escHtml(tag.categoryName)} · #${escHtml(publicId)}</div>
-          </div>`).join('');
-      }
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-        <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:sans-serif;width:${pageWidth};${isThermal ? 'margin:0;' : 'margin:0 auto;padding:12px;'}}</style>
-        </head><body>${bodyContent}</body></html>`;
-
-      await Print.printAsync({ html, ...(isThermal ? { width: 48 * 2.835 } : {}) });
+      const uri = await generateTagsPdf();
+      await Print.printAsync({ uri });
     } catch (e: any) {
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintQr'));
+    }
+  };
+
+  /** Share → hand the PDF to another app (label-printer app, Files, WhatsApp…). */
+  const handleShareTags = async () => {
+    try {
+      const uri = await generateTagsPdf();
+      const Sharing = await import('expo-sharing');
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Order tags' });
+      } else {
+        await Print.printAsync({ uri });
+      }
+    } catch (e: any) {
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintQr'));
+    }
+  };
+
+  /** Map the current QR tab to ESC/POS tag rows (same data as the PDF tags). */
+  const buildTagRows = (): TagRow[] => {
+    const shopName = shopData?.name || 'LaundryBill';
+    const customer = order?.customerName || t('mobile.guestLabel');
+    const meta = `#${publicId} · ${customer}`;
+    return qrTab === 'order'
+      ? serviceGroups.map((g) => ({ shopName, qrData: orderId, service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}`, meta }))
+      : itemTags.map((tag) => ({ shopName, qrData: tag.qrData, service: tag.service, line2: `${tag.idxInService}/${tag.serviceTotal}`, meta }));
+  };
+
+  /** Print tags straight to a connected Bluetooth thermal printer (no PDF). */
+  const handlePrintTagsBluetooth = async () => {
+    try {
+      const def = await printerService.getDefault();
+      if (!def) {
+        Alert.alert('No printer', 'Connect a Bluetooth printer first in Settings → Bluetooth Printer.');
+        return;
+      }
+      await printerService.printTags(buildTagRows(), { feedLines: def.feedLines, qrModuleSize: def.qrModuleSize, cut: def.cut });
+    } catch (e: any) {
+      Alert.alert(t('mobile.errorTitle'), e?.message || t('mobile.failedPrintQr'));
     }
   };
 
@@ -1010,21 +1085,35 @@ export default function OrderDetailsScreen({
                 </View>
                 <Text style={styles.qrOrderId}>#{publicId}</Text>
                 <Text style={styles.qrSubInfo}>{order.customerName || t('mobile.guestLabel')} · {t('mobile.itemsCountShort', { count: (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) })}</Text>
+                {serviceGroups.length > 0 && (
+                  <View style={{ alignSelf: 'stretch', marginTop: 12, gap: 6 }}>
+                    {serviceGroups.map((g) => (
+                      <View key={g.name} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: colors.text }}>{g.name}</Text>
+                        <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>×{g.qty}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 <Text style={styles.qrHint}>{t('mobile.qrScanHint')}</Text>
                 <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16, alignSelf: 'stretch' }]} onPress={handleShare}>
                   <MaterialIcons name="share" size={18} color="#fff" />
                   <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>{t('mobile.shareTrackingLink')}</Text>
                 </TouchableOpacity>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignSelf: 'stretch' }}>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={handlePrintTags}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>{t('mobile.thermal2')}</Text>
+                    <Text style={styles.printBtnText}>Print</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
-                    <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>{t('mobile.printStandard')}</Text>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={handleShareTags}>
+                    <MaterialIcons name="ios-share" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Share PDF</Text>
                   </TouchableOpacity>
                 </View>
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, alignSelf: 'stretch' }]} onPress={handlePrintTagsBluetooth}>
+                  <MaterialIcons name="bluetooth" size={18} color="#fff" />
+                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Print to Bluetooth</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               /* ── Item Tags QR ──── */
@@ -1034,24 +1123,28 @@ export default function OrderDetailsScreen({
                     <View key={tag.index} style={styles.itemTagCard}>
                       <Image source={{ uri: getQRImageUrl(tag.qrData, 150) }} style={styles.itemTagQr} resizeMode="contain" />
                       <View style={styles.itemTagInfo}>
-                        <Text style={styles.itemTagIndex}>{t('mobile.tagIndex', { index: tag.index, total: tag.total })}</Text>
-                        <Text style={styles.itemTagName}>{tag.serviceName}</Text>
-                        <Text style={styles.itemTagMeta}>{tag.categoryName}</Text>
+                        <Text style={styles.itemTagIndex}>{t('mobile.tagIndex', { index: tag.idxInService, total: tag.serviceTotal })}</Text>
+                        <Text style={styles.itemTagName}>{tag.service}</Text>
+                        <Text style={styles.itemTagMeta}>{tag.itemName}</Text>
                         <Text style={styles.itemTagMeta}>{formatCurrency(Math.round(tag.unitPrice), countrySettings)} · Order #{publicId}</Text>
                       </View>
                     </View>
                   ))}
                 </ScrollView>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('thermal')}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignSelf: 'stretch' }}>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={handlePrintTags}>
                     <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>{t('mobile.printThermal2Long')}</Text>
+                    <Text style={styles.printBtnText}>Print</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={() => handlePrintQR('standard')}>
-                    <MaterialIcons name="print" size={16} color="#5e3c00" />
-                    <Text style={styles.printBtnText}>{t('mobile.printStandard')}</Text>
+                  <TouchableOpacity style={[styles.printBtn, { flex: 1 }]} onPress={handleShareTags}>
+                    <MaterialIcons name="ios-share" size={16} color="#5e3c00" />
+                    <Text style={styles.printBtnText}>Share PDF</Text>
                   </TouchableOpacity>
                 </View>
+                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, alignSelf: 'stretch' }]} onPress={handlePrintTagsBluetooth}>
+                  <MaterialIcons name="bluetooth" size={18} color="#fff" />
+                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Print to Bluetooth</Text>
+                </TouchableOpacity>
               </>
             )}
 

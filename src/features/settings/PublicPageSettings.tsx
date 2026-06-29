@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { useLToast } from "@/components/laundry";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSmartUpload } from "@/hooks/use-smart-upload";
 import {
     Eye,
@@ -73,6 +74,7 @@ function slugFromInput(val: string): string {
 
 export function PublicPageSettings() {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { addToast } = useLToast();
     const { shopId } = useAuth();
     const { shop } = useShop();
@@ -239,7 +241,7 @@ export function PublicPageSettings() {
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "12px 16px" : "0 22px", flexWrap: isMobile ? "wrap" : "nowrap" }}>
                 <div>
                     <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("publicPage.setupTitle", "Public booking page")}</div>
                     <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("publicPage.setupSubtitle", "Set up your customer-facing page")}</div>
@@ -257,7 +259,7 @@ export function PublicPageSettings() {
                 </button>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: 22 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? 16 : 22, paddingBottom: isMobile ? "calc(88px + env(safe-area-inset-bottom, 0px))" : 22 }}>
                 <div style={{ display: "flex", gap: 20, alignItems: "flex-start", maxWidth: 1180, margin: "0 auto", flexWrap: "wrap" }}>
                     {/* FORM */}
                     <div style={{ flex: "1.5 1 460px", minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -460,7 +462,7 @@ export function PublicPageSettings() {
 
                     {/* LIVE PREVIEW */}
                     <div style={{ flex: "1 1 280px", minWidth: 0 }}>
-                        <div style={{ position: "sticky", top: 0 }}>
+                        <div style={{ position: isMobile ? "static" : "sticky", top: 0 }}>
                             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", marginBottom: 12 }}>{t("publicPage.livePreview", "Live preview")}</div>
                             {/* phone frame */}
                             <div style={{ margin: "0 auto", width: 300, maxWidth: "100%", borderRadius: 34, background: "#0B1330", padding: 10, boxShadow: "var(--sh-md)" }}>

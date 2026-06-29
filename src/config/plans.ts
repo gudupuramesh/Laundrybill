@@ -73,8 +73,10 @@ export const PLANS: Record<PlanType, Plan> = {
             expenses: true,
             reports: true,
             qrScans: true,
-            staffApp: true,
-            webDashboard: false,
+            webDashboard: true,
+            // Pro is owner-only: no team logins of any type. The *App feature flags
+            // are what the Firestore rules gate login creation on, so they MUST be false.
+            staffApp: false,
             damagePhotos: false,
             driverApp: false,
             plantApp: false,
@@ -83,14 +85,55 @@ export const PLANS: Record<PlanType, Plan> = {
         limits: {
             maxOrders: -1,
             maxCustomers: -1,
-            maxStaff: 1,
+            // Pro is owner-only: no team logins of any type (staff/agent/plant).
+            // Creating logins requires Pro+ or Business.
+            maxStaff: 0,
             maxDeliveryAgents: 0,
             maxPlantStaff: 0,
             maxRoster: 20,
             maxServices: -1,
             storageGB: 5,
         },
-        apps: ["admin", "staff"],
+        apps: ["admin"],
+        isActive: true,
+    },
+
+    pro_plus: {
+        id: "pro_plus",
+        name: "Pro+",
+        description: "For single shops that need a team — staff, agent & plant logins plus public booking",
+        badge: "Most Powerful",
+        prices: { monthly: 999, yearly: 9990 },
+        features: {
+            ...BASE_FEATURES,
+            orderTracking: true,
+            whatsappReceipts: true,
+            staffManagement: true,
+            attendance: true,
+            payroll: true,
+            expenses: true,
+            reports: true,
+            qrScans: true,
+            webDashboard: true,
+            // Pro+ unlocks all three login types + public booking (lower caps than Business).
+            staffApp: true,
+            driverApp: true,
+            plantApp: true,
+            publicOrderingPage: true,
+            // Business-only extras stay off.
+            damagePhotos: false,
+        },
+        limits: {
+            maxOrders: -1,
+            maxCustomers: -1,
+            maxStaff: 3,
+            maxDeliveryAgents: 2,
+            maxPlantStaff: 1,
+            maxRoster: -1,
+            maxServices: -1,
+            storageGB: 20,
+        },
+        apps: ["admin", "staff", "driver", "plant"],
         isActive: true,
     },
 
@@ -120,9 +163,10 @@ export const PLANS: Record<PlanType, Plan> = {
         limits: {
             maxOrders: -1,
             maxCustomers: -1,
-            maxStaff: -1,
-            maxDeliveryAgents: -1,
-            maxPlantStaff: -1,
+            // Finite (large) login caps — Business is also capped per the plan policy.
+            maxStaff: 15,
+            maxDeliveryAgents: 15,
+            maxPlantStaff: 15,
             maxRoster: -1,
             maxServices: -1,
             storageGB: 100,
@@ -133,11 +177,12 @@ export const PLANS: Record<PlanType, Plan> = {
 };
 
 export function getPlan(planId: string | PlanType | null | undefined): Plan {
-    const id = planId === "free" || planId === "pro" || planId === "business" ? planId : null;
+    const id = planId === "free" || planId === "pro" || planId === "pro_plus" || planId === "business" ? planId : null;
     if (id) return PLANS[id];
     // Legacy ids
     const n = String(planId || "").toLowerCase().replace(/[_\s-]/g, "");
-    if (n === "business" || n === "enterprise" || n === "proplus" || n === "premium") return PLANS.business;
+    if (n === "proplus" || n === "pro+") return PLANS.pro_plus;
+    if (n === "business" || n === "enterprise" || n === "premium") return PLANS.business;
     if (n === "pro" || n === "starter") return PLANS.pro;
     return PLANS.free;
 }
@@ -164,21 +209,21 @@ export function isWithinLimit(
     return currentCount < limit;
 }
 
-/** Free vs Pro vs Business comparison */
+/** Free vs Pro vs Pro+ vs Business comparison */
 export const PLAN_COMPARISON = [
-    { feature: "Monthly Orders", free: "50", pro: "Unlimited", business: "Unlimited" },
-    { feature: "Customers", free: "100", pro: "Unlimited", business: "Unlimited" },
-    { feature: "Staff accounts", free: "1 admin", pro: "1 staff login", business: "Unlimited" },
-    { feature: "Order Tracking Link", free: false, pro: true, business: true },
-    { feature: "WhatsApp Receipts", free: false, pro: true, business: true },
-    { feature: "QR Code Scanning", free: false, pro: true, business: true },
-    { feature: "Staff Management", free: false, pro: true, business: true },
-    { feature: "Attendance & Payroll", free: false, pro: true, business: true },
-    { feature: "Expenses Tracking", free: false, pro: true, business: true },
-    { feature: "Reports & Analytics", free: false, pro: true, business: true },
-    { feature: "Damage Photos", free: false, pro: false, business: true },
-    { feature: "Driver / Agent App", free: false, pro: false, business: true },
-    { feature: "Plant Processing", free: false, pro: false, business: true },
-    { feature: "Public Ordering Page", free: false, pro: false, business: true },
-    { feature: "Web Dashboard Access", free: false, pro: false, business: true },
+    { feature: "Monthly Orders", free: "50", pro: "Unlimited", pro_plus: "Unlimited", business: "Unlimited" },
+    { feature: "Customers", free: "100", pro: "Unlimited", pro_plus: "Unlimited", business: "Unlimited" },
+    { feature: "Team logins", free: "Owner only", pro: "Owner only", pro_plus: "3 staff · 2 agents · 1 plant", business: "15 each" },
+    { feature: "Order Tracking Link", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "WhatsApp Receipts", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "QR Code Scanning", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Staff Management", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Attendance & Payroll", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Expenses Tracking", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Reports & Analytics", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Driver / Agent App", free: false, pro: false, pro_plus: true, business: true },
+    { feature: "Plant Processing", free: false, pro: false, pro_plus: true, business: true },
+    { feature: "Public Ordering Page", free: false, pro: false, pro_plus: true, business: true },
+    { feature: "Web Dashboard Access", free: false, pro: true, pro_plus: true, business: true },
+    { feature: "Damage Photos", free: false, pro: false, pro_plus: false, business: true },
 ];

@@ -25,7 +25,7 @@ export function StaffProtectedRoute({ children }: StaffProtectedRouteProps) {
     }
 
     if (!staff) {
-        return <Navigate to="/staff/login" state={{ from: location }} replace />;
+        return <Navigate to="/team/login" state={{ from: location }} replace />;
     }
 
     // Strict Check: Plant Operators and Agents cannot access Staff POS/CRM

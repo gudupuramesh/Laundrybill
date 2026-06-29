@@ -50,7 +50,7 @@ export default function ScanScreen() {
       title="Scan order"
       instruction="Point at the order QR to confirm pickup or delivery"
       permissionTitle="Scan order QR codes"
-      permissionBody="Allow camera access to scan order tags and confirm pickups or deliveries."
+      permissionBody="Laundrybill needs the camera only to scan order QR tags so you can confirm pickups and deliveries. Scanning just reads the code — no photo or video is taken or stored."
       onResult={onResult}
     />
   );

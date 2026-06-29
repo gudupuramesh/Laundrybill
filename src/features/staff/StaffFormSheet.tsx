@@ -14,6 +14,7 @@ import type { Staff, StaffRole, PayType, MemberType } from "@/types/staff";
 import { Timestamp } from "firebase/firestore";
 import { useTranslation } from "react-i18next";
 import { Check, Copy } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
 const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
@@ -49,6 +50,7 @@ interface StaffFormSheetProps {
 
 export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormSheetProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { currencySymbol } = useCurrency();
     const isEdit = !!staff;
     const { checkLimit } = useShopLimits();
@@ -212,7 +214,7 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
                     <label style={lbl}>{t("staff.payType", "Pay Type")}</label>
                     <RadioCards value={form.payType} onChange={(v) => setForm({ ...form, payType: v as PayType })} options={payTypeOptions} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                     <div>
                         <label style={lbl}>{form.payType === "monthly" ? t("staff.monthlySalary", "Monthly Salary") : t("staff.dailyWage", "Daily Wage")}</label>
                         <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--c-border-strong)", borderRadius: 9, background: "var(--c-surface)" }}>
@@ -235,7 +237,7 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
                     <label style={lbl}>{t("staff.bankName", "Bank Name")}</label>
                     <input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} placeholder={t("staff.bankNamePlaceholder", "e.g. State Bank of India")} style={fld} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                     <div>
                         <label style={lbl}>{t("staff.accountNumber", "Account Number")}</label>
                         <input value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} placeholder={t("staff.accountNumberPlaceholder", "Account number")} style={{ ...fld, fontFamily: MONO }} />

@@ -19,6 +19,7 @@ import {
 } from "@/components/laundry";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
 import { reverseGeocode } from "@/lib/geocoding";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTranslation } from "react-i18next";
 import {
     Store,
@@ -40,6 +41,7 @@ import { db } from "@/lib/firebase";
 
 export function ShopSettingsPage() {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { addToast } = useLToast();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -666,7 +668,7 @@ ${latitude && longitude ? `📌 https://maps.google.com/?q=${latitude},${longitu
                             placeholder={t("shop.addressPlaceholder")}
                         />
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : undefined }}>
                             <LTextInput
                                 label={t("shop.city")}
                                 value={city}
@@ -752,7 +754,7 @@ ${latitude && longitude ? `📌 https://maps.google.com/?q=${latitude},${longitu
 
                     {taxEnabled && (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : undefined }}>
                                 <LTextInput
                                     label={t("shop.taxName", "Tax Name")}
                                     value={taxName}
@@ -794,7 +796,7 @@ ${latitude && longitude ? `📌 https://maps.google.com/?q=${latitude},${longitu
                             inputMode="numeric"
                         />
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : undefined }}>
                             <LTextInput
                                 label={t("shop.ifscCode")}
                                 value={ifscCode}

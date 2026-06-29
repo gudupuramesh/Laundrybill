@@ -102,6 +102,8 @@ const PRICING_UNIT_TKEY = {
 
 export interface CreateOrderScreenRef {
   goToCustomerStep: () => void;
+  // Auto-select a customer (e.g. one just created/imported) and jump straight to the items step.
+  selectCustomerAndAdvance: (customer: { id: string; name: string; phone: string; email?: string | null; address?: string | null }) => void;
 }
 
 const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
@@ -153,6 +155,17 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
 
   useImperativeHandle(ref, () => ({
     goToCustomerStep: () => setStep('customer'),
+    selectCustomerAndAdvance: (customer) => {
+      setSelectedCustomer({
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email ?? null,
+        address: customer.address ?? null,
+      });
+      setSearch(`${customer.name} • ${customer.phone}`);
+      setStep('items');
+    },
   }));
 
   useEffect(() => {
@@ -786,11 +799,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         </View>
       </View>
 
-      <Modal visible={showEditItemModal} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+      <Modal visible={showEditItemModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowEditItemModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetBackdrop}>
+          <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={() => setShowEditItemModal(false)} />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
             <Text style={styles.modalTitle}>{t('mobile.editItem')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickEditImage}>
               {editImageUri ? (
@@ -868,15 +882,15 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             </View>
             </ScrollView>
           </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showCustomModal} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+      <Modal visible={showCustomModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowCustomModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetBackdrop}>
+          <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={() => setShowCustomModal(false)} />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
             <Text style={styles.modalTitle}>{t('mobile.addCustomItemTitle')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickCustomImage}>
               {customImageUri ? (
@@ -948,8 +962,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             </View>
             </ScrollView>
           </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1354,6 +1367,28 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     maxHeight: '88%',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheetCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
+    maxHeight: '92%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 12,
   },
   modalCardLarge: {
     backgroundColor: colors.surface,

@@ -77,8 +77,20 @@ const TABS: { key: TabKey; label: string; icon: keyof typeof MaterialIcons.glyph
 
 function MainShell() {
   const insets = useSafeAreaInsets();
+  const { shopName } = useDriverAuth();
   const [tab, setTabState] = useState<TabKey>('today');
   const [stack, setStack] = useState<Route[]>([]);
+
+  // Create/edit-order flow — kept mounted so the cart survives the review overlay
+  // (mirrors the staff shell). Agents create orders auto-assigned to themselves
+  // and fully edit their own assigned orders.
+  const [creating, setCreating] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [orderDraft, setOrderDraft] = useState<DraftOrderPayload | null>(null);
+  const [placedOrder, setPlacedOrder] = useState<any>(null);
+  const [createStep, setCreateStep] = useState<'create' | 'review' | 'success'>('create');
+  const [createSub, setCreateSub] = useState<null | { kind: 'add' } | { kind: 'editCustomer'; id: string }>(null);
+  const createOrderRef = useRef<CreateOrderScreenRef>(null);
 
   const setTab = useCallback((t: TabKey) => {
     setStack([]);
@@ -97,6 +109,23 @@ function MainShell() {
     return handled;
   }, []);
 
+  const openCreate = useCallback((order?: any) => {
+    setEditingOrder(order || null);
+    setOrderDraft(null);
+    setPlacedOrder(null);
+    setCreateStep('create');
+    setCreateSub(null);
+    setCreating(true);
+  }, []);
+  const closeCreate = useCallback(() => {
+    setCreating(false);
+    setCreateStep('create');
+    setOrderDraft(null);
+    setPlacedOrder(null);
+    setEditingOrder(null);
+    setCreateSub(null);
+  }, []);
+
   // Open an order from a push-notification tap.
   const openOrder = useCallback((data: any) => {
     if (!data?.orderId) return;
@@ -111,11 +140,19 @@ function MainShell() {
   }, []);
   usePushNotifications(openOrder);
 
-  // Android hardware back pops the detail stack first.
+  // Android back: unwind the create flow first, then the detail stack.
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => goBack());
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (creating) {
+        if (createSub) { setCreateSub(null); return true; }
+        if (createStep === 'review') { setCreateStep('create'); return true; }
+        closeCreate();
+        return true;
+      }
+      return goBack();
+    });
     return () => sub.remove();
-  }, [goBack]);
+  }, [creating, createSub, createStep, goBack, closeCreate]);
 
   const top = stack[stack.length - 1];
 
@@ -141,16 +178,28 @@ function MainShell() {
 
         {top?.name === 'pickupDetail' && (
           <View style={styles.overlay}>
-            <PickupDetailScreen orderId={top.orderId} />
+            <PickupDetailScreen orderId={top.orderId} onEditOrder={(order: any) => openCreate(order)} />
           </View>
         )}
         {top?.name === 'deliveryDetail' && (
           <View style={styles.overlay}>
-            <DeliveryDetailScreen orderId={top.orderId} />
+            <DeliveryDetailScreen orderId={top.orderId} onEditOrder={(order: any) => openCreate(order)} />
           </View>
         )}
 
-        {stack.length === 0 && (
+        {/* New Order FAB — agent's entry to the create flow. Hidden over detail/create overlays. */}
+        {stack.length === 0 && !creating && (
+          <TouchableOpacity
+            style={[styles.newOrderFab, { bottom: Math.max(insets.bottom, 10) + 74 }]}
+            activeOpacity={0.85}
+            onPress={() => openCreate()}
+          >
+            <MaterialIcons name="add" size={26} color="#fff" />
+            <Text style={styles.newOrderFabLabel}>New Order</Text>
+          </TouchableOpacity>
+        )}
+
+        {stack.length === 0 && !creating && (
         <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           {TABS.map((t) => {
             const active = tab === t.key && stack.length === 0;
@@ -185,6 +234,53 @@ function MainShell() {
             );
           })}
         </View>
+        )}
+
+        {/* Create/edit-order flow overlay — CreateOrderScreen stays mounted under review/success */}
+        {creating && (
+          <View style={styles.overlay}>
+            <CreateOrderScreen
+              ref={createOrderRef}
+              editOrder={editingOrder}
+              onBack={closeCreate}
+              onReviewOrder={(draft) => { setOrderDraft(draft); setCreateStep('review'); }}
+              onAddCustomer={() => setCreateSub({ kind: 'add' })}
+              onEditCustomerDetail={(id) => setCreateSub({ kind: 'editCustomer', id })}
+            />
+            {createStep === 'review' && (
+              <View style={styles.overlay}>
+                <OrderReviewScreen
+                  draftOrder={orderDraft}
+                  editOrderId={editingOrder?.id || null}
+                  editOrder={editingOrder}
+                  selfAssignAsAgent={!editingOrder}
+                  onBack={() => setCreateStep('create')}
+                  onEditCustomer={() => { createOrderRef.current?.goToCustomerStep(); setCreateStep('create'); }}
+                  onPlaceOrder={(order: any) => { setPlacedOrder(order); setEditingOrder(null); setCreateStep('success'); }}
+                />
+              </View>
+            )}
+            {createStep === 'success' && placedOrder && (
+              <View style={styles.overlay}>
+                <OrderSuccessScreen
+                  order={placedOrder}
+                  shopName={shopName || undefined}
+                  onViewOrder={() => { const oid = placedOrder.id; closeCreate(); setTabState('pickups'); setStack([{ name: 'pickupDetail', orderId: oid }]); }}
+                  onDone={() => { closeCreate(); setTabState('today'); }}
+                />
+              </View>
+            )}
+            {createSub?.kind === 'add' && (
+              <View style={styles.overlay}>
+                <AddCustomerScreen onBack={() => setCreateSub(null)} onCreated={(customer) => { createOrderRef.current?.selectCustomerAndAdvance(customer); setCreateSub(null); }} />
+              </View>
+            )}
+            {createSub?.kind === 'editCustomer' && (
+              <View style={styles.overlay}>
+                <CustomerDetailScreen customerId={createSub.id} onBack={() => setCreateSub(null)} onViewOrder={() => {}} />
+              </View>
+            )}
+          </View>
         )}
       </View>
     </NavProvider>
@@ -514,7 +610,7 @@ function StaffShell() {
             )}
             {createSub?.kind === 'add' && (
               <View style={styles.overlay}>
-                <AddCustomerScreen onBack={() => setCreateSub(null)} onCreated={() => setCreateSub(null)} />
+                <AddCustomerScreen onBack={() => setCreateSub(null)} onCreated={(customer) => { createOrderRef.current?.selectCustomerAndAdvance(customer); setCreateSub(null); }} />
               </View>
             )}
             {createSub?.kind === 'editCustomer' && (
@@ -786,7 +882,7 @@ function ManagerShell() {
             )}
             {createSub?.kind === 'add' && (
               <View style={styles.overlay}>
-                <AddCustomerScreen onBack={() => setCreateSub(null)} onCreated={() => setCreateSub(null)} />
+                <AddCustomerScreen onBack={() => setCreateSub(null)} onCreated={(customer) => { createOrderRef.current?.selectCustomerAndAdvance(customer); setCreateSub(null); }} />
               </View>
             )}
             {createSub?.kind === 'editCustomer' && (
@@ -893,4 +989,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
+  // Agent "New Order" FAB — pinned above the bottom nav, right-aligned.
+  newOrderFab: {
+    position: 'absolute',
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    zIndex: 20,
+  },
+  newOrderFabLabel: { fontFamily: fonts.bold, fontSize: 14, color: '#fff' },
 });

@@ -1,16 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc, serverTimestamp, arrayUnion, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useDriverAuth } from "../DriverAuthContext"; // Using Driver Auth
-import { LCard, LButton, LSpinner, LStatusBadge, LConfirmDialog, useLToast } from "@/components/laundry";
-import { AlertCircle, Package, RefreshCw, Camera, Keyboard, Truck, CheckCircle2, ScanLine } from "lucide-react";
+import { LConfirmDialog, useLToast } from "@/components/laundry";
+import { AlertCircle, Package, RefreshCw, Camera, Keyboard, Truck, CheckCircle2, ScanLine, Loader2 } from "lucide-react";
 import type { Order, OrderStatus } from "@/types/order";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { isAndroidScannerEnv } from "@/lib/android-scanner";
 
 type ScanMode = "camera" | "manual";
+
+// Status -> token map for status pills
+const STATUS_TOKEN: Record<string, { soft: string; ref: string }> = {
+    pending: { soft: "c-surface-2", ref: "c-text-3" },
+    pickup_scheduled: { soft: "c-info-soft", ref: "c-info" },
+    processing: { soft: "c-info-soft", ref: "c-info" },
+    ready: { soft: "c-success-soft", ref: "c-success" },
+    ready_for_pickup: { soft: "c-success-soft", ref: "c-success" },
+    out_for_delivery: { soft: "c-cyan-soft", ref: "c-cyan" },
+    picked_up: { soft: "c-success-soft", ref: "c-success" },
+    delivered: { soft: "c-success-soft", ref: "c-success" },
+    pickup_completed: { soft: "c-violet-soft", ref: "c-violet" },
+    cancelled: { soft: "c-error-soft", ref: "c-error" },
+};
+
+function StatusPill({ status }: { status: string }) {
+    const tok = STATUS_TOKEN[status] || { soft: "c-surface-2", ref: "c-text-3" };
+    return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: `var(--${tok.soft})`, color: `var(--${tok.ref})` }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${tok.ref})` }} />
+            {status.replace(/_/g, " ").toUpperCase()}
+        </span>
+    );
+}
 
 export function DriverScanPage() {
     const { t } = useTranslation();
@@ -113,8 +137,8 @@ export function DriverScanPage() {
                 // If checking out from plant/store -> picked_up (heading to plant) or delivery logic?
                 // Driver Pickup usually means:
                 // 1. Picking up from Customer -> Inbound
-                // 2. Picking up from Plant -> Out for Delivery? 
-                // Let's assume standard logic: 
+                // 2. Picking up from Plant -> Out for Delivery?
+                // Let's assume standard logic:
                 // - If status is 'pending' (at customer) -> 'pickup_completed' (Driver collected)
                 // - If status is 'ready' (at plant) -> 'out_for_delivery' (Driver delivering)
 
@@ -196,141 +220,151 @@ export function DriverScanPage() {
 
     const action = order ? getAvailableAction(order) : null;
 
+    const seg = (active: boolean): CSSProperties => ({
+        flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+        font: "inherit", fontSize: 13.5, fontWeight: 600, borderRadius: 9, padding: "10px 0",
+        color: active ? "#fff" : "var(--c-text-2)",
+        background: active ? "var(--c-primary)" : "var(--c-surface)",
+        border: `1px solid ${active ? "var(--c-primary)" : "var(--c-border-strong)"}`,
+    });
+
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold font-display text-gray-900 dark:text-gray-100">
-                    {t('driver.scan.title', 'Scan Order')}
-                </h1>
-                <p className="text-gray-500">
-                    {t('driver.scan.desc', 'Scan QR to pickup or deliver orders')}
-                </p>
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 460, margin: "0 auto" }}>
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>{t('driver.scan.title', 'Scan Order')}</div>
+                <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 3 }}>{t('driver.scan.desc', 'Scan QR to pickup or deliver orders')}</div>
             </div>
 
             {/* Mode Toggle */}
-            <div className="flex gap-2">
-                <LButton
-                    variant={scanMode === "camera" ? "primary" : "outline"}
-                    onClick={() => { setScanMode("camera"); setScannerActive(false); }}
-                    className="flex-1 gap-2"
-                >
-                    <Camera className="h-4 w-4" /> Camera
-                </LButton>
-                <LButton
-                    variant={scanMode === "manual" ? "primary" : "outline"}
-                    onClick={() => setScanMode("manual")}
-                    className="flex-1 gap-2"
-                >
-                    <Keyboard className="h-4 w-4" /> Manual
-                </LButton>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <button style={seg(scanMode === "camera")} onClick={() => { setScanMode("camera"); setScannerActive(false); }}>
+                    <Camera size={16} /> Camera
+                </button>
+                <button style={seg(scanMode === "manual")} onClick={() => setScanMode("manual")}>
+                    <Keyboard size={16} /> Manual
+                </button>
             </div>
 
             {/* Scanner Area */}
             {!order && (
-                <LCard className="p-4">
+                <div style={{ ...card, padding: 16 }}>
                     {scanMode === "camera" ? (
                         !scannerActive ? (
-                            <div className="flex flex-col items-center gap-4 py-6">
-                                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                                    <ScanLine className="h-8 w-8 text-primary" />
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "24px 0" }}>
+                                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--c-primary-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <ScanLine size={32} color="var(--c-primary)" />
                                 </div>
-                                <p className="text-muted-foreground text-center text-sm">{t('scanner.openScannerHint', 'Tap to open the camera and scan a QR code')}</p>
-                                <LButton variant="primary" size="lg" onClick={handleOpenScanner} className="gap-2">
-                                    <Camera className="h-5 w-5" />
+                                <p style={{ margin: 0, fontSize: 13, color: "var(--c-text-3)", textAlign: "center" }}>{t('scanner.openScannerHint', 'Tap to open the camera and scan a QR code')}</p>
+                                <button style={btnPrimary} onClick={handleOpenScanner}>
+                                    <Camera size={18} />
                                     {t('scanner.openScanner', 'Open scanner')}
-                                </LButton>
+                                </button>
                             </div>
                         ) : isAndroidScannerEnv() ? (
-                            <div className="flex flex-col items-center gap-4 py-8">
-                                <ScanLine className="h-12 w-12 text-primary" />
-                                <p className="text-center text-muted-foreground text-sm">{t('scanner.useDeviceCamera', 'Use your device camera to scan the QR code')}</p>
-                                <LButton variant="outline" size="sm" onClick={() => setScannerActive(false)}>{t('scanner.openScanner', 'Open scanner')}</LButton>
-                                {loading && <LSpinner />}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "32px 0" }}>
+                                <ScanLine size={48} color="var(--c-primary)" />
+                                <p style={{ margin: 0, fontSize: 13, color: "var(--c-text-3)", textAlign: "center" }}>{t('scanner.useDeviceCamera', 'Use your device camera to scan the QR code')}</p>
+                                <button style={btnOutline} onClick={() => setScannerActive(false)}>{t('scanner.openScanner', 'Open scanner')}</button>
+                                {loading && <Loader2 size={22} color="var(--c-primary)" className="animate-spin" />}
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="w-full max-w-md aspect-square bg-black rounded-lg overflow-hidden relative">
-                                    {cameraError ? (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 text-center">
-                                            <AlertCircle className="h-12 w-12 mb-4 text-red-400" />
-                                            <p>{cameraError}</p>
-                                            <LButton variant="outline" className="mt-4" onClick={() => setCameraError(null)}>Retry</LButton>
-                                        </div>
-                                    ) : (
-                                        <Scanner
-                                            onScan={res => res?.[0]?.rawValue && lookupOrder(res[0].rawValue)}
-                                            onError={() => setCameraError("Camera issue. Try manual mode.")}
-                                            constraints={{ facingMode: "environment" }}
-                                            styles={{ container: { width: "100%", height: "100%" } }}
-                                        />
-                                    )}
-                                    {loading && <div className="absolute inset-0 flex items-center justify-center bg-black/50"><LSpinner size="lg" /></div>}
-                                </div>
+                            <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#000", borderRadius: 10, overflow: "hidden", position: "relative" }}>
+                                {cameraError ? (
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 16, textAlign: "center", gap: 12 }}>
+                                        <AlertCircle size={48} color="var(--c-error)" />
+                                        <p style={{ margin: 0 }}>{cameraError}</p>
+                                        <button style={{ ...btnOutline, color: "#fff", border: "1px solid #fff", background: "transparent" }} onClick={() => setCameraError(null)}>Retry</button>
+                                    </div>
+                                ) : (
+                                    <Scanner
+                                        onScan={res => res?.[0]?.rawValue && lookupOrder(res[0].rawValue)}
+                                        onError={() => setCameraError("Camera issue. Try manual mode.")}
+                                        constraints={{ facingMode: "environment" }}
+                                        styles={{ container: { width: "100%", height: "100%" } }}
+                                    />
+                                )}
+                                {loading && (
+                                    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <Loader2 size={28} color="#fff" className="animate-spin" />
+                                    </div>
+                                )}
                             </div>
                         )
                     ) : (
-                        <div className="flex gap-2">
+                        <div style={{ display: "flex", gap: 8 }}>
                             <input
                                 ref={inputRef}
                                 value={scanInput}
                                 onChange={e => setScanInput(e.target.value)}
                                 onKeyDown={e => e.key === "Enter" && lookupOrder(scanInput)}
                                 placeholder="Scan/Type Order ID"
-                                className="flex-1 px-4 py-3 border rounded-lg"
                                 autoFocus
+                                style={{ flex: 1, font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 9, padding: "11px 13px", outline: "none" }}
                             />
-                            <LButton onClick={() => lookupOrder(scanInput)} disabled={loading || !scanInput}>Lookup</LButton>
+                            <button
+                                onClick={() => lookupOrder(scanInput)}
+                                disabled={loading || !scanInput}
+                                style={{ cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "0 20px", opacity: (loading || !scanInput) ? 0.6 : 1 }}
+                            >
+                                Lookup
+                            </button>
                         </div>
                     )}
-                </LCard>
+                    {error && <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: "var(--c-error)", textAlign: "center" }}>{error}</div>}
+                </div>
             )}
 
             {/* Order Result */}
             {order && (
-                <LCard className="p-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold">Order Found</h3>
-                        <LButton variant="ghost" size="sm" onClick={() => setOrder(null)}><RefreshCw className="h-4 w-4 mr-2" /> Scan Again</LButton>
+                <div style={{ ...card, padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>Order Found</div>
+                        <button style={btnGhost} onClick={() => setOrder(null)}>
+                            <RefreshCw size={14} /> Scan Again
+                        </button>
                     </div>
 
-                    <div className="p-4 bg-muted/30 rounded-lg flex gap-4">
-                        <Package className="h-10 w-10 text-primary" />
-                        <div>
-                            <div className="font-bold text-lg">{order.orderNumber}</div>
-                            <div className="text-sm text-muted-foreground">{order.customerName}</div>
-                            <LStatusBadge status={order.status} className="mt-2" />
+                    <div style={{ display: "flex", gap: 14, alignItems: "center", padding: 14, background: "var(--c-surface-2)", borderRadius: 10, marginBottom: 14 }}>
+                        <ChipIcon soft="c-primary-soft" refColor="c-primary"><Package size={18} /></ChipIcon>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ font: MONO, fontFamily: MONO, fontSize: 17, fontWeight: 600, color: "var(--c-text)" }}>{order.orderNumber}</div>
+                            <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 1 }}>{order.customerName}</div>
+                            <div style={{ marginTop: 6 }}><StatusPill status={order.status} /></div>
                         </div>
                     </div>
 
                     {/* Action Button */}
                     {action ? (
-                        <LButton
-                            variant={action.variant}
-                            fullWidth
-                            size="lg"
+                        <button
                             onClick={() => setConfirmAction({ open: true, type: action.type })}
-                            className="h-14 text-lg"
+                            style={{
+                                ...btnPrimary,
+                                width: "100%",
+                                fontSize: 15,
+                                padding: "14px 16px",
+                                background: action.variant === "success" ? "var(--c-success)" : "var(--c-primary)",
+                            }}
                         >
-                            <action.icon className="h-5 w-5 mr-2" />
+                            <action.icon size={18} />
                             {action.label}
-                        </LButton>
+                        </button>
                     ) : (
-                        <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-center text-sm">
+                        <div style={{ padding: 14, background: "var(--c-warning-soft)", color: "var(--c-warning)", borderRadius: 10, textAlign: "center", fontSize: 13, fontWeight: 600 }}>
                             No actions available for this order status ({order.status}).
                         </div>
                     )}
 
-                    <LButton variant="outline" fullWidth onClick={() => navigate(`/driver/orders/${order.id}`)}>
+                    <button style={{ ...btnOutline, width: "100%", marginTop: 10 }} onClick={() => navigate(`/driver/orders/${order.id}`)}>
                         View Full Details
-                    </LButton>
-                </LCard>
+                    </button>
+                </div>
             )}
 
-            {/* Error */}
-            {error && (
-                <LCard className="p-4 border-destructive bg-destructive/5 text-destructive flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5" /> {error}
-                </LCard>
+            {/* Error (when no order context to attach it to) */}
+            {error && !order && scanMode === "camera" && scannerActive && (
+                <div style={{ ...card, padding: "12px 14px", marginTop: 14, display: "flex", alignItems: "center", gap: 8, borderColor: "var(--c-error)", background: "var(--c-error-soft)", color: "var(--c-error)", fontSize: 13, fontWeight: 600 }}>
+                    <AlertCircle size={18} /> {error}
+                </div>
             )}
 
             <LConfirmDialog
@@ -344,3 +378,10 @@ export function DriverScanPage() {
         </div>
     );
 }
+
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)" };
+const btnPrimary: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "10px 16px", boxShadow: "var(--sh-sm)" };
+const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 9, padding: "10px 16px" };
+const btnGhost: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0, padding: "8px 10px" };
+function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) { return <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${soft})`, color: `var(--${refColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</span>; }

@@ -138,6 +138,13 @@ export default function SubscriptionScreen({
 
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [sub, setSub] = useState<any>(null);
+  // Pro+ & Business are contact-only (no in-app price/purchase) — sales-assisted via WhatsApp.
+  const [waNumber, setWaNumber] = useState('919876543210');
+  useEffect(() => {
+    firestore().collection('platformSettings').doc('emailBranding').get()
+      .then((d: any) => { const n = d?.data()?.whatsappNumber; if (n) setWaNumber(String(n)); })
+      .catch(() => { /* keep default */ });
+  }, []);
   const [uiState, setUiState] = useState<PurchaseUIState>('loading');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
@@ -195,13 +202,15 @@ export default function SubscriptionScreen({
   const currentPlanId = useMemo(() => {
     const raw = (sub?.planId || sub?.planName || 'free');
     const n = String(raw).toLowerCase().replace(/[_\s-]/g, '');
-    if (n === 'business' || n === 'enterprise' || n === 'proplus' || n === 'premium') return 'business';
+    if (n === 'proplus' || n === 'pro+') return 'pro_plus';
+    if (n === 'business' || n === 'enterprise' || n === 'premium') return 'business';
     if (n === 'pro' || n === 'starter') return 'pro';
     return 'free';
   }, [sub]);
 
   const planDisplayName = useMemo(() => {
     if (currentPlanId === 'business') return 'Business Plan';
+    if (currentPlanId === 'pro_plus') return 'Pro+ Plan';
     if (currentPlanId === 'pro') return 'Pro Plan';
     return 'Free Plan';
   }, [currentPlanId]);
@@ -219,7 +228,7 @@ export default function SubscriptionScreen({
   const expiryDate = formatSubDate(sub?.endDate || sub?.expiresAt);
   const trialEndDate = formatSubDate(sub?.trialEndDate);
 
-  const isPaidPlan = currentPlanId === 'pro' || currentPlanId === 'business';
+  const isPaidPlan = currentPlanId === 'pro' || currentPlanId === 'pro_plus' || currentPlanId === 'business';
 
   // ── Purchase ─────────────────────────────────────────────────────────
   const handlePurchase = async (pkg: PurchasesPackage) => {
@@ -649,6 +658,26 @@ export default function SubscriptionScreen({
           </View>
         )}
 
+        {/* ── Pro+ / Business: contact-only (no in-app price/purchase) ── */}
+        {currentPlanId !== 'business' && currentPlanId !== 'pro_plus' && (
+          <View style={s.contactCard}>
+            <Text style={s.contactTitle}>Need a team? Pro+ &amp; Business</Text>
+            <Text style={s.contactDesc}>
+              Unlock staff, delivery-agent &amp; plant logins plus public booking. Includes POS setup, staff training &amp; guided onboarding.
+            </Text>
+            <TouchableOpacity
+              style={s.contactBtn}
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(
+                `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent("Hi, I'd like to upgrade to Pro+ / Business (includes POS setup, training & onboarding).")}`
+              ).catch(() => {})}
+            >
+              <MaterialIcons name="chat" size={18} color="#fff" />
+              <Text style={s.contactBtnText}>Contact us on WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── No plans available (RC configured but network issue) ───── */}
         {packages.length === 0 && !isPaidPlan && !rcNotConfigured && (
           <View style={s.retryRow}>
@@ -825,6 +854,11 @@ const s = StyleSheet.create({
 
   // Current plan gradient
   planGradient: { borderRadius: radii.card, padding: 20, overflow: 'hidden', gap: 16 },
+  contactCard: { backgroundColor: colors.surface, borderRadius: radii.card, padding: 18, marginTop: 16, ...shadows.card, ...shadows.cardBorder },
+  contactTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  contactDesc: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 6, lineHeight: 19 },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#25D366', borderRadius: radii.button, paddingVertical: 14, marginTop: 14 },
+  contactBtnText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
   gradientCircle: { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
   planGradientHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   planBadgeRow: { flexDirection: 'row', marginBottom: 6 },

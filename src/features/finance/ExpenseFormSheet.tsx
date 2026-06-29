@@ -7,6 +7,7 @@
 import { useState, useEffect, type CSSProperties } from "react";
 import { LResponsiveDialog } from "@/components/laundry";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useExpenseMutations } from "@/hooks/use-finance";
 import type { Expense, ExpenseCategory } from "@/types/finance";
 import { Timestamp } from "firebase/firestore";
@@ -26,6 +27,7 @@ interface ExpenseFormSheetProps {
 export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFormSheetProps) {
     const { t } = useTranslation();
     const { currencySymbol } = useCurrency();
+    const isMobile = useIsMobile();
 
     // Flat list of categories for dropdown - using translations
     const categoryOptions = [
@@ -183,7 +185,7 @@ export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFo
                     <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('finance.descriptionPlaceholder', 'What was this expense for?')} style={fld} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                     <div>
                         <label style={lbl}>{t('finance.amount', 'Amount')}</label>
                         <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--c-border-strong)", borderRadius: 9, background: "var(--c-surface)" }}>

@@ -688,7 +688,7 @@
     "email": "Email (optional)",
     "emailOptional": "Email (optional)",
     "emailRequired": "Email (required)",
-    "emailRequiredHint": "Required for app login. Use a working email so they can receive the invite and password reset links.",
+    "emailRequiredHint": "સ્ટાફ વાપરી શકે તેવો સક્રિય ઈમેલ વાપરો — જરૂર પડ્યે આ લોગિનનો પાસવર્ડ રીસેટ કરવા માટે તે જરૂરી છે. દરેક લોગિન માટે અલગ અને અનન્ય ઈમેલ જોઈએ.",
     "emailPlaceholder": "staff@example.com",
     "rolePay": "Role & Pay",
     "roleAndPay": "Role & Pay",

@@ -10,6 +10,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { firestore, auth } from './firebase';
+import { Alert } from 'react-native';
+import { claimMobileSession, teardownMobileSession } from './sessionGuard';
 import { setResolvedShopId, setResolvedAgentId, setResolvedAgentName } from './auth';
 import type { Staff, TeamMember } from '../types/staff';
 
@@ -111,10 +113,16 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged(async (user) => {
       if (!user) {
+        teardownMobileSession();
         clearResolved();
         setLoading(false);
         return;
       }
+      // One active mobile session per account — sign out if used on another phone.
+      claimMobileSession(user.uid, () => {
+        Alert.alert('Signed out', 'Your account was signed in on another device.');
+        void auth().signOut();
+      }).catch(() => {});
       try {
         const lookup = async () =>
           firestore()

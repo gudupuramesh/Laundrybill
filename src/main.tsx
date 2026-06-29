@@ -10,8 +10,19 @@ import App from "./App";
 // Auto-update silently to avoid blocking confirm() dialogs on mobile
 const updateSW = registerSW({
   onNeedRefresh() {
-    // Auto-update without prompting - prevents refresh loops on mobile
-    // The new version will be applied on next navigation
+    // Apply the new service worker at most ONCE per tab session. Auto-reloading on
+    // every "need refresh" loops forever with skipWaiting + clientsClaim, because the
+    // freshly-loaded page re-detects the active SW as "new" and reloads again (~5s loop).
+    // The sessionStorage guard survives reloads within the tab, so we reload only once.
+    try {
+      if (sessionStorage.getItem("sw-auto-reloaded") === "1") {
+        console.log("SW update available — skipping auto-reload (already applied this session)");
+        return;
+      }
+      sessionStorage.setItem("sw-auto-reloaded", "1");
+    } catch {
+      /* sessionStorage unavailable (private mode) — fall through to a single reload */
+    }
     console.log("New content available, updating service worker...");
     updateSW(true);
   },

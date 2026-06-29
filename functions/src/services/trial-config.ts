@@ -4,15 +4,18 @@
  */
 
 import * as admin from "firebase-admin";
-import { normalizePlanId } from "../lib/plan-normalize";
+import { planDisplayName } from "../lib/plan-normalize";
 
 const TRIAL_CONFIG_DOC = "subscription";
 const DEFAULT_TRIAL_DAYS = 14;
 const DEFAULT_TRIAL_PLAN_ID = "pro";
+const DEFAULT_TRIAL_ORDER_LIMIT = 10;
 
 export interface TrialConfig {
     trialDurationDays: number;
     trialPlanId: string;
+    /** Order-based trial: how many orders a new shop may create before the trial ends. */
+    trialOrderLimit: number;
 }
 
 /** Raw stored shape: value + unit for display in Super Admin */
@@ -23,7 +26,7 @@ export interface TrialConfigStored {
 }
 
 export function getTrialPlanName(planId: string): string {
-    return normalizePlanId(planId) === "pro" ? "Pro" : "Free";
+    return planDisplayName(planId);
 }
 
 /**
@@ -38,6 +41,7 @@ export async function getTrialConfig(): Promise<TrialConfig> {
             return {
                 trialDurationDays: DEFAULT_TRIAL_DAYS,
                 trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+                trialOrderLimit: DEFAULT_TRIAL_ORDER_LIMIT,
             };
         }
         const data = doc.data();
@@ -48,15 +52,22 @@ export async function getTrialConfig(): Promise<TrialConfig> {
         if (days <= 0) days = DEFAULT_TRIAL_DAYS;
         days = Math.min(days, 365);
 
+        const rawOrderLimit = Number(data?.trialOrderLimit);
+        const trialOrderLimit = Number.isFinite(rawOrderLimit) && rawOrderLimit > 0
+            ? Math.min(Math.round(rawOrderLimit), 1000)
+            : DEFAULT_TRIAL_ORDER_LIMIT;
+
         return {
             trialDurationDays: days,
             trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+            trialOrderLimit,
         };
     } catch (e) {
         console.warn("getTrialConfig failed, using defaults:", e);
         return {
             trialDurationDays: DEFAULT_TRIAL_DAYS,
             trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+            trialOrderLimit: DEFAULT_TRIAL_ORDER_LIMIT,
         };
     }
 }

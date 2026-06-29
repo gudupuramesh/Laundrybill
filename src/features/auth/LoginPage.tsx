@@ -20,10 +20,12 @@ import { useAuth } from "./AuthContext";
 import { Download, MapPin, Eye, EyeOff, Mail } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { reverseGeocode } from "@/lib/geocoding";
 import { COUNTRIES, getCountry, DEFAULT_COUNTRY, detectCountryByTimezone } from "@/config/countries";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { consumeEvictionFlag } from "@/lib/session-guard";
 
 function InstallPrompt() {
     const { canInstall, promptInstall } = usePWAInstall();
@@ -54,8 +56,10 @@ export function LoginPage() {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { addToast } = useLToast();
+    const isMobile = useIsMobile();
     const {
         signInWithGoogle,
+        signInWithApple,
         signInWithEmail,
         signUpWithEmail,
         resetPassword,
@@ -94,23 +98,23 @@ export function LoginPage() {
 
     // Country-based login mode detection
     const [detectedCountry, setDetectedCountry] = useState<string | null>(null);
-    const [loginMode, setLoginMode] = useState<"phone" | "email">("phone"); // phone = India OTP, email = email/password
+    const [loginMode, setLoginMode] = useState<"phone" | "email">("email"); // default to email (encouraged); phone OTP is a secondary option
     const [emailAuthMode, setEmailAuthMode] = useState<"signin" | "signup">("signin");
     const [loginEmail, setLoginEmail] = useState("");
     const [loginPassword, setLoginPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loginEmailError, setLoginEmailError] = useState<string | undefined>();
     const [loginPasswordError, setLoginPasswordError] = useState<string | undefined>();
+    // Shown once if this session was signed out by a newer login on another device.
+    const [evictedNotice, setEvictedNotice] = useState(false);
+    useEffect(() => { if (consumeEvictionFlag()) setEvictedNotice(true); }, []);
 
-    // Auto-detect country on mount
+    // Auto-detect country (used by the shop-setup step's country selector).
+    // Login itself defaults to EMAIL for everyone (encouraged, alongside Google);
+    // mobile/phone OTP stays available as a clearly-labelled secondary option.
     useEffect(() => {
         const detected = detectCountryByTimezone();
         setDetectedCountry(detected);
-        if (detected && detected !== "IN") {
-            setLoginMode("email");
-        } else {
-            setLoginMode("phone");
-        }
     }, []);
 
     // Country selection (drives currency, phone code, pincode label) — for setup step
@@ -354,6 +358,15 @@ export function LoginPage() {
         }
     };
 
+    // Apple Sign-In (web popup) — for owners who created their account with Apple on iOS
+    const handleAppleSignIn = async () => {
+        try {
+            await signInWithApple();
+        } catch {
+            // Error handled in context
+        }
+    };
+
     // Email/Password login handler
     const handleEmailAuth = async () => {
         setLoginEmailError(undefined);
@@ -573,9 +586,9 @@ export function LoginPage() {
                 <div className="flex flex-col items-center justify-center mb-8">
                     <div className="flex items-center gap-4 mb-2">
                         <img
-                            src="/icons/Gemini_Generated_Image_o2wsl2o2wsl2o2ws-Photoroom.svg"
+                            src="/icons/owner-login-logo.png"
                             alt="LaundryBill"
-                            className="w-16 h-16"
+                            className="w-16 h-16 rounded-2xl"
                         />
                         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">LaundryBill</h1>
                     </div>
@@ -617,6 +630,22 @@ export function LoginPage() {
                                 </svg>
                                 <span className="text-gray-700 font-medium group-hover:text-gray-900 transition-colors">
                                     {t('auth.continueWithGoogle')}
+                                </span>
+                            </button>
+
+                            {/* Apple Sign-In — for owners who created their account with Apple on iOS */}
+                            <button
+                                id="apple-signin-btn"
+                                type="button"
+                                onClick={handleAppleSignIn}
+                                disabled={loading}
+                                className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-black text-white rounded-2xl hover:bg-gray-900 transition-all duration-200 disabled:opacity-60"
+                            >
+                                <svg className="w-[18px] h-[18px] -mt-0.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                    <path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43Zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 0 0-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282Z" />
+                                </svg>
+                                <span className="font-medium">
+                                    {t('auth.continueWithApple', 'Continue with Apple')}
                                 </span>
                             </button>
 
@@ -676,7 +705,7 @@ export function LoginPage() {
                                         onClick={() => { setLoginMode("email"); clearError(); }}
                                         className="w-full text-center text-xs text-primary hover:text-primary/80 transition-colors pt-1"
                                     >
-                                        {t("auth.notInIndia", "Not in India? Sign in with email instead")}
+                                        {t("auth.useEmailInstead", "Sign in with email instead")}
                                     </button>
                                 </div>
                             )}
@@ -772,6 +801,13 @@ export function LoginPage() {
                                         </button>
                                     )}
 
+                                    {/* Signed-out-elsewhere notice (one active web session per account) */}
+                                    {evictedNotice && (
+                                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                            You were signed out because your account was signed in on another device.
+                                        </p>
+                                    )}
+
                                     {/* Auth error from context */}
                                     {error && !loginEmailError && !loginPasswordError && (
                                         <p className="text-xs text-destructive bg-destructive/5 rounded-lg px-3 py-2">{error}</p>
@@ -797,7 +833,7 @@ export function LoginPage() {
                                         onClick={() => { setLoginMode("phone"); clearError(); }}
                                         className="w-full text-center text-xs text-primary hover:text-primary/80 transition-colors pt-1"
                                     >
-                                        {t("auth.inIndia", "In India? Sign in with phone number instead")}
+                                        {t("auth.useMobileInstead", "Sign in with mobile number instead")}
                                     </button>
                                 </div>
                             )}
@@ -940,7 +976,7 @@ export function LoginPage() {
                                     error={addressError}
                                 />
 
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-2" style={{ gridTemplateColumns: isMobile ? "1fr" : undefined }}>
                                     <LTextInput
                                         label={t('shop.city')}
                                         value={city}

@@ -694,7 +694,7 @@
     "email": "Email (optional)",
     "emailOptional": "Email (optional)",
     "emailRequired": "Email (required)",
-    "emailRequiredHint": "Required for app login. Use a working email so they can receive the invite and password reset links.",
+    "emailRequiredHint": "Use an active email the staff can access — it's required to reset this login's password if needed. Each login needs its own unique email.",
     "emailPlaceholder": "staff@example.com",
     "rolePay": "Role & Pay",
     "roleAndPay": "Role & Pay",

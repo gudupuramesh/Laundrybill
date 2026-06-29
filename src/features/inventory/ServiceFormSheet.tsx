@@ -12,6 +12,7 @@ import { useInventoryMutations } from "@/hooks/use-inventory";
 import type { InventoryItem, InventoryCategory, PricingType } from "@/types/inventory";
 import type { ImageMetadata } from "@/types/image-upload";
 import { useTranslation } from "react-i18next";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ServiceFormSheetProps {
     open: boolean;
@@ -40,6 +41,7 @@ const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, col
 
 export function ServiceFormSheet({ open, onClose, item, categories, onAddCategory }: ServiceFormSheetProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { shopId } = useAuth();
     const { currencySymbol } = useCurrency();
     const { createItem, updateItem } = useInventoryMutations();
@@ -140,7 +142,7 @@ export function ServiceFormSheet({ open, onClose, item, categories, onAddCategor
                 </div>
 
                 {/* Pricing type + base price */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                     <div>
                         <label style={lbl}>{t('inventory.pricingType', 'Pricing Type')}</label>
                         <select value={form.pricingType} onChange={(e) => setForm({ ...form, pricingType: e.target.value as PricingType })} style={fld}>

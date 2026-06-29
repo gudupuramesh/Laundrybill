@@ -6,10 +6,13 @@
  * (Google Play / App Store) — the web surface never charges a card.
  */
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, useEffect, type CSSProperties } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { usePlans, filterActivePlans } from "@/features/super-admin/hooks/use-plans";
 import { useShopSubscription } from "@/hooks/use-shop-subscription";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizePlanId, type Plan, type PlanType } from "@/types/plans";
 import { LSpinner } from "@/components/laundry";
 import { format } from "date-fns";
@@ -33,6 +36,7 @@ const APP_STORE_URL = import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.
 const PLAN_ICON: Record<PlanType, typeof Sparkles> = {
     free: Sparkles,
     pro: Zap,
+    pro_plus: Zap,
     business: Building2,
 };
 
@@ -50,8 +54,21 @@ export function SubscriptionPage() {
     const visiblePlans = useMemo(() => filterActivePlans(plans), [plans]);
     const { subscription, loading: subLoading } = useShopSubscription();
     const { formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
 
     const [cycle, setCycle] = useState<Cycle>("monthly");
+
+    // Pro+ and Business are sales-assisted (contact-only) — no in-app price/purchase.
+    const [waNumber, setWaNumber] = useState("919876543210");
+    useEffect(() => {
+        getDoc(doc(db, "platformSettings", "emailBranding"))
+            .then((s) => { const n = s.data()?.whatsappNumber; if (n) setWaNumber(String(n)); })
+            .catch(() => { /* keep default */ });
+    }, []);
+    const contactHref = (planName: string) =>
+        `https://wa.me/${waNumber.replace(/\D/g, "")}?text=${encodeURIComponent(
+            `Hi, I'd like to upgrade to ${planName} (includes POS setup, staff training & guided onboarding).`
+        )}`;
 
     const isLoading = plansLoading || subLoading;
 
@@ -171,8 +188,9 @@ export function SubscriptionPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    gap: 14,
-                    padding: "0 22px",
+                    flexWrap: isMobile ? "wrap" : "nowrap",
+                    gap: isMobile ? 10 : 14,
+                    padding: isMobile ? "12px 16px" : "0 22px",
                 }}
             >
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
@@ -255,7 +273,7 @@ export function SubscriptionPage() {
                 </div>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "22px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px" : "22px", minHeight: 0 }}>
                 <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
                     {/* current plan banner */}
                     <div
@@ -363,6 +381,7 @@ export function SubscriptionPage() {
                         style={{
                             display: "flex",
                             alignItems: "center",
+                            flexWrap: isMobile ? "wrap" : "nowrap",
                             gap: 12,
                             background: "var(--c-info-soft)",
                             border: "1px solid var(--c-info-soft)",
@@ -392,7 +411,7 @@ export function SubscriptionPage() {
                                 purchase or change a plan.
                             </div>
                         </div>
-                        <div style={{ display: "flex", gap: 8, flex: "none" }}>
+                        <div style={{ display: "flex", gap: 8, flex: "none", width: isMobile ? "100%" : undefined }}>
                             <StoreBtn label="Google Play" onClick={() => window.open(GOOGLE_PLAY_URL, "_blank", "noopener,noreferrer")} />
                             <StoreBtn label="App Store" onClick={() => window.open(APP_STORE_URL, "_blank", "noopener,noreferrer")} />
                         </div>
@@ -412,6 +431,7 @@ export function SubscriptionPage() {
                                 const id = normalizePlanId(plan.id);
                                 const isCurrent = id === currentPlanId;
                                 const popular = id === "pro";
+                                const contactOnly = id === "pro_plus" || id === "business";
                                 const Icon = PLAN_ICON[id] || Sparkles;
                                 return (
                                     <div
@@ -465,12 +485,18 @@ export function SubscriptionPage() {
                                             </span>
                                             <div style={{ fontSize: 17, fontWeight: 700, marginTop: 12 }}>{plan.name}</div>
                                             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 6 }}>
-                                                <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
-                                                    {formatAmount(priceOf(plan, cycle))}
-                                                </span>
-                                                <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
-                                                    / {cycle === "yearly" ? "yr" : "mo"}
-                                                </span>
+                                                {contactOnly ? (
+                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>Contact us</span>
+                                                ) : (
+                                                    <>
+                                                        <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
+                                                            {formatAmount(priceOf(plan, cycle))}
+                                                        </span>
+                                                        <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
+                                                            / {cycle === "yearly" ? "yr" : "mo"}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </div>
                                             <div
                                                 style={{
@@ -529,6 +555,33 @@ export function SubscriptionPage() {
                                                 >
                                                     Free forever
                                                 </div>
+                                            ) : contactOnly ? (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                    <a
+                                                        href={contactHref(plan.name)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            width: "100%",
+                                                            textAlign: "center",
+                                                            cursor: "pointer",
+                                                            font: "inherit",
+                                                            fontSize: 13.5,
+                                                            fontWeight: 700,
+                                                            color: "#fff",
+                                                            background: "var(--c-success)",
+                                                            borderRadius: 10,
+                                                            padding: "11px 0",
+                                                            textDecoration: "none",
+                                                            boxShadow: "var(--sh-sm)",
+                                                        }}
+                                                    >
+                                                        Contact on WhatsApp
+                                                    </a>
+                                                    <div style={{ fontSize: 11, color: "var(--c-text-3)", textAlign: "center", lineHeight: 1.4 }}>
+                                                        Includes POS setup, staff training &amp; guided onboarding
+                                                    </div>
+                                                </div>
                                             ) : (
                                                 <button
                                                     onClick={() => window.open(GOOGLE_PLAY_URL, "_blank", "noopener,noreferrer")}
@@ -579,12 +632,14 @@ export function SubscriptionPage() {
                                     <tr>
                                         <th style={{ ...th, minWidth: 200 }}>Feature</th>
                                         {visiblePlans.map((p) => {
-                                            const isCurrent = normalizePlanId(p.id) === currentPlanId;
+                                            const pid = normalizePlanId(p.id);
+                                            const isCurrent = pid === currentPlanId;
+                                            const pContactOnly = pid === "pro_plus" || pid === "business";
                                             return (
                                                 <th key={p.id} style={{ ...th, textAlign: "center", color: isCurrent ? "var(--c-primary)" : "var(--c-text-2)" }}>
                                                     {p.name}
                                                     <div style={{ fontWeight: 600, fontSize: 11, color: "var(--c-text-3)", marginTop: 2, fontFamily: MONO, textTransform: "none", letterSpacing: 0 }}>
-                                                        {formatAmount(priceOf(p, cycle))}/{cycle === "yearly" ? "yr" : "mo"}
+                                                        {pContactOnly ? "Contact us" : `${formatAmount(priceOf(p, cycle))}/${cycle === "yearly" ? "yr" : "mo"}`}
                                                     </div>
                                                 </th>
                                             );

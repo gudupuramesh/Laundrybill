@@ -27,7 +27,7 @@ export function DriverProtectedRoute({ children }: DriverProtectedRouteProps) {
 
     if (!agent) {
         // Redirect to login, but save the intended destination
-        return <Navigate to="/agent/login" state={{ from: location }} replace />;
+        return <Navigate to="/team/login" state={{ from: location }} replace />;
     }
 
     // Strict role check: Plant Operators should stay in Plant Portal

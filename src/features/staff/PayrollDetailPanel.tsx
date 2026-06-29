@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, Wallet, Calendar, CheckCircle2, TrendingUp, 
 import { useTranslation } from "react-i18next";
 import { generatePayslipPDF } from "@/lib/pdf-generator";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -44,6 +45,7 @@ interface PayrollDetailPanelProps {
 export function PayrollDetailPanel({ staffId, month, onClose }: PayrollDetailPanelProps) {
     const { t } = useTranslation();
     const { currencySymbol, formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
     const [currentMonth, setCurrentMonth] = useState(() => month || new Date());
     const monthString = format(currentMonth, "yyyy-MM");
     const [generating, setGenerating] = useState(false);
@@ -115,7 +117,7 @@ export function PayrollDetailPanel({ staffId, month, onClose }: PayrollDetailPan
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 14px" : "0 22px" }}>
                 <button onClick={onClose} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("staff.payroll", "Payroll")}</button><span>/</span>
@@ -129,7 +131,7 @@ export function PayrollDetailPanel({ staffId, month, onClose }: PayrollDetailPan
                 </div>
             </header>
 
-            <div style={{ padding: "20px 22px 40px", maxWidth: 760, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", maxWidth: 760, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
                 {/* profile */}
                 <div style={{ ...card, padding: "18px 20px", display: "flex", alignItems: "center", gap: 14 }}>
                     <span style={{ width: 52, height: 52, flex: "none", borderRadius: 14, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 600 }}>{initials}</span>

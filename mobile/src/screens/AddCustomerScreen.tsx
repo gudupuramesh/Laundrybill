@@ -27,7 +27,7 @@ export default function AddCustomerScreen({
   onCreated,
 }: {
   onBack: () => void;
-  onCreated?: (customerId: string) => void;
+  onCreated?: (customer: { id: string; name: string; phone: string; email: string | null; address: string | null }) => void;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -154,7 +154,13 @@ export default function AddCustomerScreen({
             {
               text: 'Use Existing',
               onPress: () => {
-                onCreated?.(dupId);
+                onCreated?.({
+                  id: dupId,
+                  name: dupData.name || trimmedName,
+                  phone: dupData.phone || toE164(trimmedPhone, countrySettings),
+                  email: dupData.email ?? null,
+                  address: dupData.address ?? null,
+                });
                 onBack();
               },
             },
@@ -181,7 +187,13 @@ export default function AddCustomerScreen({
         .collection(`shops/${shopId}/customers`)
         .add(customerData);
 
-      onCreated?.(docRef.id);
+      onCreated?.({
+        id: docRef.id,
+        name: customerData.name,
+        phone: customerData.phone,
+        email: customerData.email,
+        address: customerData.address,
+      });
       onBack();
     } catch (e: any) {
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedCreateCustomer'));

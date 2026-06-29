@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useTeamMembers } from "@/hooks/use-team-members";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Smartphone, Truck, Factory, Share2, ExternalLink, Check, Copy, Apple, Globe, MonitorSmartphone, ClipboardList, Users, Clock, Tag, Scan, Camera, MapPin, Boxes } from "lucide-react";
 
 const MONO = "'IBM Plex Mono'";
@@ -75,6 +76,7 @@ export function AppsPage() {
     const { shopName } = useAuth();
     const { addToast } = useLToast();
     const { staffCount, agentCount, plantCount } = useTeamMembers();
+    const isMobile = useIsMobile();
     const [selectedId, setSelectedId] = useState("staff");
     const [copied, setCopied] = useState(false);
 
@@ -94,19 +96,19 @@ export function AppsPage() {
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 14, padding: "0 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 14, padding: isMobile ? "0 16px" : "0 22px" }}>
                 <div><div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("apps.title", "Apps")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("apps.suite", "LaundryBill app suite")} · {APPS.length} {t("apps.apps", "apps")}</div></div>
             </header>
 
-            <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+            <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden" }}>
                 {/* app list */}
-                <section className="lb-svclist lb-scroll" style={{ width: 300, flex: "none", overflow: "auto", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", padding: 14 }}>
+                <section className="lb-svclist lb-scroll" style={{ width: isMobile ? "100%" : 300, flex: "none", overflow: isMobile ? "visible" : "auto", borderRight: isMobile ? undefined : "1px solid var(--c-border)", borderBottom: isMobile ? "1px solid var(--c-border)" : undefined, background: "var(--c-surface)", padding: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", padding: "4px 6px 10px" }}>{t("apps.applications", "Applications")}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 7, overflowX: isMobile ? "auto" : "visible" }}>
                         {APPS.map((a) => {
                             const on = a.id === selectedId;
                             return (
-                                <button key={a.id} onClick={() => setSelectedId(a.id)} style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: 11, borderRadius: 11, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)" }}>
+                                <button key={a.id} onClick={() => setSelectedId(a.id)} style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: 11, borderRadius: 11, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", flex: isMobile ? "none" : undefined, minWidth: isMobile ? 220 : undefined }}>
                                     <span style={{ width: 42, height: 42, flex: "none", borderRadius: 11, background: `var(--${a.tint}-soft)`, color: `var(--${a.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{a.icon}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
@@ -121,9 +123,9 @@ export function AppsPage() {
                 </section>
 
                 {/* detail */}
-                <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: "auto", padding: "20px 22px 40px" }}>
+                <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: isMobile ? "visible" : "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px" }}>
                     {/* header */}
-                    <div style={{ ...card, padding: "20px 22px", display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+                    <div style={{ ...card, padding: isMobile ? "16px" : "20px 22px", display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
                         <span style={{ width: 58, height: 58, flex: "none", borderRadius: 15, background: `var(--${d.tint}-soft)`, color: `var(--${d.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{d.icon}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -133,7 +135,7 @@ export function AppsPage() {
                             </div>
                             <div style={{ fontSize: 13, color: "var(--c-text-2)", marginTop: 6 }}>{d.tagline}</div>
                         </div>
-                        <div style={{ display: "flex", gap: 24, flex: "none" }}>
+                        <div style={{ display: "flex", gap: isMobile ? 16 : 24, flex: "none" }}>
                             <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.countKey ? counts[d.countKey] ?? 0 : 0}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.activeLogins", "active logins")}</div></div>
                             <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.version}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.version", "version")}</div></div>
                         </div>
@@ -153,9 +155,9 @@ export function AppsPage() {
                         </div>
                     </div>
 
-                    <div className="lb-cols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    <div className="lb-cols" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: isMobile ? "stretch" : "flex-start" }}>
                         {/* features */}
-                        <div style={{ ...card, flex: 1.6, minWidth: 0, overflow: "hidden" }}>
+                        <div style={{ ...card, flex: 1.6, minWidth: 0, width: isMobile ? "100%" : undefined, overflow: "hidden" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 20px", borderBottom: "1px solid var(--c-border)" }}><div style={{ fontSize: 14, fontWeight: 600 }}>{t("apps.features", "Features")}</div><span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 8px", borderRadius: 20 }}>{d.features.length} {t("apps.included", "included")}</span></div>
                             {d.features.map((f, i) => (
                                 <div key={f.name} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 20px", borderBottom: i < d.features.length - 1 ? "1px solid var(--c-border)" : undefined }}>
@@ -167,7 +169,7 @@ export function AppsPage() {
                         </div>
 
                         {/* access + share */}
-                        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                        <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 16 }}>
                             <div style={{ ...card, padding: "18px 20px" }}>
                                 <div style={secLbl}>{t("apps.accessRoles", "ACCESS & ROLES")}</div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

@@ -280,10 +280,10 @@ export function PaymentsPage() {
                             variant="elevated"
                             padding="md"
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-4 min-w-0 flex-1">
                                     <div className={cn(
-                                        "w-10 h-10 rounded-lg flex items-center justify-center",
+                                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
                                         STATUS_COLORS[payment.status]
                                     )}>
                                         {payment.status === "success" && <CheckCircle className="h-5 w-5" />}
@@ -291,7 +291,7 @@ export function PaymentsPage() {
                                         {payment.status === "failed" && <XCircle className="h-5 w-5" />}
                                         {payment.status === "refunded" && <RefreshCw className="h-5 w-5" />}
                                     </div>
-                                    <div>
+                                    <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-lg font-semibold">
                                                 {formatCurrencyValue(payment.amount ?? 0)}
@@ -303,7 +303,7 @@ export function PaymentsPage() {
                                                 {payment.status}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                             <span className="flex items-center gap-1">
                                                 <Store className="h-3.5 w-3.5" />
                                                 {payment.shopName}
@@ -323,6 +323,7 @@ export function PaymentsPage() {
 
                                 {/* Actions */}
                                 {payment.status === "pending" && (
+                                    <div className="shrink-0">
                                     <LButton
                                         variant="outline"
                                         size="sm"
@@ -332,11 +333,12 @@ export function PaymentsPage() {
                                     >
                                         Verify
                                     </LButton>
+                                    </div>
                                 )}
                             </div>
 
                             {/* Additional details */}
-                            <div className="mt-3 pt-3 border-t border-border flex items-center gap-6 text-xs text-muted-foreground">
+                            <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground">
                                 {payment.invoiceNumber && (
                                     <span>Invoice: {payment.invoiceNumber}</span>
                                 )}

@@ -17,6 +17,7 @@ import { TeamMemberFormSheet } from "./TeamMemberFormSheet";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
 import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { TeamMember } from "@/types/staff";
 
 const MONO = "'IBM Plex Mono'";
@@ -49,6 +50,7 @@ function roleMeta(staff: { role?: string; memberType?: string }, t: (k: string, 
 
 export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const [searchParams, setSearchParams] = useSearchParams();
     const { formatAmount } = useCurrency();
     const [searchQuery, setSearchQuery] = useState("");
@@ -61,7 +63,9 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
 
     const { staff: staffList, activeStaff, loading } = useStaff();
     const { teamMembers, agentCount: appAgentCount, loading: teamMembersLoading } = useTeamMembers();
-    const { checkLimit } = useShopLimits();
+    const { checkLimit, hasFeature } = useShopLimits();
+    // Team (app) logins are a Pro+/Business feature — hide all create UI on plans without it (Free, Pro, trial).
+    const canTeamLogins = hasFeature("staffApp") || hasFeature("driverApp") || hasFeature("plantApp");
 
     const rosterLimit = checkLimit("maxRoster", activeStaff.length);
     const isRosterAddAllowed = rosterLimit.allowed;
@@ -93,23 +97,23 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("staff.title", "Staff")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{staffList.length} {t("staff.members", "members")}</span>
                 </div>
                 <div style={{ flex: 1 }} />
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", width: isMobile ? "100%" : undefined }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("staff.searchStaff", "Search staff…")}
-                        style={{ width: 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                        style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
-                <button onClick={() => setTeamMemberSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px" }}><Smartphone size={15} />{t("staff.addAppLogin", "Add App Login")}</button>
+                {canTeamLogins && <button onClick={() => setTeamMemberSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px" }}><Smartphone size={15} />{t("staff.addAppLogin", "Add App Login")}</button>}
                 <button onClick={() => { if (isRosterAddAllowed) setFormSheetOpen(true); }} disabled={!isRosterAddAllowed} style={{ cursor: isRosterAddAllowed ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)", opacity: isRosterAddAllowed ? 1 : 0.55 }}><Plus size={15} />{t("staff.addStaff", "Add Staff")}</button>
             </header>
 
             {/* tabs */}
-            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
+            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: isMobile ? "10px 16px" : "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
                 {([{ id: "roster", label: t("staff.tabRoster", "Roster") }, { id: "appLogins", label: t("staff.tabAppLogins", "App Logins") }] as const).map((tb) => {
                     const on = activeTab === tb.id;
                     return (
@@ -124,9 +128,9 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                 )}
             </div>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPIs */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 18 }}>
                     <Kpi icon={<Users size={18} />} value={staffList.length} label={t("staff.totalStaff", "Total staff")} tint="c-primary" />
                     <Kpi icon={<UserCheck size={18} />} value={activeStaff.length} label={t("staff.activeStaff", "Active")} tint="c-success" />
                     <Kpi icon={<Smartphone size={18} />} value={teamMembers.length} label={t("staff.appLogins", "App logins")} tint="c-violet" />
@@ -188,7 +192,7 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                     teamMembersLoading ? (
                         <LSkeletonList count={4} />
                     ) : teamMembers.length === 0 ? (
-                        <LEmptyState icon={<Smartphone className="h-8 w-8" />} title={t("staff.noAppLogins", "No App Logins")} description={t("staff.noAppLoginsDesc", "Create app logins for Staff App, Agents, or Plant operators.")} action={{ label: t("staff.addAppLogin", "Add App Login"), onClick: () => setTeamMemberSheetOpen(true) }} />
+                        <LEmptyState icon={<Smartphone className="h-8 w-8" />} title={t("staff.noAppLogins", "No App Logins")} description={canTeamLogins ? t("staff.noAppLoginsDesc", "Create app logins for Staff App, Agents, or Plant operators.") : t("staff.appLoginsUpgrade", "App logins (Staff, Agent, Plant) are available on the Pro+ and Business plans. Upgrade to add them.")} action={canTeamLogins ? { label: t("staff.addAppLogin", "Add App Login"), onClick: () => setTeamMemberSheetOpen(true) } : undefined} />
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                             {filteredTeamMembers.map((tm, i) => {

@@ -45,7 +45,7 @@ export default function PlantScanScreen() {
       title="Scan tag"
       instruction="Point at a bag or garment tag QR"
       permissionTitle="Scan a tag"
-      permissionBody="Allow camera access to scan a bag or garment tag and open its order."
+      permissionBody="Laundrybill needs the camera only to scan a bag or garment QR tag and open its order. Scanning just reads the code — no photo or video is taken or stored."
       onResult={onResult}
     />
   );

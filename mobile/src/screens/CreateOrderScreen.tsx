@@ -110,7 +110,10 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   editOrder?: any,
   onAddCustomer?: () => void,
   onEditCustomerDetail?: (customerId: string) => void,
-}>(({ onBack, onReviewOrder, editOrder, onAddCustomer, onEditCustomerDetail }, ref) => {
+  // A customer just created/imported (e.g. via Add Customer) to auto-select on mount and jump to items.
+  initialCustomer?: { id: string; name: string; phone: string; email?: string | null; address?: string | null } | null,
+  onInitialCustomerConsumed?: () => void,
+}>(({ onBack, onReviewOrder, editOrder, onAddCustomer, onEditCustomerDetail, initialCustomer, onInitialCustomerConsumed }, ref) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
@@ -154,6 +157,22 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   useImperativeHandle(ref, () => ({
     goToCustomerStep: () => setStep('customer'),
   }));
+
+  // Auto-select a just-created/imported customer and jump straight to the items step
+  // (this screen remounts after Add Customer, so we consume it on mount, not via a ref).
+  useEffect(() => {
+    if (!initialCustomer || editOrder) return;
+    setSelectedCustomer({
+      id: initialCustomer.id,
+      name: initialCustomer.name,
+      phone: initialCustomer.phone,
+      email: initialCustomer.email ?? null,
+      address: initialCustomer.address ?? null,
+    } as Customer);
+    setSearch(`${initialCustomer.name} • ${initialCustomer.phone}`);
+    setStep('items');
+    onInitialCustomerConsumed?.();
+  }, [initialCustomer]);
 
   useEffect(() => {
     if (!shopId) return;
@@ -786,11 +805,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
         </View>
       </View>
 
-      <Modal visible={showEditItemModal} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+      <Modal visible={showEditItemModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowEditItemModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetBackdrop}>
+          <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={() => setShowEditItemModal(false)} />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
             <Text style={styles.modalTitle}>{t('mobile.editItem')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickEditImage}>
               {editImageUri ? (
@@ -868,15 +888,15 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             </View>
             </ScrollView>
           </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showCustomModal} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'center' }}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+      <Modal visible={showCustomModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowCustomModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetBackdrop}>
+          <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={() => setShowCustomModal(false)} />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
             <Text style={styles.modalTitle}>{t('mobile.addCustomItemTitle')}</Text>
             <TouchableOpacity style={styles.imagePicker} onPress={pickCustomImage}>
               {customImageUri ? (
@@ -948,8 +968,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             </View>
             </ScrollView>
           </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1354,6 +1373,28 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     maxHeight: '88%',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheetCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
+    maxHeight: '92%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 12,
   },
   modalCardLarge: {
     backgroundColor: colors.surface,

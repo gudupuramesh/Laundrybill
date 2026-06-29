@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
@@ -8,6 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
+import { usePlanLimits } from '../lib/usePlanLimits';
 import { colors, fonts, radii, shadows } from '../theme';
 
 type MemberType = 'staff' | 'agent' | 'plant';
@@ -37,15 +38,47 @@ export interface StaffLoginPrefill {
 export default function CreateStaffLoginScreen({
   onBack,
   prefill,
+  planLimits,
 }: {
   onBack: () => void;
   prefill?: StaffLoginPrefill | null;
+  /** Plan limits for the current shop. A login type is creatable only when its
+   *  limit is unlimited (-1) or positive. Limit 0/undefined = not allowed on
+   *  this plan (Pro is owner-only → all three are 0 → "Upgrade to Business"). */
+  planLimits?: { maxStaff?: number; maxAgents?: number; maxPlantStaff?: number } | null;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
 
-  const [memberType, setMemberType] = useState<MemberType>(prefill?.memberType || 'staff');
+  // Self-source the shop's plan limits from its subscription (App.tsx has no
+  // sub state to thread). Falls back to a passed-in prop if provided.
+  const [subData, setSubData] = useState<any>(null);
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore().collection('subscriptions').doc(shopId)
+      .onSnapshot((d: any) => setSubData(d?.exists ? d.data() : null), () => {});
+    return () => unsub();
+  }, [shopId]);
+  const resolvedLimits = usePlanLimits(subData);
+  const effLimits = planLimits ?? resolvedLimits;
+
+  const limitForType = (mt: MemberType): number => {
+    if (!effLimits) return -1; // no info → fail-open (prior behavior)
+    if (mt === 'staff') return effLimits.maxStaff ?? 0;
+    if (mt === 'agent') return effLimits.maxAgents ?? 0;
+    return effLimits.maxPlantStaff ?? 0;
+  };
+  const typeAllowed = (mt: MemberType) => limitForType(mt) !== 0;
+
+  const initialType: MemberType =
+    (prefill?.memberType && typeAllowed(prefill.memberType) ? prefill.memberType : undefined) ||
+    (['staff', 'agent', 'plant'] as MemberType[]).find(typeAllowed) ||
+    prefill?.memberType ||
+    'staff';
+
+  const [memberType, setMemberType] = useState<MemberType>(initialType);
+  const selectedAllowed = typeAllowed(memberType);
   const [name, setName] = useState(prefill?.name || '');
   const [email, setEmail] = useState(prefill?.email || '');
   const [phone, setPhone] = useState(prefill?.phone || '');
@@ -56,6 +89,13 @@ export default function CreateStaffLoginScreen({
   const [createdName, setCreatedName] = useState('');
 
   const handleCreate = async () => {
+    if (!typeAllowed(memberType)) {
+      Alert.alert(
+        'Upgrade required',
+        'Creating team logins is a Pro+ or Business feature. Upgrade your plan to add staff, agent or plant logins.'
+      );
+      return;
+    }
     const trimName = name.trim();
     const trimEmail = email.trim().toLowerCase();
     if (!trimName) { Alert.alert('Required', 'Name is required'); return; }
@@ -216,25 +256,30 @@ export default function CreateStaffLoginScreen({
           {/* Member Type Selector */}
           <Text style={s.sectionLabel}>SELECT MEMBER TYPE</Text>
           <View style={s.typeCards}>
-            {MEMBER_TYPES.map((mt) => (
-              <TouchableOpacity
-                key={mt.key}
-                style={[s.typeCard, memberType === mt.key && { borderColor: mt.color, borderWidth: 2 }]}
-                onPress={() => setMemberType(mt.key)}
-                activeOpacity={0.7}
-              >
-                <View style={[s.typeIcon, { backgroundColor: mt.bg }]}>
-                  <MaterialIcons name={mt.icon as any} size={22} color={mt.color} />
-                </View>
-                <Text style={s.typeLabel}>{mt.label}</Text>
-                <Text style={s.typeDesc}>{mt.desc}</Text>
-                {memberType === mt.key && (
-                  <View style={[s.typeCheck, { backgroundColor: mt.color }]}>
-                    <MaterialIcons name="check" size={14} color={colors.surface} />
+            {MEMBER_TYPES.map((mt) => {
+              const allowed = typeAllowed(mt.key);
+              const selected = memberType === mt.key && allowed;
+              return (
+                <TouchableOpacity
+                  key={mt.key}
+                  style={[s.typeCard, selected && { borderColor: mt.color, borderWidth: 2 }, !allowed && { opacity: 0.45 }]}
+                  onPress={() => { if (allowed) setMemberType(mt.key); }}
+                  activeOpacity={allowed ? 0.7 : 1}
+                  disabled={!allowed}
+                >
+                  <View style={[s.typeIcon, { backgroundColor: mt.bg }]}>
+                    <MaterialIcons name={mt.icon as any} size={22} color={mt.color} />
                   </View>
-                )}
-              </TouchableOpacity>
-            ))}
+                  <Text style={s.typeLabel}>{mt.label}</Text>
+                  <Text style={[s.typeDesc, !allowed && { color: colors.warning }]}>{allowed ? mt.desc : 'Upgrade to Pro+'}</Text>
+                  {selected && (
+                    <View style={[s.typeCheck, { backgroundColor: mt.color }]}>
+                      <MaterialIcons name="check" size={14} color={colors.surface} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Form */}
@@ -245,16 +290,27 @@ export default function CreateStaffLoginScreen({
 
             <Text style={s.fieldLabel}>EMAIL *</Text>
             <TextInput style={s.input} placeholder="Email for app login" placeholderTextColor={colors.textMuted} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+            <Text style={s.emailHint}>Use an active email the staff can access — needed to reset this login's password if required. Each login needs its own unique email.</Text>
 
             <Text style={s.fieldLabel}>PHONE</Text>
             <TextInput style={s.input} placeholder="Phone number (optional)" placeholderTextColor={colors.textMuted} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           </View>
 
+          {/* Upgrade note when the plan can't create any login type */}
+          {!selectedAllowed && (
+            <View style={s.upgradeNote}>
+              <MaterialIcons name="lock" size={18} color={colors.warning} />
+              <Text style={s.upgradeNoteText}>
+                Team logins are a Pro+ or Business feature. Upgrade your plan to create staff, agent &amp; plant logins.
+              </Text>
+            </View>
+          )}
+
           {/* Create Button */}
           <TouchableOpacity
-            style={[s.createBtn, (!name.trim() || !email.trim()) && { opacity: 0.5 }]}
+            style={[s.createBtn, (!name.trim() || !email.trim() || !selectedAllowed) && { opacity: 0.5 }]}
             onPress={handleCreate}
-            disabled={saving || !name.trim() || !email.trim()}
+            disabled={saving || !name.trim() || !email.trim() || !selectedAllowed}
             activeOpacity={0.8}
           >
             {saving ? (
@@ -309,6 +365,7 @@ const s = StyleSheet.create({
     ...shadows.card, ...shadows.cardBorder,
   },
   fieldLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
+  emailHint: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 6, lineHeight: 16 },
   input: {
     backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 15, fontFamily: fonts.medium, color: colors.text, borderWidth: 1, borderColor: colors.border,
@@ -320,6 +377,11 @@ const s = StyleSheet.create({
     ...shadows.fab,
   },
   createBtnText: { fontSize: 16, fontFamily: fonts.bold, color: colors.surface },
+  upgradeNote: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.warningBg, borderRadius: radii.input, padding: 14,
+  },
+  upgradeNoteText: { flex: 1, fontSize: 13, fontFamily: fonts.medium, color: colors.text, lineHeight: 18 },
 
   // Success
   successContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

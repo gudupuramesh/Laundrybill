@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/features/auth";
 import { useCart } from "./useCart";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { ImageMetadata } from "@/types/image-upload";
 import type { DeliveryType } from "@/types/order";
 import { useInventory } from "@/hooks/use-inventory";
@@ -28,6 +29,7 @@ import { Store, Truck, Home, Calendar, Minus, Plus, FileText, Check, Shirt, Mail
 import { useTranslation } from "react-i18next";
 import { getTranslatedItemName, isWeightUnit } from "@/lib/inventory-translations";
 import { useStaffAuthOptional } from "@/features/staff-app/StaffAuthContext";
+import { useDriverAuthOptional } from "@/features/driver-app/DriverAuthContext";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 
@@ -53,6 +55,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
     const { formatAmount } = useCurrency();
     const { shopId } = useAuth();
     const { allCategories } = useInventory();
+    const isMobile = useIsMobile();
 
     const isEditMode = !!editOrderId;
     const isHomeType = cart.deliveryType === "delivery_home" || cart.deliveryType === "pickup_home";
@@ -158,11 +161,14 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
         }
     }, [agents, selectedArea, isHomeType, canHaveAgents, agentTouched, selectedAgentId, deliverySettings.serviceAreas]);
 
-    // Staff context
+    // Staff / agent context (this sheet is reused by the staff app and the agent portal).
     const location = useLocation();
     const isStaffRoute = location.pathname.startsWith("/staff");
+    const isAgentRoute = location.pathname.startsWith("/agent");
     const staffAuth = useStaffAuthOptional();
     const staff = staffAuth?.staff;
+    const driverAuth = useDriverAuthOptional();
+    const agent = driverAuth?.agent;
 
     const isNewAddress = cart.deliveryType !== "pickup_store" && cart.deliveryAddress && cart.customerId && !cart.isGuest &&
         !cart.customerAddresses?.some((a) => a.address.toLowerCase().trim() === cart.deliveryAddress?.toLowerCase().trim());
@@ -283,10 +289,11 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
             expectedDelivery: expectedDate,
             scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
             paymentMethod: "cash",
-            staffId: isStaffRoute ? staff?.id : undefined,
-            staffName: isStaffRoute ? staff?.name : undefined,
-            assignedAgentId: isHomeType ? (selectedAgentId || undefined) : undefined,
-            assignedAgentName: isHomeType ? (selectedAgent?.name || undefined) : undefined,
+            staffId: isAgentRoute ? agent?.id : (isStaffRoute ? staff?.id : undefined),
+            staffName: isAgentRoute ? agent?.name : (isStaffRoute ? staff?.name : undefined),
+            // An agent who creates the order is the assigned agent (auto-assign to self).
+            assignedAgentId: isAgentRoute ? (agent?.id || undefined) : (isHomeType ? (selectedAgentId || undefined) : undefined),
+            assignedAgentName: isAgentRoute ? (agent?.name || undefined) : (isHomeType ? (selectedAgent?.name || undefined) : undefined),
         });
 
         if (order) {
@@ -310,7 +317,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
 
     return (
         <div className="lb-scroll" style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--c-bg)", height: "calc(100vh - 56px)" }}>
-            <div style={{ maxWidth: 1200, margin: "0 auto", padding: 24 }}>
+            <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "16px 14px calc(92px + env(safe-area-inset-bottom, 0px))" : 24 }}>
                 <button onClick={onClose} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0, marginBottom: 14 }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
                     {t("checkout.backToItems", "Back to items")}
@@ -319,7 +326,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                     {isEditMode ? t("checkout.updateOrderTitle", "Update Order") : t("checkout.checkout", "Checkout")}
                 </div>
 
-                <div className="co-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div className="co-grid" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: isMobile ? "stretch" : "flex-start" }}>
                     {/* form */}
                     <div style={{ flex: 1.5, minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                         {/* customer */}
@@ -442,9 +449,9 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                     </div>
 
                     {/* summary */}
-                    <div style={{ flex: 1, minWidth: 0, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 13, boxShadow: "var(--sh-sm)", position: "sticky", top: 0 }}>
+                    <div style={{ flex: 1, width: isMobile ? "100%" : undefined, minWidth: 0, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 13, boxShadow: "var(--sh-sm)", position: isMobile ? "static" : "sticky", top: 0 }}>
                         <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--c-border)", fontSize: 14, fontWeight: 700 }}>{t("checkout.orderSummary", "Order summary")}</div>
-                        <div className="lb-scroll" style={{ maxHeight: 440, overflow: "auto", padding: "6px 14px" }}>
+                        <div className="lb-scroll" style={{ maxHeight: isMobile ? "none" : 440, overflow: "auto", padding: "6px 14px" }}>
                             {categoryGroups.map((group, gi) => {
                                 const gRef = tintFor(group.name);
                                 return (

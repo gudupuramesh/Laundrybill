@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill.driver",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "4",
+      "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Laundrybill Team uses your photos to attach pickup and delivery proof to orders."
@@ -31,7 +31,7 @@
     "android": {
       "package": "in.laundrybill.driver",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 6,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#0F1E36",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -48,8 +48,8 @@
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "splash": {
-        "image": "./assets/splash-team.png",
-        "resizeMode": "cover",
+        "image": "./assets/android-icon-monochrome.png",
+        "resizeMode": "contain",
         "backgroundColor": "#0058D8"
       }
     },
@@ -63,7 +63,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Laundrybill Team uses the camera to scan order QR codes and to take pickup/delivery proof photos.",
+          "cameraPermission": "Laundrybill Team uses the camera to scan the QR tags on order bags and garments. Scanning doesn't record or save anything — photos are only taken if you choose to add pickup, delivery, or damage photos to an order.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

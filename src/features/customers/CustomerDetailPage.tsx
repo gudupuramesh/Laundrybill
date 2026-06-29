@@ -10,6 +10,7 @@ import { LSpinner, LEmptyState } from "@/components/laundry";
 import { useCustomer, useCustomers } from "@/hooks/use-customers";
 import { useOrders } from "@/hooks/use-orders";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import { ChevronLeft, Phone, MessageCircle, Edit, Plus, Mail, MapPin, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
@@ -42,6 +43,7 @@ function timeAgo(d?: Date): string {
 
 export function CustomerDetailPage() {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { customerId } = useParams<{ customerId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
@@ -83,7 +85,7 @@ export function CustomerDetailPage() {
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 16px" : "0 22px" }}>
                 <button onClick={() => navigate(`${basePath}/customers`)} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={() => navigate(`${basePath}/customers`)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("customers.title", "Customers")}</button><span>/</span>
@@ -93,7 +95,7 @@ export function CustomerDetailPage() {
                 <button onClick={() => navigate(`${basePath}/new-order?customerId=${customer.id}`)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><Plus size={15} />{t("customers.newOrder", "New Order")}</button>
             </header>
 
-            <div style={{ padding: "20px 22px 40px" }}>
+            <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
                 {/* profile header */}
                 <div style={{ ...card, padding: "20px 22px", display: "flex", alignItems: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" }}>
                     <span style={{ width: 60, height: 60, flex: "none", borderRadius: 16, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 600 }}>{(customer.name || "?").trim()[0]?.toUpperCase()}</span>
@@ -114,7 +116,7 @@ export function CustomerDetailPage() {
                 </div>
 
                 {/* stat tiles */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
                     {stats.map((s) => (
                         <div key={s.label} style={{ ...card, padding: "15px 16px" }}>
                             <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{s.label}</div>
@@ -123,9 +125,9 @@ export function CustomerDetailPage() {
                     ))}
                 </div>
 
-                <div className="lb-row" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div className="lb-row" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "flex-start" }}>
                     {/* LEFT — order history + activity */}
-                    <div style={{ flex: 1.7, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ flex: isMobile ? "none" : 1.7, width: isMobile ? "100%" : undefined, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                         <div style={{ ...card, overflow: "hidden" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid var(--c-border)" }}>
                                 <div style={{ fontSize: 14, fontWeight: 600 }}>{t("customers.orderHistory", "Order history")}</div>
@@ -169,7 +171,7 @@ export function CustomerDetailPage() {
                     </div>
 
                     {/* RIGHT — contact & notes */}
-                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : undefined, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                         <div style={{ ...card, padding: "18px 20px" }}>
                             <div style={secLbl}>{t("customers.contactAddresses", "CONTACT & ADDRESSES")}</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>

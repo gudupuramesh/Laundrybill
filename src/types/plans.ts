@@ -11,14 +11,16 @@
  */
 
 /** Canonical plan ids */
-export type PlanType = "free" | "pro" | "business";
+export type PlanType = "free" | "pro" | "pro_plus" | "business";
 
 /** Normalize legacy / variant tier ids from older data */
 export function normalizePlanId(raw: string | null | undefined): PlanType {
     if (!raw) return "free";
     const r = String(raw).toLowerCase().replace(/[_\s-]/g, "");
+    // Pro+ tier — must be tested BEFORE business and bare-pro
+    if (r === "proplus" || r === "pro+") return "pro_plus";
     // Business tier aliases
-    if (r === "business" || r === "enterprise" || r === "proplus" || r === "premium") return "business";
+    if (r === "business" || r === "enterprise" || r === "premium") return "business";
     // Pro tier
     if (r === "pro" || r === "starter") return "pro";
     return "free";

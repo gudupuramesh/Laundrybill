@@ -25,6 +25,7 @@ import {
     setDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { releaseWebSession } from "@/lib/session-guard";
 import type { Staff, TeamMember } from "@/types/staff";
 
 interface StaffAuthContextType {
@@ -323,6 +324,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
 
     // Sign out
     const signOut = useCallback(() => {
+        void releaseWebSession(auth.currentUser?.uid || "");
         firebaseSignOut(auth);
         setStaff(null);
         setShopId(null);

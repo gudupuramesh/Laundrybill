@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useContext, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import { LSpinner, LActionSheet, LSelect } from "@/components/laundry";
 import { useOrder, useOrderMutations } from "@/hooks/use-orders";
@@ -47,8 +47,10 @@ import { useReceiptPrint } from "@/context/ReceiptPrintContext";
 import { openWhatsAppTextOnly } from "@/lib/whatsappShare";
 import { useShop } from "@/hooks/use-shop";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
+import { getCountryByCurrency } from "@/config/countries";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShopLimits } from "@/hooks/use-shop-limits";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
 
@@ -88,6 +90,10 @@ interface OrderDetailViewProps {
 export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
+    // Shared across the owner app, staff app (/staff/*) and agent portal (/agent/*) — edit must stay in-context.
+    const isStaffApp = location.pathname.startsWith('/staff');
+    const isAgentApp = location.pathname.startsWith('/agent');
     const { markSeen } = useContext(SeenOnlineOrdersContext);
     const { order, loading } = useOrder(orderId);
     const { shop } = useShop();
@@ -96,6 +102,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const { agents } = useAvailableAgents();
     const { hasFeature } = useShopLimits();
     const { triggerReceiptPrint } = useReceiptPrint();
+    const isMobile = useIsMobile();
 
     // Mark online order as seen when viewed (so Orders badge count goes down)
     useEffect(() => {
@@ -190,8 +197,9 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     // Edit order handler - navigate to New Order page with order ID
     const handleEdit = () => {
         if (canEdit && order) {
-            // Navigate to new order page with edit mode and order ID
-            navigate(`/new-order?edit=${order.id}`);
+            // Navigate to the new-order page in edit mode, in-context per portal.
+            const newOrderBase = isAgentApp ? '/agent/orders/new' : isStaffApp ? '/staff/orders/new' : '/new-order';
+            navigate(`${newOrderBase}?edit=${order.id}`);
         }
     };
 
@@ -284,6 +292,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const curStep = getProgressStep();
     const placedAt = order.createdAt?.toDate?.();
     const f = order.financials;
+    const taxLabel = f.taxName || shop?.settings?.tax?.name || getCountryByCurrency(shop?.settings?.currency || "INR").taxName;
     const hasPhotos = (order.damagePhotoUrls && order.damagePhotoUrls.length > 0) || !!order.pickupPhoto || !!order.deliveryPhoto || !!order.plantPhoto || !!order.items?.some((i) => i.damages?.length);
     const stepTime = (id: string) => { const ev = order.timeline?.find((e) => e.status === id); return ev ? format(ev.timestamp.toDate(), 'h:mm a') : '—'; };
     const photoThumb: CSSProperties = { display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--c-border)' };
@@ -291,7 +300,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     return (
         <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--c-bg)' }}>
                 {/* header */}
-                <header style={{ position: 'sticky', top: 0, zIndex: 5, flex: 'none', minHeight: 58, background: 'var(--c-surface)', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 22px' }}>
+                <header style={{ position: 'sticky', top: 0, zIndex: 5, flex: 'none', minHeight: 58, background: 'var(--c-surface)', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '0 14px' : '0 22px' }}>
                     {onBack && <button onClick={onBack} aria-label="Back" style={{ cursor: 'pointer', width: 30, height: 30, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'transparent', border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>}
                     <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--c-text-3)', minWidth: 0 }}>
                         <button onClick={onBack} style={{ cursor: 'pointer', font: 'inherit', fontSize: 13, color: 'var(--c-text-2)', background: 'transparent', border: 0 }}>{t('orders.title', 'Orders')}</button><span>/</span>
@@ -308,7 +317,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     </div>
                 </header>
 
-                <div style={{ padding: '20px 22px 40px' }}>
+                <div style={{ padding: isMobile ? '16px 14px 40px' : '20px 22px 40px' }}>
                     {/* title row */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.01em', fontFamily: MONO }}>#{order.publicId}</span>
@@ -320,7 +329,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
 
                     {/* stepper */}
                     {order.status !== 'cancelled' && (
-                        <div style={{ ...card, padding: '22px 26px 18px', marginBottom: 16 }}>
+                        <div style={{ ...card, padding: isMobile ? '20px 10px 16px' : '22px 26px 18px', marginBottom: 16 }}>
                             <div style={{ display: 'flex' }}>
                                 {steps.map((st, i) => {
                                     const done = i < curStep, cur = i === curStep, active = done || cur;
@@ -368,7 +377,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                 <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.subtotal', 'Subtotal')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.subtotal)}</span></div>
                                     {f.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{t('checkout.discount', 'Discount')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.discountAmount)}</span></div>}
-                                    {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{f.taxName || 'VAT'} ({f.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(f.taxAmount || 0)}</span></div>}
+                                    {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{taxLabel} ({f.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(f.taxAmount || 0)}</span></div>}
                                     {(f.deliveryCharge || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.deliveryCharge', 'Delivery')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.deliveryCharge)}</span></div>}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, fontSize: 15 }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(f.total)}</span></div>
                                 </div>

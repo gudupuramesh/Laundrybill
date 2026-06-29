@@ -56,7 +56,24 @@ service cloud.firestore {
       return shopExists(shopId) &&
         shopData(shopId).get('publicOrdering', {}).get('enabled', false) == true;
     }
-    
+
+    // Plan-feature gating. The shop's plan is synced onto the shop doc
+    // (shops/{id}.plan) by the syncSubscriptionToShop trigger. We read the
+    // authoritative plans/{planId} doc and check the boolean feature flag.
+    // Repeated reads of the same doc are cached within one rule evaluation,
+    // so this adds only the shop doc + the plan doc to the access budget.
+    // Numeric caps (max N logins) are NOT enforced here — rules cannot count
+    // documents; those stay UI-enforced. This gates whether a feature exists
+    // on the plan at all (e.g. staffApp/driverApp/plantApp = can this login
+    // type be created). Fail-closed: missing shop/plan/feature => false.
+    function shopPlanId(shopId) {
+      return shopExists(shopId) ? shopData(shopId).get('plan', 'free') : 'free';
+    }
+    function shopPlanFeature(shopId, feature) {
+      return exists(/databases/$(database)/documents/plans/$(shopPlanId(shopId))) &&
+        get(/databases/$(database)/documents/plans/$(shopPlanId(shopId))).data.get('features', {}).get(feature, false) == true;
+    }
+
     // Shops collection
     match /shops/{shopId} {
       // Allow public read for shop details (needed for tracking page)
@@ -73,10 +90,21 @@ service cloud.firestore {
         allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
 
-      // Team members (app logins - Staff/Agent/Plant/Manager)
+      // Team members (app logins - Staff/Agent/Plant/Manager).
+      // CREATE is gated by the plan feature for the login type being created:
+      //   staff (incl. manager, which is memberType 'staff') -> staffApp
+      //   agent -> driverApp,  plant -> plantApp
+      // Pro/Free have all three false => NO team login can be created at all
+      // (manager included), un-bypassable. Pro+/Business have them true; the
+      // numeric per-type caps (3/2/1 vs 15/15/15) stay UI-enforced.
       match /teamMembers/{memberId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow create, update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
+        allow create: if (isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId)) && (
+          (request.resource.data.memberType == 'staff' && shopPlanFeature(shopId, 'staffApp')) ||
+          (request.resource.data.memberType == 'agent' && shopPlanFeature(shopId, 'driverApp')) ||
+          (request.resource.data.memberType == 'plant' && shopPlanFeature(shopId, 'plantApp'))
+        );
+        allow update: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
         allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
 
@@ -136,30 +164,30 @@ service cloud.firestore {
         allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
-      // Attendance subcollection (under staff)
+      // Attendance subcollection (under staff) — paid feature
       match /staff/{staffId}/attendance/{recordId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow create: if isShopMember(shopId) || isShopOwner(shopId);
+        allow create: if (isShopMember(shopId) || isShopOwner(shopId)) && shopPlanFeature(shopId, 'attendance');
         allow update, delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
-      
-      // Attendance subcollection (flat structure)
+
+      // Attendance subcollection (flat structure) — paid feature
       match /attendance/{recordId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow create: if isShopMember(shopId) || isShopOwner(shopId);
+        allow create: if (isShopMember(shopId) || isShopOwner(shopId)) && shopPlanFeature(shopId, 'attendance');
         allow update, delete: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
       
-      // Payroll subcollection
+      // Payroll subcollection (paid feature)
       match /payroll/{recordId} {
         allow read: if isShopAdmin(shopId) || isShopOwner(shopId);
-        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow write: if (isShopAdmin(shopId) || isShopOwner(shopId)) && shopPlanFeature(shopId, 'payroll');
       }
       
-      // Expenses subcollection
+      // Expenses subcollection (paid feature)
       match /expenses/{expenseId} {
         allow read: if isShopMember(shopId) || isShopOwner(shopId);
-        allow write: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if (isShopMember(shopId) || isShopOwner(shopId)) && shopPlanFeature(shopId, 'expenses');
       }
       
       // Stock subcollection
@@ -234,8 +262,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth.uid == userId;
       allow write: if request.auth.uid == userId;
+
+      // One-active-session-per-platform: each account owns its session slots
+      // (users/{uid}/sessions/web | mobile). A user may only touch their own.
+      match /sessions/{platform} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
     }
-    
+
     // ============================================
     // SUPER ADMIN COLLECTIONS
     // ============================================

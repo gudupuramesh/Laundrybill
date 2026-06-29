@@ -19,6 +19,7 @@ import {
     Menu,
     LogOut,
     Power,
+    PlusCircle,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTranslation } from "react-i18next";
@@ -37,6 +38,7 @@ import {
 // Sidebar items for desktop
 const sidebarItemsConfig = [
     { id: "today", labelKey: "agent.today", icon: LayoutDashboard, href: "/agent" },
+    { id: "new-order", labelKey: "agent.newOrder", icon: PlusCircle, href: "/agent/orders/new" },
     { id: "pickups", labelKey: "agent.pickups", icon: MapPin, href: "/agent/pickups" },
     { id: "scan", labelKey: "agent.scan", icon: QrCode, href: "/agent/scan" },
     { id: "deliveries", labelKey: "agent.deliveries", icon: Truck, href: "/agent/deliveries" },
@@ -46,6 +48,7 @@ const sidebarItemsConfig = [
 // More menu items (shown in bottom sheet on mobile)
 const moreMenuItemsConfig = [
     { id: "today", labelKey: "agent.today", icon: LayoutDashboard, href: "/agent" },
+    { id: "new-order", labelKey: "agent.newOrder", icon: PlusCircle, href: "/agent/orders/new" },
     { id: "pickups", labelKey: "agent.pickups", icon: MapPin, href: "/agent/pickups" },
     { id: "deliveries", labelKey: "agent.deliveries", icon: Truck, href: "/agent/deliveries" },
     { id: "scan", labelKey: "agent.scan", icon: QrCode, href: "/agent/scan" },
@@ -65,7 +68,7 @@ export function DriverAppLayout() {
     // Handle sign out
     const handleSignOut = () => {
         signOut();
-        navigate("/agent/login");
+        navigate("/team/login");
     };
 
     // Handle online toggle

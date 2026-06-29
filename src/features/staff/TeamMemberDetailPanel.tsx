@@ -12,6 +12,7 @@ import { useTeamMembers, useTeamMemberMutations } from "@/hooks/use-team-members
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
 import { ChevronLeft, Copy, MessageCircle, MapPin, Truck, Check, Phone, Pencil, KeyRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -35,6 +36,7 @@ function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (
 
 export function TeamMemberDetailPanel({ teamMemberId, onClose }: TeamMemberDetailPanelProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { addToast } = useLToast();
     const { teamMembers, loading } = useTeamMembers();
     const { updateTeamMember } = useTeamMemberMutations();
@@ -102,7 +104,7 @@ export function TeamMemberDetailPanel({ teamMemberId, onClose }: TeamMemberDetai
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 16px" : "0 22px" }}>
                 <button onClick={onClose} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("staff.title", "Staff")}</button><span>/</span>
@@ -110,9 +112,9 @@ export function TeamMemberDetailPanel({ teamMemberId, onClose }: TeamMemberDetai
                 </nav>
             </header>
 
-            <div style={{ padding: "20px 22px 40px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
+            <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
                 {/* profile */}
-                <div style={{ ...card, padding: "20px 22px" }}>
+                <div style={{ ...card, padding: isMobile ? "16px 16px" : "20px 22px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                         <span style={{ width: 56, height: 56, flex: "none", borderRadius: 14, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 600 }}>{(teamMember.name || teamMember.email).slice(0, 2).toUpperCase()}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>

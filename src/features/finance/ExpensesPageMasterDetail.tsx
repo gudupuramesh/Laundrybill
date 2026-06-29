@@ -8,6 +8,7 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { useExpenses } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ExpenseFormSheet } from "./ExpenseFormSheet";
 import type { Expense, ExpenseCategory } from "@/types/finance";
 import { useTranslation } from "react-i18next";
@@ -30,6 +31,7 @@ const tintFor = (c: string) => CAT_TINT[c as ExpenseCategory] || "c-cyan";
 export function ExpensesPageMasterDetail() {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
     const now = useMemo(() => new Date(), []);
     const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
     const [tab, setTab] = useState<"overview" | "list">("overview");
@@ -77,7 +79,7 @@ export function ExpensesPageMasterDetail() {
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("expenses.title", "Expenses")}</span>
                 <div role="tablist" style={{ display: "flex", gap: 2, marginLeft: 4 }}>
                     {([{ id: "overview", label: t("expenses.overview", "Overview") }, { id: "list", label: t("expenses.all", "All expenses") }] as const).map((tb) => {
@@ -94,9 +96,9 @@ export function ExpensesPageMasterDetail() {
                 <button onClick={openAdd} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><Plus size={15} />{t("expenses.add", "Add Expense")}</button>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPI row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
+                <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
                     {kpis.map((k) => (
                         <div key={k.label} style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "15px 16px", boxShadow: "var(--sh-sm)" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>

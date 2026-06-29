@@ -3,6 +3,7 @@ import { onDocumentWritten, onDocumentCreated } from "firebase-functions/v2/fire
 import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
 import { normalizePlanId, planDisplayName } from "./lib/plan-normalize";
+import { getTrialConfig } from "./services/trial-config";
 
 dotenv.config();
 
@@ -113,20 +114,28 @@ export const createTrialSubscriptionOnShopCreate = onDocumentCreated("shops/{sho
 
         const now = admin.firestore.Timestamp.now();
 
+        // Order-based trial: the shop gets the trial plan's features (Pro by default)
+        // for the first N orders, after which `meterTrialOrderOnCreate` converts it to Free.
+        const trial = await getTrialConfig();
+        const trialPlanId = normalizePlanId(trial.trialPlanId || "pro");
+
         await subRef.set({
             shopId,
             shopName: shopData.name || "",
             ownerEmail: shopData.email || "",
             ownerPhone: shopData.phone || "",
-            planId: "free",
-            planName: "Free",
-            status: "free",
+            planId: trialPlanId,
+            planName: `${planDisplayName(trialPlanId)} (Trial)`,
+            status: "trial",
             billingCycle: "monthly",
+            trialOrderLimit: trial.trialOrderLimit,
+            trialOrdersUsed: 0,
+            trialStartedAt: now,
             createdAt: now,
             updatedAt: now,
         });
 
-        console.log(`Free subscription created for shop ${shopId}.`);
+        console.log(`Trial subscription (${trialPlanId}, ${trial.trialOrderLimit} orders) created for shop ${shopId}.`);
 
         // --- Notify all Super Admins about new shop registration ---
         try {
@@ -170,6 +179,46 @@ export const createTrialSubscriptionOnShopCreate = onDocumentCreated("shops/{sho
         }
     } catch (error) {
         console.error(`Failed to create trial subscription for shop ${shopId}:`, error);
+    }
+});
+
+/**
+ * Order-metered trial. Each new order created by a trial shop consumes one trial order;
+ * once `trialOrdersUsed` reaches `trialOrderLimit` the subscription is converted to Free
+ * (so the shop keeps the basic plan but loses Pro until they subscribe). Counted in a
+ * transaction so concurrent order creates can't over-count.
+ */
+export const meterTrialOrderOnCreate = onDocumentCreated("shops/{shopId}/orders/{orderId}", async (event) => {
+    const shopId = event.params.shopId;
+    if (!shopId) return;
+    const subRef = db.collection("subscriptions").doc(shopId);
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(subRef);
+            if (!snap.exists) return;
+            const sub = snap.data() || {};
+            if (sub.status !== "trial") return; // only meter active trials
+
+            const rawLimit = Number(sub.trialOrderLimit);
+            const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 10;
+            const used = Number(sub.trialOrdersUsed || 0) + 1;
+            const now = admin.firestore.Timestamp.now();
+
+            if (used >= limit) {
+                tx.update(subRef, {
+                    trialOrdersUsed: used,
+                    status: "free",
+                    planId: "free",
+                    planName: "Free",
+                    trialExpiredAt: now,
+                    updatedAt: now,
+                });
+            } else {
+                tx.update(subRef, { trialOrdersUsed: used, updatedAt: now });
+            }
+        });
+    } catch (e) {
+        console.error(`meterTrialOrderOnCreate failed for shop ${shopId}:`, e);
     }
 });
 

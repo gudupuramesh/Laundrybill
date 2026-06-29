@@ -19,7 +19,7 @@ export const PlantProtectedRoute = ({ children }: PlantProtectedRouteProps) => {
 
     // Check if user is authenticated and has plant role
     if (!agent) {
-        return <Navigate to="/plant/login" replace />;
+        return <Navigate to="/team/login" replace />;
     }
 
     // Strict role check for plant access

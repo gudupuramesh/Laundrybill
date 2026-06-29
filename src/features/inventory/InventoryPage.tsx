@@ -11,12 +11,14 @@ import { useInventory, useInventoryMutations } from "@/hooks/use-inventory";
 import { useCurrency } from "@/hooks/use-currency";
 import { ServiceFormSheet } from "./ServiceFormSheet";
 import { CategoryFormSheet } from "./CategoryFormSheet";
+import { BulkImportModal } from "./BulkImportModal";
 import { ServiceAreasList, PickupSlotsList, DeliverySlotsList } from "@/features/settings/ServiceAreasSettings";
 import type { InventoryItem, InventoryCategory } from "@/types/inventory";
-import { Package, Plus, Search, Pencil, Clock, MapPin, Truck, MoreVertical, Shirt } from "lucide-react";
+import { Package, Plus, Search, Pencil, Clock, MapPin, Truck, MoreVertical, Shirt, Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getTranslatedItemName, getTranslatedCategoryName, isWeightUnit } from "@/lib/inventory-translations";
 import { useMinLoading } from "@/hooks/use-min-loading";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type ViewMode = "services" | "service-areas" | "pickup-slots" | "delivery-slots";
 
@@ -26,6 +28,7 @@ const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 3
 
 export function InventoryPage() {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const { items, allItems, categories, allCategories, loading } = useInventory();
     const { deleteItem, updateItem, deleteCategory, updateCategory } = useInventoryMutations();
     const { formatAmount, currencySymbol } = useCurrency();
@@ -40,6 +43,28 @@ export function InventoryPage() {
     const [serviceSheet, setServiceSheet] = useState<{ open: boolean; item?: InventoryItem }>({ open: false });
     const [categorySheet, setCategorySheet] = useState<{ open: boolean; category?: InventoryCategory }>({ open: false });
     const [actionSheet, setActionSheet] = useState<{ open: boolean; item?: InventoryItem; category?: InventoryCategory }>({ open: false });
+    const [importOpen, setImportOpen] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    // Download the current services + items as an .xlsx the owner can edit and re-upload.
+    const handleExportExcel = async () => {
+        setExporting(true);
+        try {
+            const { generateTemplateBlob } = await import("./lib/bulk-inventory");
+            const blob = await generateTemplateBlob(allCategories, allItems);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `services-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        } catch (e) {
+            console.error("Excel export failed:", e);
+        }
+        setExporting(false);
+    };
 
     useEffect(() => {
         if (tabParam && ["services", "service-areas", "pickup-slots", "delivery-slots"].includes(tabParam)) setViewMode(tabParam as ViewMode);
@@ -98,11 +123,19 @@ export function InventoryPage() {
                             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} style={{ accentColor: "var(--c-primary)", width: 15, height: 15 }} />
                             {t("inventory.showInactive", "Show hidden")}
                         </label>
-                        <div style={{ position: "relative" }}>
+                        <div style={{ position: "relative", flex: isMobile ? "1 1 140px" : "none" }}>
                             <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                             <input value={search} onChange={(e) => setSearch(e.target.value)} type="search" placeholder={t("inventory.searchItems", "Search items…")}
-                                style={{ width: 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                                style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                         </div>
+                        <button onClick={handleExportExcel} disabled={exporting} title={t("inventory.exportExcelHint", "Download services & items as Excel to edit and re-upload")}
+                            style={{ cursor: exporting ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px", opacity: exporting ? 0.7 : 1 }}>
+                            <Download size={15} />{exporting ? "…" : t("inventory.exportExcel", "Download")}
+                        </button>
+                        <button onClick={() => setImportOpen(true)} title={t("inventory.importExcelHint", "Bulk add/update services & items from Excel/CSV")}
+                            style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px" }}>
+                            <Upload size={15} />{t("inventory.importExcel", "Import")}
+                        </button>
                         <button onClick={() => setCategorySheet({ open: true })} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><Plus size={15} />{t("inventory.newService", "New Service")}</button>
                     </>
                 )}
@@ -123,9 +156,9 @@ export function InventoryPage() {
             {showLoading ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><LSpinner size="lg" /></div>
             ) : viewMode === "services" ? (
-                <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+                <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden" }}>
                     {/* category sidebar */}
-                    <section className="lb-svclist lb-scroll" style={{ width: 288, flex: "none", overflow: "auto", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", padding: 14 }}>
+                    <section className="lb-svclist lb-scroll" style={{ width: isMobile ? "100%" : 288, flex: "none", overflow: isMobile ? "visible" : "auto", borderRight: isMobile ? "none" : "1px solid var(--c-border)", borderBottom: isMobile ? "1px solid var(--c-border)" : "none", background: "var(--c-surface)", padding: 14 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", padding: "4px 6px 10px" }}>{t("inventory.serviceCategories", "Service categories")}</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {sourceCategories.map((c) => {
@@ -148,7 +181,7 @@ export function InventoryPage() {
                     </section>
 
                     {/* item catalog */}
-                    <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: "auto", padding: "20px 22px 40px" }}>
+                    <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: isMobile ? "visible" : "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px" }}>
                         {!selectedCat ? (
                             <LEmptyState icon={<Package className="h-8 w-8" />} title={t("inventory.noCategories", "No services yet")} description={t("inventory.noCategoriesDesc", "Create a service category to start adding items.")} action={{ label: t("inventory.newService", "New Service"), onClick: () => setCategorySheet({ open: true }) }} />
                         ) : (
@@ -215,7 +248,7 @@ export function InventoryPage() {
                     </section>
                 </div>
             ) : (
-                <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 22px 40px" }}>
+                <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "24px 22px 40px" }}>
                     <div style={{ maxWidth: 760, margin: "0 auto" }}>
                         {viewMode === "service-areas" && (
                             <LCard variant="outlined" padding="lg">
@@ -258,6 +291,7 @@ export function InventoryPage() {
                 onAddCategory={() => setCategorySheet({ open: true })}
             />
             <CategoryFormSheet open={categorySheet.open} onClose={() => setCategorySheet({ open: false })} category={categorySheet.category} />
+            <BulkImportModal open={importOpen} onClose={() => setImportOpen(false)} categories={allCategories} items={allItems} />
             <LActionSheet
                 open={actionSheet.open}
                 onClose={() => setActionSheet({ open: false })}

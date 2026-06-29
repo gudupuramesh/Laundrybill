@@ -28,6 +28,7 @@ import {
 } from "firebase/firestore";
 import type { DocumentSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { releaseWebSession } from "@/lib/session-guard";
 import type { Staff, TeamMember } from "@/types/staff";
 
 interface DriverAuthContextType {
@@ -360,6 +361,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
     // Sign out
     const signOut = useCallback(() => {
+        void releaseWebSession(auth.currentUser?.uid || "");
         firebaseSignOut(auth);
     }, []);
 
@@ -419,4 +421,9 @@ export function useDriverAuth() {
         throw new Error("useDriverAuth must be used within a DriverAuthProvider");
     }
     return context;
+}
+
+/** Like useDriverAuth but returns null outside the agent portal (for code shared across portals). */
+export function useDriverAuthOptional() {
+    return useContext(DriverAuthContext);
 }

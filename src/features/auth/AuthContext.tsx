@@ -14,12 +14,14 @@ import {
     createUserWithEmailAndPassword,
     sendPasswordResetEmail,
     GoogleAuthProvider,
+    OAuthProvider,
     RecaptchaVerifier,
     signOut as firebaseSignOut,
 } from "firebase/auth";
 import type { User, ConfirmationResult } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, writeBatch, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { claimWebSession, releaseWebSession, teardownWebSession } from "@/lib/session-guard";
 import { LLoadingOverlay } from "@/components/laundry";
 import { loadLanguageFromFirebase } from "@/lib/i18n";
 
@@ -49,6 +51,8 @@ interface AuthContextType extends AuthState {
     // Google (web popup + Android native via idToken)
     signInWithGoogle: () => Promise<void>;
     signInWithGoogleIdToken: (idToken: string) => Promise<void>;
+    // Apple (web popup) — lets users who signed up with Apple on iOS log in here too
+    signInWithApple: () => Promise<void>;
     // Email/Password
     signInWithEmail: (email: string, password: string) => Promise<void>;
     signUpWithEmail: (email: string, password: string) => Promise<void>;
@@ -64,6 +68,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Google provider instance
 const googleProvider = new GoogleAuthProvider();
+
+// Apple provider instance (web popup). The same Apple ID resolves to the same
+// Firebase account as the iOS app, so Apple-signup users can log in on web too.
+const appleProvider = new OAuthProvider("apple.com");
+appleProvider.addScope("email");
+appleProvider.addScope("name");
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [state, setState] = useState<AuthState>({
@@ -116,6 +126,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             console.log("[Auth] onAuthStateChanged fired, user:", firebaseUser?.email ?? "null", "uid:", firebaseUser?.uid ?? "none");
             if (firebaseUser) {
+                // One-active-web-session: claim/watch this account's web slot (covers owner + team,
+                // since this provider is top-level). Idempotent per uid.
+                claimWebSession(firebaseUser.uid);
                 try {
                     // Check if user document exists
                     const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
@@ -266,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
                 }
             } else {
+                teardownWebSession(); // stop watching the web session slot on any sign-out
                 setState({
                     user: null,
                     shopId: null,
@@ -542,6 +556,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Apple Sign-In (popup for web) — mirrors Google; the auth state listener handles the rest
+    const signInWithApple = async () => {
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+        try {
+            const result = await signInWithPopup(auth, appleProvider);
+            console.log("[Auth] Apple sign-in successful for", result.user.email);
+        } catch (error: unknown) {
+            console.error("Error signing in with Apple:", error);
+            const message = error instanceof Error ? error.message : "Failed to sign in with Apple";
+            setState((prev) => ({ ...prev, loading: false, error: message }));
+            throw error;
+        }
+    };
+
     // Google Sign-In with ID token (called from Android WebView via window.onGoogleLoginSuccess)
     const signInWithGoogleIdToken = async (idToken: string) => {
         console.log("[Auth Android] signInWithGoogleIdToken called, token length:", idToken?.length);
@@ -761,6 +789,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = async () => {
         setState((prev) => ({ ...prev, loading: true }));
         try {
+            await releaseWebSession(auth.currentUser?.uid || "");
             await firebaseSignOut(auth);
         } catch (error: unknown) {
             console.error("Error signing out:", error);
@@ -785,6 +814,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 verifyOtp,
                 signInWithGoogle,
                 signInWithGoogleIdToken,
+                signInWithApple,
                 signInWithEmail,
                 signUpWithEmail,
                 resetPassword,

@@ -47,7 +47,7 @@ export default function StaffScanScreen({ onBack }: { onBack?: () => void } = {}
       title="Scan order"
       instruction="Point at an order or garment tag QR"
       permissionTitle="Scan an order"
-      permissionBody="Allow camera access to scan an order tag and open it."
+      permissionBody="Laundrybill needs the camera only to scan an order QR tag and open it. Scanning just reads the code — no photo or video is taken or stored."
       onResult={onResult}
     />
   );

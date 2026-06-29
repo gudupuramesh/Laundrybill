@@ -14,6 +14,7 @@ import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import type { MemberType, VehicleType } from "@/types/staff";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, MessageCircle } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONO = "'IBM Plex Mono'";
 const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
@@ -50,6 +51,7 @@ interface TeamMemberFormSheetProps {
 
 export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamMemberFormSheetProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const navigate = useNavigate();
     const { createTeamMember } = useTeamMemberMutations();
     const { teamMembers } = useTeamMembers();
@@ -146,7 +148,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
                     <div>
                         <label style={lbl}>{t("staff.emailRequired", "Email (required)")}</label>
                         <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="user@example.com" style={{ ...fld, borderColor: errors.email ? "var(--c-error)" : "var(--c-border-strong)" }} />
-                        {errors.email ? <div style={errTxt}>{errors.email}</div> : <div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 5 }}>{t("staff.emailRequiredHint", "Use a working email so they can receive the invite and password resets.")}</div>}
+                        {errors.email ? <div style={errTxt}>{errors.email}</div> : <div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 5 }}>{t("staff.emailRequiredHint", "Use an active email the staff can access — it's required to reset this login's password if needed. Each login needs its own unique email.")}</div>}
                     </div>
                     <div>
                         <label style={lbl}>{t("staff.name", "Name")} <span style={{ color: "var(--c-text-3)", fontWeight: 400 }}>· {t("common.optional", "optional")}</span></label>
@@ -160,7 +162,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
                     {form.memberType === "agent" && (
                         <>
                             <Divider label={t("staff.vehicleInfo", "Vehicle info")} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                                 <div>
                                     <label style={lbl}>{t("staff.vehicleType", "Vehicle type")}</label>
                                     <select value={form.vehicleType} onChange={(e) => setForm({ ...form, vehicleType: e.target.value as VehicleType })} style={fld}>

@@ -8,6 +8,7 @@ import { useState, type CSSProperties } from "react";
 import { LEmptyState, LSpinner } from "@/components/laundry";
 import { useStaff, usePayroll } from "@/hooks/use-staff";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { PayrollStatus } from "@/types/staff";
 import { format, addMonths, subMonths, isSameMonth } from "date-fns";
 import { Users, Wallet, Check, Clock, Search, ChevronLeft, ChevronRight } from "lucide-react";
@@ -36,6 +37,7 @@ interface PayrollStaffListProps {
 export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthChange }: PayrollStaffListProps) {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
     const [searchQuery, setSearchQuery] = useState("");
     const monthString = format(currentMonth, "yyyy-MM");
     const atCurrentMonth = isSameMonth(currentMonth, new Date());
@@ -60,7 +62,7 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("staff.payroll", "Payroll")}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button onClick={() => onMonthChange(subMonths(currentMonth, 1))} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
@@ -68,15 +70,15 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
                     <button onClick={() => { if (!atCurrentMonth) onMonthChange(addMonths(currentMonth, 1)); }} disabled={atCurrentMonth} aria-label="Next month" style={{ ...navBtn, opacity: atCurrentMonth ? 0.4 : 1, cursor: atCurrentMonth ? "not-allowed" : "pointer" }}><ChevronRight size={16} /></button>
                 </div>
                 <div style={{ flex: 1 }} />
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", ...(isMobile ? { flex: "1 1 100%" } : null) }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("common.search", "Search staff…")}
-                        style={{ width: 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                        style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 40px", minHeight: 0 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 12 : 14, marginBottom: 18 }}>
                     {kpis.map((k) => (
                         <div key={k.label} style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "15px 16px", boxShadow: "var(--sh-sm)" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>

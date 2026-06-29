@@ -1,23 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useDriverAuth } from "@/features/driver-app/DriverAuthContext";
 import {
-    LCard,
-    LStatCard,
-    LButton,
-    LBadge,
-    LSpinner
-} from "@/components/laundry";
-import {
     Package,
     RotateCw,
     CheckCircle2,
     Truck,
     ArrowRight,
-    Scan
+    Scan,
+    Loader2
 } from "lucide-react";
 import type { Order } from "@/types/order";
 import { startOfDay } from "date-fns";
@@ -114,148 +108,161 @@ export function PlantDashboard() {
     }, [shopId]);
 
     if (loading) {
-        return <div className="flex h-screen items-center justify-center"><LSpinner size="lg" /></div>;
+        return (
+            <div style={{ display: "flex", height: "100%", minHeight: 320, alignItems: "center", justifyContent: "center" }}>
+                <Loader2 className="animate-spin" size={28} style={{ color: "var(--c-primary)" }} />
+            </div>
+        );
     }
 
+    const kpis = [
+        { label: "Inbound Pending", value: stats.inbound, ref: "c-warning", soft: "c-warning-soft", icon: <Package size={15} />, to: "/plant/inbound" },
+        { label: "In Processing", value: stats.processing, ref: "c-primary", soft: "c-primary-soft", icon: <RotateCw size={15} />, to: "/plant/processing" },
+        { label: "Ready to Pack", value: stats.ready, ref: "c-success", soft: "c-success-soft", icon: <CheckCircle2 size={15} />, to: "/plant/ready" },
+        { label: "Dispatched Today", value: stats.completedToday, ref: "c-cyan", soft: "c-cyan-soft", icon: <Truck size={15} />, to: "/plant/completed" },
+    ];
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px" }}>
+
+            {/* ===== Header ===== */}
+            <div style={{ marginBottom: 18 }}>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-.01em" }}>
                     {t('plant.dashboard', 'Plant Dashboard')}
                 </h1>
-                <p className="text-muted-foreground">
+                <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "var(--c-text-2)" }}>
                     {t('plant.welcome', 'Welcome back')}, {agent?.name || 'Operator'}
                 </p>
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <LStatCard
-                    title="Inbound Pending"
-                    value={stats.inbound}
-                    icon={<Package className="h-5 w-5" />}
-                    variant="warning"
-                    onClick={() => navigate('/plant/inbound')}
-                    className="cursor-pointer hover:border-warning transition-colors"
-                />
-                <LStatCard
-                    title="In Processing"
-                    value={stats.processing}
-                    icon={<RotateCw className="h-5 w-5" />}
-                    variant="primary"
-                    onClick={() => navigate('/plant/processing')}
-                    className="cursor-pointer hover:border-primary transition-colors"
-                />
-                <LStatCard
-                    title="Ready to Pack"
-                    value={stats.ready}
-                    icon={<CheckCircle2 className="h-5 w-5" />}
-                    variant="success"
-                    onClick={() => navigate('/plant/ready')}
-                    className="cursor-pointer hover:border-success transition-colors"
-                />
-                <LStatCard
-                    title="Dispatched Today"
-                    value={stats.completedToday}
-                    icon={<Truck className="h-5 w-5" />}
-                    variant="default"
-                    onClick={() => navigate('/plant/completed')}
-                    className="cursor-pointer hover:border-border transition-colors"
-                />
+            {/* ===== KPI ROW ===== */}
+            <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 16 }}>
+                {kpis.map((k) => (
+                    <div
+                        key={k.label}
+                        onClick={() => navigate(k.to)}
+                        style={{ ...card, padding: "15px 16px", cursor: "pointer" }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <ChipIcon soft={k.soft} refColor={k.ref}>{k.icon}</ChipIcon>
+                            <span style={{ fontSize: 11.5, color: "var(--c-text-3)", fontWeight: 500 }}>{k.label}</span>
+                        </div>
+                        <div style={{ fontFamily: MONO, fontWeight: 600, fontSize: 25, letterSpacing: "-.02em", marginTop: 11 }}>{k.value}</div>
+                    </div>
+                ))}
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-                {/* Main Action Area */}
-                <div className="md:col-span-2 space-y-6">
-                    {/* Quick Lookup */}
-                    <LCard className="bg-primary/5 border-primary/20">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                                    <Scan className="h-6 w-6 text-primary" />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-lg">Quick Identity Scan</h3>
-                                    <p className="text-sm text-muted-foreground">Scan any bag tag or garment tag to see details</p>
+            {/* ===== Main + Sidebar ===== */}
+            <div className="lb-row" style={{ display: "flex", gap: 16 }}>
+
+                {/* Main column */}
+                <div style={{ flex: 1.7, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+
+                    {/* Quick Identity Scan */}
+                    <div style={{ ...card, padding: "18px 20px", background: "var(--c-primary-tint)", borderColor: "var(--c-primary)" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                                <ChipIcon soft="c-primary-soft" refColor="c-primary"><Scan size={18} /></ChipIcon>
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 15, fontWeight: 600 }}>Quick Identity Scan</div>
+                                    <div style={{ fontSize: 12.5, color: "var(--c-text-2)" }}>Scan any bag tag or garment tag to see details</div>
                                 </div>
                             </div>
-                            <LButton
-                                size="lg"
-                                onClick={() => navigate('/plant/scan')}
-                                leftIcon={<Scan className="h-5 w-5" />}
-                            >
-                                Open Scanner
-                            </LButton>
+                            <button type="button" onClick={() => navigate('/plant/scan')} style={btnPrimary}>
+                                <Scan size={16} />Open Scanner
+                            </button>
                         </div>
-                    </LCard>
+                    </div>
 
-                    {/* Recent Inbound List */}
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold">New Arrivals (Inbound)</h2>
-                            <LButton variant="ghost" size="sm" onClick={() => navigate('/plant/inbound')}>
-                                View All <ArrowRight className="ml-2 h-4 w-4" />
-                            </LButton>
+                    {/* New Arrivals (Inbound) */}
+                    <div style={{ ...card, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 12px", borderBottom: "1px solid var(--c-border)" }}>
+                            <ChipIcon soft="c-warning-soft" refColor="c-warning"><Package size={16} /></ChipIcon>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 600 }}>New Arrivals (Inbound)</div>
+                                <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>Items just received at the plant</div>
+                            </div>
+                            <button type="button" onClick={() => navigate('/plant/inbound')} style={{ ...btnGhost, marginLeft: "auto", color: "var(--c-primary)" }}>
+                                View All <ArrowRight size={15} />
+                            </button>
                         </div>
 
-                        {/* Order List Card */}
-                        <div className="space-y-3">
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 16px" }}>
                             {recentInbound.length === 0 ? (
-                                <LCard className="p-8 text-center text-muted-foreground">
+                                <div style={{ padding: "28px 8px", textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>
                                     No pending orders
-                                </LCard>
+                                </div>
                             ) : (
                                 recentInbound.map((order) => (
-                                    <LCard key={order.id} variant="outlined" padding="md" className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">
+                                    <div
+                                        key={order.id}
+                                        style={{ ...card, boxShadow: "none", padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                                            <div style={{ width: 42, height: 42, flex: "none", borderRadius: 9, background: "var(--c-warning-soft)", color: "var(--c-warning)", fontFamily: MONO, fontWeight: 700, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 4px" }}>
                                                 {order.orderNumber}
                                             </div>
-                                            <div>
-                                                <p className="font-medium">{order.customerName}</p>
-                                                <p className="text-xs text-muted-foreground">
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{order.customerName}</div>
+                                                <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>
                                                     {order.items?.length || 0} Items • {order.deliveryType === 'pickup_store' ? 'Shop Pickup' : 'Delivery'}
-                                                </p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <LBadge variant="warning">{order.status === 'pickup_completed' ? 'Arrived' : 'New'}</LBadge>
-                                            <LButton
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => navigate(`/plant/orders/${order.id}`)}
-                                            >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: "var(--c-warning-soft)", color: "var(--c-warning)" }}>
+                                                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--c-warning)" }} />
+                                                {order.status === 'pickup_completed' ? 'Arrived' : 'New'}
+                                            </span>
+                                            <button type="button" onClick={() => navigate(`/plant/orders/${order.id}`)} style={btnOutline}>
                                                 View
-                                            </LButton>
+                                            </button>
                                         </div>
-                                    </LCard>
+                                    </div>
                                 ))
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Sidebar / Plant Status */}
-                <div className="space-y-6">
-                    <LCard title="Plant Status">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Operator</span>
-                                <span className="font-medium text-success">Online</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Pending Orders</span>
-                                <span className="font-medium">{stats.inbound}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Completed Today</span>
-                                <span className="font-medium text-primary">{stats.completedToday}</span>
-                            </div>
+                {/* Sidebar — Plant Status */}
+                <div style={{ ...card, flex: 1, minWidth: 0, alignSelf: "flex-start" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 12px", borderBottom: "1px solid var(--c-border)" }}>
+                        <ChipIcon soft="c-info-soft" refColor="c-info"><CheckCircle2 size={16} /></ChipIcon>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>Plant Status</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", padding: "6px 18px 14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--c-border)" }}>
+                            <span style={{ fontSize: 13, color: "var(--c-text-2)" }}>Operator</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600, color: "var(--c-success)" }}>
+                                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--c-success)" }} />Online
+                            </span>
                         </div>
-                    </LCard>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--c-border)" }}>
+                            <span style={{ fontSize: 13, color: "var(--c-text-2)" }}>Pending Orders</span>
+                            <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: 14 }}>{stats.inbound}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+                            <span style={{ fontSize: 13, color: "var(--c-text-2)" }}>Completed Today</span>
+                            <span style={{ fontFamily: MONO, fontWeight: 600, fontSize: 14, color: "var(--c-primary)" }}>{stats.completedToday}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     );
+}
+
+/* ===== helpers (shared design-system primitives) ===== */
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+const card: CSSProperties = {
+    background: "var(--c-surface)", border: "1px solid var(--c-border)",
+    borderRadius: 12, boxShadow: "var(--sh-sm)",
+};
+const btnPrimary: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "10px 16px", boxShadow: "var(--sh-sm)" };
+const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 9, padding: "10px 16px" };
+const btnGhost: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0, padding: "8px 10px" };
+
+function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) {
+    return <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${soft})`, color: `var(--${refColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</span>;
 }

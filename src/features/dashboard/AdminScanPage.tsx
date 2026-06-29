@@ -4,6 +4,7 @@ import { doc, getDoc, query, where, limit, collection, getDocs } from "firebase/
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext"; // Main Auth for Shop Admin
 import { LSpinner } from "@/components/laundry";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Camera, Keyboard, ScanLine, AlertCircle, Search } from "lucide-react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { useTranslation } from "react-i18next";
@@ -12,6 +13,7 @@ import { isAndroidScannerEnv } from "@/lib/android-scanner";
 export function AdminScanPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const { shopId } = useAuth(); // Logged in as Shop Admin
 
     const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
@@ -124,7 +126,7 @@ export function AdminScanPage() {
                 </div>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "24px 22px 40px", paddingBottom: isMobile ? "calc(88px + env(safe-area-inset-bottom, 0px))" : 40, minHeight: 0 }}>
                 <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
                     {/* mode toggle */}
                     <div role="group" aria-label="Scan mode" style={{ display: "flex", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: 3 }}>

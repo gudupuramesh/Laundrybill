@@ -52,21 +52,29 @@ export async function createTeamLogin(params: {
 
   const inviteCode = generateRandomInviteCode(shopCode);
 
-  await firestore().collection(`shops/${shopId}/teamMembers`).add({
-    email: emailLower,
-    inviteCode,
-    memberType,
-    role: role || (memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff'),
-    staffId: linkedStaffId || null,
-    name: name.trim(),
-    phone: phone?.trim() || null,
-    vehicle: null,
-    serviceAreas: [],
-    inviteStatus: 'pending',
-    isActive: memberType === 'agent',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+  try {
+    await firestore().collection(`shops/${shopId}/teamMembers`).add({
+      email: emailLower,
+      inviteCode,
+      memberType,
+      role: role || (memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff'),
+      staffId: linkedStaffId || null,
+      name: name.trim(),
+      phone: phone?.trim() || null,
+      vehicle: null,
+      serviceAreas: [],
+      inviteStatus: 'pending',
+      isActive: memberType === 'agent',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  } catch (e: any) {
+    // Firestore rules block login creation when the plan lacks the login type.
+    if (e?.code === 'permission-denied' || /permission/i.test(String(e?.message || ''))) {
+      throw new Error('Creating team logins requires the Pro+ or Business plan. Upgrade to add staff, agent or plant logins.');
+    }
+    throw e;
+  }
 
   return { inviteCode };
 }

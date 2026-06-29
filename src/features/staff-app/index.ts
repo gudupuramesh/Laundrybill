@@ -10,7 +10,5 @@ export { StaffProtectedRoute } from "./StaffProtectedRoute";
 export { StaffAppLayout } from "./StaffAppLayout";
 
 // Pages
-export { StaffLoginPage } from "./pages/StaffLoginPage";
-export { StaffSignupPage } from "./pages/StaffSignupPage";
 export { StaffHomePage } from "./pages/StaffHomePage";
 export { StaffProfilePage } from "./pages/StaffProfilePage";

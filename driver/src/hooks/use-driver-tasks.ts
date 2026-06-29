@@ -32,6 +32,8 @@ export interface DriverTask {
   id: string;
   type: TaskType;
   orderId: string;
+  /** The full raw order doc — used by the agent's full edit-order flow. */
+  raw: Order;
   orderPublicId: string;
   customer: { name: string; phone: string; address: string };
   itemCount: number;
@@ -95,6 +97,7 @@ export function useDriverTasks(options: UseDriverTasksOptions = {}) {
         return {
           id: `pickup-${order.id}`,
           type: 'pickup' as TaskType,
+          raw: order,
           orderId: order.id,
           orderPublicId: order.publicId || order.orderNumber,
           customer: {
@@ -126,6 +129,7 @@ export function useDriverTasks(options: UseDriverTasksOptions = {}) {
       .map((order) => ({
         id: `delivery-${order.id}`,
         type: 'delivery' as TaskType,
+        raw: order,
         orderId: order.id,
         orderPublicId: order.publicId || order.orderNumber,
         customer: {

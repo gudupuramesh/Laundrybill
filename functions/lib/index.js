@@ -14,12 +14,13 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
+exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.meterTrialOrderOnCreate = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const dotenv = require("dotenv");
 const plan_normalize_1 = require("./lib/plan-normalize");
+const trial_config_1 = require("./services/trial-config");
 dotenv.config();
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -109,19 +110,26 @@ exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)
             return;
         }
         const now = admin.firestore.Timestamp.now();
+        // Order-based trial: the shop gets the trial plan's features (Pro by default)
+        // for the first N orders, after which `meterTrialOrderOnCreate` converts it to Free.
+        const trial = await (0, trial_config_1.getTrialConfig)();
+        const trialPlanId = (0, plan_normalize_1.normalizePlanId)(trial.trialPlanId || "pro");
         await subRef.set({
             shopId,
             shopName: shopData.name || "",
             ownerEmail: shopData.email || "",
             ownerPhone: shopData.phone || "",
-            planId: "free",
-            planName: "Free",
-            status: "free",
+            planId: trialPlanId,
+            planName: `${(0, plan_normalize_1.planDisplayName)(trialPlanId)} (Trial)`,
+            status: "trial",
             billingCycle: "monthly",
+            trialOrderLimit: trial.trialOrderLimit,
+            trialOrdersUsed: 0,
+            trialStartedAt: now,
             createdAt: now,
             updatedAt: now,
         });
-        console.log(`Free subscription created for shop ${shopId}.`);
+        console.log(`Trial subscription (${trialPlanId}, ${trial.trialOrderLimit} orders) created for shop ${shopId}.`);
         // --- Notify all Super Admins about new shop registration ---
         try {
             const tokensSnapshot = await db.collection("superAdminNotificationTokens").get();
@@ -161,6 +169,48 @@ exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)
     }
     catch (error) {
         console.error(`Failed to create trial subscription for shop ${shopId}:`, error);
+    }
+});
+/**
+ * Order-metered trial. Each new order created by a trial shop consumes one trial order;
+ * once `trialOrdersUsed` reaches `trialOrderLimit` the subscription is converted to Free
+ * (so the shop keeps the basic plan but loses Pro until they subscribe). Counted in a
+ * transaction so concurrent order creates can't over-count.
+ */
+exports.meterTrialOrderOnCreate = (0, firestore_1.onDocumentCreated)("shops/{shopId}/orders/{orderId}", async (event) => {
+    const shopId = event.params.shopId;
+    if (!shopId)
+        return;
+    const subRef = db.collection("subscriptions").doc(shopId);
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(subRef);
+            if (!snap.exists)
+                return;
+            const sub = snap.data() || {};
+            if (sub.status !== "trial")
+                return; // only meter active trials
+            const rawLimit = Number(sub.trialOrderLimit);
+            const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 10;
+            const used = Number(sub.trialOrdersUsed || 0) + 1;
+            const now = admin.firestore.Timestamp.now();
+            if (used >= limit) {
+                tx.update(subRef, {
+                    trialOrdersUsed: used,
+                    status: "free",
+                    planId: "free",
+                    planName: "Free",
+                    trialExpiredAt: now,
+                    updatedAt: now,
+                });
+            }
+            else {
+                tx.update(subRef, { trialOrdersUsed: used, updatedAt: now });
+            }
+        });
+    }
+    catch (e) {
+        console.error(`meterTrialOrderOnCreate failed for shop ${shopId}:`, e);
     }
 });
 /**

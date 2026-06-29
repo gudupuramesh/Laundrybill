@@ -16,7 +16,7 @@ import { useDriverTasks } from '../hooks/use-driver-tasks';
 import { useNav } from '../lib/nav';
 import { callCustomer, navigateToAddress } from '../lib/actions';
 
-export default function PickupDetailScreen({ orderId }: { orderId: string }) {
+export default function PickupDetailScreen({ orderId, onEditOrder }: { orderId: string; onEditOrder?: (order: any) => void }) {
   const insets = useSafeAreaInsets();
   const nav = useNav();
   const { pickupTasks } = useDriverTasks();
@@ -90,7 +90,7 @@ export default function PickupDetailScreen({ orderId }: { orderId: string }) {
             </View>
             {/* Items lock once the order is picked up / delivered. */}
             {!done ? (
-              <Button label="Edit order" icon="edit" variant="tint" small onPress={() => setEditOpen(true)} />
+              <Button label="Edit order" icon="edit" variant="tint" small onPress={() => onEditOrder ? onEditOrder(task.raw) : setEditOpen(true)} />
             ) : (
               <View style={styles.lockedChip}>
                 <MaterialIcons name="lock" size={13} color={colors.textMuted} />

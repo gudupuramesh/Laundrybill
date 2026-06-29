@@ -21,7 +21,7 @@ const PAY_PILL: Record<string, { label: string; color: string }> = {
   unpaid: { label: 'Unpaid', color: colors.warning },
 };
 
-export default function DeliveryDetailScreen({ orderId }: { orderId: string }) {
+export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId: string; onEditOrder?: (order: any) => void }) {
   const insets = useSafeAreaInsets();
   const nav = useNav();
   const { deliveryTasks } = useDriverTasks();
@@ -97,6 +97,17 @@ export default function DeliveryDetailScreen({ orderId }: { orderId: string }) {
             onPress={() => navigateToAddress(task.customer.address)}
           />
         </View>
+
+        {/* Full edit — items/services/prices/delivery. Locked once delivered. */}
+        {!done && onEditOrder ? (
+          <Button
+            label="Edit order"
+            icon="edit"
+            variant="tint"
+            style={{ marginTop: 10 }}
+            onPress={() => onEditOrder(task.raw)}
+          />
+        ) : null}
 
         {done ? (
           <View style={styles.doneBox}>

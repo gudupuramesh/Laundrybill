@@ -32,10 +32,12 @@ export default function StaffListScreen({
   onBack,
   onViewStaff,
   onAddStaff,
+  canCreateLogins = false,
 }: {
   onBack: () => void;
   onViewStaff?: (id: string) => void;
   onAddStaff?: () => void;
+  canCreateLogins?: boolean; // team logins are a Pro+/Business feature — hide the "create login" toggle otherwise
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -268,19 +270,21 @@ export default function StaffListScreen({
               <Text style={s.fieldLabel}>EMAIL</Text>
               <TextInput style={s.modalInput} placeholder="Email (needed for app login)" placeholderTextColor={colors.textMuted} value={formEmail} onChangeText={setFormEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
 
-              {/* App login toggle */}
-              <View style={s.loginToggleRow}>
-                <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={s.loginToggleTitle}>Create app login?</Text>
-                  <Text style={s.loginToggleSub}>Give them access to the Staff, Agent, or Plant app via an invite code.</Text>
+              {/* App login toggle — only on plans that include team logins (Pro+/Business) */}
+              {canCreateLogins && (
+                <View style={s.loginToggleRow}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={s.loginToggleTitle}>Create app login?</Text>
+                    <Text style={s.loginToggleSub}>Give them access to the Staff, Agent, or Plant app via an invite code.</Text>
+                  </View>
+                  <Switch
+                    value={formCreateLogin}
+                    onValueChange={setFormCreateLogin}
+                    trackColor={{ true: colors.primary, false: colors.border }}
+                    thumbColor="#fff"
+                  />
                 </View>
-                <Switch
-                  value={formCreateLogin}
-                  onValueChange={setFormCreateLogin}
-                  trackColor={{ true: colors.primary, false: colors.border }}
-                  thumbColor="#fff"
-                />
-              </View>
+              )}
 
               {formCreateLogin ? (
                 <>

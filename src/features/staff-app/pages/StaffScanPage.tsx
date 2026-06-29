@@ -1,12 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useStaffAuth } from "../StaffAuthContext";
-import { LCard, LButton, LSpinner } from "@/components/laundry";
-import { Camera, Keyboard } from "lucide-react";
+import { Camera, Keyboard, Loader2 } from "lucide-react";
 import { Scanner } from "@yudiel/react-qr-scanner";
+
+const card: CSSProperties = {
+    background: "var(--c-surface)", border: "1px solid var(--c-border)",
+    borderRadius: 12, boxShadow: "var(--sh-sm)",
+};
 
 export function StaffScanPage() {
     const { t } = useTranslation();
@@ -27,17 +31,13 @@ export function StaffScanPage() {
         if (!shopId) return;
         setLoading(true);
         setError(null);
-
         try {
             const orderId = val.split(":")[0].trim();
-            const ref = doc(db, "shops", shopId, "orders", orderId);
-            const snap = await getDoc(ref);
-
+            const snap = await getDoc(doc(db, "shops", shopId, "orders", orderId));
             if (snap.exists()) {
-                // Navigate directly to details for Staff
                 navigate(`/staff/orders/${snap.id}`);
             } else {
-                setError("Order not found");
+                setError(t("orders.notFound", "Order not found"));
             }
         } catch (e: any) {
             setError(e.message);
@@ -46,42 +46,60 @@ export function StaffScanPage() {
         }
     };
 
+    const seg = (active: boolean): CSSProperties => ({
+        flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+        font: "inherit", fontSize: 13.5, fontWeight: 600, borderRadius: 9, padding: "10px 0",
+        color: active ? "#fff" : "var(--c-text-2)",
+        background: active ? "var(--c-primary)" : "var(--c-surface)",
+        border: `1px solid ${active ? "var(--c-primary)" : "var(--c-border-strong)"}`,
+    });
+
     return (
-        <div className="space-y-6 max-w-md mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold">{t('staff.scanOrder', 'Scan Order')}</h1>
-                <p className="text-muted-foreground">{t('staff.scanSubtitle', 'Lookup order for payment or edits')}</p>
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 460, margin: "0 auto" }}>
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>{t("staff.scanOrder", "Scan Order")}</div>
+                <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 3 }}>{t("staff.scanSubtitle", "Look up an order for payment or edits")}</div>
             </div>
 
-            <div className="flex gap-2">
-                <LButton variant={scanMode === "camera" ? "primary" : "outline"} onClick={() => setScanMode("camera")} className="flex-1"><Camera className="mr-2 h-4 w-4" /> {t('staff.camera', 'Camera')}</LButton>
-                <LButton variant={scanMode === "manual" ? "primary" : "outline"} onClick={() => setScanMode("manual")} className="flex-1"><Keyboard className="mr-2 h-4 w-4" /> {t('staff.manual', 'Manual')}</LButton>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <button style={seg(scanMode === "camera")} onClick={() => setScanMode("camera")}><Camera size={16} /> {t("staff.camera", "Camera")}</button>
+                <button style={seg(scanMode === "manual")} onClick={() => setScanMode("manual")}><Keyboard size={16} /> {t("staff.manual", "Manual")}</button>
             </div>
 
-            <LCard className="p-4 min-h-[300px] flex flex-col items-center justify-center">
+            <div style={{ ...card, padding: 16 }}>
                 {scanMode === "camera" ? (
-                    <div className="w-full aspect-square bg-black rounded-lg overflow-hidden relative">
+                    <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#000", borderRadius: 10, overflow: "hidden", position: "relative" }}>
                         <Scanner
-                            onScan={r => r?.[0]?.rawValue && lookupOrder(r[0].rawValue)}
+                            onScan={(r) => r?.[0]?.rawValue && lookupOrder(r[0].rawValue)}
                             styles={{ container: { width: "100%", height: "100%" } }}
                         />
-                        {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><LSpinner /></div>}
+                        {loading && (
+                            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Loader2 size={28} color="#fff" className="animate-spin" />
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    <div className="w-full gap-2 flex">
+                    <div style={{ display: "flex", gap: 8 }}>
                         <input
                             ref={inputRef}
-                            className="flex-1 border rounded px-3"
-                            placeholder={t('orders.orderId', 'Order ID')}
                             value={scanInput}
-                            onChange={e => setScanInput(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && lookupOrder(scanInput)}
+                            onChange={(e) => setScanInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && lookupOrder(scanInput)}
+                            placeholder={t("orders.orderId", "Order ID")}
+                            style={{ flex: 1, font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 9, padding: "11px 13px", outline: "none" }}
                         />
-                        <LButton onClick={() => lookupOrder(scanInput)} disabled={loading}>{t('common.go', 'Go')}</LButton>
+                        <button
+                            onClick={() => lookupOrder(scanInput)}
+                            disabled={loading}
+                            style={{ cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "0 20px", opacity: loading ? 0.6 : 1 }}
+                        >
+                            {t("common.go", "Go")}
+                        </button>
                     </div>
                 )}
-                {error && <p className="text-destructive mt-4 font-bold">{error}</p>}
-            </LCard>
+                {error && <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: "var(--c-error)", textAlign: "center" }}>{error}</div>}
+            </div>
         </div>
     );
 }

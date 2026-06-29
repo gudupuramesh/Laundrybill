@@ -1,24 +1,16 @@
 /**
- * Today Page - Driver Dashboard
- * 
- * The main dashboard for delivery agents showing:
- * - Quick stats (pickups, deliveries, collected)
- * - Next task card with quick actions
- * - Quick links to task lists
+ * Today Page — Driver Dashboard, built to the Enterprise Laundry CRM design system
+ * (--c-* tokens, IBM Plex Mono). Shows the agent's day:
+ * - KPI tiles (pickups, deliveries, collected)
+ * - Next task card with quick actions (call / navigate)
+ * - Pending tasks queue
  */
 
+import { type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useDriverAuth } from "../DriverAuthContext";
 import { useNavigate } from "react-router-dom";
-import {
-    LCard,
-    LButton,
-    LStatCard,
-    LBadge,
-    LSpinner,
-    LEmptyState,
-} from "@/components/laundry";
-import { PageWrapper } from "@/components/PageWrapper";
+import { LEmptyState } from "@/components/laundry";
 import { useDriverTasks } from "../hooks/use-driver-tasks";
 import {
     MapPin,
@@ -30,6 +22,7 @@ import {
     Package,
     Clock,
     CheckCircle2,
+    Loader2,
 } from "lucide-react";
 import { useCurrencyByShopId } from "@/hooks/use-currency";
 
@@ -48,117 +41,127 @@ export function TodayPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <LSpinner size="lg" />
+            <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Loader2 className="animate-spin" size={28} style={{ color: "var(--c-primary)" }} />
             </div>
         );
     }
 
+    const pendingTasks = tasks.filter(t => t.status === "pending");
+
+    const kpis = [
+        {
+            label: t("agent.pickups", "Pickups"),
+            value: `${todayStats.pickups.completed}/${todayStats.pickups.total}`,
+            soft: "c-success-soft", ref: "c-success",
+            icon: <MapPin size={15} />,
+            to: "/agent/pickups",
+        },
+        {
+            label: t("agent.deliveries", "Deliveries"),
+            value: `${todayStats.deliveries.completed}/${todayStats.deliveries.total}`,
+            soft: "c-primary-soft", ref: "c-primary",
+            icon: <Truck size={15} />,
+            to: "/agent/deliveries",
+        },
+        {
+            label: t("agent.collected", "Collected"),
+            value: formatAmount(todayStats.collected),
+            soft: "c-warning-soft", ref: "c-warning",
+            icon: <IndianRupee size={15} />,
+            to: undefined,
+        },
+    ];
+
     return (
-        <PageWrapper maxWidth="lg">
-            {/* Welcome Header */}
-            <div className="mb-6">
-                <p className="text-sm text-muted-foreground">{t("agent.welcome", "Welcome back")}</p>
-                <h1 className="text-2xl font-bold text-foreground">{agent?.name || "Agent"}</h1>
+        <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px", maxWidth: 720, margin: "0 auto" }}>
+
+            {/* ===== Welcome header ===== */}
+            <div style={{ marginBottom: 18 }}>
+                <p style={{ fontSize: 13, color: "var(--c-text-3)", margin: 0 }}>{t("agent.welcome", "Welcome back")}</p>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--c-text)", margin: "2px 0 0" }}>{agent?.name || "Agent"}</h1>
                 {!isOnline && (
-                    <LBadge variant="warning" size="md" className="mt-2">
-                        <Clock className="h-3 w-3 mr-1" />
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: "var(--c-warning-soft)", color: "var(--c-warning)" }}>
+                        <Clock size={13} />
                         {t("agent.offlineHint", "Go online to receive tasks")}
-                    </LBadge>
+                    </span>
                 )}
             </div>
 
-            {/* Stats Cards - Using LStatCard */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-                <LStatCard
-                    title={t("agent.pickups", "Pickups")}
-                    value={`${todayStats.pickups.completed}/${todayStats.pickups.total}`}
-                    icon={<MapPin className="h-5 w-5" />}
-                    variant="success"
-                    onClick={() => navigate("/agent/pickups")}
-                />
-                <LStatCard
-                    title={t("agent.deliveries", "Deliveries")}
-                    value={`${todayStats.deliveries.completed}/${todayStats.deliveries.total}`}
-                    icon={<Truck className="h-5 w-5" />}
-                    variant="primary"
-                    onClick={() => navigate("/agent/deliveries")}
-                />
-                <LStatCard
-                    title={t("agent.collected", "Collected")}
-                    value={formatAmount(todayStats.collected)}
-                    icon={<IndianRupee className="h-5 w-5" />}
-                    variant="warning"
-                />
+            {/* ===== KPI tiles ===== */}
+            <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 22 }}>
+                {kpis.map((k) => (
+                    <div
+                        key={k.label}
+                        onClick={k.to ? () => navigate(k.to as string) : undefined}
+                        style={{ ...card, padding: "15px 16px", cursor: k.to ? "pointer" : "default" }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <ChipIcon soft={k.soft} refColor={k.ref}>{k.icon}</ChipIcon>
+                            <span style={{ fontSize: 11.5, color: "var(--c-text-3)", fontWeight: 500 }}>{k.label}</span>
+                        </div>
+                        <div style={{ fontFamily: MONO, fontWeight: 600, fontSize: 25, letterSpacing: "-.02em", marginTop: 11 }}>{k.value}</div>
+                    </div>
+                ))}
             </div>
 
-            {/* Next Task Section */}
-            <div className="mb-6">
-                <h2 className="text-lg font-semibold text-foreground mb-3">
+            {/* ===== Next task ===== */}
+            <div style={{ marginBottom: 24 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--c-text)", margin: "0 0 12px" }}>
                     {t("agent.nextTask", "Next Task")}
                 </h2>
 
                 {nextTask ? (
-                    <LCard
-                        variant="outlined"
-                        padding="md"
-                        interactive
+                    <div
                         onClick={() => navigate(`/agent/${nextTask.type}s/${nextTask.orderId}`)}
-                        className="border-l-4 border-l-primary"
+                        style={{ ...card, padding: 16, cursor: "pointer", borderLeft: `4px solid ${nextTask.type === "pickup" ? "var(--c-success)" : "var(--c-primary)"}` }}
                     >
-                        <div className="flex items-start justify-between mb-3">
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <LBadge
-                                        variant={nextTask.type === "pickup" ? "success" : "default"}
-                                        size="sm"
-                                    >
-                                        {nextTask.type.toUpperCase()}
-                                    </LBadge>
-                                    <span className="font-bold text-foreground">#{nextTask.orderPublicId}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {taskPill(nextTask.type, t)}
+                                    <span style={{ fontFamily: MONO, fontWeight: 700, color: "var(--c-text)" }}>#{nextTask.orderPublicId}</span>
                                 </div>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                    <Clock className="h-3 w-3 inline mr-1" />
+                                <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "var(--c-text-3)", margin: "8px 0 0" }}>
+                                    <Clock size={13} />
                                     {nextTask.timeSlot
                                         ? `${nextTask.timeSlot.start} - ${nextTask.timeSlot.end}`
                                         : nextTask.scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                                     }
                                 </p>
                             </div>
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            <ChevronRight size={20} style={{ color: "var(--c-text-3)", flex: "none" }} />
                         </div>
 
-                        <p className="font-medium text-foreground">{nextTask.customer.name}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1">
+                        <p style={{ fontWeight: 600, color: "var(--c-text)", margin: 0 }}>{nextTask.customer.name}</p>
+                        <p style={{ fontSize: 13, color: "var(--c-text-3)", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {nextTask.customer.address}
                         </p>
 
                         {/* Quick Actions */}
-                        <div className="flex gap-2 mt-4">
-                            <LButton
-                                variant="outline"
-                                size="sm"
-                                leftIcon={<Phone className="h-4 w-4" />}
+                        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                            <button
+                                type="button"
+                                style={btnOutline}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     window.open(`tel:${nextTask.customer.phone}`);
                                 }}
                             >
-                                {t("common.call", "Call")}
-                            </LButton>
-                            <LButton
-                                variant="secondary"
-                                size="sm"
-                                leftIcon={<Navigation className="h-4 w-4" />}
+                                <Phone size={16} />{t("common.call", "Call")}
+                            </button>
+                            <button
+                                type="button"
+                                style={btnPrimary}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     window.open(`https://maps.google.com/?q=${encodeURIComponent(nextTask.customer.address)}`);
                                 }}
                             >
-                                {t("agent.navigate", "Navigate")}
-                            </LButton>
+                                <Navigation size={16} />{t("agent.navigate", "Navigate")}
+                            </button>
                         </div>
-                    </LCard>
+                    </div>
                 ) : (
                     <LEmptyState
                         icon={<Package className="h-12 w-12 text-muted-foreground" />}
@@ -168,52 +171,43 @@ export function TodayPage() {
                 )}
             </div>
 
-            {/* Pending Tasks Queue */}
-            <h2 className="text-lg font-semibold text-foreground mb-3 flex justify-between items-center">
+            {/* ===== Pending tasks queue ===== */}
+            <h2 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 16, fontWeight: 600, color: "var(--c-text)", margin: "0 0 12px" }}>
                 <span>{t("agent.tasks", "Pending Tasks")}</span>
-                <span className="text-sm font-normal text-muted-foreground">
-                    {tasks.filter(t => t.status === "pending").length} {t("common.total")}
+                <span style={{ fontSize: 13, fontWeight: 400, color: "var(--c-text-3)" }}>
+                    {pendingTasks.length} {t("common.total")}
                 </span>
             </h2>
 
-            {tasks.filter(t => t.status === "pending").length === 0 ? (
+            {pendingTasks.length === 0 ? (
                 <LEmptyState
                     icon={<CheckCircle2 className="h-12 w-12 text-muted-foreground" />}
                     title={t("agent.allCaughtUp", "All caught up!")}
                     description={t("agent.noPendingTasks", "You have no pending tasks right now.")}
                 />
             ) : (
-                <div className="space-y-3 pb-20">
-                    {tasks.filter(t => t.status === "pending").map((task) => (
-                        <LCard
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingBottom: 80 }}>
+                    {pendingTasks.map((task) => (
+                        <div
                             key={task.id}
-                            variant="outlined"
-                            padding="md"
-                            interactive
                             onClick={() => navigate(`/agent/${task.type}s/${task.orderId}`)}
-                            className={`border-l-4 ${task.type === 'pickup' ? 'border-l-success' : 'border-l-primary'}`}
+                            style={{ ...card, padding: 16, cursor: "pointer", borderLeft: `4px solid ${task.type === "pickup" ? "var(--c-success)" : "var(--c-primary)"}` }}
                         >
-                            <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    <LBadge variant={task.type === "pickup" ? "success" : "default"} size="sm">
-                                        {task.type === "pickup" ? (
-                                            <><MapPin className="h-3 w-3 mr-1" />{t("agent.pickup", "PICKUP")}</>
-                                        ) : (
-                                            <><Truck className="h-3 w-3 mr-1" />{t("agent.delivery", "DELIVERY")}</>
-                                        )}
-                                    </LBadge>
-                                    <span className="font-bold text-foreground">#{task.orderPublicId}</span>
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {taskPill(task.type, t)}
+                                    <span style={{ fontFamily: MONO, fontWeight: 700, color: "var(--c-text)" }}>#{task.orderPublicId}</span>
                                 </div>
-                                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                <ChevronRight size={20} style={{ color: "var(--c-text-3)", flex: "none" }} />
                             </div>
 
-                            <p className="font-medium text-foreground">{task.customer.name}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1 mb-2">
+                            <p style={{ fontWeight: 600, color: "var(--c-text)", margin: 0 }}>{task.customer.name}</p>
+                            <p style={{ fontSize: 13, color: "var(--c-text-3)", margin: "2px 0 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {task.customer.address}
                             </p>
 
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Clock className="h-3 w-3" />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--c-text-3)" }}>
+                                <Clock size={13} />
                                 <span>
                                     {task.timeSlot
                                         ? `${task.timeSlot.start} - ${task.timeSlot.end}`
@@ -224,10 +218,37 @@ export function TodayPage() {
                                     <span>• {task.scheduledDate.toLocaleDateString()}</span>
                                 )}
                             </div>
-                        </LCard>
+                        </div>
                     ))}
                 </div>
             )}
-        </PageWrapper>
+        </div>
+    );
+}
+
+/* ===== helpers (design-system primitives) ===== */
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+const card: CSSProperties = {
+    background: "var(--c-surface)", border: "1px solid var(--c-border)",
+    borderRadius: 12, boxShadow: "var(--sh-sm)",
+};
+const btnPrimary: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "10px 16px", boxShadow: "var(--sh-sm)" };
+const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 9, padding: "10px 16px" };
+
+function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) {
+    return <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${soft})`, color: `var(--${refColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</span>;
+}
+
+// Task-type status pill (pickup → success, delivery → primary)
+function taskPill(type: "pickup" | "delivery", t: ReturnType<typeof useTranslation>["t"]) {
+    const isPickup = type === "pickup";
+    const soft = isPickup ? "var(--c-success-soft)" : "var(--c-primary-soft)";
+    const ref = isPickup ? "var(--c-success)" : "var(--c-primary)";
+    const label = isPickup ? t("agent.pickup", "PICKUP") : t("agent.delivery", "DELIVERY");
+    return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: soft, color: ref }}>
+            {isPickup ? <MapPin size={11} /> : <Truck size={11} />}
+            {label}
+        </span>
     );
 }

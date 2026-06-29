@@ -10,8 +10,9 @@ const plan_normalize_1 = require("../lib/plan-normalize");
 const TRIAL_CONFIG_DOC = "subscription";
 const DEFAULT_TRIAL_DAYS = 14;
 const DEFAULT_TRIAL_PLAN_ID = "pro";
+const DEFAULT_TRIAL_ORDER_LIMIT = 10;
 function getTrialPlanName(planId) {
-    return (0, plan_normalize_1.normalizePlanId)(planId) === "pro" ? "Pro" : "Free";
+    return (0, plan_normalize_1.planDisplayName)(planId);
 }
 exports.getTrialPlanName = getTrialPlanName;
 /**
@@ -26,6 +27,7 @@ async function getTrialConfig() {
             return {
                 trialDurationDays: DEFAULT_TRIAL_DAYS,
                 trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+                trialOrderLimit: DEFAULT_TRIAL_ORDER_LIMIT,
             };
         }
         const data = doc.data();
@@ -37,9 +39,14 @@ async function getTrialConfig() {
         if (days <= 0)
             days = DEFAULT_TRIAL_DAYS;
         days = Math.min(days, 365);
+        const rawOrderLimit = Number(data === null || data === void 0 ? void 0 : data.trialOrderLimit);
+        const trialOrderLimit = Number.isFinite(rawOrderLimit) && rawOrderLimit > 0
+            ? Math.min(Math.round(rawOrderLimit), 1000)
+            : DEFAULT_TRIAL_ORDER_LIMIT;
         return {
             trialDurationDays: days,
             trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+            trialOrderLimit,
         };
     }
     catch (e) {
@@ -47,6 +54,7 @@ async function getTrialConfig() {
         return {
             trialDurationDays: DEFAULT_TRIAL_DAYS,
             trialPlanId: DEFAULT_TRIAL_PLAN_ID,
+            trialOrderLimit: DEFAULT_TRIAL_ORDER_LIMIT,
         };
     }
 }

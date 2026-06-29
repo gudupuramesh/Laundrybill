@@ -15,6 +15,7 @@ import type { OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
 import { ClipboardList, Search, SlidersHorizontal, Plus, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderFilterSheet } from "./OrderFilterSheet";
 
 const MONO = "'IBM Plex Mono'";
@@ -69,6 +70,7 @@ interface OrdersListProps {
 
 export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const navigate = useNavigate();
     const location = useLocation();
     const { markSeen } = useContext(SeenOnlineOrdersContext);
@@ -147,16 +149,16 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     return (
         <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
             {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("orders.title", "Orders")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{orders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
                 </div>
                 <div style={{ flex: 1 }} />
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "none" }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("orders.searchOrders", "Search order, customer, phone…")}
-                        style={{ width: 240, maxWidth: "60vw", font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                        style={{ width: isMobile ? "100%" : 240, maxWidth: isMobile ? "100%" : "60vw", font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
                 <button onClick={() => setFilterSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: activeFiltersCount ? "var(--c-primary)" : "var(--c-text-2)", background: activeFiltersCount ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${activeFiltersCount ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 13px" }}>
                     <SlidersHorizontal size={15} />{t("orders.filters.title", "Filters")}{activeFiltersCount ? ` · ${activeFiltersCount}` : ""}
@@ -167,7 +169,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
             </header>
 
             {/* pipeline tabs */}
-            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
+            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: isMobile ? "10px 14px" : "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
                 {TABS.map((tb) => {
                     const on = selectedStatus === tb.key && !specialFilter;
                     return (
@@ -180,7 +182,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
             </div>
 
             {/* table */}
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "18px 22px 40px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "18px 22px 40px", minHeight: 0 }}>
                 <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
                     {loading ? (
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>

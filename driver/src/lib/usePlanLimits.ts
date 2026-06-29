@@ -40,9 +40,10 @@ const planLimitsCache = new Map<string, PlanLimits>();
 function canonicalTier(subscriptionData: any): string {
   const planId = subscriptionData?.planId || subscriptionData?.planName || 'free';
   const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
-  const isBusiness = normalized === 'business' || normalized === 'enterprise' || normalized === 'proplus' || normalized === 'premium';
-  const isPro = !isBusiness && (normalized === 'pro' || normalized === 'starter');
-  return isBusiness ? 'business' : isPro ? 'pro' : 'free';
+  const isProPlus = normalized === 'proplus' || normalized === 'pro+';
+  const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium');
+  const isPro = !isProPlus && !isBusiness && (normalized === 'pro' || normalized === 'starter');
+  return isProPlus ? 'pro_plus' : isBusiness ? 'business' : isPro ? 'pro' : 'free';
 }
 
 export function usePlanLimits(subscriptionData: any): PlanLimits {
@@ -104,5 +105,12 @@ export function usePlanLimits(subscriptionData: any): PlanLimits {
     return () => { cancelled = true; };
   }, [canonicalId]);
 
+  // Order-metered trial: keep the (Pro) plan's features/caps but show & enforce the trial
+  // order cap (default 10). The server is authoritative — it flips trial→free at the cap.
+  const isTrial = String(subscriptionData?.status || '').toLowerCase() === 'trial';
+  if (isTrial) {
+    const cap = Number(subscriptionData?.trialOrderLimit);
+    return { ...limits, maxOrders: Number.isFinite(cap) && cap > 0 ? cap : 10 };
+  }
   return limits;
 }

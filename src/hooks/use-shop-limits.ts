@@ -35,19 +35,24 @@ export function useShopLimits() {
         activeUntil &&
         activeUntil > now;
 
-    // Valid statuses that allow paid plan access (no trial — only free & pro)
+    // Trial grants the full (Pro) plan features while it lasts. The server meters the
+    // trial to N orders, then flips status to "free" — at which point this resolves to Free.
+    const isTrial = subscriptionStatus === "trial";
+
     const isActiveSubscription =
         subscriptionStatus === "active" ||
         subscriptionStatus === "grace_period" ||
         isCancelledButActive;
 
-    if (!isActiveSubscription && subscriptionStatus !== "free") {
+    const usePaidPlan = isActiveSubscription || isTrial;
+
+    if (!usePaidPlan && subscriptionStatus !== "free") {
         console.log(`Subscription status is "${subscriptionStatus}" - downgrading to free plan features`);
     }
 
     let currentPlanId: PlanType = "free";
 
-    if (isActiveSubscription) {
+    if (usePaidPlan) {
         if (shopPlanId && shopPlanId !== "free") {
             currentPlanId = shopPlanId;
         } else if (subPlanId && subPlanId !== "free") {
@@ -74,7 +79,7 @@ export function useShopLimits() {
         });
         return out;
     };
-    const plan = planFromFirestore
+    const basePlan = planFromFirestore
         ? {
             ...configPlan,
             ...planFromFirestore,
@@ -82,6 +87,12 @@ export function useShopLimits() {
             features: mergeFeatures(),
         }
         : configPlan;
+    // During an order-metered trial, surface the trial order cap so usage shows "X / N" and
+    // the POS soft-blocks at N. The server is the authoritative cap (it flips trial→free at N).
+    const trialOrderCap = Number((subscription as { trialOrderLimit?: number } | undefined)?.trialOrderLimit) || 10;
+    const plan = isTrial
+        ? { ...basePlan, limits: { ...basePlan.limits, maxOrders: trialOrderCap } }
+        : basePlan;
 
     // Feature Check
     const hasFeature = (feature: keyof PlanFeatures) => {

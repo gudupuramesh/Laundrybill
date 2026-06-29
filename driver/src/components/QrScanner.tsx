@@ -18,7 +18,7 @@ export function QrScanner({
   title,
   instruction,
   permissionTitle = 'Scan QR codes',
-  permissionBody = 'Allow camera access to scan order tags.',
+  permissionBody = 'Laundrybill needs the camera only to scan order QR tags. Scanning just reads the code — no photo or video is taken or stored.',
   onResult,
   onBack,
 }: {
@@ -59,7 +59,7 @@ export function QrScanner({
         <Text style={styles.permTitle}>{permissionTitle}</Text>
         <Text style={styles.permBody}>{permissionBody}</Text>
         <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
-          <Text style={styles.permBtnText}>Allow camera access</Text>
+          <Text style={styles.permBtnText}>Continue</Text>
         </TouchableOpacity>
       </View>
     );

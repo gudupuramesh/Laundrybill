@@ -9,6 +9,7 @@ import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
 import { LEmptyState, LPageLoader } from "@/components/laundry";
 import { useFinancialReports } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { FileDown, Printer, TrendingUp, Wallet, Receipt, Banknote, Shirt } from "lucide-react";
 import { generateReportsPDF } from "@/lib/reports-pdf-generator";
@@ -40,6 +41,7 @@ const monthLabel = (m: string) => format(new Date(Number(m.slice(0, 4)), Number(
 export function ReportsPage() {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
+    const isMobile = useIsMobile();
     const [rangeOption, setRangeOption] = useState<DateRangeOption>("thisMonth");
     const [customStart, setCustomStart] = useState<string>(format(startOfMonth(new Date()), "yyyy-MM-dd"));
     const [customEnd, setCustomEnd] = useState<string>(format(endOfMonth(new Date()), "yyyy-MM-dd"));
@@ -126,7 +128,7 @@ export function ReportsPage() {
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
                 <div><div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("reports.title", "Reports")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{periodLabel}</div></div>
                 <div style={{ flex: 1 }} />
                 <div style={{ display: "flex", gap: 6 }}>
@@ -145,9 +147,9 @@ export function ReportsPage() {
                 <button onClick={handleDownloadPDF} disabled={generatingPDF} style={{ cursor: generatingPDF ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)", opacity: generatingPDF ? 0.6 : 1 }}><FileDown size={15} />{generatingPDF ? t("common.loading", "Generating…") : t("reports.exportPdf", "Export PDF")}</button>
             </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: "20px 22px 44px", minHeight: 0 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 44px", minHeight: 0 }}>
                 {/* KPI row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
+                <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
                     {kpis.map((k) => (
                         <div key={k.label} style={card}>
                             <div style={{ display: "flex", alignItems: "center", gap: 9 }}><span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: `var(--${k.tint}-soft)`, color: `var(--${k.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{k.icon}</span><span style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{k.label}</span></div>
