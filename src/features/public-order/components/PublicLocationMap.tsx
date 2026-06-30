@@ -186,7 +186,9 @@ export function PublicLocationMap({
       >
         Use My Current Location
       </LButton>
-      <div className="rounded-lg overflow-hidden border border-border h-[200px] md:h-[260px]">
+      {/* relative z-0 isolate: contain Leaflet's high z-index panes/controls (up to 1000)
+          in their own stacking context so the map can't paint over modals/dialogs. */}
+      <div className="relative z-0 isolate rounded-lg overflow-hidden border border-border h-[200px] md:h-[260px]">
         <MapContainer
           center={displayPosition ?? DEFAULT_CENTER}
           zoom={DEFAULT_ZOOM}
