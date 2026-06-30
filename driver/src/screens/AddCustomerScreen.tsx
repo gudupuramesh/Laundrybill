@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
+import { getCountry, COUNTRIES, getCountryCodeFromPhone } from '../lib/country-config';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 
 function normalizePhone(phone: string, countryCode: string): string {
@@ -32,7 +33,19 @@ export default function AddCustomerScreen({
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const countrySettings = useShopCountrySettings(shopId);
-  const phoneDigits = Math.max(6, countrySettings.phoneDigits || 10);
+  // Phone country: defaults to the shop's country, but the owner can pick another
+  // (e.g. a US/UK customer) so the number is stored with the right country code.
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null);
+  const phoneCountryCode = pickedCountry || countrySettings.countryCode || 'IN';
+  const selectedCountry = getCountry(phoneCountryCode);
+  const phoneDigits = Math.max(6, selectedCountry.phoneDigits || 10);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+  const filteredCountries = COUNTRIES.filter((c) => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.phoneCode.toLowerCase().includes(q);
+  });
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -46,10 +59,10 @@ export default function AddCustomerScreen({
   const handleSave = async () => {
     // Validate
     const trimmedName = name.trim();
-    const trimmedPhone = normalizePhone(phone, countrySettings.countryCode);
+    const trimmedPhone = normalizePhone(phone, phoneCountryCode);
 
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
-    if (!isValidPhoneByCountry(trimmedPhone, countrySettings.countryCode, phoneDigits)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg')); return; }
+    if (!isValidPhoneByCountry(trimmedPhone, phoneCountryCode, phoneDigits)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg')); return; }
 
     if (!shopId || saving) return;
     setSaving(true);
@@ -78,7 +91,7 @@ export default function AddCustomerScreen({
       // Check for duplicate phone (both local and E.164 for selected country)
       let dupSnap = await custCollection.where('phone', '==', trimmedPhone).limit(1).get();
       if (dupSnap.empty) {
-        dupSnap = await custCollection.where('phone', '==', toE164(trimmedPhone, countrySettings)).limit(1).get();
+        dupSnap = await custCollection.where('phone', '==', toE164(trimmedPhone, { countryCode: phoneCountryCode })).limit(1).get();
       }
 
       if (!dupSnap.empty) {
@@ -95,7 +108,7 @@ export default function AddCustomerScreen({
                 onCreated?.({
                   id: dupId,
                   name: dupData.name || trimmedName,
-                  phone: dupData.phone || toE164(trimmedPhone, countrySettings),
+                  phone: dupData.phone || toE164(trimmedPhone, { countryCode: phoneCountryCode }),
                   email: dupData.email ?? null,
                   address: dupData.address ?? null,
                 });
@@ -110,7 +123,7 @@ export default function AddCustomerScreen({
 
       const customerData = {
         name: trimmedName,
-        phone: toE164(trimmedPhone, countrySettings),
+        phone: toE164(trimmedPhone, { countryCode: phoneCountryCode }),
         email: email.trim() || null,
         address: address.trim() || null,
         notes: notes.trim() || null,
@@ -174,7 +187,10 @@ export default function AddCustomerScreen({
 
             <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: colors.error }}>*</Text></Text>
             <View style={styles.phoneRow}>
-              <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>{countrySettings.phoneCountryCode || '+91'}</Text></View>
+              <TouchableOpacity style={styles.phonePrefix} onPress={() => setShowCountryPicker(true)} activeOpacity={0.7}>
+                <Text style={styles.phonePrefixText}>{selectedCountry.phoneCode}</Text>
+                <MaterialIcons name="expand-more" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 value={phone}
@@ -238,6 +254,40 @@ export default function AddCustomerScreen({
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Country code picker */}
+      <Modal visible={showCountryPicker} transparent animationType="fade" onRequestClose={() => setShowCountryPicker(false)}>
+        <Pressable style={styles.modalDismiss} onPress={() => setShowCountryPicker(false)} />
+        <View style={[styles.countryPickerSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>{t('mobile.selectCountry', 'Select country')}</Text>
+          <TextInput
+            style={styles.countrySearchInput}
+            placeholder={t('mobile.searchCountry', 'Search country / dial code')}
+            placeholderTextColor={colors.textMuted}
+            value={countrySearch}
+            onChangeText={setCountrySearch}
+            autoCapitalize="none"
+          />
+          <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+            {filteredCountries.map((c) => (
+              <TouchableOpacity
+                key={c.code}
+                style={[styles.countryOption, c.code === phoneCountryCode && styles.countryOptionActive]}
+                onPress={() => {
+                  setPickedCountry(c.code);
+                  setPhone((prev) => normalizePhone(prev, c.code));
+                  setCountrySearch('');
+                  setShowCountryPicker(false);
+                }}
+              >
+                <Text style={styles.countryOptionText}>{c.name}</Text>
+                <Text style={styles.countryOptionCode}>{c.phoneCode}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -262,10 +312,22 @@ const styles = StyleSheet.create({
   },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phonePrefix: {
-    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: colors.surfaceMuted, borderRadius: radii.input, paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1, borderColor: colors.border,
   },
   phonePrefixText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary },
+
+  // Country code picker
+  modalDismiss: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text, marginBottom: 12 },
+  countryPickerSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  countrySearchInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: fonts.medium, color: colors.text, marginBottom: 10 },
+  countryOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12, borderRadius: radii.input },
+  countryOptionActive: { backgroundColor: colors.primaryTint },
+  countryOptionText: { fontSize: 14, fontFamily: fonts.medium, color: colors.text, flex: 1 },
+  countryOptionCode: { fontSize: 14, fontFamily: fonts.semibold, color: colors.textSecondary, marginLeft: 12 },
 
   // Save
   saveBtn: {

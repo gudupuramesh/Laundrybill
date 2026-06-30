@@ -11,7 +11,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { formatCurrency } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
-import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
+import { normalizePhoneForCountry, toE164, buildWhatsAppNumber } from '../lib/currency-format';
 import { colors, fonts, radii, shadows } from '../theme';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -188,8 +188,7 @@ export default function CustomerDetailScreen({
 
   const handleWhatsApp = () => {
     if (!phone) return;
-    const p = phone.replace(/\D/g, '');
-    const wa = toE164(normalizePhoneForCountry(p, countrySettings), countrySettings).replace(/\D/g, '');
+    const wa = buildWhatsAppNumber(phone, countrySettings);
     Linking.openURL(`https://wa.me/${wa}`).catch(() => {});
   };
 
