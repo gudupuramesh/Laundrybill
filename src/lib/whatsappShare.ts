@@ -7,7 +7,28 @@
 import type { Order } from "@/types/order";
 import type { Shop } from "@/types/shop";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
+import { getCountry, getCountryByCurrency } from "@/config/countries";
 import { format } from "date-fns";
+
+/**
+ * Build a wa.me-ready phone number (digits only) with the correct country code.
+ * Numbers stored with a country code (e.g. "+971501234567") are used as-is; a bare
+ * local number gets the SHOP's dial code (from settings.countryCode / phoneCountryCode
+ * / currency) — never a hardcoded +91.
+ */
+function buildWaPhone(rawPhone: string, shop?: Shop): string {
+    const digits = (rawPhone || "").replace(/[^0-9]/g, "");
+    if (!digits) return "";
+    const country = shop?.settings?.countryCode
+        ? getCountry(shop.settings.countryCode)
+        : getCountryByCurrency(shop?.settings?.currency || "INR");
+    const dialDigits = (shop?.settings?.phoneCountryCode || country.phoneCode || "+91").replace(/\D/g, "");
+    const localLen = country.phoneDigits || 10;
+    // Already includes a country code (stored as +<cc><number>) → use as-is.
+    if (digits.length > localLen) return digits;
+    // Bare local number → prepend the shop's dial code.
+    return dialDigits + digits;
+}
 
 const DELIVERY_TYPE_LABELS: Record<string, string> = {
     pickup_store: "Shop Pickup",
@@ -115,14 +136,12 @@ export async function shareReceiptViaWhatsApp({
     onStart?.();
 
     try {
-        // Get customer phone number
-        const phoneNumber = order.customerPhone.replace(/[^0-9]/g, "");
+        // Get customer phone number with the shop's country code
+        const fullPhone = buildWaPhone(order.customerPhone, shop);
 
-        if (!phoneNumber) {
+        if (!fullPhone) {
             throw new Error("Customer phone number is required for WhatsApp sharing");
         }
-
-        const fullPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
 
         // Generate WhatsApp message with tracking and receipt links
         const whatsappMessage = generateOrderWhatsAppMessage(order, shop, currencySymbol);
@@ -144,8 +163,7 @@ export async function shareReceiptViaWhatsApp({
  */
 export function openWhatsAppTextOnly(order: Order, shop?: Shop, currencySymbol: string = "₹"): void {
     const whatsappMessage = generateOrderWhatsAppMessage(order, shop, currencySymbol);
-    const phoneNumber = order.customerPhone.replace(/[^0-9]/g, "");
-    const fullPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+    const fullPhone = buildWaPhone(order.customerPhone, shop);
     const whatsappUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(whatsappMessage)}`;
     window.open(whatsappUrl, "_blank");
 }
