@@ -227,9 +227,9 @@ export function PublicTrackingPage() {
     const currentStep = getStepIndex(data.status);
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen" style={{ background: "var(--c-bg)" }}>
             {/* Header with Status */}
-            <header className={`${statusInfo.bgColor} text-white p-6 pb-16`}>
+            <header className="text-white p-6 pb-16" style={{ background: "linear-gradient(180deg, var(--c-primary), #11338E)" }}>
                 <div className="max-w-md mx-auto">
                     <button
                         onClick={() => navigate("/track")}
@@ -585,7 +585,7 @@ export function PublicTrackingPage() {
                                     const Icon = config.icon;
                                     return (
                                         <div key={index} className="flex items-start gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${index === 0 ? config.bgColor + " text-white" : "bg-muted"
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${index === 0 ? "bg-primary text-white" : "bg-muted"
                                                 }`}>
                                                 <Icon className="h-4 w-4" />
                                             </div>
