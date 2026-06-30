@@ -11,10 +11,13 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePlans, filterActivePlans } from "@/features/super-admin/hooks/use-plans";
 import { useShopSubscription } from "@/hooks/use-shop-subscription";
+import { useShop } from "@/hooks/use-shop";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizePlanId, type Plan, type PlanType } from "@/types/plans";
-import { LSpinner } from "@/components/laundry";
+import { LSpinner, useLToast } from "@/components/laundry";
+import { useAuth } from "@/features/auth/AuthContext";
+import { startRazorpaySubscription } from "@/lib/razorpay-checkout";
 import { format } from "date-fns";
 import {
     CreditCard,
@@ -42,10 +45,12 @@ const PLAN_ICON: Record<PlanType, typeof Sparkles> = {
 
 type Cycle = "monthly" | "yearly";
 
-const priceOf = (plan: Plan, cycle: Cycle): number =>
-    cycle === "yearly"
-        ? plan.prices.yearly || Math.round(plan.prices.monthly * 12 * 0.8)
-        : plan.prices.monthly;
+const priceOf = (plan: Plan, cycle: Cycle, intl: boolean): number => {
+    const src = intl && plan.pricesIntl ? plan.pricesIntl : plan.prices;
+    return cycle === "yearly"
+        ? src.yearly || Math.round(src.monthly * 12 * 0.8)
+        : src.monthly;
+};
 
 const numLimit = (v: number): string => (v === -1 ? "Unlimited" : String(v));
 
@@ -55,8 +60,44 @@ export function SubscriptionPage() {
     const { subscription, loading: subLoading } = useShopSubscription();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
+    const { user, shopId } = useAuth();
+    const { shop } = useShop();
+    const { addToast } = useLToast();
+
+    // International shops (countryCode != IN) are charged the higher INR tier.
+    const isIntl = String(shop?.settings?.countryCode || "IN").toUpperCase() !== "IN";
 
     const [cycle, setCycle] = useState<Cycle>("monthly");
+    const [subscribing, setSubscribing] = useState<PlanType | null>(null);
+
+    // Pro+ / Business are charged on the web via Razorpay (recurring monthly).
+    const handleSubscribe = async (plan: Plan) => {
+        const pid = normalizePlanId(plan.id);
+        if (pid !== "pro_plus" && pid !== "business") return;
+        if (!shopId) {
+            addToast({ type: "error", title: "Not ready", description: "Your shop isn't loaded yet — please retry in a moment." });
+            return;
+        }
+        setSubscribing(pid);
+        try {
+            const result = await startRazorpaySubscription({
+                shopId,
+                planId: pid,
+                planName: plan.name,
+                email: user?.email || undefined,
+                contact: user?.phone || undefined,
+            });
+            if (result.ok) {
+                addToast({ type: "success", title: `${plan.name} activated`, description: "Your subscription is active. It renews automatically every month." });
+            } else if (!result.dismissed) {
+                addToast({ type: "error", title: "Subscription failed", description: result.error });
+            }
+        } catch (e) {
+            addToast({ type: "error", title: "Subscription failed", description: (e as Error)?.message || "Please try again." });
+        } finally {
+            setSubscribing(null);
+        }
+    };
 
     // Pro+ and Business are sales-assisted (contact-only) — no in-app price/purchase.
     const [waNumber, setWaNumber] = useState("919876543210");
@@ -330,7 +371,7 @@ export function SubscriptionPage() {
                                 </div>
                                 <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 4 }}>
                                     <span style={{ fontSize: 22, fontWeight: 700, fontFamily: MONO }}>
-                                        {formatAmount(currentPlan ? priceOf(currentPlan, cycle) : 0)}
+                                        {formatAmount(currentPlan ? priceOf(currentPlan, cycle, isIntl) : 0)}
                                     </span>
                                     <span style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)" }}>
                                         / {cycle === "yearly" ? "yr" : "mo"}
@@ -405,10 +446,10 @@ export function SubscriptionPage() {
                             <Smartphone size={17} />
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)" }}>Upgrades happen in the app</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)" }}>How billing works</div>
                             <div style={{ fontSize: 12, color: "var(--c-text-2)", marginTop: 1 }}>
-                                Billing runs through Google Play or the App Store. Open Subscription in the LaundryBill mobile app to
-                                purchase or change a plan.
+                                The <strong>Pro</strong> plan is purchased in the LaundryBill mobile app (Google Play / App Store).
+                                <strong> Pro+</strong> and <strong>Business</strong> subscribe right here on the web — billed automatically every month.
                             </div>
                         </div>
                         <div style={{ display: "flex", gap: 8, flex: "none", width: isMobile ? "100%" : undefined }}>
@@ -485,18 +526,12 @@ export function SubscriptionPage() {
                                             </span>
                                             <div style={{ fontSize: 17, fontWeight: 700, marginTop: 12 }}>{plan.name}</div>
                                             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 6 }}>
-                                                {contactOnly ? (
-                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>Contact us</span>
-                                                ) : (
-                                                    <>
-                                                        <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
-                                                            {formatAmount(priceOf(plan, cycle))}
-                                                        </span>
-                                                        <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
-                                                            / {cycle === "yearly" ? "yr" : "mo"}
-                                                        </span>
-                                                    </>
-                                                )}
+                                                <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
+                                                    {formatAmount(priceOf(plan, cycle, isIntl))}
+                                                </span>
+                                                <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
+                                                    / {cycle === "yearly" ? "yr" : "mo"}
+                                                </span>
                                             </div>
                                             <div
                                                 style={{
@@ -557,30 +592,52 @@ export function SubscriptionPage() {
                                                 </div>
                                             ) : contactOnly ? (
                                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                    <button
+                                                        onClick={() => handleSubscribe(plan)}
+                                                        disabled={subscribing !== null}
+                                                        style={{
+                                                            width: "100%",
+                                                            cursor: subscribing !== null ? "default" : "pointer",
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            gap: 8,
+                                                            font: "inherit",
+                                                            fontSize: 13.5,
+                                                            fontWeight: 700,
+                                                            color: "#fff",
+                                                            background: "var(--c-primary)",
+                                                            border: 0,
+                                                            borderRadius: 10,
+                                                            padding: "11px 0",
+                                                            boxShadow: "var(--sh-sm)",
+                                                            opacity: subscribing !== null && subscribing !== id ? 0.6 : 1,
+                                                        }}
+                                                    >
+                                                        {subscribing === id ? (
+                                                            <>
+                                                                <LSpinner size="sm" /> Opening checkout…
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <CreditCard size={15} /> Subscribe · {formatAmount(priceOf(plan, "monthly", isIntl))}/mo
+                                                            </>
+                                                        )}
+                                                    </button>
                                                     <a
                                                         href={contactHref(plan.name)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         style={{
-                                                            width: "100%",
+                                                            fontSize: 11,
+                                                            color: "var(--c-text-3)",
                                                             textAlign: "center",
-                                                            cursor: "pointer",
-                                                            font: "inherit",
-                                                            fontSize: 13.5,
-                                                            fontWeight: 700,
-                                                            color: "#fff",
-                                                            background: "var(--c-success)",
-                                                            borderRadius: 10,
-                                                            padding: "11px 0",
+                                                            lineHeight: 1.4,
                                                             textDecoration: "none",
-                                                            boxShadow: "var(--sh-sm)",
                                                         }}
                                                     >
-                                                        Contact on WhatsApp
+                                                        Auto-renews monthly · cancel anytime. Need help? Chat on WhatsApp
                                                     </a>
-                                                    <div style={{ fontSize: 11, color: "var(--c-text-3)", textAlign: "center", lineHeight: 1.4 }}>
-                                                        Includes POS setup, staff training &amp; guided onboarding
-                                                    </div>
                                                 </div>
                                             ) : (
                                                 <button
@@ -634,12 +691,11 @@ export function SubscriptionPage() {
                                         {visiblePlans.map((p) => {
                                             const pid = normalizePlanId(p.id);
                                             const isCurrent = pid === currentPlanId;
-                                            const pContactOnly = pid === "pro_plus" || pid === "business";
                                             return (
                                                 <th key={p.id} style={{ ...th, textAlign: "center", color: isCurrent ? "var(--c-primary)" : "var(--c-text-2)" }}>
                                                     {p.name}
                                                     <div style={{ fontWeight: 600, fontSize: 11, color: "var(--c-text-3)", marginTop: 2, fontFamily: MONO, textTransform: "none", letterSpacing: 0 }}>
-                                                        {pContactOnly ? "Contact us" : `${formatAmount(priceOf(p, cycle))}/${cycle === "yearly" ? "yr" : "mo"}`}
+                                                        {`${formatAmount(priceOf(p, cycle, isIntl))}/${cycle === "yearly" ? "yr" : "mo"}`}
                                                     </div>
                                                 </th>
                                             );

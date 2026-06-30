@@ -80,6 +80,11 @@ export interface Plan {
         monthly: number;
         yearly: number;
     };
+    /** Prices charged to non-India shops (still in INR; their bank converts). Falls back to `prices`. */
+    pricesIntl?: {
+        monthly: number;
+        yearly: number;
+    };
     features: PlanFeatures;
     limits: PlanLimits;
     apps: AppType[];

@@ -6,13 +6,17 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../lib/secrets";
+import { rzpCancelSubscription } from "../services/razorpay";
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
 const db = admin.firestore();
 
-export const cancelSubscriptionAtPeriodEnd = onCall(async (request) => {
+export const cancelSubscriptionAtPeriodEnd = onCall(
+    { secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] },
+    async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "You must be signed in to cancel.");
     }
@@ -60,6 +64,17 @@ export const cancelSubscriptionAtPeriodEnd = onCall(async (request) => {
             activeUntil,
             updatedAt: now,
         });
+
+        // For Razorpay subscriptions, also cancel the recurring mandate at cycle end so
+        // no further monthly charge is taken. (Store subs are managed in the store.)
+        if (subData?.provider === "razorpay" && subData?.providerRef) {
+            try {
+                await rzpCancelSubscription(subData.providerRef, true);
+            } catch (e) {
+                // Don't fail the user's cancel if Razorpay errors — the webhook will reconcile.
+                console.error("Razorpay cancel failed (Firestore already marked cancelled):", e);
+            }
+        }
 
         const activeUntilDate = activeUntil?.toDate?.();
         return {

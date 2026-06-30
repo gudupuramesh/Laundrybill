@@ -552,6 +552,10 @@ __exportStar(require("./requests/verify-apple-purchase"), exports);
 __exportStar(require("./requests/verify-google-purchase"), exports);
 __exportStar(require("./requests/sync-revenuecat-subscription"), exports);
 __exportStar(require("./requests/revenuecat-webhook"), exports);
+// Razorpay recurring subscriptions (web) — Pro+ / Business
+__exportStar(require("./requests/create-razorpay-subscription"), exports);
+__exportStar(require("./requests/verify-razorpay-payment"), exports);
+__exportStar(require("./requests/razorpay-webhook"), exports);
 // Push notifications (scheduled + admin callable)
 __exportStar(require("./scheduled/push-notifications"), exports);
 //# sourceMappingURL=index.js.map

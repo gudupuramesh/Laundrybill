@@ -6,11 +6,13 @@
  *   Pro      — Small laundry shops (staff, attendance, expenses, reports)
  *   Business — Big shops & entrepreneurs (plant, driver, multi-staff, public page, web login)
  *
- * Platform-specific pricing (actual prices come from RevenueCat → store):
- *   Android (Google Play) — Pro: ₹299/mo, Business: ₹1,299/mo  (LIVE with real users)
- *   iOS (App Store)       — Pro: ₹499/mo, Business: ₹1,499/mo
+ * Pricing:
+ *   Pro      — app stores (RevenueCat): Android ₹299/mo, iOS ₹499/mo  (LIVE)
+ *   Pro+     — web (Razorpay recurring): ₹799/mo
+ *   Business — web (Razorpay recurring): ₹1,999/mo
  *
- * The prices below are the Android (base) prices shown on the web dashboard.
+ * NOTE: the live displayed prices come from Firestore `plans/{id}` (super-admin);
+ * the values below are the code fallback and must be kept in sync with Firestore.
  */
 
 import type { Plan, PlanType, PlanFeatures } from "@/types/plans";
@@ -103,7 +105,8 @@ export const PLANS: Record<PlanType, Plan> = {
         name: "Pro+",
         description: "For single shops that need a team — staff, agent & plant logins plus public booking",
         badge: "Most Powerful",
-        prices: { monthly: 999, yearly: 9990 },
+        prices: { monthly: 799, yearly: 7990 },
+        pricesIntl: { monthly: 1299, yearly: 12990 },
         features: {
             ...BASE_FEATURES,
             orderTracking: true,
@@ -142,7 +145,8 @@ export const PLANS: Record<PlanType, Plan> = {
         name: "Business",
         description: "Scale with plant processing, drivers, multi-staff & public bookings",
         badge: "Enterprise",
-        prices: { monthly: 1299, yearly: 12999 },
+        prices: { monthly: 1999, yearly: 19990 },
+        pricesIntl: { monthly: 2999, yearly: 29990 },
         features: {
             ...BASE_FEATURES,
             orderTracking: true,
