@@ -1695,6 +1695,8 @@
     "referencePlaceholder": "Reference / Transaction ID",
     "collectBtn": "Collect ₹{{amount}}",
     "qrCodeModalTitle": "QR Codes",
+    "tagStyleQr": "QR code",
+    "tagStyleBarcode": "Barcode",
     "qrTabOrder": "Order / Basket",
     "qrTabItems": "Item Tags ({{count}})",
     "qrScanHint": "Scan to identify this order basket",

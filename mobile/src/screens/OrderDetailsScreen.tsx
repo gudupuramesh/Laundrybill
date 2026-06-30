@@ -123,6 +123,12 @@ function getQRImageUrl(data: string, size: number = 200): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
+// Code 128 barcode as a PNG image (compact 1D code for smaller tags). Shows the
+// human-readable value beneath the bars.
+function getBarcodeImageUrl(data: string): string {
+  return `https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(data)}&scale=3&height=10&includetext&textsize=11&paddingwidth=6&paddingheight=4&backgroundcolor=ffffff`;
+}
+
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -303,17 +309,37 @@ export default function OrderDetailsScreen({
 
   // QR tabs
   const [qrTab, setQrTab] = useState<'order' | 'items'>('order');
+  // Tag code style — QR (default) or Code128 barcode. Remembered per shop in settings.tagStyle.
+  const [tagStyleOverride, setTagStyleOverride] = useState<'qr' | 'barcode' | null>(null);
 
   // ─── Data fetching ────────────────────────────────────────────────
 
   useEffect(() => {
     if (!shopId || !orderId) { setLoading(false); return; }
-    const unsub = firestore()
-      .collection(`shops/${shopId}/orders`).doc(orderId)
-      .onSnapshot(
-        (snap: any) => { if (snap.exists) setOrder({ id: snap.id, ...snap.data() }); setLoading(false); },
-        () => setLoading(false)
-      );
+    const ordersRef = firestore().collection(`shops/${shopId}/orders`);
+    let unsub = () => {};
+    let resolved = false;
+    unsub = ordersRef.doc(orderId).onSnapshot(
+      (snap: any) => {
+        if (snap.exists) { resolved = true; setOrder({ id: snap.id, ...snap.data() }); setLoading(false); return; }
+        // Not a doc id → resolve by order number (scanned barcode / short code / tracking publicId).
+        if (resolved) { setLoading(false); return; }
+        resolved = true;
+        ordersRef.where('orderNumber', '==', orderId).limit(1).get()
+          .then((qs: any) => {
+            if (!qs.empty) {
+              unsub();
+              const d = qs.docs[0];
+              unsub = ordersRef.doc(d.id).onSnapshot(
+                (s: any) => { if (s.exists) setOrder({ id: s.id, ...s.data() }); setLoading(false); },
+                () => setLoading(false)
+              );
+            } else { setLoading(false); }
+          })
+          .catch(() => setLoading(false));
+      },
+      () => setLoading(false)
+    );
     const unsubShop = firestore()
       .collection('shops').doc(shopId)
       .onSnapshot((snap: any) => { if (snap.exists) setShopData(snap.data()); }, () => {});
@@ -388,6 +414,18 @@ export default function OrderDetailsScreen({
   const timeline = order?.timeline || [];
   const publicId = order?.publicId || order?.orderNumber || '';
   const trackingUrl = getTrackingUrl(publicId);
+  // Tag code style: the user's in-modal choice overrides the saved shop setting.
+  const tagStyle: 'qr' | 'barcode' = tagStyleOverride ?? (shopData?.settings?.tagStyle === 'barcode' ? 'barcode' : 'qr');
+  const isBarcodeTag = tagStyle === 'barcode';
+  const tagHeightMm = isBarcodeTag ? 38 : 60; // barcodes need a shorter tag → smaller labels
+  const setTagStyle = (style: 'qr' | 'barcode') => {
+    setTagStyleOverride(style);
+    if (shopId) firestore().collection('shops').doc(shopId).set({ settings: { tagStyle: style } }, { merge: true }).catch(() => {});
+  };
+  // Image URL + encoded value for a tag, honoring the selected style.
+  // Barcode encodes the short order number (publicId); QR keeps the doc id.
+  const tagImageUrl = (qrValue: string, barcodeValue: string, qrSize: number) =>
+    isBarcodeTag ? getBarcodeImageUrl(barcodeValue) : getQRImageUrl(qrValue, qrSize);
   const isTerminal = ['delivered', 'picked_up', 'cancelled'].includes(status);
   const deliveryType = order?.deliveryType || 'pickup_store';
   const flow = STATUS_FLOW[deliveryType] || STATUS_FLOW.pickup_store;
@@ -577,47 +615,52 @@ export default function OrderDetailsScreen({
     } catch (e) {}
   };
 
-  /** Build the 50mm × 60mm tag HTML for the active tab. */
+  /** Build the tag HTML for the active tab. 50mm wide; height depends on code style
+   *  (60mm for QR, a shorter 38mm for barcode → smaller labels). */
   const buildTagsHtml = (): string => {
     const shopName = shopData?.name || 'LaundryBill';
     const customer = order?.customerName || t('mobile.guestLabel');
     const meta = `#${publicId} · ${customer}`;
     // 'order' tab = one tag PER SERVICE (service + qty); 'items' tab = one tag per garment (numbered within its service).
     const tags = qrTab === 'order'
-      ? serviceGroups.map((g) => ({ url: getQRImageUrl(orderId, 320), service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}` }))
-      : itemTags.map((tag) => ({ url: getQRImageUrl(tag.qrData, 320), service: tag.service, line2: `${tag.idxInService}/${tag.serviceTotal}` }));
+      ? serviceGroups.map((g) => ({ url: tagImageUrl(orderId, publicId, 320), service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}` }))
+      : itemTags.map((tag) => ({ url: tagImageUrl(tag.qrData, tag.qrData.replace(orderId, publicId), 320), service: tag.service, line2: `${tag.idxInService}/${tag.serviceTotal}` }));
 
     const blocks = tags.map((tg) => `
       <div class="tag">
         <div class="shop">${escHtml(shopName)}</div>
-        <img class="qr" src="${tg.url}" />
+        <img class="code" src="${tg.url}" />
         <div class="title">${escHtml(tg.service)}</div>
         <div class="sub">${escHtml(tg.line2)}</div>
         <div class="meta">${escHtml(meta)}</div>
       </div>`).join('');
 
+    const codeCss = isBarcodeTag
+      ? '.code { width:44mm; height:13mm; object-fit:contain; margin-top:1.5mm; }'
+      : '.code { width:32mm; height:32mm; margin-top:1.5mm; }';
+
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
       <style>
-        @page { size: 50mm 60mm; margin: 0; }
+        @page { size: 50mm ${tagHeightMm}mm; margin: 0; }
         * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
         html, body { margin:0; padding:0; }
-        .tag { width:50mm; height:60mm; padding:3mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow:hidden; page-break-after:always; }
+        .tag { width:50mm; height:${tagHeightMm}mm; padding:3mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow:hidden; page-break-after:always; }
         .tag:last-child { page-break-after:auto; }
         .shop { font-size:8pt; font-weight:700; color:#000; line-height:1.1; }
-        .qr { width:32mm; height:32mm; margin-top:1.5mm; }
+        ${codeCss}
         .title { font-size:11pt; font-weight:700; margin-top:1.5mm; line-height:1.1; }
         .sub { font-size:10pt; font-weight:700; color:#000; margin-top:0.5mm; line-height:1.1; }
         .meta { font-size:7.5pt; color:#555; margin-top:1mm; line-height:1.2; }
       </style></head><body>${blocks}</body></html>`;
   };
 
-  /** Render the tags to a PDF whose pages are exactly 50mm × 60mm (in PDF points). */
+  /** Render the tags to a PDF whose pages are exactly 50mm × tagHeightMm (in PDF points). */
   const generateTagsPdf = async (): Promise<string> => {
     const MM_TO_PT = 72 / 25.4;
     const { uri } = await Print.printToFileAsync({
       html: buildTagsHtml(),
       width: Math.round(50 * MM_TO_PT),
-      height: Math.round(60 * MM_TO_PT),
+      height: Math.round(tagHeightMm * MM_TO_PT),
     });
     return uri;
   };
@@ -1083,11 +1126,23 @@ export default function OrderDetailsScreen({
               </TouchableOpacity>
             </View>
 
+            {/* Code style: QR or Barcode (remembered per shop) */}
+            <View style={styles.qrTabRow}>
+              <TouchableOpacity style={[styles.qrTabBtn, !isBarcodeTag && styles.qrTabBtnActive]} onPress={() => setTagStyle('qr')}>
+                <MaterialIcons name="qr-code-2" size={16} color={!isBarcodeTag ? '#fff' : '#434654'} />
+                <Text style={[styles.qrTabText, !isBarcodeTag && styles.qrTabTextActive]}>{t('mobile.tagStyleQr', 'QR code')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.qrTabBtn, isBarcodeTag && styles.qrTabBtnActive]} onPress={() => setTagStyle('barcode')}>
+                <MaterialIcons name="view-week" size={16} color={isBarcodeTag ? '#fff' : '#434654'} />
+                <Text style={[styles.qrTabText, isBarcodeTag && styles.qrTabTextActive]}>{t('mobile.tagStyleBarcode', 'Barcode')}</Text>
+              </TouchableOpacity>
+            </View>
+
             {qrTab === 'order' ? (
               /* ── Order / Basket QR ──── */
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <View style={styles.qrContainer}>
-                  <Image source={{ uri: getQRImageUrl(orderId, 220) }} style={{ width: 200, height: 200 }} resizeMode="contain" />
+                  <Image source={{ uri: tagImageUrl(orderId, publicId, 220) }} style={isBarcodeTag ? { width: 240, height: 86 } : { width: 200, height: 200 }} resizeMode="contain" />
                 </View>
                 <Text style={styles.qrOrderId}>#{publicId}</Text>
                 <Text style={styles.qrSubInfo}>{order.customerName || t('mobile.guestLabel')} · {t('mobile.itemsCountShort', { count: (order.items || []).reduce((s: number, i: any) => s + (i.quantity || 1), 0) })}</Text>
@@ -1123,7 +1178,7 @@ export default function OrderDetailsScreen({
                 <ScrollView style={{ maxHeight: 340, marginTop: 12 }} showsVerticalScrollIndicator={false}>
                   {itemTags.map((tag) => (
                     <View key={tag.index} style={styles.itemTagCard}>
-                      <Image source={{ uri: getQRImageUrl(tag.qrData, 150) }} style={styles.itemTagQr} resizeMode="contain" />
+                      <Image source={{ uri: tagImageUrl(tag.qrData, tag.qrData.replace(orderId, publicId), 150) }} style={isBarcodeTag ? { width: 120, height: 52 } : styles.itemTagQr} resizeMode="contain" />
                       <View style={styles.itemTagInfo}>
                         <Text style={styles.itemTagIndex}>{t('mobile.tagIndex', { index: tag.idxInService, total: tag.serviceTotal })}</Text>
                         <Text style={styles.itemTagName}>{tag.service}</Text>
