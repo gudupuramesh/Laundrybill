@@ -249,6 +249,12 @@ function App() {
               <Route path="help" element={<HelpPage />} />
             </Route>
 
+            {/* Public shop page — clean URL: /:shopSlug (e.g. /ramesh). React Router ranks
+                this dynamic route BELOW every static app route, so /dashboard, /orders,
+                /login, /track, etc. still win. Reserved slug names are guarded in the
+                session guard. /order/:shopSlug above stays as a working alias. */}
+            <Route path="/:shopSlug" element={<PublicOrderPage />} />
+
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

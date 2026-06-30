@@ -75,6 +75,16 @@ const appleProvider = new OAuthProvider("apple.com");
 appleProvider.addScope("email");
 appleProvider.addScope("name");
 
+// Reserved single-segment paths that are app routes (NOT public shop slugs at /:shopSlug).
+// Keep in sync with the static routes in App.tsx so a real shop page never claims the
+// owner's web session, and the owner's own app routes still do.
+const RESERVED_TOP_LEVEL = new Set([
+    "login", "track", "receipt", "order", "team", "staff", "agent", "plant", "super-admin",
+    "dashboard", "scan", "new-order", "orders", "customers", "inventory", "manage-staff",
+    "attendance", "payroll", "expenses", "reports", "apps", "settings", "shop-settings",
+    "delivery-settings", "help",
+]);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [state, setState] = useState<AuthState>({
         user: null,
@@ -131,8 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Skip public customer-facing pages (booking / tracking / receipt): opening one while
                 // logged in must NOT re-claim the web slot and evict the owner's real dashboard tab.
                 const path = typeof window !== "undefined" ? window.location.pathname : "";
+                // A single-segment path that isn't a reserved app route is a public shop page
+                // (clean URL /:shopSlug) — don't claim/evict on it.
+                const seg = path.split("/").filter(Boolean);
+                const isPublicShopSlug = seg.length === 1 && !RESERVED_TOP_LEVEL.has(seg[0].toLowerCase());
                 const isPublicRoute =
-                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/");
+                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/") || isPublicShopSlug;
                 if (!isPublicRoute) {
                     claimWebSession(firebaseUser.uid);
                 }

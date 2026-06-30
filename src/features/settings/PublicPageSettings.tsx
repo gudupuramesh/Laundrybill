@@ -72,6 +72,15 @@ function slugFromInput(val: string): string {
         .replace(/^-|-$/g, "");
 }
 
+// Slugs that would collide with an app route at the clean URL /:shopSlug.
+// Keep in sync with the reserved set in AuthContext / the static routes in App.tsx.
+const RESERVED_SLUGS = new Set([
+    "login", "track", "receipt", "order", "team", "staff", "agent", "plant", "super-admin",
+    "dashboard", "scan", "new-order", "orders", "customers", "inventory", "manage-staff",
+    "attendance", "payroll", "expenses", "reports", "apps", "settings", "shop-settings",
+    "delivery-settings", "help",
+]);
+
 export function PublicPageSettings() {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
@@ -127,7 +136,7 @@ export function PublicPageSettings() {
     const slug = slugFromInput(slugInput || "my-shop");
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const host = typeof window !== "undefined" ? window.location.host : "";
-    const publicUrl = `${origin}/order/${slug}`;
+    const publicUrl = `${origin}/${slug}`;
 
     const handleCopy = async () => {
         try {
@@ -145,6 +154,7 @@ export function PublicPageSettings() {
             const finalSlug = slugFromInput(slugInput);
             if (!slugInput?.trim()) newErrors.slug = t("publicPage.slugRequired", "Page URL (shop name) is required.");
             else if (!finalSlug) newErrors.slug = t("publicPage.invalidSlug", "Enter a valid page URL (letters, numbers, hyphens only).");
+            else if (RESERVED_SLUGS.has(finalSlug)) newErrors.slug = t("publicPage.reservedSlug", "This name is reserved. Please choose a different page URL.");
             if (!openTime?.trim()) newErrors.openTime = t("publicPage.openTimeRequired", "Open time is required.");
             if (!closeTime?.trim()) newErrors.closeTime = t("publicPage.closeTimeRequired", "Close time is required.");
             if (Object.keys(newErrors).length > 0) {
@@ -225,7 +235,7 @@ export function PublicPageSettings() {
     };
 
     const handlePreview = () => {
-        if (enabled && slug) window.open(`/order/${slug}`, "_blank", "noopener");
+        if (enabled && slug) window.open(`/${slug}`, "_blank", "noopener");
         else addToast({ type: "info", title: t("publicPage.enableFirst", "Enable and save to preview") });
     };
 
@@ -279,7 +289,7 @@ export function PublicPageSettings() {
 
                             <label style={lbl}>{t("publicPage.pageUrl", "Your booking URL")}{enabled ? " *" : ""}</label>
                             <div style={{ display: "flex", alignItems: "stretch", border: `1px solid ${errors.slug ? "var(--c-error)" : "var(--c-border-strong)"}`, borderRadius: 10, overflow: "hidden", opacity: enabled ? 1 : 0.6 }}>
-                                <span style={{ display: "flex", alignItems: "center", padding: "0 12px", background: "var(--c-surface-2)", color: "var(--c-text-3)", fontSize: 12.5, fontFamily: MONO, borderRight: "1px solid var(--c-border)", whiteSpace: "nowrap" }}>{host}/order/</span>
+                                <span style={{ display: "flex", alignItems: "center", padding: "0 12px", background: "var(--c-surface-2)", color: "var(--c-text-3)", fontSize: 12.5, fontFamily: MONO, borderRight: "1px solid var(--c-border)", whiteSpace: "nowrap" }}>{host}/</span>
                                 <input
                                     value={slugInput}
                                     disabled={!enabled}
@@ -508,7 +518,7 @@ export function PublicPageSettings() {
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ textAlign: "center", marginTop: 12, fontSize: 11.5, color: "var(--c-text-3)", fontFamily: MONO, wordBreak: "break-all" }}>{host}/order/{slug}</div>
+                            <div style={{ textAlign: "center", marginTop: 12, fontSize: 11.5, color: "var(--c-text-3)", fontFamily: MONO, wordBreak: "break-all" }}>{host}/{slug}</div>
                         </div>
                     </div>
                 </div>
