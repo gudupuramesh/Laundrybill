@@ -107,6 +107,7 @@ export function PublicPageSettings() {
     const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
     const [socialLinks, setSocialLinks] = useState<PublicSocialLinks>({});
     const [featuredCouponCode, setFeaturedCouponCode] = useState("");
+    const [minOrderValue, setMinOrderValue] = useState("");
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
     const [errors, setErrors] = useState<{ slug?: string; openTime?: string; closeTime?: string }>({});
@@ -121,6 +122,7 @@ export function PublicPageSettings() {
             setTemplateId((shop.publicOrdering.template as PublicTemplateId) || "minimal");
             setTagline(shop.publicOrdering.tagline || "");
             setFeaturedCouponCode(shop.publicOrdering.featuredCouponCode || "");
+            setMinOrderValue(shop.publicOrdering.minOrderValue != null ? String(shop.publicOrdering.minOrderValue) : "");
             setOfferText(shop.publicOrdering.offerText || "");
             setOfferEnabled(shop.publicOrdering.offerEnabled ?? !!shop.publicOrdering.featuredCouponCode);
             if (Array.isArray(shop.publicOrdering.testimonials)) setTestimonials(shop.publicOrdering.testimonials);
@@ -209,6 +211,7 @@ export function PublicPageSettings() {
                     testimonials: testimonials.length > 0 ? testimonials : undefined,
                     socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
                     featuredCouponCode: featuredCouponCode.trim().toUpperCase() || undefined,
+                    minOrderValue: minOrderValue.trim() && Number(minOrderValue) > 0 ? Number(minOrderValue) : undefined,
                 },
                 businessHours: openTime?.trim() && closeTime?.trim() ? { openTime: openTime.trim(), closeTime: closeTime.trim() } : null,
                 settings: {
@@ -352,6 +355,11 @@ export function PublicPageSettings() {
                                     <div>
                                         <label style={lbl}>{t("publicPage.tagline", "Tagline")}</label>
                                         <input value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Fresh clothes, delivered." style={fld} />
+                                    </div>
+                                    <div>
+                                        <label style={lbl}>{t("publicPage.minOrderValue", "Minimum order value")} ({currencySymbol})</label>
+                                        <input type="number" min={0} value={minOrderValue} onChange={(e) => setMinOrderValue(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0" style={fld} />
+                                        <p style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 6 }}>{t("publicPage.minOrderValueHint", "Shown to customers on your booking page. Leave blank for no minimum.")}</p>
                                     </div>
                                 </div>
                             </div>

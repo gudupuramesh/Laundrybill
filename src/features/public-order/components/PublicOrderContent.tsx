@@ -96,6 +96,9 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const offerText = shop.publicOrdering?.offerText?.trim();
     const offerEnabled = (shop.publicOrdering?.offerEnabled ?? !!featuredCode) && (!!offerText || !!featuredCode);
     const testimonials = shop.publicOrdering?.testimonials ?? [];
+    const minOrderValue = shop.publicOrdering?.minOrderValue || 0;
+    // Enforced only on the Price Calculator (priced items). Book Pickup is priced at intake, so it's informational there.
+    const belowMin = minOrderValue > 0 && cart.total < minOrderValue;
 
     // next 6 days for the date strip
     const dateCards = useMemo(() => Array.from({ length: 6 }, (_, i) => {
@@ -343,6 +346,13 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                     <span style={{ fontSize: 12.5, color: "var(--c-text-3)", textAlign: "right" }}>Weighed &amp; priced at pickup</span>
                 </div>
 
+                {/* minimum order value */}
+                {minOrderValue > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: -6, marginBottom: 16, padding: "9px 14px", borderRadius: 12, background: "var(--c-warning-soft)", color: "var(--c-warning)", fontSize: 12.5, fontWeight: 600 }}>
+                        <Info size={14} style={{ flex: "none" }} /> Minimum order {fmt(minOrderValue)}
+                    </div>
+                )}
+
                 {/* ───────── BOOK PICKUP (quick) ───────── */}
                 {mode === "quick" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -456,8 +466,9 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
                                 <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
+                                {cartHasItems && belowMin && <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--c-warning)" }}>Add {fmt(minOrderValue - cart.total)} to reach minimum</div>}
                             </div>
-                            <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); }} disabled={!cartHasItems} style={{ cursor: cartHasItems ? "pointer" : "not-allowed", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: cartHasItems ? "var(--c-primary)" : "var(--c-border-strong)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
+                            <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); }} disabled={!cartHasItems || belowMin} style={{ cursor: (cartHasItems && !belowMin) ? "pointer" : "not-allowed", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: (cartHasItems && !belowMin) ? "var(--c-primary)" : "var(--c-border-strong)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
                         </div>
                     </div>
                 )}
@@ -496,7 +507,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
             {/* success */}
             <PublicOrderSuccessSheet
                 open={!!successPublicId}
-                onClose={() => { setSuccessPublicId(null); const slug = shop.publicOrdering?.slug; if (slug) navigate(`/order/${slug}`); }}
+                onClose={() => { setSuccessPublicId(null); const slug = shop.publicOrdering?.slug; if (slug) navigate(`/${slug}`); }}
                 publicId={successPublicId || ""}
                 phone={successPhone}
             />

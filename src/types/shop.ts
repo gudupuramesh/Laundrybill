@@ -182,6 +182,8 @@ export interface Shop {
         offerCouponImageUrl?: string;
         /** Coupon code to display and copy (e.g. SAVE10); used at checkout */
         featuredCouponCode?: string;
+        /** Minimum order value (shop currency) shown/enforced on the public booking page. 0/undefined = no minimum. */
+        minOrderValue?: number;
     };
 
     /** Business hours for "shop open" check on public page. Times in HH:mm (24h) in shop timezone. null = clear / always open. */

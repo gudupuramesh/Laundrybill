@@ -460,6 +460,12 @@ export default function OrdersScreen({
                       <View style={[s.ocStatusBadge, { backgroundColor: sc.bg }]}>
                         <Text style={[s.ocStatusText, { color: sc.color }]}>{statusLabel.toUpperCase()}</Text>
                       </View>
+                      {order.orderSource === 'online' ? (
+                        <View style={s.ocOnlineTag}>
+                          <MaterialIcons name="public" size={11} color="#0369a1" />
+                          <Text style={s.ocOnlineText}>{t('orders.onlineOrders', 'Online')}</Text>
+                        </View>
+                      ) : null}
                     </View>
                     <Text style={s.ocPrice}>{formatCurrency(total, countrySettings)}</Text>
                   </View>
@@ -803,6 +809,8 @@ const s = StyleSheet.create({
   ocDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textMuted },
   ocStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   ocStatusText: { fontSize: 11, fontFamily: fonts.bold },
+  ocOnlineTag: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#e0f2fe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  ocOnlineText: { fontSize: 10, fontFamily: fonts.bold, color: '#0369a1' },
   ocPrice: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
 
   // Row 2

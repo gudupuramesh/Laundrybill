@@ -242,6 +242,9 @@ export interface Order {
     orderSource?: "online" | "pos" | "phone";
     /** True when placed as quick order from public page (no items at placement) */
     isQuickOrder?: boolean;
+    /** Customer's pickup estimate from the public Book Pickup page (e.g. "< 5 kg", "1–5 pcs"). */
+    estimatedWeight?: string;
+    estimatedPieces?: string;
 
     // Agent Assignment (for pickup/delivery orders)
     assignedAgentId?: string;

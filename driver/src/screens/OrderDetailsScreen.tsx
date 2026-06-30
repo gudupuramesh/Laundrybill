@@ -626,6 +626,12 @@ export default function OrderDetailsScreen({
             <View style={[styles.statusBadgeLg, { backgroundColor: statusColor.bg }]}>
               <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
             </View>
+            {order.orderSource === 'online' ? (
+              <View style={styles.onlineTag}>
+                <MaterialIcons name="public" size={12} color="#0369a1" />
+                <Text style={styles.onlineTagText}>{t('orders.onlineOrders', 'Online')}</Text>
+              </View>
+            ) : null}
           </View>
           <HelpButton pageId="mobile_orderDetails" />
           {!isTerminal && (
@@ -683,6 +689,33 @@ export default function OrderDetailsScreen({
             </TouchableOpacity>
           )}
         </ScrollView>
+
+        {/* ─── Online booking estimate (public page) ──────────────── */}
+        {order.orderSource === 'online' ? (
+          <View style={styles.onlineCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialIcons name="public" size={18} color="#0369a1" />
+              <Text style={styles.onlineCardTitle}>{t('mobile.onlineBookingTitle', 'Online booking')}</Text>
+              <Text style={styles.onlineCardHint}>{t('orders.pricedAtPickup', 'Priced at pickup')}</Text>
+            </View>
+            {(order.estimatedWeight || order.estimatedPieces) ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {order.estimatedWeight ? (
+                  <View style={styles.estChip}>
+                    <MaterialIcons name="scale" size={13} color="#0c4a6e" />
+                    <Text style={styles.estChipText}>{order.estimatedWeight}</Text>
+                  </View>
+                ) : null}
+                {order.estimatedPieces ? (
+                  <View style={styles.estChip}>
+                    <MaterialIcons name="checkroom" size={13} color="#0c4a6e" />
+                    <Text style={styles.estChipText}>{order.estimatedPieces}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* ─── Customer ───────────────────────────────────────────── */}
         <View style={styles.card}>
@@ -1145,6 +1178,15 @@ const styles = StyleSheet.create({
   statusBadgeLg: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
   statusTextLg: { fontSize: 13, fontFamily: fonts.bold },
   dateText: { fontSize: 11, fontFamily: fonts.medium, color: colors.textSecondary },
+
+  // Online order
+  onlineTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#e0f2fe', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  onlineTagText: { fontSize: 11, fontFamily: fonts.bold, color: '#0369a1' },
+  onlineCard: { backgroundColor: '#f0f9ff', borderRadius: radii.card, padding: 14, borderWidth: 1, borderColor: '#bae6fd' },
+  onlineCardTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: '#0c4a6e', flex: 1 },
+  onlineCardHint: { fontSize: 11, fontFamily: fonts.medium, color: '#0369a1' },
+  estChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#bae6fd', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  estChipText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#0c4a6e' },
 
   // Actions
   actionsScroll: { marginHorizontal: -16, marginBottom: 4 },

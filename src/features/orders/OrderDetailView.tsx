@@ -327,6 +327,17 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                         {placedAt && <span style={{ fontSize: 13, color: 'var(--c-text-3)', marginLeft: 'auto' }}>{t('orders.placed', 'Placed')} {format(placedAt, 'MMM d, h:mm a')}</span>}
                     </div>
 
+                    {/* Online booking estimate — what the customer told us at booking (priced at pickup) */}
+                    {order.orderSource === 'online' && (order.estimatedWeight || order.estimatedPieces) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '11px 16px', marginBottom: 16, borderRadius: 12, background: 'var(--c-cyan-soft)' }}>
+                            <Globe size={15} style={{ color: 'var(--c-cyan)', flex: 'none' }} />
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--c-text-2)' }}>{t('orders.customerEstimate', 'Customer estimate')}</span>
+                            {order.estimatedWeight && <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--c-text)', background: 'var(--c-surface)', border: '1px solid var(--c-border)', padding: '3px 10px', borderRadius: 20 }}>{order.estimatedWeight}</span>}
+                            {order.estimatedPieces && <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--c-text)', background: 'var(--c-surface)', border: '1px solid var(--c-border)', padding: '3px 10px', borderRadius: 20 }}>{order.estimatedPieces}</span>}
+                            <span style={{ fontSize: 11.5, color: 'var(--c-text-3)', marginLeft: 'auto' }}>{t('orders.pricedAtPickup', 'Priced at pickup')}</span>
+                        </div>
+                    )}
+
                     {/* stepper */}
                     {order.status !== 'cancelled' && (
                         <div style={{ ...card, padding: isMobile ? '20px 10px 16px' : '22px 26px 18px', marginBottom: 16 }}>

@@ -241,6 +241,11 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
         deliveryCharge = typeof fee === "number" && fee >= 0 ? fee : 50;
     }
     const subtotal = rawFinancials.subtotal || 0;
+    // Minimum order value (priced orders only — quick orders are priced at intake).
+    const minOrderValue = typeof publicOrdering.minOrderValue === "number" ? publicOrdering.minOrderValue : 0;
+    if (!isQuickOrder && minOrderValue > 0 && subtotal < minOrderValue) {
+        throw new https_1.HttpsError("failed-precondition", `Minimum order value is ${minOrderValue}.`);
+    }
     const discountAmount = rawFinancials.discountAmount || 0;
     const taxAmount = rawFinancials.taxAmount || 0;
     const total = Math.max(0, subtotal - discountAmount + taxAmount + deliveryCharge);
