@@ -405,29 +405,135 @@ export default function ExpensesScreen({
     return () => { unsubExpenses(); unsubOrders(); };
   }, [shopId, timePeriod, refDate, customStartDate, customEndDate]);
 
+  // ─── Report extras: salaries, staff attendance, customers, 8-month trend ──
+  const [reportData, setReportData] = useState<{
+    salariesPaid: number;
+    staffMetrics: { staffId: string; staffName: string; presentDays: number }[];
+    customerStats: { newCustomers: number; totalCustomers: number };
+    monthlyTrend: { month: string; revenue: number; expenses: number; newCustomers: number }[];
+  }>({ salariesPaid: 0, staffMetrics: [], customerStats: { newCustomers: 0, totalCustomers: 0 }, monthlyTrend: [] });
+
+  useEffect(() => {
+    if (!shopId) return;
+    let aborted = false;
+    const mk = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const mkDay = (d: Date) => `${mk(d)}-${String(d.getDate()).padStart(2, '0')}`;
+
+    (async () => {
+      try {
+        const fs = firestore();
+        // 1. Payroll (months spanning the period, chunked by 10 for `in`)
+        const monthsInRange: string[] = [];
+        { const cur = new Date(start); cur.setDate(1); while (cur <= end) { monthsInRange.push(mk(cur)); cur.setMonth(cur.getMonth() + 1); } }
+        let salariesPaid = 0;
+        const staffMap = new Map<string, { staffId: string; staffName: string; presentDays: number }>();
+        for (let i = 0; i < monthsInRange.length; i += 10) {
+          const chunk = monthsInRange.slice(i, i + 10);
+          if (!chunk.length) continue;
+          const snap = await fs.collection(`shops/${shopId}/payroll`).where('month', 'in', chunk).get();
+          snap.forEach((d: any) => {
+            const p = d.data();
+            if (p.status === 'paid' || p.status === 'partial') salariesPaid += p.totalPaid || 0;
+            const ex = staffMap.get(p.staffId) || { staffId: p.staffId, staffName: p.staffName || '', presentDays: 0 };
+            if (!ex.staffName && p.staffName) ex.staffName = p.staffName;
+            staffMap.set(p.staffId, ex);
+          });
+        }
+        // 2. Attendance → present days
+        const attSnap = await fs.collection(`shops/${shopId}/attendance`).where('date', '>=', mkDay(start)).where('date', '<=', mkDay(end)).get();
+        attSnap.forEach((d: any) => {
+          const a = d.data();
+          if (a.status === 'present' || a.status === 'half') {
+            const ex = staffMap.get(a.staffId) || { staffId: a.staffId, staffName: '', presentDays: 0 };
+            ex.presentDays += a.status === 'half' ? 0.5 : 1;
+            staffMap.set(a.staffId, ex);
+          }
+        });
+        // 2b. Backfill staff names
+        const needNames = Array.from(staffMap.values()).filter((s) => !s.staffName).map((s) => s.staffId);
+        if (needNames.length) {
+          const sSnap = await fs.collection(`shops/${shopId}/staff`).get();
+          const nameMap = new Map<string, string>();
+          sSnap.forEach((d: any) => nameMap.set(d.id, d.data().name));
+          needNames.forEach((id) => { const m = staffMap.get(id); if (m) m.staffName = nameMap.get(id) || 'Staff'; });
+        }
+        // 3. Customers (total + new this period + per-month for trend)
+        const custSnap = await fs.collection(`shops/${shopId}/customers`).get();
+        let newCustomers = 0;
+        const custByMonth: Record<string, number> = {};
+        custSnap.forEach((d: any) => {
+          const c = toDate(d.data().createdAt);
+          if (c) { if (c >= start && c <= end) newCustomers++; custByMonth[mk(c)] = (custByMonth[mk(c)] || 0) + 1; }
+        });
+        // 4. 8-month trend (revenue + expenses)
+        const trendStart = new Date(end.getFullYear(), end.getMonth() - 7, 1);
+        const trendMonths = Array.from({ length: 8 }, (_, i) => mk(new Date(end.getFullYear(), end.getMonth() - 7 + i, 1)));
+        const revByMonth: Record<string, number> = {};
+        const expByMonth: Record<string, number> = {};
+        const toSnap = await fs.collection(`shops/${shopId}/orders`).where('createdAt', '>=', trendStart).where('createdAt', '<=', end).get();
+        toSnap.forEach((d: any) => { const o = d.data(); if ((o.status || '') === 'cancelled') return; const dt = toDate(o.createdAt); if (dt) revByMonth[mk(dt)] = (revByMonth[mk(dt)] || 0) + (o.financials?.total || 0); });
+        const teSnap = await fs.collection(`shops/${shopId}/expenses`).where('date', '>=', trendStart).where('date', '<=', end).get();
+        teSnap.forEach((d: any) => { const e = d.data(); const dt = toDate(e.date); if (dt) expByMonth[mk(dt)] = (expByMonth[mk(dt)] || 0) + (e.amount || 0); });
+        const monthlyTrend = trendMonths.map((m) => ({ month: m, revenue: revByMonth[m] || 0, expenses: expByMonth[m] || 0, newCustomers: custByMonth[m] || 0 }));
+
+        if (aborted) return;
+        setReportData({
+          salariesPaid,
+          staffMetrics: Array.from(staffMap.values()).filter((s) => s.presentDays > 0).sort((a, b) => b.presentDays - a.presentDays),
+          customerStats: { newCustomers, totalCustomers: custSnap.size },
+          monthlyTrend,
+        });
+      } catch { /* keep defaults on error */ }
+    })();
+    return () => { aborted = true; };
+  }, [shopId, start.getTime(), end.getTime()]);
+
   // ─── Computed ───────────────────────────────────────────────────────
 
   const financials = useMemo(() => {
-    let totalRevenue = 0;
-    let collected = 0;
-    let pending = 0;
-    let cancelled = 0;
+    let revenueGross = 0;   // Σ order total (non-cancelled) — matches web "Revenue"
+    let collected = 0;      // Σ amountPaid (non-cancelled)
+    let pending = 0;        // Σ max(0, balance)
+    let cancelledAmt = 0;
     const revenueByType: Record<string, number> = { pickup_store: 0, delivery_home: 0, pickup_home: 0 };
 
+    const total = orders.length;
+    let deliveredCount = 0;
+    let cancelledCount = 0;
+    let paidOrders = 0;
+    const serviceMap: Record<string, { orders: number; revenue: number }> = {};
+    const hourCounts: number[] = new Array(24).fill(0);
+
     orders.forEach((o) => {
-      const total = o.financials?.total || 0;
+      const tot = o.financials?.total || 0;
       const paid = o.financials?.amountPaid || 0;
-      const balance = o.financials?.balance ?? (total - paid);
+      const balance = o.financials?.balance ?? (tot - paid);
       const status = o.status || 'pending';
       const dType = o.deliveryType || 'pickup_store';
+      const payStatus = o.paymentStatus || 'unpaid';
 
       if (status === 'cancelled') {
-        cancelled += total;
+        cancelledAmt += tot;
+        cancelledCount += 1;
       } else {
-        totalRevenue += paid;
+        revenueGross += tot;
         collected += paid;
         pending += Math.max(0, balance);
         revenueByType[dType] = (revenueByType[dType] || 0) + paid;
+        if (payStatus === 'paid') paidOrders += 1;
+        if (status === 'delivered' || (status === 'picked_up' && dType === 'pickup_store')) deliveredCount += 1;
+
+        const dt = toDate(o.createdAt);
+        if (dt) hourCounts[dt.getHours()] += 1;
+
+        (o.items || []).forEach((it: any) => {
+          const name = it.serviceName || it.name || 'Other';
+          const rev = it.total ?? (it.unitPrice || 0) * (it.quantity || 0);
+          const m = serviceMap[name] || { orders: 0, revenue: 0 };
+          m.revenue += rev;
+          m.orders += 1;
+          serviceMap[name] = m;
+        });
       }
     });
 
@@ -444,9 +550,35 @@ export default function ExpensesScreen({
       expByGroup[group] = (expByGroup[group] || 0) + amt;
     });
 
-    const netProfit = totalRevenue - totalExpenses;
+    const ongoingCount = Math.max(0, total - deliveredCount - cancelledCount);
+    const collectionRate = revenueGross > 0 ? (collected / revenueGross) * 100 : 0;
+    const completionRate = total > 0 ? (deliveredCount / total) * 100 : 0;
+    const paidRate = total > 0 ? (paidOrders / total) * 100 : 0;
+    const fulfilRate = total > 0 ? ((total - cancelledCount) / total) * 100 : 0;
+    const healthScore = Math.round((collectionRate + completionRate + paidRate + fulfilRate) / 4);
 
-    return { totalRevenue, collected, pending, cancelled, totalExpenses, netProfit, revenueByType, expByCategory, expByGroup };
+    const topServices = Object.entries(serviceMap)
+      .map(([name, v]) => ({ name, orders: v.orders, revenue: v.revenue }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // 7 two-hour slots, 8am → 10pm (matches web Peak Hours)
+    const SLOTS = [8, 10, 12, 14, 16, 18, 20];
+    const peakSlots = SLOTS.map((h) => ({
+      label: h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`,
+      count: (hourCounts[h] || 0) + (hourCounts[h + 1] || 0),
+    }));
+
+    const netProfit = collected - totalExpenses; // salaries folded in at display time
+
+    return {
+      // legacy fields (keep existing cards working)
+      totalRevenue: collected, collected, pending, cancelled: cancelledAmt, totalExpenses, netProfit,
+      revenueByType, expByCategory, expByGroup,
+      // report fields
+      revenueGross, outstanding: pending, collectionRate,
+      orderStats: { total, delivered: deliveredCount, ongoing: ongoingCount, cancelled: cancelledCount, paidOrders },
+      completionRate, paidRate, fulfilRate, healthScore, topServices, peakSlots,
+    };
   }, [orders, expenses]);
 
   // ─── Actions ────────────────────────────────────────────────────────
@@ -565,6 +697,22 @@ export default function ExpensesScreen({
     [t],
   );
 
+  // ─── Derived report values (salary-inclusive totals + month-over-month deltas) ──
+  const salaries = reportData.salariesPaid;
+  const expensesAll = financials.totalExpenses + salaries;
+  const netProfitAll = financials.collected - expensesAll;
+  const profitMargin = financials.revenueGross > 0 ? (netProfitAll / financials.revenueGross) * 100 : 0;
+  const tr = reportData.monthlyTrend;
+  const curM = tr[tr.length - 1];
+  const prevM = tr[tr.length - 2];
+  const pctDelta = (a?: number, b?: number): number | null => (b && b > 0 ? (((a || 0) - b) / b) * 100 : null);
+  const revDelta = pctDelta(curM?.revenue, prevM?.revenue);
+  const expDelta = pctDelta(curM?.expenses, prevM?.expenses);
+  const profitDelta = pctDelta((curM?.revenue || 0) - (curM?.expenses || 0), (prevM?.revenue || 0) - (prevM?.expenses || 0));
+  const fmtMoney = (n: number) => formatCurrency(Math.round(n), countrySettings);
+  const os = financials.orderStats;
+  const monthShort = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, (m || 1) - 1, 1).toLocaleDateString(countrySettings.locale || 'en-IN', { month: 'short' }); };
+
   // ─── Render ─────────────────────────────────────────────────────────
 
   return (
@@ -680,6 +828,14 @@ export default function ExpensesScreen({
             </View>
           </LinearGradient>
 
+          {/* ─── KPI Cards (Revenue · Collected · Expenses · Net Profit) ─── */}
+          <View style={styles.kpiGrid}>
+            <KpiCard label={t('mobile.finKpiRevenue', { defaultValue: 'Revenue' })} value={fmtMoney(financials.revenueGross)} deltaPct={revDelta} icon="trending-up" color={colors.primary} />
+            <KpiCard label={t('mobile.finKpiCollected', { defaultValue: 'Collected' })} value={fmtMoney(financials.collected)} deltaPct={null} icon="account-balance-wallet" color={colors.success} />
+            <KpiCard label={t('mobile.finKpiExpenses', { defaultValue: 'Expenses' })} value={fmtMoney(expensesAll)} deltaPct={expDelta} icon="receipt-long" color={colors.warning} goodUp={false} />
+            <KpiCard label={t('mobile.finKpiNetProfit', { defaultValue: 'Net Profit' })} value={`${netProfitAll < 0 ? '-' : ''}${fmtMoney(Math.abs(netProfitAll))}`} deltaPct={profitDelta} icon="savings" color={netProfitAll >= 0 ? colors.success : colors.error} />
+          </View>
+
           {/* ─── Quick Action Buttons ──────────────────────────── */}
           <View style={styles.quickActionRow}>
             <TouchableOpacity style={styles.qaSecondary} activeOpacity={0.7} onPress={onStaffAttendance}>
@@ -761,6 +917,105 @@ export default function ExpensesScreen({
                     <Text style={styles.collectionValue}>{orders.length}</Text>
                   </View>
                 </View>
+              </View>
+
+              {/* ─── Revenue vs Expenses (8 months) ─── */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('mobile.finRevVsExp', { defaultValue: 'Revenue vs Expenses' })}</Text>
+                <VBarChart
+                  labels={tr.map((m) => monthShort(m.month))}
+                  series={[
+                    { values: tr.map((m) => m.revenue), color: colors.primary },
+                    { values: tr.map((m) => m.expenses), color: colors.warning },
+                  ]}
+                />
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.primary }]} /><Text style={styles.legendText}>{t('mobile.finKpiRevenue', { defaultValue: 'Revenue' })}</Text></View>
+                  <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.warning }]} /><Text style={styles.legendText}>{t('mobile.finKpiExpenses', { defaultValue: 'Expenses' })}</Text></View>
+                </View>
+              </View>
+
+              {/* ─── Operational Health ─── */}
+              <View style={styles.card}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={styles.cardTitle}>{t('mobile.finOpsHealth', { defaultValue: 'Operational Health' })}</Text>
+                  <View style={[styles.healthBadge, { backgroundColor: (financials.healthScore >= 75 ? colors.success : financials.healthScore >= 50 ? colors.warning : colors.error) + '18' }]}>
+                    <Text style={[styles.healthBadgeText, { color: financials.healthScore >= 75 ? colors.success : financials.healthScore >= 50 ? colors.warning : colors.error }]}>{financials.healthScore}/100</Text>
+                  </View>
+                </View>
+                <MetricRow label={t('mobile.finMetricCollection', { defaultValue: 'Collection rate' })} pct={financials.collectionRate} color={colors.success} />
+                <MetricRow label={t('mobile.finMetricCompletion', { defaultValue: 'Order completion' })} pct={financials.completionRate} color={colors.primary} />
+                <MetricRow label={t('mobile.finMetricPaid', { defaultValue: 'Paid orders' })} pct={financials.paidRate} color="#7b1fa2" />
+                <MetricRow label={t('mobile.finMetricFulfil', { defaultValue: 'Fulfilment' })} pct={financials.fulfilRate} color={colors.warning} />
+              </View>
+
+              {/* ─── Order Outcomes ─── */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('mobile.finOrderOutcomes', { defaultValue: 'Order Outcomes' })}</Text>
+                <SegBar segments={[
+                  { value: os.delivered, color: colors.success },
+                  { value: os.ongoing, color: colors.primary },
+                  { value: os.cancelled, color: colors.error },
+                ]} />
+                <View style={styles.outcomeRow}>
+                  <View style={styles.outcomeItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={styles.outcomeLabel}>{t('mobile.finOutDelivered', { defaultValue: 'Delivered' })}</Text><Text style={styles.outcomeVal}>{os.delivered}</Text></View>
+                  <View style={styles.outcomeItem}><View style={[styles.legendDot, { backgroundColor: colors.primary }]} /><Text style={styles.outcomeLabel}>{t('mobile.finOutOngoing', { defaultValue: 'Ongoing' })}</Text><Text style={styles.outcomeVal}>{os.ongoing}</Text></View>
+                  <View style={styles.outcomeItem}><View style={[styles.legendDot, { backgroundColor: colors.error }]} /><Text style={styles.outcomeLabel}>{t('mobile.finOutCancelled', { defaultValue: 'Cancelled' })}</Text><Text style={styles.outcomeVal}>{os.cancelled}</Text></View>
+                </View>
+              </View>
+
+              {/* ─── Top Services ─── */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('mobile.finTopServices', { defaultValue: 'Top Services' })}</Text>
+                {financials.topServices.length === 0 ? (
+                  <Text style={styles.emptySmall}>{t('mobile.finNoServiceRev', { defaultValue: 'No service revenue in this period.' })}</Text>
+                ) : (
+                  financials.topServices.slice(0, 5).map((s, i) => {
+                    const max = financials.topServices[0].revenue || 1;
+                    const pct = Math.round((s.revenue / max) * 100);
+                    return (
+                      <View key={s.name} style={styles.breakdownRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.breakdownLabel} numberOfLines={1}>{i + 1}. {s.name}  ·  {s.orders} {s.orders === 1 ? t('mobile.finOrderSingular', { defaultValue: 'order' }) : t('mobile.finOrderPlural', { defaultValue: 'orders' })}</Text>
+                          <View style={styles.barBg}><View style={[styles.barFill, { width: `${pct}%`, backgroundColor: colors.primary }]} /></View>
+                        </View>
+                        <Text style={styles.breakdownValue}>{fmtMoney(s.revenue)}</Text>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+
+              {/* ─── Customer Growth ─── */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('mobile.finCustomerGrowth', { defaultValue: 'Customer Growth' })}</Text>
+                <VBarChart labels={tr.map((m) => monthShort(m.month))} series={[{ values: tr.map((m) => m.newCustomers), color: colors.primary }]} />
+                <View style={styles.twoStatRow}>
+                  <View style={styles.twoStatItem}><Text style={[styles.twoStatVal, { color: colors.success }]}>{reportData.customerStats.newCustomers}</Text><Text style={styles.twoStatLabel}>{t('mobile.finNewThisPeriod', { defaultValue: 'New this period' })}</Text></View>
+                  <View style={styles.collectionDivider} />
+                  <View style={styles.twoStatItem}><Text style={styles.twoStatVal}>{reportData.customerStats.totalCustomers}</Text><Text style={styles.twoStatLabel}>{t('mobile.finTotalCustomers', { defaultValue: 'Total customers' })}</Text></View>
+                </View>
+              </View>
+
+              {/* ─── Staff Attendance ─── */}
+              {reportData.staffMetrics.length > 0 && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>{t('mobile.finStaffAttendance', { defaultValue: 'Staff Attendance' })}</Text>
+                  {reportData.staffMetrics.slice(0, 4).map((s) => (
+                    <View key={s.staffId} style={styles.staffRow}>
+                      <View style={styles.staffAvatar}><Text style={styles.staffAvatarText}>{(s.staffName || '?').charAt(0).toUpperCase()}</Text></View>
+                      <Text style={styles.staffName} numberOfLines={1}>{s.staffName || t('mobile.finStaffFallback', { defaultValue: 'Staff' })}</Text>
+                      <Text style={styles.staffDays}>{(s.presentDays % 1 === 0 ? s.presentDays : s.presentDays.toFixed(1))}{t('mobile.finDaysSuffix', { defaultValue: 'd' })}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* ─── Peak Intake Hours ─── */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('mobile.finPeakHours', { defaultValue: 'Peak Intake Hours' })}</Text>
+                <Text style={styles.cardSub}>{t('mobile.finPeakHoursSub', { defaultValue: 'Orders by time of day' })}</Text>
+                <VBarChart labels={financials.peakSlots.map((s) => s.label)} series={[{ values: financials.peakSlots.map((s) => s.count), color: colors.primary }]} />
               </View>
             </>
 
@@ -939,7 +1194,120 @@ export default function ExpensesScreen({
 
 // ─── Styles ───────────────────────────────────────────────────────────
 
+// ─── Report visuals (pure Views — no SVG, so no native module needed) ──────
+function VBarChart({ series, labels, height = 80 }: { series: { values: number[]; color: string }[]; labels: string[]; height?: number }) {
+  const max = Math.max(1, ...series.flatMap((s) => s.values));
+  return (
+    <View style={[styles.vbarRow, { height: height + 16 }]}>
+      {labels.map((lab, i) => (
+        <View key={i} style={styles.vbarCol}>
+          <View style={[styles.vbarTrack, { height }]}>
+            {series.map((s, si) => (
+              <View key={si} style={[styles.vbarFill, { height: Math.max(2, Math.round((s.values[i] / max) * height)), backgroundColor: s.color }]} />
+            ))}
+          </View>
+          <Text style={styles.vbarLabel} numberOfLines={1}>{lab}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MetricRow({ label, pct, color }: { label: string; pct: number; color: string }) {
+  const v = Math.max(0, Math.min(100, Math.round(pct)));
+  return (
+    <View style={styles.metricRow}>
+      <View style={styles.metricHead}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={[styles.metricPct, { color }]}>{v}%</Text>
+      </View>
+      <View style={styles.metricTrack}><View style={[styles.metricFill, { width: `${v}%`, backgroundColor: color }]} /></View>
+    </View>
+  );
+}
+
+function SegBar({ segments }: { segments: { value: number; color: string }[] }) {
+  const total = Math.max(1, segments.reduce((s, x) => s + x.value, 0));
+  return (
+    <View style={styles.segBar}>
+      {segments.map((s, i) => (s.value > 0 ? <View key={i} style={{ flex: s.value / total, backgroundColor: s.color }} /> : null))}
+    </View>
+  );
+}
+
+function KpiCard({ label, value, deltaPct, icon, color, goodUp = true }: { label: string; value: string; deltaPct: number | null; icon: any; color: string; goodUp?: boolean }) {
+  const up = (deltaPct ?? 0) >= 0;
+  const good = goodUp ? up : !up;
+  const dColor = good ? colors.success : colors.error;
+  return (
+    <View style={styles.kpiCard}>
+      <View style={styles.kpiHead}>
+        <View style={[styles.kpiIcon, { backgroundColor: color + '20' }]}><MaterialIcons name={icon} size={15} color={color} /></View>
+        {deltaPct != null && (
+          <View style={[styles.kpiDelta, { backgroundColor: dColor + '18' }]}>
+            <MaterialIcons name={up ? 'arrow-upward' : 'arrow-downward'} size={10} color={dColor} />
+            <Text style={[styles.kpiDeltaText, { color: dColor }]}>{Math.abs(Math.round(deltaPct))}%</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  // ── Report: KPI cards ──
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
+  kpiCard: { flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  kpiHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  kpiIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  kpiDelta: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
+  kpiDeltaText: { fontSize: 10, fontFamily: fonts.bold },
+  kpiValue: { fontSize: 17, fontFamily: fonts.bold, color: colors.text },
+  kpiLabel: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 1 },
+  // ── Report: vertical bar charts ──
+  vbarRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8, marginBottom: 2 },
+  vbarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  vbarTrack: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2 },
+  vbarFill: { width: 7, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+  vbarLabel: { fontSize: 9.5, color: colors.textMuted, marginTop: 5, fontFamily: fonts.medium },
+  // ── Report: metric progress rows ──
+  metricRow: { marginTop: 10 },
+  metricHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  metricLabel: { fontSize: 12.5, color: colors.textSecondary, fontFamily: fonts.medium },
+  metricPct: { fontSize: 12.5, fontFamily: fonts.bold },
+  metricTrack: { height: 7, borderRadius: 4, backgroundColor: '#EEF1F6', overflow: 'hidden' },
+  metricFill: { height: '100%', borderRadius: 4 },
+  // ── Report: segmented bar ──
+  segBar: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginVertical: 10, backgroundColor: '#EEF1F6' },
+  // ── Report: legend ──
+  legendRow: { flexDirection: 'row', gap: 16, marginTop: 10, justifyContent: 'center' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 9, height: 9, borderRadius: 5 },
+  legendText: { fontSize: 11.5, color: colors.textSecondary, fontFamily: fonts.medium },
+  // ── Report: card title row + health badge ──
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  healthBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  healthBadgeText: { fontSize: 12, fontFamily: fonts.bold },
+  // ── Report: order outcomes ──
+  outcomeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  outcomeItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  outcomeLabel: { fontSize: 11.5, color: colors.textSecondary, fontFamily: fonts.medium },
+  outcomeVal: { fontSize: 12.5, color: colors.text, fontFamily: fonts.bold, marginLeft: 2 },
+  // ── Report: two-stat footer ──
+  twoStatRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  twoStatItem: { flex: 1, alignItems: 'center' },
+  twoStatVal: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
+  twoStatLabel: { fontSize: 11, color: colors.textMuted, marginTop: 2, fontFamily: fonts.medium },
+  // ── Report: staff attendance ──
+  staffRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  staffAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  staffAvatarText: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary },
+  staffName: { flex: 1, fontSize: 13.5, color: colors.text, fontFamily: fonts.semibold },
+  staffDays: { fontSize: 13, color: colors.success, fontFamily: fonts.bold },
+  // ── Report: card subtitle ──
+  cardSub: { fontSize: 11.5, color: colors.textMuted, marginTop: 2, marginBottom: 2, fontFamily: fonts.regular },
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: 20, height: 48,

@@ -88,14 +88,6 @@
       ],
       "expo-font",
       "expo-apple-authentication",
-      [
-        "react-native-ble-plx",
-        {
-          "isBackgroundEnabled": false,
-          "neverForLocation": true,
-          "bluetoothAlwaysPermission": "Laundrybill connects to your Bluetooth thermal printer to print order QR tags."
-        }
-      ],
       "./plugins/withApsEnvironmentProduction"
     ],
     "extra": {

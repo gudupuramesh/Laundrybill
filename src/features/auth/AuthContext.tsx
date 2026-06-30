@@ -128,7 +128,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (firebaseUser) {
                 // One-active-web-session: claim/watch this account's web slot (covers owner + team,
                 // since this provider is top-level). Idempotent per uid.
-                claimWebSession(firebaseUser.uid);
+                // Skip public customer-facing pages (booking / tracking / receipt): opening one while
+                // logged in must NOT re-claim the web slot and evict the owner's real dashboard tab.
+                const path = typeof window !== "undefined" ? window.location.pathname : "";
+                const isPublicRoute =
+                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/");
+                if (!isPublicRoute) {
+                    claimWebSession(firebaseUser.uid);
+                }
                 try {
                     // Check if user document exists
                     const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));

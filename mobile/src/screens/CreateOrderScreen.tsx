@@ -19,6 +19,7 @@ interface Customer {
   phone: string;
   email?: string | null;
   address?: string | null;
+  area?: string | null;
   isActive?: boolean;
 }
 
@@ -628,9 +629,12 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                     setStep('items');
                   }}
                 >
+                  <View style={styles.resultAvatar}>
+                    <Text style={styles.resultAvatarText}>{(c.name || '?').charAt(0).toUpperCase()}</Text>
+                  </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.resultName}>{c.name}</Text>
-                    <Text style={styles.resultPhone}>{c.phone}{c.address ? ` • ${c.address}` : ''}</Text>
+                    <Text style={styles.resultName} numberOfLines={1}>{c.name}</Text>
+                    <Text style={styles.resultPhone} numberOfLines={1}>{[c.phone, c.area].filter(Boolean).join('  •  ')}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.customerEditBtn}
@@ -1089,20 +1093,38 @@ const styles = StyleSheet.create({
   },
   searchResultItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#d8e2ff33',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  resultAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  resultAvatarText: {
+    fontSize: 15,
+    fontFamily: fonts.bold,
+    color: colors.primary,
   },
   resultName: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: fonts.semibold,
     color: colors.text,
   },
   resultPhone: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: colors.textSecondary,
+    marginTop: 2,
   },
   customerEditBtn: {
     width: 30, height: 30, borderRadius: 8, backgroundColor: colors.primaryTint,

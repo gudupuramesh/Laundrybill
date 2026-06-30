@@ -128,7 +128,19 @@ export default function HomeScreen({
   const planKey = (subscriptionData?.planId || subscriptionData?.planName || shopData?.plan || 'free').toString().toLowerCase();
   const subStatus = (subscriptionData?.status || 'trial').toLowerCase();
   const orderLimit = planLimits.maxOrders > 0 ? planLimits.maxOrders : 0;
-  const isPaidPlan = subStatus === 'active' && planKey !== 'free' && planKey !== 'trial';
+  // A cancelled (or grace-period) subscription keeps its paid plan until the period end — matches web.
+  const subEndMs = (() => {
+    const ts = subscriptionData?.activeUntil || subscriptionData?.currentPeriodEnd || subscriptionData?.endDate;
+    if (!ts) return null;
+    if (ts.toDate) return ts.toDate().getTime();
+    if (ts.seconds) return ts.seconds * 1000;
+    const d = new Date(ts); return isNaN(d.getTime()) ? null : d.getTime();
+  })();
+  const subEffectivelyActive =
+    subStatus === 'active' ||
+    subStatus === 'grace_period' ||
+    (subStatus === 'cancelled' && subEndMs != null && subEndMs > Date.now());
+  const isPaidPlan = subEffectivelyActive && planKey !== 'free' && planKey !== 'trial';
   const atFreeLimit = orderLimit > 0 && ordersUsed >= orderLimit && !isPaidPlan;
   const pendingOrderCount = stats.pending + stats.inProgress;
 
@@ -138,10 +150,12 @@ export default function HomeScreen({
     t('mobile.planStatusFree');
   const normalizedPlanKey = planKey.replace(/[_\s-]/g, '');
   const paidPlanShort =
-    (normalizedPlanKey === 'business' || normalizedPlanKey === 'enterprise' || normalizedPlanKey === 'proplus' || normalizedPlanKey === 'premium')
-      ? 'Business'
-      : (normalizedPlanKey === 'pro' || normalizedPlanKey === 'starter')
-        ? 'Pro'
+    (normalizedPlanKey === 'proplus')
+      ? 'Pro+'
+      : (normalizedPlanKey === 'business' || normalizedPlanKey === 'enterprise' || normalizedPlanKey === 'premium')
+        ? 'Business'
+        : (normalizedPlanKey === 'pro' || normalizedPlanKey === 'starter')
+          ? 'Pro'
         : (subscriptionData?.planName || planKey || 'plan')
             .replace(/_/g, ' ')
             .split(' ')

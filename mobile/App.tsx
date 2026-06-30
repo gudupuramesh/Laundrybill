@@ -34,7 +34,6 @@ import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import FeedbackScreen from './src/screens/FeedbackScreen';
 import ServiceAreasScreen from './src/screens/ServiceAreasScreen';
-import PrinterSettingsScreen from './src/screens/PrinterSettingsScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -599,7 +598,6 @@ function MainLayout() {
                  onCreateStaffLogin={SHOW_STAFF_LOGINS && canCreateLogins ? () => { setStaffLoginPrefill(null); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
                  onServiceAreas={() => setActiveScreen('SERVICE_AREAS')}
-                 onPrinterSettings={() => setActiveScreen('PRINTER_SETTINGS')}
                  onFeedback={() => setActiveScreen('FEEDBACK')}
                />;
       default:
@@ -808,14 +806,6 @@ function MainLayout() {
     );
   }
 
-  if (activeScreen === 'PRINTER_SETTINGS') {
-    return (
-      <View style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-        <PrinterSettingsScreen onBack={() => setActiveScreen(null)} />
-      </View>
-    );
-  }
 
   if (activeScreen === 'CREATE_STAFF_LOGIN') {
     return (

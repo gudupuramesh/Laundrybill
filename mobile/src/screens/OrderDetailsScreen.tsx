@@ -13,8 +13,6 @@ import { formatCurrency, normalizePhoneForCountry, toE164 } from '../lib/currenc
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { printerService } from '../lib/printerService';
-import type { TagRow } from '../lib/escpos';
 import { colors, fonts, radii, shadows } from '../theme';
 import { HelpButton } from '../components/HelpButton';
 
@@ -649,30 +647,6 @@ export default function OrderDetailsScreen({
     }
   };
 
-  /** Map the current QR tab to ESC/POS tag rows (same data as the PDF tags). */
-  const buildTagRows = (): TagRow[] => {
-    const shopName = shopData?.name || 'LaundryBill';
-    const customer = order?.customerName || t('mobile.guestLabel');
-    const meta = `#${publicId} · ${customer}`;
-    return qrTab === 'order'
-      ? serviceGroups.map((g) => ({ shopName, qrData: orderId, service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}`, meta }))
-      : itemTags.map((tag) => ({ shopName, qrData: tag.qrData, service: tag.service, line2: `${tag.idxInService}/${tag.serviceTotal}`, meta }));
-  };
-
-  /** Print tags straight to a connected Bluetooth thermal printer (no PDF). */
-  const handlePrintTagsBluetooth = async () => {
-    try {
-      const def = await printerService.getDefault();
-      if (!def) {
-        Alert.alert('No printer', 'Connect a Bluetooth printer first in Settings → Bluetooth Printer.');
-        return;
-      }
-      await printerService.printTags(buildTagRows(), { feedLines: def.feedLines, qrModuleSize: def.qrModuleSize, cut: def.cut });
-    } catch (e: any) {
-      Alert.alert(t('mobile.errorTitle'), e?.message || t('mobile.failedPrintQr'));
-    }
-  };
-
   // ─── Render ───────────────────────────────────────────────────────
 
   if (loading) {
@@ -1110,10 +1084,6 @@ export default function OrderDetailsScreen({
                     <Text style={styles.printBtnText}>Share PDF</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, alignSelf: 'stretch' }]} onPress={handlePrintTagsBluetooth}>
-                  <MaterialIcons name="bluetooth" size={18} color="#fff" />
-                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Print to Bluetooth</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               /* ── Item Tags QR ──── */
@@ -1141,10 +1111,6 @@ export default function OrderDetailsScreen({
                     <Text style={styles.printBtnText}>Share PDF</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, alignSelf: 'stretch' }]} onPress={handlePrintTagsBluetooth}>
-                  <MaterialIcons name="bluetooth" size={18} color="#fff" />
-                  <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Print to Bluetooth</Text>
-                </TouchableOpacity>
               </>
             )}
 
