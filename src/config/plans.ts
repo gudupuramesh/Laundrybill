@@ -106,7 +106,7 @@ export const PLANS: Record<PlanType, Plan> = {
         description: "For single shops that need a team — staff, agent & plant logins plus public booking",
         badge: "Most Powerful",
         prices: { monthly: 799, yearly: 7990 },
-        pricesIntl: { monthly: 1299, yearly: 12990 },
+        pricesIntl: { monthly: 15, yearly: 150 }, // USD — international tier
         features: {
             ...BASE_FEATURES,
             orderTracking: true,
@@ -146,7 +146,7 @@ export const PLANS: Record<PlanType, Plan> = {
         description: "Scale with plant processing, drivers, multi-staff & public bookings",
         badge: "Enterprise",
         prices: { monthly: 1999, yearly: 19990 },
-        pricesIntl: { monthly: 2999, yearly: 29990 },
+        pricesIntl: { monthly: 35, yearly: 350 }, // USD — international tier
         features: {
             ...BASE_FEATURES,
             orderTracking: true,

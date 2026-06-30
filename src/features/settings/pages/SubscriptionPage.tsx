@@ -64,8 +64,15 @@ export function SubscriptionPage() {
     const { shop } = useShop();
     const { addToast } = useLToast();
 
-    // International shops (countryCode != IN) are charged the higher INR tier.
+    // International shops (countryCode != IN) are billed in USD; India shops in INR.
     const isIntl = String(shop?.settings?.countryCode || "IN").toUpperCase() !== "IN";
+
+    // Format a plan's price in the right currency: USD ($) for international plans that
+    // have a USD tier, otherwise the shop's currency (₹) via formatAmount.
+    const fmtPrice = (plan: Plan, c: Cycle): string => {
+        const val = priceOf(plan, c, isIntl);
+        return isIntl && plan.pricesIntl ? `$${val.toLocaleString("en-US")}` : formatAmount(val);
+    };
 
     const [cycle, setCycle] = useState<Cycle>("monthly");
     const [subscribing, setSubscribing] = useState<PlanType | null>(null);
@@ -371,7 +378,7 @@ export function SubscriptionPage() {
                                 </div>
                                 <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 4 }}>
                                     <span style={{ fontSize: 22, fontWeight: 700, fontFamily: MONO }}>
-                                        {formatAmount(currentPlan ? priceOf(currentPlan, cycle, isIntl) : 0)}
+                                        {currentPlan ? fmtPrice(currentPlan, cycle) : formatAmount(0)}
                                     </span>
                                     <span style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)" }}>
                                         / {cycle === "yearly" ? "yr" : "mo"}
@@ -527,7 +534,7 @@ export function SubscriptionPage() {
                                             <div style={{ fontSize: 17, fontWeight: 700, marginTop: 12 }}>{plan.name}</div>
                                             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 6 }}>
                                                 <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
-                                                    {formatAmount(priceOf(plan, cycle, isIntl))}
+                                                    {fmtPrice(plan, cycle)}
                                                 </span>
                                                 <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
                                                     / {cycle === "yearly" ? "yr" : "mo"}
@@ -620,7 +627,7 @@ export function SubscriptionPage() {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <CreditCard size={15} /> Subscribe · {formatAmount(priceOf(plan, "monthly", isIntl))}/mo
+                                                                <CreditCard size={15} /> Subscribe · {fmtPrice(plan, "monthly")}/mo
                                                             </>
                                                         )}
                                                     </button>
@@ -695,7 +702,7 @@ export function SubscriptionPage() {
                                                 <th key={p.id} style={{ ...th, textAlign: "center", color: isCurrent ? "var(--c-primary)" : "var(--c-text-2)" }}>
                                                     {p.name}
                                                     <div style={{ fontWeight: 600, fontSize: 11, color: "var(--c-text-3)", marginTop: 2, fontFamily: MONO, textTransform: "none", letterSpacing: 0 }}>
-                                                        {`${formatAmount(priceOf(p, cycle, isIntl))}/${cycle === "yearly" ? "yr" : "mo"}`}
+                                                        {`${fmtPrice(p, cycle)}/${cycle === "yearly" ? "yr" : "mo"}`}
                                                     </div>
                                                 </th>
                                             );
