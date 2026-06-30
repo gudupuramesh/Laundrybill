@@ -29,7 +29,7 @@ import { getShopOpenStatus } from "../lib/shop-hours";
 import { getDeliveryCharge } from "@/hooks/use-shop";
 import type { InventoryItem } from "@/types/inventory";
 import type { Shop } from "@/types/shop";
-import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList, Check } from "lucide-react";
+import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList, Check, ChevronLeft } from "lucide-react";
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
 import { formatCurrencyValue } from "@/hooks/use-currency";
@@ -130,6 +130,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         [categories, items]
     );
 
+    const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
     const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= 10;
 
     const placeOrder = async (isQuick: boolean) => {
@@ -324,6 +325,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                     </div>
                 )}
 
+                {!(mode === "select" && checkoutOpen) && (<>
                 {/* tab toggle */}
                 <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                     {([["quick", "Book Pickup", CalendarClock], ["select", "Price Calculator", ClipboardList]] as const).map(([m, label, Icon]) => {
@@ -349,6 +351,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         <Info size={14} style={{ flex: "none" }} /> Minimum order {fmt(minOrderValue)}
                     </div>
                 )}
+                </>)}
 
                 {/* ───────── BOOK PICKUP (quick) ───────── */}
                 {mode === "quick" && (
@@ -411,7 +414,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 )}
 
                 {/* ───────── PRICE CALCULATOR (itemised) ───────── */}
-                {mode === "select" && (
+                {mode === "select" && !checkoutOpen && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         <div style={{ ...cardStyle, padding: 16 }}>
                             <div style={{ fontSize: 17, fontWeight: 800 }}>Price Calculator</div>
@@ -458,79 +461,94 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                             </div>
                         )}
 
-                        {/* inline checkout — no popup, mirrors the Book Pickup flow */}
-                        {!cartHasItems ? (
-                            <div style={{ ...cardStyle, textAlign: "center", color: "var(--c-text-3)", fontSize: 13.5 }}>
-                                Add items above to see your total and schedule a pickup.
+                        {/* sticky cart bar — shows on item add; opens the checkout step (no popup) */}
+                        {cartHasItems && (
+                            <div style={{ position: "sticky", bottom: 0, marginTop: 4, display: "flex", flexDirection: "column", gap: 8, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", padding: "12px 14px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
+                                        <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
+                                    </div>
+                                    <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); window.scrollTo({ top: 0, behavior: "auto" }); }} disabled={belowMin} style={{ cursor: belowMin ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
+                                </div>
+                                {belowMin && <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--c-warning)" }}>Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.</div>}
                             </div>
-                        ) : (
-                            <>
-                                <div style={cardStyle}>
-                                    <div style={{ ...sectLbl, marginBottom: 12 }}>Order summary</div>
-                                    <LOrderSummary
-                                        items={cart.items.map((i) => ({ id: i.id, name: getTranslatedItemName(i.service.name), categoryName: i.service.categoryName, quantity: i.quantity, price: i.unitPrice, express: i.express, processingDays: i.express ? 1 : i.service.turnaroundDays }))}
-                                        subtotal={cart.subtotal}
-                                        discount={cart.discountAmount}
-                                        taxAmount={cart.taxAmount}
-                                        taxRate={cart.taxRate}
-                                        taxName={cart.taxName}
-                                        delivery={cart.deliveryCharge}
-                                        total={cart.total}
-                                    />
-                                    {(shop.settings?.publicCoupons?.length ?? 0) > 0 && (
-                                        <div style={{ marginTop: 12 }}>
-                                            <PublicCheckoutCoupon
-                                                shop={shop}
-                                                subtotal={cart.subtotal}
-                                                discountAmount={cart.discountAmount}
-                                                appliedCoupon={cart.discountType ? { type: cart.discountType, value: cart.discountValue ?? 0 } : null}
-                                                onApply={(type, value) => cart.setDiscount(type, value)}
-                                                onRemove={() => cart.setDiscount(undefined, undefined)}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {hasAreas && (
-                                    <div style={cardStyle}>
-                                        <div style={sectLbl}>Service area *</div>
-                                        <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
-                                            <option value="">Select your area</option>
-                                            {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
-                                        </select>
-                                    </div>
-                                )}
-
-                                <div style={cardStyle}>
-                                    <div style={sectLbl}>Select pickup date</div>
-                                    {dateStrip}
-                                    {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 18 }}>Preferred time</div>{slotChips}</>)}
-                                </div>
-
-                                <div style={cardStyle}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><MapPin size={14} /> Pickup address</div>
-                                    {addressBlock}
-                                </div>
-
-                                <div style={cardStyle}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><User size={14} /> Contact details</div>
-                                    {contactBlock}
-                                    <div style={{ marginTop: 10 }}>
-                                        <textarea rows={2} style={{ ...fld, resize: "vertical" }} placeholder="Special Instructions (Optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                {belowMin && (
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, background: "var(--c-warning-soft)", color: "var(--c-warning)", fontSize: 12.5, fontWeight: 600 }}>
-                                        <Info size={14} style={{ flex: "none" }} /> Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.
-                                    </div>
-                                )}
-
-                                <button onClick={() => placeOrder(false)} disabled={placing || belowMin} style={{ width: "100%", cursor: (placing || belowMin) ? "not-allowed" : "pointer", font: "inherit", fontSize: 16, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 14, padding: 15, boxShadow: "var(--sh-md)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                                    {placing ? <><Loader2 size={18} className="animate-spin" /> Placing…</> : `Schedule Pickup · ${fmt(cart.total)}`}
-                                </button>
-                            </>
                         )}
+                    </div>
+                )}
+
+                {/* ───────── CHECKOUT STEP (Price Calculator → pickup details, full page, no popup) ───────── */}
+                {mode === "select" && checkoutOpen && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 2 }}>
+                            <button onClick={() => setCheckoutOpen(false)} aria-label="Back" style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 14, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "9px 13px" }}><ChevronLeft size={16} /> Back</button>
+                            <div style={{ fontSize: 17, fontWeight: 800 }}>Pickup details</div>
+                        </div>
+
+                        <div style={cardStyle}>
+                            <div style={{ ...sectLbl, marginBottom: 12 }}>Order summary</div>
+                            <LOrderSummary
+                                items={cart.items.map((i) => ({ id: i.id, name: getTranslatedItemName(i.service.name), categoryName: i.service.categoryName, quantity: i.quantity, price: i.unitPrice, express: i.express, processingDays: i.express ? 1 : i.service.turnaroundDays }))}
+                                subtotal={cart.subtotal}
+                                discount={cart.discountAmount}
+                                taxAmount={cart.taxAmount}
+                                taxRate={cart.taxRate}
+                                taxName={cart.taxName}
+                                delivery={cart.deliveryCharge}
+                                total={cart.total}
+                            />
+                            {(shop.settings?.publicCoupons?.length ?? 0) > 0 && (
+                                <div style={{ marginTop: 12 }}>
+                                    <PublicCheckoutCoupon
+                                        shop={shop}
+                                        subtotal={cart.subtotal}
+                                        discountAmount={cart.discountAmount}
+                                        appliedCoupon={cart.discountType ? { type: cart.discountType, value: cart.discountValue ?? 0 } : null}
+                                        onApply={(type, value) => cart.setDiscount(type, value)}
+                                        onRemove={() => cart.setDiscount(undefined, undefined)}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {hasAreas && (
+                            <div style={cardStyle}>
+                                <div style={sectLbl}>Service area *</div>
+                                <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
+                                    <option value="">Select your area</option>
+                                    {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        <div style={cardStyle}>
+                            <div style={sectLbl}>Select pickup date</div>
+                            {dateStrip}
+                            {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 18 }}>Preferred time</div>{slotChips}</>)}
+                        </div>
+
+                        <div style={cardStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><MapPin size={14} /> Pickup address</div>
+                            {addressBlock}
+                        </div>
+
+                        <div style={cardStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><User size={14} /> Contact details</div>
+                            {contactBlock}
+                            <div style={{ marginTop: 10 }}>
+                                <textarea rows={2} style={{ ...fld, resize: "vertical" }} placeholder="Special Instructions (Optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} />
+                            </div>
+                        </div>
+
+                        {belowMin && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, background: "var(--c-warning-soft)", color: "var(--c-warning)", fontSize: 12.5, fontWeight: 600 }}>
+                                <Info size={14} style={{ flex: "none" }} /> Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.
+                            </div>
+                        )}
+
+                        <button onClick={() => placeOrder(false)} disabled={placing || belowMin} style={{ width: "100%", cursor: (placing || belowMin) ? "not-allowed" : "pointer", font: "inherit", fontSize: 16, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 14, padding: 15, boxShadow: "var(--sh-md)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                            {placing ? <><Loader2 size={18} className="animate-spin" /> Placing…</> : `Schedule Pickup · ${fmt(cart.total)}`}
+                        </button>
                     </div>
                 )}
 
