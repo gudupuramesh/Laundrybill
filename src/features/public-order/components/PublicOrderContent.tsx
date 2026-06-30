@@ -14,8 +14,6 @@
 import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import {
-    LResponsiveDialog,
-    LTextArea,
     LOrderSummary,
     useLToast,
 } from "@/components/laundry";
@@ -132,7 +130,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         [categories, items]
     );
 
-    const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
     const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= 10;
 
     const placeOrder = async (isQuick: boolean) => {
@@ -461,15 +458,79 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                             </div>
                         )}
 
-                        {/* sticky cart bar */}
-                        <div style={{ position: "sticky", bottom: 0, marginTop: 4, display: "flex", alignItems: "center", gap: 12, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", padding: "12px 14px" }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
-                                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
-                                {cartHasItems && belowMin && <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--c-warning)" }}>Add {fmt(minOrderValue - cart.total)} to reach minimum</div>}
+                        {/* inline checkout — no popup, mirrors the Book Pickup flow */}
+                        {!cartHasItems ? (
+                            <div style={{ ...cardStyle, textAlign: "center", color: "var(--c-text-3)", fontSize: 13.5 }}>
+                                Add items above to see your total and schedule a pickup.
                             </div>
-                            <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); }} disabled={!cartHasItems || belowMin} style={{ cursor: (cartHasItems && !belowMin) ? "pointer" : "not-allowed", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: (cartHasItems && !belowMin) ? "var(--c-primary)" : "var(--c-border-strong)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
-                        </div>
+                        ) : (
+                            <>
+                                <div style={cardStyle}>
+                                    <div style={{ ...sectLbl, marginBottom: 12 }}>Order summary</div>
+                                    <LOrderSummary
+                                        items={cart.items.map((i) => ({ id: i.id, name: getTranslatedItemName(i.service.name), categoryName: i.service.categoryName, quantity: i.quantity, price: i.unitPrice, express: i.express, processingDays: i.express ? 1 : i.service.turnaroundDays }))}
+                                        subtotal={cart.subtotal}
+                                        discount={cart.discountAmount}
+                                        taxAmount={cart.taxAmount}
+                                        taxRate={cart.taxRate}
+                                        taxName={cart.taxName}
+                                        delivery={cart.deliveryCharge}
+                                        total={cart.total}
+                                    />
+                                    {(shop.settings?.publicCoupons?.length ?? 0) > 0 && (
+                                        <div style={{ marginTop: 12 }}>
+                                            <PublicCheckoutCoupon
+                                                shop={shop}
+                                                subtotal={cart.subtotal}
+                                                discountAmount={cart.discountAmount}
+                                                appliedCoupon={cart.discountType ? { type: cart.discountType, value: cart.discountValue ?? 0 } : null}
+                                                onApply={(type, value) => cart.setDiscount(type, value)}
+                                                onRemove={() => cart.setDiscount(undefined, undefined)}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {hasAreas && (
+                                    <div style={cardStyle}>
+                                        <div style={sectLbl}>Service area *</div>
+                                        <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
+                                            <option value="">Select your area</option>
+                                            {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div style={cardStyle}>
+                                    <div style={sectLbl}>Select pickup date</div>
+                                    {dateStrip}
+                                    {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 18 }}>Preferred time</div>{slotChips}</>)}
+                                </div>
+
+                                <div style={cardStyle}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><MapPin size={14} /> Pickup address</div>
+                                    {addressBlock}
+                                </div>
+
+                                <div style={cardStyle}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><User size={14} /> Contact details</div>
+                                    {contactBlock}
+                                    <div style={{ marginTop: 10 }}>
+                                        <textarea rows={2} style={{ ...fld, resize: "vertical" }} placeholder="Special Instructions (Optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} />
+                                    </div>
+                                </div>
+
+                                {belowMin && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, background: "var(--c-warning-soft)", color: "var(--c-warning)", fontSize: 12.5, fontWeight: 600 }}>
+                                        <Info size={14} style={{ flex: "none" }} /> Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.
+                                    </div>
+                                )}
+
+                                <button onClick={() => placeOrder(false)} disabled={placing || belowMin} style={{ width: "100%", cursor: (placing || belowMin) ? "not-allowed" : "pointer", font: "inherit", fontSize: 16, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 14, padding: 15, boxShadow: "var(--sh-md)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                                    {placing ? <><Loader2 size={18} className="animate-spin" /> Placing…</> : `Schedule Pickup · ${fmt(cart.total)}`}
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -521,79 +582,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 onAdd={(item, qty, express, notes) => { cart.addItem(item, qty, express, notes); setItemDetailOpen(false); setSelectedItem(null); }}
             />
 
-            {/* checkout (Price Calculator → pickup details) */}
-            <LResponsiveDialog open={checkoutOpen} onClose={() => setCheckoutOpen(false)} title="Pickup details" size="lg">
-                <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 16, maxHeight: "80vh", overflowY: "auto" }}>
-                    {placing && (
-                        <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 280, borderRadius: 12, background: "rgba(255,255,255,.97)" }}>
-                            <Loader2 size={32} className="animate-spin" style={{ color: "var(--c-primary)" }} />
-                            <div style={{ fontSize: 16, fontWeight: 700 }}>Placing your order…</div>
-                            <div style={{ fontSize: 13, color: "var(--c-text-3)" }}>Please wait, don't close this window.</div>
-                        </div>
-                    )}
-
-                    <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Order summary</div>
-                        <LOrderSummary
-                            items={cart.items.map((i) => ({ id: i.id, name: getTranslatedItemName(i.service.name), categoryName: i.service.categoryName, quantity: i.quantity, price: i.unitPrice, express: i.express, processingDays: i.express ? 1 : i.service.turnaroundDays }))}
-                            subtotal={cart.subtotal}
-                            discount={cart.discountAmount}
-                            taxAmount={cart.taxAmount}
-                            taxRate={cart.taxRate}
-                            taxName={cart.taxName}
-                            delivery={cart.deliveryCharge}
-                            total={cart.total}
-                        />
-                        {(shop.settings?.publicCoupons?.length ?? 0) > 0 && (
-                            <div style={{ marginTop: 12 }}>
-                                <PublicCheckoutCoupon
-                                    shop={shop}
-                                    subtotal={cart.subtotal}
-                                    discountAmount={cart.discountAmount}
-                                    appliedCoupon={cart.discountType ? { type: cart.discountType, value: cart.discountValue ?? 0 } : null}
-                                    onApply={(type, value) => cart.setDiscount(type, value)}
-                                    onRemove={() => cart.setDiscount(undefined, undefined)}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {hasAreas && (
-                        <div>
-                            <div style={sectLbl}>Service area *</div>
-                            <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
-                                <option value="">Select your area</option>
-                                {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
-                            </select>
-                        </div>
-                    )}
-
-                    <div>
-                        <div style={sectLbl}>Pickup date</div>
-                        {dateStrip}
-                        {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 14 }}>Preferred time</div>{slotChips}</>)}
-                    </div>
-
-                    <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><MapPin size={16} style={{ color: "var(--c-primary)" }} /> Pickup address</div>
-                        {addressBlock}
-                    </div>
-
-                    <LTextArea label="Special instructions (optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} placeholder="e.g. Ring the doorbell twice" rows={3} />
-
-                    <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><User size={16} style={{ color: "var(--c-primary)" }} /> Contact details</div>
-                        {contactBlock}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 12 }}>
-                        <button onClick={() => setCheckoutOpen(false)} style={{ flex: 1, cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 12, padding: 14 }}>Back</button>
-                        <button onClick={() => placeOrder(false)} disabled={placing} style={{ flex: 1.4, cursor: placing ? "wait" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 12, padding: 14, boxShadow: "var(--sh-sm)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                            {placing ? <><Loader2 size={17} className="animate-spin" /> Placing…</> : `Schedule Pickup · ${fmt(cart.total)}`}
-                        </button>
-                    </div>
-                </div>
-            </LResponsiveDialog>
         </div>
     );
 }
