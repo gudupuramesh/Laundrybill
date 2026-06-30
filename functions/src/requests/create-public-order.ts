@@ -65,6 +65,8 @@ interface CreatePublicOrderInput {
   /** Quick-order estimates (no itemised list) — shown to the shop so they know what's coming. */
   estimatedWeight?: string;
   estimatedPieces?: string;
+  /** Services the customer selected in Book Pickup — become 0-priced placeholder lines. */
+  requestedServices?: string[];
 }
 
 export const createPublicOrder = onCall(async (request) => {
@@ -267,6 +269,26 @@ export const createPublicOrder = onCall(async (request) => {
   }));
 
   const isQuickOrder = data.isQuickOrder === true || orderItems.length === 0;
+
+  // Quick orders carry no priced items — but if the customer ticked which services
+  // they need, create one 0-priced placeholder line per service so the shop sees the
+  // requested services on the order and prices them at intake.
+  const placeholderItems = (data.requestedServices || [])
+    .filter((s) => typeof s === "string" && s.trim())
+    .map((svc, idx) => ({
+      id: `i-svc-${idx}`,
+      serviceId: `svc-${idx}`,
+      serviceName: svc.trim(),
+      categoryId: null,
+      categoryName: svc.trim(),
+      quantity: 1,
+      unit: "piece",
+      unitPrice: 0,
+      total: 0,
+      express: false,
+      notes: "Requested online — price at intake",
+    }));
+  const finalItems = orderItems.length > 0 ? orderItems : placeholderItems;
   const rawFinancials = data.financials || {
     subtotal: 0,
     taxAmount: 0,
@@ -319,7 +341,7 @@ export const createPublicOrder = onCall(async (request) => {
     customerPhone: "+91" + phoneNorm,
     customerEmail: data.customerEmail || null,
     isGuest: false,
-    items: orderItems,
+    items: finalItems,
     financials,
     status: "pending",
     paymentMethod: "cash",

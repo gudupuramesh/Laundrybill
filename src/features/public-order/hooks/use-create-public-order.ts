@@ -47,6 +47,7 @@ interface CreatePublicOrderPayload {
   deliveryBandId?: string;
   estimatedWeight?: string;
   estimatedPieces?: string;
+  requestedServices?: string[];
 }
 
 interface CreatePublicOrderResult {
@@ -85,6 +86,7 @@ export function useCreatePublicOrder() {
         deliveryBandId?: string;
         estimatedWeight?: string;
         estimatedPieces?: string;
+        requestedServices?: string[];
       }
     ): Promise<CreatePublicOrderResult | null> => {
       const slug = shop.publicOrdering?.slug || "";
@@ -141,6 +143,7 @@ export function useCreatePublicOrder() {
           deliveryBandId: input.deliveryBandId,
           estimatedWeight: input.estimatedWeight,
           estimatedPieces: input.estimatedPieces,
+          requestedServices: input.requestedServices,
         };
 
         const result = await fn(payload);

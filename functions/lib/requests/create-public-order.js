@@ -200,6 +200,25 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
         });
     });
     const isQuickOrder = data.isQuickOrder === true || orderItems.length === 0;
+    // Quick orders carry no priced items — but if the customer ticked which services
+    // they need, create one 0-priced placeholder line per service so the shop sees the
+    // requested services on the order and prices them at intake.
+    const placeholderItems = (data.requestedServices || [])
+        .filter((s) => typeof s === "string" && s.trim())
+        .map((svc, idx) => ({
+        id: `i-svc-${idx}`,
+        serviceId: `svc-${idx}`,
+        serviceName: svc.trim(),
+        categoryId: null,
+        categoryName: svc.trim(),
+        quantity: 1,
+        unit: "piece",
+        unitPrice: 0,
+        total: 0,
+        express: false,
+        notes: "Requested online — price at intake",
+    }));
+    const finalItems = orderItems.length > 0 ? orderItems : placeholderItems;
     const rawFinancials = data.financials || {
         subtotal: 0,
         taxAmount: 0,
@@ -239,7 +258,7 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
         amountPaid: 0,
         balance: total,
     };
-    const orderData = Object.assign(Object.assign({ orderNumber, publicId: orderNumber, customerId, customerName: data.customerName, customerPhone: "+91" + phoneNorm, customerEmail: data.customerEmail || null, isGuest: false, items: orderItems, financials, status: "pending", paymentMethod: "cash", paymentStatus: "unpaid", deliveryType: "pickup_home", deliveryAddress: buildAddressString(data.deliveryAddress) }, (((_j = data.deliveryAddress) === null || _j === void 0 ? void 0 : _j.lat) != null && ((_k = data.deliveryAddress) === null || _k === void 0 ? void 0 : _k.lng) != null
+    const orderData = Object.assign(Object.assign({ orderNumber, publicId: orderNumber, customerId, customerName: data.customerName, customerPhone: "+91" + phoneNorm, customerEmail: data.customerEmail || null, isGuest: false, items: finalItems, financials, status: "pending", paymentMethod: "cash", paymentStatus: "unpaid", deliveryType: "pickup_home", deliveryAddress: buildAddressString(data.deliveryAddress) }, (((_j = data.deliveryAddress) === null || _j === void 0 ? void 0 : _j.lat) != null && ((_k = data.deliveryAddress) === null || _k === void 0 ? void 0 : _k.lng) != null
         ? { deliveryLat: data.deliveryAddress.lat, deliveryLng: data.deliveryAddress.lng }
         : {})), { deliveryNotes: data.customerNotes || null, pickupAddress: buildAddressString(data.deliveryAddress), scheduledPickupDate: admin.firestore.Timestamp.fromDate(pickupDateObj), scheduledPickupTime: data.pickupSlot || null, expectedDelivery: admin.firestore.Timestamp.fromDate(expectedDelivery), staffId: "online", staffName: "Online", assignedAgentId: assignedAgentId, assignedAgentName: assignedAgentName, assignedAt: assignedAgentId ? now : null, shopId: data.shopId, orderSource: "online", publicPageSlug: data.shopSlug, shopName: shopData.name || shopData.shopName || "Shop", deliveryArea: data.deliveryArea || null, isQuickOrder: (_l = data.isQuickOrder) !== null && _l !== void 0 ? _l : isQuickOrder, estimatedWeight: data.estimatedWeight || null, estimatedPieces: data.estimatedPieces || null, timeline: [
             {

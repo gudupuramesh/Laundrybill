@@ -31,7 +31,7 @@ import { getShopOpenStatus } from "../lib/shop-hours";
 import { getDeliveryCharge } from "@/hooks/use-shop";
 import type { InventoryItem } from "@/types/inventory";
 import type { Shop } from "@/types/shop";
-import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList } from "lucide-react";
+import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList, Check } from "lucide-react";
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
 import { formatCurrencyValue } from "@/hooks/use-currency";
@@ -59,6 +59,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const [mode, setMode] = useState<OrderMode>("quick");
     const [estWeight, setEstWeight] = useState("");
     const [estPieces, setEstPieces] = useState("");
+    const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [confirmPhone, setConfirmPhone] = useState("");
     const [search, setSearch] = useState("");
     const [selectedArea, setSelectedArea] = useState("");
@@ -91,7 +92,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const { data: slotAvailability } = usePublicSlotAvailability(shop.publicOrdering?.slug, checkoutDate);
 
     const openStatus = getShopOpenStatus(shop);
-    const distanceBands = (deliverySettings?.distanceFeeEnabled && Array.isArray(deliverySettings.distanceBands)) ? deliverySettings.distanceBands : [];
     const featuredCode = shop.publicOrdering?.featuredCouponCode;
     const offerText = shop.publicOrdering?.offerText?.trim();
     const offerEnabled = (shop.publicOrdering?.offerEnabled ?? !!featuredCode) && (!!offerText || !!featuredCode);
@@ -120,6 +120,13 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         item.isActive &&
         (!selectedCategory || item.categoryId === selectedCategory) &&
         (!search.trim() || getTranslatedItemName(item.name).toLowerCase().includes(search.trim().toLowerCase()))
+    );
+
+    // Only categories that actually have active items — avoids empty tabs (e.g. "Iron")
+    // that show nothing when selected, and powers the Book Pickup service chips.
+    const activeCategories = useMemo(
+        () => categories.filter((c) => items.some((it) => it.isActive && it.categoryId === c.id)),
+        [categories, items]
     );
 
     const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
@@ -196,6 +203,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 deliveryBandId: cart.deliveryBandId,
                 estimatedWeight: isQuick ? (estWeight || undefined) : undefined,
                 estimatedPieces: isQuick ? (estPieces || undefined) : undefined,
+                requestedServices: isQuick && selectedServices.length ? selectedServices : undefined,
             });
 
             if (result) {
@@ -282,27 +290,10 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         </div>
     );
 
-    const bandSelector = distanceBands.length > 0 ? (
-        <div>
-            <div style={sectLbl}>Delivery distance</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {distanceBands.map((b) => {
-                    const on = (cart.deliveryBandId || distanceBands[0].id) === b.id;
-                    return (
-                        <button key={b.id} type="button" onClick={() => cart.setDeliveryBand(b.id)} style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "9px 13px", borderRadius: 12, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{b.label}</span>
-                            <span style={{ fontSize: 11, fontFamily: MONO }}>{fmt(b.fee)}</span>
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
-    ) : null;
-
     // category tabs (All + categories) for the Price Calculator
     const categoryTabs = (
         <div className="lb-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
-            {[{ id: "", name: "All" }, ...categories].map((c) => {
+            {[{ id: "", name: "All" }, ...activeCategories].map((c) => {
                 const on = c.id === selectedCategory;
                 return (
                     <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)} style={{ cursor: "pointer", font: "inherit", flex: "none", fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 20, whiteSpace: "nowrap", border: `1.5px solid ${on ? "var(--c-text)" : "var(--c-border-strong)"}`, background: on ? "var(--c-text)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.name}</button>
@@ -355,6 +346,21 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 {/* ───────── BOOK PICKUP (quick) ───────── */}
                 {mode === "quick" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        {activeCategories.length > 0 && (
+                            <div style={cardStyle}>
+                                <div style={sectLbl}>What services do you need?</div>
+                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    {activeCategories.map((c) => {
+                                        const on = selectedServices.includes(c.name);
+                                        return (
+                                            <button key={c.id} type="button" onClick={() => setSelectedServices((prev) => on ? prev.filter((x) => x !== c.name) : [...prev, c.name])} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, padding: "10px 15px", borderRadius: 20, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                {on && <Check size={14} />}{c.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                         <div style={cardStyle}>
                             <div style={sectLbl}>Estimated weight</div>
                             {chipGroup(WEIGHT_OPTS, estWeight, setEstWeight)}
@@ -381,7 +387,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         <div style={cardStyle}>
                             <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><MapPin size={14} /> Pickup address</div>
                             {addressBlock}
-                            {bandSelector && <div style={{ marginTop: 14 }}>{bandSelector}</div>}
                         </div>
 
                         <div style={cardStyle}>
@@ -557,8 +562,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         {dateStrip}
                         {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 14 }}>Preferred time</div>{slotChips}</>)}
                     </div>
-
-                    {bandSelector}
 
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><MapPin size={16} style={{ color: "var(--c-primary)" }} /> Pickup address</div>
