@@ -207,7 +207,7 @@ export function PublicReceiptPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-primary to-primary-dark">
+        <div className="min-h-screen" style={{ background: "linear-gradient(180deg, var(--c-primary), #11338E)" }}>
             {/* Header */}
             <header className="p-6 pt-12 text-center text-white">
                 <div className="max-w-md mx-auto">

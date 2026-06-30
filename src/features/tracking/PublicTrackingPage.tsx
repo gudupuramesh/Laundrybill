@@ -119,7 +119,7 @@ export function PublicTrackingPage() {
     // customer hasn't confirmed the phone on the order (the tracking verifier).
     if (!effectiveTrackingId || !phoneVerified) {
         return (
-            <div className="min-h-screen bg-gradient-to-b from-primary to-primary-dark flex flex-col">
+            <div className="min-h-screen flex flex-col" style={{ background: "linear-gradient(180deg, var(--c-primary), #11338E)" }}>
                 {/* Header */}
                 <header className="p-6 pt-12 text-center text-white">
                     <div className="max-w-md mx-auto">
