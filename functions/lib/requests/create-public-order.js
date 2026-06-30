@@ -28,6 +28,8 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     if (dialDigits && phoneNorm.startsWith(dialDigits) && phoneNorm.length > dialDigits.length + 5) {
         phoneNorm = phoneNorm.slice(dialDigits.length);
     }
+    // Drop a national trunk "0" prefix (UK/EU/Africa) — it's omitted in international format.
+    phoneNorm = phoneNorm.replace(/^0+/, "");
     if (phoneNorm.length < 6) {
         throw new https_1.HttpsError("invalid-argument", "Invalid phone number");
     }

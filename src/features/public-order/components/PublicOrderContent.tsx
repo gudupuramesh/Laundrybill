@@ -33,7 +33,7 @@ import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, Calendar
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
 import { formatCurrencyValue } from "@/hooks/use-currency";
-import { getCountry, getCountryByCurrency } from "@/config/countries";
+import { getCountry, getCountryByCurrency, COUNTRIES } from "@/config/countries";
 import { useNavigate } from "react-router-dom";
 import { forwardGeocode } from "@/lib/geocoding";
 import type { PublicDeliveryAddress } from "../hooks/use-public-cart";
@@ -77,10 +77,14 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const shopCurrencySymbol = shop.settings?.currencySymbol || "₹";
     const shopLocale = shop.settings?.locale || "en-IN";
     const fmt = (v: number) => formatCurrencyValue(v, shopCurrencySymbol, shopLocale);
-    // Phone country code from the shop's country / currency (e.g. +91, +971).
+    // Phone country defaults to the shop's country, but the customer can change it —
+    // e.g. a US visitor at a UAE shop keeps their own +1 number instead of being
+    // forced into +971 (which would store a broken number and break WhatsApp).
     const shopCountry = shop.settings?.countryCode ? getCountry(shop.settings.countryCode) : getCountryByCurrency(shop.settings?.currency || "INR");
-    const dialCode = (shop.settings?.phoneCountryCode || shopCountry.phoneCode || "+91").trim();
-    const localPhoneDigits = shopCountry.phoneDigits || 10;
+    const [phoneCountryIso, setPhoneCountryIso] = useState(shopCountry.code);
+    const phoneCountry = getCountry(phoneCountryIso);
+    const dialCode = phoneCountry.phoneCode;
+    const localPhoneDigits = phoneCountry.phoneDigits || 10;
     const deliverySettings = shop.settings?.delivery;
     const areas = (deliverySettings?.serviceAreas || []).filter((a) => a.isActive);
     const hasAreas = areas.length > 0;
@@ -288,13 +292,18 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
 
     const phoneFieldWrap: CSSProperties = { flex: 1, minWidth: 0, display: "flex", alignItems: "stretch", border: "1px solid var(--c-border-strong)", borderRadius: 12, overflow: "hidden", background: "var(--c-surface)" };
     const dialPrefix: CSSProperties = { display: "flex", alignItems: "center", padding: "0 11px", background: "var(--c-surface-2)", color: "var(--c-text-2)", fontFamily: MONO, fontSize: 13.5, fontWeight: 600, borderRight: "1px solid var(--c-border)", whiteSpace: "nowrap" };
+    const dialSelect: CSSProperties = { appearance: "none", WebkitAppearance: "none", MozAppearance: "none", border: 0, borderRight: "1px solid var(--c-border)", background: "var(--c-surface-2)", color: "var(--c-text-2)", fontFamily: MONO, fontSize: 13.5, fontWeight: 600, padding: "0 8px", cursor: "pointer", outline: "none", flex: "none" } as CSSProperties;
     const phoneInput: CSSProperties = { flex: 1, minWidth: 0, font: "inherit", fontFamily: MONO, fontSize: 14, color: "var(--c-text)", background: "transparent", border: 0, padding: "13px 12px", outline: "none" };
+    // 🇦🇪-style flag from an ISO-3166 alpha-2 code (regional indicator symbols).
+    const flagEmoji = (iso: string) => (iso || "").toUpperCase().replace(/[A-Z]/g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
     const contactBlock = (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <input style={fld} placeholder="Full Name *" value={cart.customerName} onChange={(e) => cart.setCustomer(e.target.value, cart.customerPhone, cart.customerEmail)} />
             <div style={{ display: "flex", gap: 10 }}>
                 <div style={phoneFieldWrap}>
-                    <span style={dialPrefix}>{dialCode}</span>
+                    <select style={dialSelect} value={phoneCountryIso} onChange={(e) => setPhoneCountryIso(e.target.value)} aria-label="Country code" title="Country code">
+                        {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{flagEmoji(c.code)} {c.phoneCode}</option>)}
+                    </select>
                     <input style={phoneInput} inputMode="tel" placeholder="Phone Number *" value={cart.customerPhone} onChange={(e) => cart.setCustomer(cart.customerName, e.target.value.replace(/[^\d]/g, ""), cart.customerEmail)} />
                 </div>
                 <div style={phoneFieldWrap}>

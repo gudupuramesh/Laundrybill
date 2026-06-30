@@ -10,6 +10,8 @@ import { LSpinner, LEmptyState } from "@/components/laundry";
 import { useCustomer, useCustomers } from "@/hooks/use-customers";
 import { useOrders } from "@/hooks/use-orders";
 import { useCurrency } from "@/hooks/use-currency";
+import { useShop } from "@/hooks/use-shop";
+import { buildWaPhone } from "@/lib/whatsappShare";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import { ChevronLeft, Phone, MessageCircle, Edit, Plus, Mail, MapPin, ClipboardList } from "lucide-react";
@@ -48,6 +50,7 @@ export function CustomerDetailPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { formatAmount } = useCurrency();
+    const { shop } = useShop();
     const { customer, loading } = useCustomer(customerId!);
     const { orders, loading: ordersLoading } = useOrders({ customerId });
     const { updateCustomer } = useCustomers();
@@ -110,7 +113,7 @@ export function CustomerDetailPage() {
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                         <button onClick={() => window.open(`tel:${customer.phone}`)} aria-label="Call" style={iconBtn("c-primary", "c-primary-soft")}><Phone size={17} /></button>
-                        <button onClick={() => window.open(`https://wa.me/${(customer.phone || "").replace(/\D/g, "")}`)} aria-label="WhatsApp" style={iconBtn("c-success", "c-success-soft")}><MessageCircle size={17} /></button>
+                        <button onClick={() => window.open(`https://wa.me/${buildWaPhone(customer.phone || "", shop || undefined)}`)} aria-label="WhatsApp" style={iconBtn("c-success", "c-success-soft")}><MessageCircle size={17} /></button>
                         <button onClick={() => setEditOpen(true)} aria-label="Edit" style={{ cursor: "pointer", width: 38, height: 38, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9 }}><Edit size={16} /></button>
                     </div>
                 </div>

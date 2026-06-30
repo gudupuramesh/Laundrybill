@@ -11,23 +11,29 @@ import { getCountry, getCountryByCurrency } from "@/config/countries";
 import { format } from "date-fns";
 
 /**
- * Build a wa.me-ready phone number (digits only) with the correct country code.
- * Numbers stored with a country code (e.g. "+971501234567") are used as-is; a bare
- * local number gets the SHOP's dial code (from settings.countryCode / phoneCountryCode
- * / currency) — never a hardcoded +91.
+ * Build a wa.me-ready phone number (digits only) with the correct country code,
+ * working for EVERY country (not hardcoded to India).
+ *
+ * Rule: trust the country code already on the number. If it was stored in
+ * international form ("+<cc><number>") or is longer than a local number, use its
+ * digits as-is — this is robust even if the shop's country settings are wrong or
+ * haven't loaded yet. Only a bare local number gets the SHOP's dial code prepended
+ * (dropping a leading trunk "0", e.g. UK/EU/Africa).
  */
-function buildWaPhone(rawPhone: string, shop?: Shop): string {
-    const digits = (rawPhone || "").replace(/[^0-9]/g, "");
+export function buildWaPhone(rawPhone: string, shop?: Shop): string {
+    const raw = String(rawPhone || "").trim();
+    const hadPlus = raw.startsWith("+");
+    const digits = raw.replace(/[^0-9]/g, "");
     if (!digits) return "";
     const country = shop?.settings?.countryCode
         ? getCountry(shop.settings.countryCode)
         : getCountryByCurrency(shop?.settings?.currency || "INR");
     const dialDigits = (shop?.settings?.phoneCountryCode || country.phoneCode || "+91").replace(/\D/g, "");
     const localLen = country.phoneDigits || 10;
-    // Already includes a country code (stored as +<cc><number>) → use as-is.
-    if (digits.length > localLen) return digits;
-    // Bare local number → prepend the shop's dial code.
-    return dialDigits + digits;
+    // Already international (stored with +country code, or longer than a local number) → trust it.
+    if (hadPlus || digits.length > localLen) return digits;
+    // Bare local number → drop a trunk "0" and prepend the shop's dial code.
+    return dialDigits + digits.replace(/^0+/, "");
 }
 
 const DELIVERY_TYPE_LABELS: Record<string, string> = {

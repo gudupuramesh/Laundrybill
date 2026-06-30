@@ -55,3 +55,23 @@ export function toE164(phoneDigits: string, settings?: ShopCountrySettings): str
   return `+${prefix}${local}`;
 }
 
+/**
+ * Build a wa.me-ready phone number (digits only) for ANY country.
+ * Trusts the country code already on the number: if it was stored international
+ * ("+<cc><number>") or is longer than a local number, its digits are used as-is —
+ * robust even if shop country settings are wrong or not yet loaded. Only a bare
+ * local number gets the shop's dial code (dropping a leading trunk "0").
+ * Unlike toE164, this never strips/overrides an existing country code.
+ */
+export function buildWhatsAppNumber(rawPhone: string, settings?: ShopCountrySettings): string {
+  const s = resolveShopCountrySettings(settings);
+  const raw = String(rawPhone || "").trim();
+  const hadPlus = raw.startsWith("+");
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const dialDigits = String(s.phoneCountryCode).replace(/\D/g, "");
+  const localLen = s.phoneDigits;
+  if (hadPlus || digits.length > localLen) return digits;
+  return dialDigits + digits.replace(/^0+/, "");
+}
+

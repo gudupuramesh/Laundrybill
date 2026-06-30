@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { firestore } from '../lib/db';
 import { getShopId, getAgentId, getAgentName } from '../lib/auth';
-import { formatCurrency, normalizePhoneForCountry, toE164 } from '../lib/currency-format';
+import { formatCurrency, buildWhatsAppNumber } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -731,8 +731,7 @@ export default function OrderDetailsScreen({
                   <MaterialIcons name="call" size={16} color="#00408f" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.smallCircleBtn, { backgroundColor: '#e6f7f2' }]} onPress={() => {
-                  const p = (order.customerPhone || '').replace(/\D/g, '');
-                  const wa = toE164(normalizePhoneForCountry(p, countrySettings), countrySettings).replace(/\D/g, '');
+                  const wa = buildWhatsAppNumber(order.customerPhone || '', countrySettings);
                   Linking.openURL(`https://wa.me/${wa}`).catch(() => {});
                 }}>
                   <MaterialIcons name="chat" size={16} color="#25D366" />

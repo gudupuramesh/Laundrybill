@@ -16,6 +16,7 @@ import { useDriverTasks } from "../hooks/use-driver-tasks";
 import { CompleteDeliverySheet } from "../components/CompleteDeliverySheet";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop } from "@/hooks/use-shop";
+import { buildWaPhone } from "@/lib/whatsappShare";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { getCountryByCurrency } from "@/config/countries";
 import {
@@ -66,7 +67,7 @@ export function DeliveryDetailPage() {
 
     const handleWhatsApp = () => {
         if (task?.customer.phone) {
-            window.open(`https://wa.me/91${task.customer.phone}`);
+            window.open(`https://wa.me/${buildWaPhone(task.customer.phone, shop || undefined)}`);
         }
     };
 

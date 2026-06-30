@@ -21,6 +21,8 @@ import {
 } from "@/components/laundry";
 import { useCustomer, useCustomers } from "@/hooks/use-customers";
 import { useOrders } from "@/hooks/use-orders";
+import { useShop } from "@/hooks/use-shop";
+import { buildWaPhone } from "@/lib/whatsappShare";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import {
     ArrowLeft,
@@ -48,6 +50,7 @@ export function CustomerDetailPanel({ customerId, onClose }: CustomerDetailPanel
     const { customer, loading } = useCustomer(customerId);
     const { orders, loading: ordersLoading } = useOrders({ customerId });
     const { updateCustomer } = useCustomers();
+    const { shop } = useShop();
 
     const [editSheetOpen, setEditSheetOpen] = useState(false);
     const [actionSheetOpen, setActionSheetOpen] = useState(false);
@@ -119,7 +122,7 @@ export function CustomerDetailPanel({ customerId, onClose }: CustomerDetailPanel
                             {t('common.call', 'Call')}
                         </button>
                         <button
-                            onClick={() => window.open(`https://wa.me/91${customer.phone}`)}
+                            onClick={() => window.open(`https://wa.me/${buildWaPhone(customer.phone, shop || undefined)}`)}
                             className="py-3 px-2 flex items-center justify-center gap-1.5 rounded-xl text-[13px] font-bold border border-border/60 bg-muted/20 text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] transition-colors"
                         >
                             <MessageCircle className="h-4 w-4" />
@@ -271,7 +274,7 @@ export function CustomerDetailPanel({ customerId, onClose }: CustomerDetailPanel
                         id: "whatsapp",
                         label: t('common.whatsapp'),
                         icon: <MessageCircle className="h-5 w-5" />,
-                        onClick: () => window.open(`https://wa.me/91${customer.phone}`)
+                        onClick: () => window.open(`https://wa.me/${buildWaPhone(customer.phone, shop || undefined)}`)
                     },
                     {
                         id: "delete",
