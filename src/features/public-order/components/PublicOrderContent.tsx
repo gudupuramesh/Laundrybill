@@ -1,15 +1,17 @@
 /**
- * Public Order Content — Enterprise Laundry CRM design system (Public Book).
+ * Public Order Content — POS-style, mobile-first booking.
  *
- * Single-page booking flow that mirrors the DS mockup: offer banner → hero →
- * Quick book / Full order toggle. No area-first gate — the service area is a
- * field in the form. Quick = service chips + inline details (books directly).
- * Full = POS-style select-items grid + sticky cart → checkout dialog for
- * pickup details. All real order logic (cart, slots, geocoding, order
- * creation) is preserved.
+ * Two tabs that mirror the mobile app:
+ *  • Book Pickup (quick): estimated weight + pieces, date strip, slot, address,
+ *    contact → books a 0-item order (isQuickOrder) priced by the shop at intake.
+ *  • Price Calculator: POS-style item rows with +/- steppers + a sticky bottom
+ *    bar → pickup details dialog → itemised order with a real total.
+ *
+ * The shop header/hero is rendered by PublicOrderHero in the page wrapper.
+ * All order logic (cart, slots, geocoding, order creation) is preserved.
  */
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import {
     LResponsiveDialog,
@@ -19,7 +21,6 @@ import {
 } from "@/components/laundry";
 import { useInventoryForShop } from "../hooks/use-inventory-for-shop";
 import { usePublicCart } from "../hooks/use-public-cart";
-import { SlotSelector } from "./SlotSelector";
 import { PublicLocationMap } from "./PublicLocationMap";
 import { PublicCheckoutCoupon } from "./PublicCheckoutCoupon";
 import { PublicOrderSuccessSheet } from "./PublicOrderSuccessSheet";
@@ -30,7 +31,7 @@ import { getShopOpenStatus } from "../lib/shop-hours";
 import { getDeliveryCharge } from "@/hooks/use-shop";
 import type { InventoryItem } from "@/types/inventory";
 import type { Shop } from "@/types/shop";
-import { ShoppingBasket, MapPin, User, Clock, Loader2, Plus, Minus, Trash2, Star, Info, Shirt } from "lucide-react";
+import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList } from "lucide-react";
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
 import { formatCurrencyValue } from "@/hooks/use-currency";
@@ -41,6 +42,9 @@ import type { PublicDeliveryAddress } from "../hooks/use-public-cart";
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-cyan", "c-info", "c-success", "c-warning"];
 const tintFor = (s: string) => TINTS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % TINTS.length];
+
+const WEIGHT_OPTS = ["< 5 kg", "5–10 kg", "> 10 kg"];
+const PIECES_OPTS = ["1–5 pcs", "6–10 pcs", "> 10 pcs"];
 
 type OrderMode = "quick" | "select";
 
@@ -53,9 +57,12 @@ interface PublicOrderContentProps {
 
 export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChange, onCartHasItemsChange }: PublicOrderContentProps) {
     const [mode, setMode] = useState<OrderMode>("quick");
-    const [selectedService, setSelectedService] = useState("");
+    const [estWeight, setEstWeight] = useState("");
+    const [estPieces, setEstPieces] = useState("");
+    const [confirmPhone, setConfirmPhone] = useState("");
+    const [search, setSearch] = useState("");
     const [selectedArea, setSelectedArea] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState(""); // "" = All
     const [itemDetailOpen, setItemDetailOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -73,6 +80,8 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const deliverySettings = shop.settings?.delivery;
     const areas = (deliverySettings?.serviceAreas || []).filter((a) => a.isActive);
     const hasAreas = areas.length > 0;
+    const pickupSlots = (deliverySettings?.pickupTimeSlots || []).filter((s) => s.isActive);
+    const slotsEnabled = !!deliverySettings?.enablePickupSlots && pickupSlots.length > 0;
 
     const { items, categories, loading } = useInventoryForShop(shop.id);
     const cart = usePublicCart(shop);
@@ -88,32 +97,49 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const offerEnabled = (shop.publicOrdering?.offerEnabled ?? !!featuredCode) && (!!offerText || !!featuredCode);
     const testimonials = shop.publicOrdering?.testimonials ?? [];
 
+    // next 6 days for the date strip
+    const dateCards = useMemo(() => Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+        return {
+            value: format(d, "yyyy-MM-dd"),
+            dow: i === 0 ? "TODAY" : i === 1 ? "TMRW" : format(d, "EEE").toUpperCase(),
+            day: format(d, "d"),
+            mon: format(d, "MMM").toUpperCase(),
+        };
+    }), []);
+
     useEffect(() => { onOrderingActive?.(false); }, [onOrderingActive]);
     useEffect(() => { onCheckoutOpenChange?.(checkoutOpen); }, [checkoutOpen, onCheckoutOpenChange]);
     const cartHasItems = cart.items.some((i) => i.quantity > 0);
     useEffect(() => { onCartHasItemsChange?.(cartHasItems); }, [cartHasItems, onCartHasItemsChange]);
 
-    useEffect(() => {
-        if (categories.length > 0 && !selectedCategory) setSelectedCategory(categories[0].id);
-        if (categories.length > 0 && !selectedService) setSelectedService(categories[0].name);
-    }, [categories, selectedCategory, selectedService]);
+    // default pickup date = today (once)
+    useEffect(() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); /* eslint-disable-next-line */ }, []);
 
-    const filteredItems = items.filter((item) => item.isActive && (!selectedCategory || item.categoryId === selectedCategory));
+    const filteredItems = items.filter((item) =>
+        item.isActive &&
+        (!selectedCategory || item.categoryId === selectedCategory) &&
+        (!search.trim() || getTranslatedItemName(item.name).toLowerCase().includes(search.trim().toLowerCase()))
+    );
 
+    const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
     const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= 10;
 
-    // ----- shared order placement (quick = no items, full = cart items) -----
     const placeOrder = async (isQuick: boolean) => {
         if (!canPlaceOrder) {
             addToast({ type: "error", title: "Add your details", description: "Name and a valid phone number are required." });
+            return;
+        }
+        if (confirmPhone.trim() && confirmPhone.replace(/\D/g, "") !== cart.customerPhone.replace(/\D/g, "")) {
+            addToast({ type: "error", title: "Phone numbers don't match" });
             return;
         }
         if (hasAreas && !selectedArea) {
             addToast({ type: "error", title: "Select your area" });
             return;
         }
-        if (deliverySettings?.enablePickupSlots && !cart.pickupSlot) {
-            addToast({ type: "error", title: "Choose a pickup slot" });
+        if (slotsEnabled && !cart.pickupSlot) {
+            addToast({ type: "error", title: "Choose a pickup time" });
             return;
         }
         const addr = cart.deliveryAddress;
@@ -124,7 +150,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
             return;
         }
         if (!addr?.flatNumber?.trim()) {
-            addToast({ type: "error", title: "Flat / house number is required" });
+            addToast({ type: "error", title: "Flat / building number is required" });
             return;
         }
 
@@ -146,9 +172,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
 
             const effectiveDeliveryCharge = isQuick && cart.deliveryCharge === 0 ? getDeliveryCharge(shop.settings?.delivery, 0, "pickup_home") || 50 : cart.deliveryCharge;
             const effectiveTotal = isQuick ? effectiveDeliveryCharge : cart.total;
-            const notes = isQuick && selectedService
-                ? [`Service: ${selectedService}`, cart.customerNotes.trim()].filter(Boolean).join(" · ")
-                : cart.customerNotes.trim() || undefined;
 
             const result = await createPublicOrder(shop, {
                 deliveryArea: selectedArea,
@@ -168,9 +191,11 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 pickupDate: cart.pickupDate || today,
                 pickupSlot: cart.pickupSlot,
                 deliveryAddress: effectiveAddress,
-                customerNotes: notes,
+                customerNotes: cart.customerNotes.trim() || undefined,
                 isQuickOrder: isQuick,
                 deliveryBandId: cart.deliveryBandId,
+                estimatedWeight: isQuick ? (estWeight || undefined) : undefined,
+                estimatedPieces: isQuick ? (estPieces || undefined) : undefined,
             });
 
             if (result) {
@@ -188,12 +213,50 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     };
 
     // ----- styles -----
-    const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "11px 12px", outline: "none" };
-    const lbl: CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--c-text-2)" };
-    const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", padding: 22 };
-    const sectLbl: CSSProperties = { fontSize: 12, fontWeight: 600, marginBottom: 8, color: "var(--c-text-2)" };
-
+    const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 12, padding: "13px 14px", outline: "none" };
+    const sectLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", marginBottom: 9, color: "var(--c-text-3)" };
+    const cardStyle: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-sm)", padding: 18 };
     const placing = isPlacingOrder || creatingOrder;
+
+    const chipGroup = (opts: string[], value: string, onPick: (v: string) => void) => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+            {opts.map((o) => {
+                const on = o === value;
+                return (
+                    <button key={o} type="button" onClick={() => onPick(on ? "" : o)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, padding: "11px 4px", borderRadius: 12, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>{o}</button>
+                );
+            })}
+        </div>
+    );
+
+    const dateStrip = (
+        <div className="lb-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+            {dateCards.map((d) => {
+                const on = checkoutDate === d.value;
+                return (
+                    <button key={d.value} type="button" onClick={() => cart.setPickupSlot(d.value, cart.pickupSlot)} style={{ cursor: "pointer", font: "inherit", flex: "none", width: 72, padding: "10px 0", borderRadius: 14, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.85 }}>{d.dow}</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO, lineHeight: 1.2 }}>{d.day}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.85 }}>{d.mon}</div>
+                    </button>
+                );
+            })}
+        </div>
+    );
+
+    const slotChips = slotsEnabled ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {pickupSlots.map((s) => {
+                const val = (s.value || "").trim();
+                const on = cart.pickupSlot === val;
+                const avail = (slotAvailability as Record<string, { remaining?: number } | undefined> | null | undefined)?.[val];
+                const full = !!avail && typeof avail.remaining === "number" && avail.remaining <= 0;
+                return (
+                    <button key={s.id || val} type="button" disabled={full} onClick={() => cart.setPickupSlot(checkoutDate, val)} style={{ cursor: full ? "not-allowed" : "pointer", font: "inherit", fontSize: 13, fontWeight: 600, padding: "10px 15px", borderRadius: 12, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: full ? "var(--c-text-3)" : on ? "var(--c-primary)" : "var(--c-text-2)", opacity: full ? 0.5 : 1 }}>{val}{full ? " · full" : ""}</button>
+                );
+            })}
+        </div>
+    ) : null;
 
     const addressBlock = (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -204,20 +267,29 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 onAddressChange={(addr) => cart.setDeliveryAddressMerge({ fullAddress: addr })}
                 autoGetLocationOnMount={false}
             />
-            <input style={fld} placeholder="Flat / house no. / building *" value={cart.deliveryAddress?.flatNumber ?? ""} onChange={(e) => cart.setDeliveryAddressMerge({ flatNumber: e.target.value })} />
-            <input style={fld} placeholder="Landmark (optional)" value={cart.deliveryAddress?.landmark ?? ""} onChange={(e) => cart.setDeliveryAddressMerge({ landmark: e.target.value })} />
-            <textarea rows={2} style={{ ...fld, resize: "vertical" }} placeholder="Full address — road, area, city" value={cart.deliveryAddress?.fullAddress ?? ""} onChange={(e) => cart.setDeliveryAddressMerge({ fullAddress: e.target.value })} />
+            <input style={fld} placeholder="Flat / Building No. / Floor *" value={cart.deliveryAddress?.flatNumber ?? ""} onChange={(e) => cart.setDeliveryAddressMerge({ flatNumber: e.target.value })} />
+            <input style={fld} placeholder="Road / Street / Area Name *" value={cart.deliveryAddress?.fullAddress ?? ""} onChange={(e) => cart.setDeliveryAddressMerge({ fullAddress: e.target.value })} />
+        </div>
+    );
+
+    const contactBlock = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input style={fld} placeholder="Full Name *" value={cart.customerName} onChange={(e) => cart.setCustomer(e.target.value, cart.customerPhone, cart.customerEmail)} />
+            <div style={{ display: "flex", gap: 10 }}>
+                <input style={{ ...fld, fontFamily: MONO }} inputMode="tel" placeholder="Phone Number *" value={cart.customerPhone} onChange={(e) => cart.setCustomer(cart.customerName, e.target.value, cart.customerEmail)} />
+                <input style={{ ...fld, fontFamily: MONO }} inputMode="tel" placeholder="Confirm Phone *" value={confirmPhone} onChange={(e) => setConfirmPhone(e.target.value)} />
+            </div>
         </div>
     );
 
     const bandSelector = distanceBands.length > 0 ? (
         <div>
-            <label style={lbl}>Delivery distance</label>
+            <div style={sectLbl}>Delivery distance</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {distanceBands.map((b) => {
                     const on = (cart.deliveryBandId || distanceBands[0].id) === b.id;
                     return (
-                        <button key={b.id} type="button" onClick={() => cart.setDeliveryBand(b.id)} style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "9px 13px", borderRadius: 10, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
+                        <button key={b.id} type="button" onClick={() => cart.setDeliveryBand(b.id)} style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "9px 13px", borderRadius: 12, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
                             <span style={{ fontSize: 12.5, fontWeight: 600 }}>{b.label}</span>
                             <span style={{ fontSize: 11, fontFamily: MONO }}>{fmt(b.fee)}</span>
                         </button>
@@ -227,92 +299,78 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         </div>
     ) : null;
 
-    const detailsInputs = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <input style={fld} placeholder="Full name *" value={cart.customerName} onChange={(e) => cart.setCustomer(e.target.value, cart.customerPhone, cart.customerEmail)} />
-            <input style={fld} type="email" placeholder="Email address (optional)" value={cart.customerEmail} onChange={(e) => cart.setCustomer(cart.customerName, cart.customerPhone, e.target.value)} />
-            <input style={{ ...fld, fontFamily: MONO }} inputMode="tel" placeholder="Mobile number *" value={cart.customerPhone} onChange={(e) => cart.setCustomer(cart.customerName, e.target.value, cart.customerEmail)} />
+    // category tabs (All + categories) for the Price Calculator
+    const categoryTabs = (
+        <div className="lb-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+            {[{ id: "", name: "All" }, ...categories].map((c) => {
+                const on = c.id === selectedCategory;
+                return (
+                    <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)} style={{ cursor: "pointer", font: "inherit", flex: "none", fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 20, whiteSpace: "nowrap", border: `1.5px solid ${on ? "var(--c-text)" : "var(--c-border-strong)"}`, background: on ? "var(--c-text)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.name}</button>
+                );
+            })}
         </div>
-    );
-
-    const slotBlock = deliverySettings?.enablePickupSlots && (deliverySettings.pickupTimeSlots?.length ?? 0) > 0 && (
-        <SlotSelector
-            slots={deliverySettings.pickupTimeSlots || []}
-            selectedDate={checkoutDate}
-            selectedSlot={cart.pickupSlot}
-            onDateChange={(d) => cart.setPickupSlot(d, "")}
-            onSlotChange={(s) => cart.setPickupSlot(cart.pickupDate || today, s)}
-            enableSlots={!!deliverySettings?.enablePickupSlots}
-            slotAvailability={slotAvailability ?? undefined}
-            bufferMinutes={deliverySettings?.bufferMinutes ?? 0}
-        />
     );
 
     return (
         <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--c-bg)" }} className="lb-scroll" data-testid="public-order-page">
-            <div style={{ maxWidth: mode === "select" ? 1040 : 840, margin: "0 auto", padding: "26px 20px 48px" }}>
-                {/* shop closed */}
+            <div style={{ maxWidth: 560, margin: "0 auto", padding: "18px 16px 120px" }}>
+                {/* closed banner */}
                 {!openStatus.isOpen && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--c-warning-soft)", border: "1px solid var(--c-warning-soft)", color: "var(--c-warning)", borderRadius: 12, padding: "11px 14px", marginBottom: 18, fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--c-warning-soft)", border: "1px solid var(--c-warning-soft)", color: "var(--c-warning)", borderRadius: 12, padding: "11px 14px", marginBottom: 14, fontSize: 13 }}>
                         <Clock size={16} /> Currently closed — you can still book for the next available day.
                     </div>
                 )}
 
                 {/* offer banner */}
                 {offerEnabled && (
-                    <div style={{ background: "linear-gradient(135deg,var(--c-primary),#11338E)", color: "#fff", borderRadius: 14, padding: "13px 16px", display: "flex", alignItems: "center", gap: 12, marginBottom: 20, boxShadow: "var(--sh-sm)" }}>
+                    <div style={{ background: "linear-gradient(135deg,var(--c-primary),#11338E)", color: "#fff", borderRadius: 14, padding: "12px 15px", display: "flex", alignItems: "center", gap: 12, marginBottom: 14, boxShadow: "var(--sh-sm)" }}>
                         <span style={{ fontSize: 20 }}>🎉</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14.5, fontWeight: 700 }}>{offerText || "Special offer for you"}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700 }}>{offerText || "Special offer for you"}</div>
                             {featuredCode && <div style={{ fontSize: 12, opacity: 0.85 }}>Apply the code at checkout</div>}
                         </div>
                         {featuredCode && <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, background: "rgba(255,255,255,.2)", padding: "6px 12px", borderRadius: 8, border: "1px dashed rgba(255,255,255,.55)", whiteSpace: "nowrap" }}>{featuredCode}</span>}
                     </div>
                 )}
 
-                {/* hero */}
-                <div style={{ textAlign: "center", marginBottom: 22 }}>
-                    <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-.02em", margin: "0 0 6px" }}>Book a laundry pickup</h1>
-                    <p style={{ fontSize: 14.5, color: "var(--c-text-2)", margin: 0 }}>Free pickup &amp; delivery · ready in 24 hours</p>
-                </div>
-
-                {/* mode toggle */}
-                <div style={{ display: "flex", gap: 6, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: 5, maxWidth: 360, margin: "0 auto 22px", boxShadow: "var(--sh-sm)" }}>
-                    {([["quick", "⚡ Quick book"], ["select", "🧺 Full order"]] as const).map(([m, label]) => {
+                {/* tab toggle */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    {([["quick", "Book Pickup", CalendarClock], ["select", "Price Calculator", ClipboardList]] as const).map(([m, label, Icon]) => {
                         const on = mode === m;
                         return (
-                            <button key={m} onClick={() => setMode(m)} aria-pressed={on} style={{ flex: 1, cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, padding: 10, border: 0, borderRadius: 9, background: on ? "var(--c-primary)" : "transparent", color: on ? "#fff" : "var(--c-text-3)" }}>
-                                {label}
+                            <button key={m} onClick={() => setMode(m)} aria-pressed={on} style={{ flex: 1, cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 700, padding: "12px 8px", border: `1.5px solid ${on ? "var(--c-text)" : "var(--c-border)"}`, borderRadius: 14, background: on ? "var(--c-surface)" : "var(--c-surface-2)", color: on ? "var(--c-text)" : "var(--c-text-3)", boxShadow: on ? "var(--sh-sm)" : undefined, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                                <Icon size={17} /> {label}
                             </button>
                         );
                     })}
                 </div>
 
-                {/* QUICK */}
-                {mode === "quick" && (
-                    <div style={{ maxWidth: 520, margin: "0 auto", ...card }}>
-                        {categories.length > 0 && (
-                            <>
-                                <div style={sectLbl}>What do you need?</div>
-                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-                                    {categories.map((c) => {
-                                        const on = c.name === selectedService;
-                                        return (
-                                            <button key={c.id} onClick={() => setSelectedService(c.name)} style={{ cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, padding: "9px 14px", borderRadius: 20, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
-                                                {c.name}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </>
-                        )}
+                {/* info banner */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, padding: "12px 14px", marginBottom: 16, boxShadow: "var(--sh-sm)" }}>
+                    <span style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}><Info size={16} /></span>
+                    <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)" }}>Pay on delivery</span>
+                    <span style={{ fontSize: 12.5, color: "var(--c-text-3)", textAlign: "right" }}>Weighed &amp; priced at pickup</span>
+                </div>
 
-                        <div style={sectLbl}>Your details</div>
-                        <div style={{ marginBottom: 14 }}>{detailsInputs}</div>
+                {/* ───────── BOOK PICKUP (quick) ───────── */}
+                {mode === "quick" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        <div style={cardStyle}>
+                            <div style={sectLbl}>Estimated weight</div>
+                            {chipGroup(WEIGHT_OPTS, estWeight, setEstWeight)}
+                            <div style={{ ...sectLbl, marginTop: 18 }}>Estimated pieces</div>
+                            {chipGroup(PIECES_OPTS, estPieces, setEstPieces)}
+                        </div>
+
+                        <div style={cardStyle}>
+                            <div style={sectLbl}>Select pickup date</div>
+                            {dateStrip}
+                            {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 18 }}>Preferred time</div>{slotChips}</>)}
+                        </div>
 
                         {hasAreas && (
-                            <div style={{ marginBottom: 14 }}>
-                                <label style={lbl}>Area</label>
+                            <div style={cardStyle}>
+                                <div style={sectLbl}>Service area</div>
                                 <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
                                     <option value="">Select your area</option>
                                     {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
@@ -320,151 +378,101 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                             </div>
                         )}
 
-                        <div style={{ marginBottom: 14 }}>
-                            <label style={lbl}>Pickup date{deliverySettings?.enablePickupSlots ? " & slot" : ""}</label>
-                            {deliverySettings?.enablePickupSlots ? slotBlock : (
-                                <input type="date" style={{ ...fld, fontFamily: MONO }} min={today} value={checkoutDate} onChange={(e) => cart.setPickupSlot(e.target.value, cart.pickupSlot)} />
-                            )}
-                        </div>
-
-                        {bandSelector && <div style={{ marginBottom: 14 }}>{bandSelector}</div>}
-
-                        <div style={{ marginBottom: 14 }}>
-                            <label style={lbl}>Pickup address</label>
+                        <div style={cardStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><MapPin size={14} /> Pickup address</div>
                             {addressBlock}
+                            {bandSelector && <div style={{ marginTop: 14 }}>{bandSelector}</div>}
                         </div>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--c-primary-soft)", borderRadius: 10, padding: "11px 13px", marginBottom: 16 }}>
-                            <Info size={17} style={{ color: "var(--c-primary)", flex: "none" }} />
-                            <span style={{ fontSize: 12.5, color: "var(--c-text-2)" }}>We'll weigh &amp; price your items at pickup — pay on delivery.</span>
+                        <div style={cardStyle}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, ...sectLbl }}><User size={14} /> Contact details</div>
+                            {contactBlock}
+                            <div style={{ marginTop: 10 }}>
+                                <textarea rows={2} style={{ ...fld, resize: "vertical" }} placeholder="Special Instructions (Optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} />
+                            </div>
                         </div>
 
-                        <button onClick={() => placeOrder(true)} disabled={placing} style={{ width: "100%", cursor: placing ? "wait" : "pointer", font: "inherit", fontSize: 16, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 12, padding: 14, boxShadow: "var(--sh-sm)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                            {placing ? <><Loader2 size={18} className="animate-spin" /> Booking…</> : "Book pickup"}
+                        <button onClick={() => placeOrder(true)} disabled={placing} style={{ width: "100%", cursor: placing ? "wait" : "pointer", font: "inherit", fontSize: 16, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 14, padding: 15, boxShadow: "var(--sh-md)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                            {placing ? <><Loader2 size={18} className="animate-spin" /> Booking…</> : "Schedule Pickup →"}
                         </button>
                     </div>
                 )}
 
-                {/* FULL — POS select items + sticky cart */}
+                {/* ───────── PRICE CALCULATOR (itemised) ───────── */}
                 {mode === "select" && (
-                    <div>
-                        {/* category chips — full width above, wraps so all are visible */}
-                        {categories.length > 0 && (
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                                {categories.map((c) => {
-                                    const on = c.id === selectedCategory;
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ ...cardStyle, padding: 16 }}>
+                            <div style={{ fontSize: 17, fontWeight: 800 }}>Price Calculator</div>
+                            <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 2, marginBottom: 14 }}>Select items to view prices.</div>
+                            <div style={{ position: "relative", marginBottom: 14 }}>
+                                <Search size={16} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
+                                <input style={{ ...fld, paddingLeft: 38, background: "var(--c-surface-2)" }} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                            </div>
+                            {categoryTabs}
+                        </div>
+
+                        {loading ? (
+                            <div style={{ padding: 40, textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>Loading services…</div>
+                        ) : filteredItems.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>No items found.</div>
+                        ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {filteredItems.map((item) => {
+                                    const line = cart.items.find((i) => i.service.id === item.id);
+                                    const qty = line?.quantity ?? 0;
+                                    const isKg = isWeightUnit(item.pricingType);
+                                    const name = getTranslatedItemName(item.name);
+                                    const unitLabel = getTranslatedUnit(item.pricingType === "piece" ? "piece" : item.pricingType);
+                                    const dec = () => { if (qty <= 0 || !line) return; if (isKg) { setSelectedItem(item); setItemDetailOpen(true); } else { qty <= 1 ? cart.removeItem(line.id) : cart.updateItem(line.id, { quantity: qty - 1 }); } };
+                                    const inc = () => { if (isKg) { setSelectedItem(item); setItemDetailOpen(true); } else { cart.addItem(item); } };
                                     return (
-                                        <button key={c.id} onClick={() => setSelectedCategory(c.id)} style={{ cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, padding: "7px 13px", borderRadius: 20, whiteSpace: "nowrap", border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>
-                                            {c.name}
-                                        </button>
+                                        <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--c-surface)", border: `1px solid ${qty > 0 ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 14, padding: "13px 14px", boxShadow: "var(--sh-sm)" }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                {item.categoryName && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)" }}>{item.categoryName}</div>}
+                                                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                                                <div style={{ marginTop: 2, display: "flex", alignItems: "baseline", gap: 3 }}>
+                                                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13.5, color: "var(--c-primary)" }}>{fmt(item.basePrice)}</span>
+                                                    <span style={{ fontSize: 11, color: "var(--c-text-3)" }}>/ {unitLabel}</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
+                                                <button onClick={dec} disabled={qty <= 0} aria-label="Remove" style={{ cursor: qty <= 0 ? "default" : "pointer", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", color: qty <= 0 ? "var(--c-text-3)" : "var(--c-text)", background: "var(--c-surface)", border: "1.5px solid var(--c-border-strong)", borderRadius: "50%", opacity: qty <= 0 ? 0.5 : 1 }}><Minus size={16} /></button>
+                                                <span style={{ minWidth: 26, textAlign: "center", fontFamily: MONO, fontWeight: 700, fontSize: 15 }}>{isKg ? (qty ? qty.toFixed(1) : 0) : qty}</span>
+                                                <button onClick={inc} aria-label="Add" style={{ cursor: "pointer", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-primary)", background: "var(--c-surface)", border: "1.5px solid var(--c-primary)", borderRadius: "50%" }}><Plus size={16} /></button>
+                                            </div>
+                                        </div>
                                     );
                                 })}
                             </div>
                         )}
-                        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-                        <div style={{ flex: "1.6 1 320px", minWidth: 0 }}>
-                            {/* product grid */}
-                            {loading ? (
-                                <div style={{ padding: 40, textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>Loading services…</div>
-                            ) : filteredItems.length === 0 ? (
-                                <div style={{ padding: 40, textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>No items in this category.</div>
-                            ) : (
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(108px,1fr))", gap: 10 }}>
-                                    {filteredItems.map((item) => {
-                                        const ref = tintFor(item.categoryId);
-                                        const line = cart.items.find((i) => i.service.id === item.id);
-                                        const qty = line?.quantity ?? 0;
-                                        const inCart = qty > 0;
-                                        const isKg = isWeightUnit(item.pricingType);
-                                        const name = getTranslatedItemName(item.name);
-                                        const unitLabel = getTranslatedUnit(item.pricingType === "piece" ? "piece" : item.pricingType);
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => { if (isKg) { setSelectedItem(item); setItemDetailOpen(true); } else { cart.addItem(item); } }}
-                                                style={{ cursor: "pointer", textAlign: "left", font: "inherit", display: "flex", flexDirection: "column", background: "var(--c-surface)", border: `1.5px solid ${inCart ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 11, overflow: "hidden", boxShadow: "var(--sh-sm)", position: "relative", padding: 0 }}
-                                            >
-                                                <div style={{ aspectRatio: "1 / 1", background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                                                    {item.imageUrl ? <img src={item.imageUrl} alt={name} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <Shirt size={26} />}
-                                                    {inCart && <span style={{ position: "absolute", top: 6, right: 6, minWidth: 20, height: 20, padding: "0 5px", borderRadius: 10, background: "var(--c-primary)", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: MONO, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--sh-sm)" }}>{isKg ? qty.toFixed(1) : qty}</span>}
-                                                </div>
-                                                <div style={{ padding: "7px 9px 9px" }}>
-                                                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-                                                    <div style={{ marginTop: 2, display: "flex", alignItems: "baseline", gap: 3 }}>
-                                                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13 }}>{fmt(item.basePrice)}</span>
-                                                        <span style={{ fontSize: 9.5, color: "var(--c-text-3)" }}>/ {unitLabel}</span>
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
 
-                        {/* cart */}
-                        <div style={{ flex: "1 1 280px", minWidth: 0, position: "sticky", top: 16, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", overflow: "hidden" }}>
-                            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 9 }}>
-                                <div style={{ fontSize: 14, fontWeight: 700 }}>Your order</div>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 8px", borderRadius: 20, fontFamily: MONO }}>{cart.items.reduce((s, i) => s + i.quantity, 0)}</span>
+                        {/* sticky cart bar */}
+                        <div style={{ position: "sticky", bottom: 0, marginTop: 4, display: "flex", alignItems: "center", gap: 12, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", padding: "12px 14px" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
+                                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
                             </div>
-                            {cartHasItems ? (
-                                <div className="lb-scroll" style={{ maxHeight: 280, overflow: "auto", padding: "6px 12px" }}>
-                                    {cart.items.map((l) => {
-                                        const ref = tintFor(l.service.name);
-                                        return (
-                                            <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 4px" }}>
-                                                <span style={{ width: 34, height: 34, flex: "none", borderRadius: 8, background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center" }}><ShoppingBasket size={16} /></span>
-                                                <button onClick={() => { setSelectedItem(l.service); setItemDetailOpen(true); }} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: 0, cursor: "pointer", font: "inherit", padding: 0 }}>
-                                                    <div style={{ fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getTranslatedItemName(l.service.name)}{l.express ? " ⚡" : ""}</div>
-                                                    <div style={{ fontSize: 10.5, color: "var(--c-text-3)", fontFamily: MONO }}>{fmt(l.unitPrice)}</div>
-                                                </button>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <button onClick={() => (l.quantity <= 1 ? cart.removeItem(l.id) : cart.updateItem(l.id, { quantity: l.quantity - 1 }))} aria-label="Remove" style={{ cursor: "pointer", width: 25, height: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7 }}>{l.quantity <= 1 ? <Trash2 size={12} /> : <Minus size={12} />}</button>
-                                                    <span style={{ minWidth: 16, textAlign: "center", fontFamily: MONO, fontWeight: 700, fontSize: 12.5 }}>{l.quantity}</span>
-                                                    <button onClick={() => cart.updateItem(l.id, { quantity: l.quantity + 1 })} aria-label="Add" style={{ cursor: "pointer", width: 25, height: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 7 }}><Plus size={12} /></button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div style={{ padding: "26px 18px", textAlign: "center", color: "var(--c-text-3)", fontSize: 12.5 }}>Tap items to add them to your order</div>
-                            )}
-                            <div style={{ padding: "13px 16px", borderTop: "1px solid var(--c-border)" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 11 }}>
-                                    <span style={{ fontSize: 13, color: "var(--c-text-2)" }}>Estimated total</span>
-                                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{fmt(cart.total)}</span>
-                                </div>
-                                <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); }} disabled={!cartHasItems} style={{ width: "100%", cursor: cartHasItems ? "pointer" : "not-allowed", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: cartHasItems ? "var(--c-primary)" : "var(--c-border-strong)", border: 0, borderRadius: 11, padding: 13 }}>
-                                    Continue to pickup
-                                </button>
-                            </div>
-                        </div>
+                            <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); }} disabled={!cartHasItems} style={{ cursor: cartHasItems ? "pointer" : "not-allowed", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: cartHasItems ? "var(--c-primary)" : "var(--c-border-strong)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
                         </div>
                     </div>
                 )}
 
                 {/* testimonials */}
                 {testimonials.length > 0 && (
-                    <div style={{ marginTop: 40 }}>
-                        <div style={{ textAlign: "center", marginBottom: 16 }}>
-                            <div style={{ color: "var(--c-star,#E8A317)", display: "inline-flex", gap: 2 }}>{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={16} fill="currentColor" />)}</div>
+                    <div style={{ marginTop: 34 }}>
+                        <div style={{ textAlign: "center", marginBottom: 14 }}>
+                            <div style={{ color: "var(--c-star,#E8A317)", display: "inline-flex", gap: 2 }}>{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={15} fill="currentColor" />)}</div>
                             <div style={{ fontSize: 13, color: "var(--c-text-3)", marginTop: 4 }}>Loved by our customers</div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
-                            {testimonials.map((tm, i) => {
+                        <div style={{ display: "grid", gap: 12 }}>
+                            {testimonials.slice(0, 3).map((tm, i) => {
                                 const ref = tintFor(tm.author || String(i));
                                 return (
-                                    <div key={tm.id || i} style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, padding: 18, boxShadow: "var(--sh-sm)" }}>
-                                        <div style={{ color: "var(--c-star,#E8A317)", display: "inline-flex", gap: 1, marginBottom: 9 }}>{Array.from({ length: 5 }).map((_, j) => <Star key={j} size={13} fill="currentColor" />)}</div>
+                                    <div key={tm.id || i} style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, padding: 16, boxShadow: "var(--sh-sm)" }}>
                                         <div style={{ fontSize: 13.5, color: "var(--c-text-2)", lineHeight: 1.6 }}>"{tm.quote}"</div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-                                            <span style={{ width: 32, height: 32, flex: "none", borderRadius: "50%", background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>{(tm.author || "?").slice(0, 1).toUpperCase()}</span>
-                                            <div>
-                                                <div style={{ fontSize: 13, fontWeight: 600 }}>{tm.author}</div>
-                                                {(tm.location || tm.ordersCount != null) && <div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{tm.location || `${tm.ordersCount} orders`}</div>}
-                                            </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                                            <span style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: `var(--${ref}-soft)`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>{(tm.author || "?").slice(0, 1).toUpperCase()}</span>
+                                            <div style={{ fontSize: 13, fontWeight: 600 }}>{tm.author}</div>
                                         </div>
                                     </div>
                                 );
@@ -474,9 +482,8 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 )}
 
                 {/* footer */}
-                <div style={{ marginTop: 40, paddingTop: 22, borderTop: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ marginTop: 30, paddingTop: 18, borderTop: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{shop.name}</span>
-                    {(shop.phone || shop.email) && <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>· {[shop.phone, shop.email].filter(Boolean).join(" · ")}</span>}
                     <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--c-text-3)" }}>Powered by LaundryBill</span>
                 </div>
             </div>
@@ -489,7 +496,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 phone={successPhone}
             />
 
-            {/* item detail */}
+            {/* item detail (weight items) */}
             <ItemDetailSheet
                 open={itemDetailOpen}
                 onClose={() => { setItemDetailOpen(false); setSelectedItem(null); }}
@@ -498,9 +505,9 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 onAdd={(item, qty, express, notes) => { cart.addItem(item, qty, express, notes); setItemDetailOpen(false); setSelectedItem(null); }}
             />
 
-            {/* checkout dialog (Full order final step) */}
+            {/* checkout (Price Calculator → pickup details) */}
             <LResponsiveDialog open={checkoutOpen} onClose={() => setCheckoutOpen(false)} title="Pickup details" size="lg">
-                <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 18, maxHeight: "80vh", overflowY: "auto" }}>
+                <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 16, maxHeight: "80vh", overflowY: "auto" }}>
                     {placing && (
                         <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 280, borderRadius: 12, background: "rgba(255,255,255,.97)" }}>
                             <Loader2 size={32} className="animate-spin" style={{ color: "var(--c-primary)" }} />
@@ -509,7 +516,6 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         </div>
                     )}
 
-                    {/* summary */}
                     <div>
                         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Order summary</div>
                         <LOrderSummary
@@ -536,10 +542,9 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         )}
                     </div>
 
-                    {/* area */}
                     {hasAreas && (
                         <div>
-                            <label style={lbl}>Service area *</label>
+                            <div style={sectLbl}>Service area *</div>
                             <select style={fld} value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)}>
                                 <option value="">Select your area</option>
                                 {areas.map((a) => <option key={a.id} value={a.value}>{a.value}</option>)}
@@ -547,31 +552,30 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                         </div>
                     )}
 
-                    {/* distance band */}
+                    <div>
+                        <div style={sectLbl}>Pickup date</div>
+                        {dateStrip}
+                        {slotsEnabled && (<><div style={{ ...sectLbl, marginTop: 14 }}>Preferred time</div>{slotChips}</>)}
+                    </div>
+
                     {bandSelector}
 
-                    {/* slots */}
-                    {slotBlock}
-
-                    {/* address */}
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><MapPin size={16} style={{ color: "var(--c-primary)" }} /> Pickup address</div>
                         {addressBlock}
                     </div>
 
-                    {/* notes */}
                     <LTextArea label="Special instructions (optional)" value={cart.customerNotes} onChange={(e) => cart.setCustomerNotes(e.target.value)} placeholder="e.g. Ring the doorbell twice" rows={3} />
 
-                    {/* contact */}
                     <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><User size={16} style={{ color: "var(--c-primary)" }} /> Your details</div>
-                        {detailsInputs}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 10 }}><User size={16} style={{ color: "var(--c-primary)" }} /> Contact details</div>
+                        {contactBlock}
                     </div>
 
                     <div style={{ display: "flex", gap: 12 }}>
-                        <button onClick={() => setCheckoutOpen(false)} style={{ flex: 1, cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 11, padding: 13 }}>Back</button>
-                        <button onClick={() => placeOrder(false)} disabled={placing} style={{ flex: 1.4, cursor: placing ? "wait" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 13, boxShadow: "var(--sh-sm)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                            {placing ? <><Loader2 size={17} className="animate-spin" /> Placing…</> : `Place order · ${fmt(cart.total)}`}
+                        <button onClick={() => setCheckoutOpen(false)} style={{ flex: 1, cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 12, padding: 14 }}>Back</button>
+                        <button onClick={() => placeOrder(false)} disabled={placing} style={{ flex: 1.4, cursor: placing ? "wait" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 12, padding: 14, boxShadow: "var(--sh-sm)", opacity: placing ? 0.7 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                            {placing ? <><Loader2 size={17} className="animate-spin" /> Placing…</> : `Schedule Pickup · ${fmt(cart.total)}`}
                         </button>
                     </div>
                 </div>

@@ -62,6 +62,9 @@ interface CreatePublicOrderInput {
   isQuickOrder?: boolean;
   /** Selected distance band id when the shop uses distance-band delivery fees. */
   deliveryBandId?: string;
+  /** Quick-order estimates (no itemised list) — shown to the shop so they know what's coming. */
+  estimatedWeight?: string;
+  estimatedPieces?: string;
 }
 
 export const createPublicOrder = onCall(async (request) => {
@@ -342,6 +345,8 @@ export const createPublicOrder = onCall(async (request) => {
     shopName: shopData.name || shopData.shopName || "Shop",
     deliveryArea: data.deliveryArea || null,
     isQuickOrder: data.isQuickOrder ?? isQuickOrder,
+    estimatedWeight: data.estimatedWeight || null,
+    estimatedPieces: data.estimatedPieces || null,
     timeline: [
       {
         id: `t-${Date.now()}`,
