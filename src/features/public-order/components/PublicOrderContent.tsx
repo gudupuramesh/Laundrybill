@@ -33,6 +33,7 @@ import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, Calendar
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
 import { formatCurrencyValue } from "@/hooks/use-currency";
+import { getCountry, getCountryByCurrency } from "@/config/countries";
 import { useNavigate } from "react-router-dom";
 import { forwardGeocode } from "@/lib/geocoding";
 import type { PublicDeliveryAddress } from "../hooks/use-public-cart";
@@ -76,6 +77,10 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const shopCurrencySymbol = shop.settings?.currencySymbol || "₹";
     const shopLocale = shop.settings?.locale || "en-IN";
     const fmt = (v: number) => formatCurrencyValue(v, shopCurrencySymbol, shopLocale);
+    // Phone country code from the shop's country / currency (e.g. +91, +971).
+    const shopCountry = shop.settings?.countryCode ? getCountry(shop.settings.countryCode) : getCountryByCurrency(shop.settings?.currency || "INR");
+    const dialCode = (shop.settings?.phoneCountryCode || shopCountry.phoneCode || "+91").trim();
+    const localPhoneDigits = shopCountry.phoneDigits || 10;
     const deliverySettings = shop.settings?.delivery;
     const areas = (deliverySettings?.serviceAreas || []).filter((a) => a.isActive);
     const hasAreas = areas.length > 0;
@@ -131,7 +136,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     );
 
     const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
-    const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= 10;
+    const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= localPhoneDigits;
 
     const placeOrder = async (isQuick: boolean) => {
         if (!canPlaceOrder) {
@@ -169,13 +174,12 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
             if (hasLatLng) {
                 effectiveAddress = { lat: addr.lat, lng: addr.lng, flatNumber: addr.flatNumber?.trim(), landmark: addr.landmark?.trim() || undefined, fullAddress: addr.fullAddress?.trim() || undefined };
             } else {
+                // Typed address — try to geocode for a map pin, but DON'T block the order if it fails.
                 const q = [addr.flatNumber?.trim(), addr.landmark?.trim(), addr.fullAddress?.trim()].filter(Boolean).join(", ");
-                const geocoded = await forwardGeocode(q);
-                if (!geocoded) {
-                    addToast({ type: "error", title: "Could not find location", description: "Please use the map / current location, or enter a more specific address." });
-                    return;
-                }
-                effectiveAddress = { lat: geocoded.lat, lng: geocoded.lng, flatNumber: addr.flatNumber?.trim(), landmark: addr.landmark?.trim() || undefined, fullAddress: addr.fullAddress?.trim() || undefined };
+                const geocoded = await forwardGeocode(q).catch(() => null);
+                effectiveAddress = geocoded
+                    ? { lat: geocoded.lat, lng: geocoded.lng, flatNumber: addr.flatNumber?.trim(), landmark: addr.landmark?.trim() || undefined, fullAddress: addr.fullAddress?.trim() || undefined }
+                    : { flatNumber: addr.flatNumber?.trim(), landmark: addr.landmark?.trim() || undefined, fullAddress: addr.fullAddress?.trim() || undefined };
             }
 
             const effectiveDeliveryCharge = isQuick && cart.deliveryCharge === 0 ? getDeliveryCharge(shop.settings?.delivery, 0, "pickup_home") || 50 : cart.deliveryCharge;
@@ -185,6 +189,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                 deliveryArea: selectedArea,
                 customerName: cart.customerName.trim(),
                 customerPhone: cart.customerPhone,
+                phoneCountryCode: dialCode,
                 customerEmail: cart.customerEmail.trim() || undefined,
                 items: isQuick ? [] : cart.items,
                 subtotal: isQuick ? 0 : cart.subtotal,
@@ -281,12 +286,21 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
         </div>
     );
 
+    const phoneFieldWrap: CSSProperties = { flex: 1, minWidth: 0, display: "flex", alignItems: "stretch", border: "1px solid var(--c-border-strong)", borderRadius: 12, overflow: "hidden", background: "var(--c-surface)" };
+    const dialPrefix: CSSProperties = { display: "flex", alignItems: "center", padding: "0 11px", background: "var(--c-surface-2)", color: "var(--c-text-2)", fontFamily: MONO, fontSize: 13.5, fontWeight: 600, borderRight: "1px solid var(--c-border)", whiteSpace: "nowrap" };
+    const phoneInput: CSSProperties = { flex: 1, minWidth: 0, font: "inherit", fontFamily: MONO, fontSize: 14, color: "var(--c-text)", background: "transparent", border: 0, padding: "13px 12px", outline: "none" };
     const contactBlock = (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <input style={fld} placeholder="Full Name *" value={cart.customerName} onChange={(e) => cart.setCustomer(e.target.value, cart.customerPhone, cart.customerEmail)} />
             <div style={{ display: "flex", gap: 10 }}>
-                <input style={{ ...fld, fontFamily: MONO }} inputMode="tel" placeholder="Phone Number *" value={cart.customerPhone} onChange={(e) => cart.setCustomer(cart.customerName, e.target.value, cart.customerEmail)} />
-                <input style={{ ...fld, fontFamily: MONO }} inputMode="tel" placeholder="Confirm Phone *" value={confirmPhone} onChange={(e) => setConfirmPhone(e.target.value)} />
+                <div style={phoneFieldWrap}>
+                    <span style={dialPrefix}>{dialCode}</span>
+                    <input style={phoneInput} inputMode="tel" placeholder="Phone Number *" value={cart.customerPhone} onChange={(e) => cart.setCustomer(cart.customerName, e.target.value.replace(/[^\d]/g, ""), cart.customerEmail)} />
+                </div>
+                <div style={phoneFieldWrap}>
+                    <span style={dialPrefix}>{dialCode}</span>
+                    <input style={phoneInput} inputMode="tel" placeholder="Confirm Phone *" value={confirmPhone} onChange={(e) => setConfirmPhone(e.target.value.replace(/[^\d]/g, ""))} />
+                </div>
             </div>
         </div>
     );

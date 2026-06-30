@@ -15,16 +15,14 @@ function formatOrderId(shopCode: string, orderNumber: number): string {
   return `${shopCode}-${padded}`;
 }
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "").slice(-10) || "";
-}
-
 interface CreatePublicOrderInput {
   shopId: string;
   shopSlug: string;
   deliveryArea: string;
   customerName: string;
   customerPhone: string;
+  /** Dial code from the shop's country (e.g. "+91", "+971"). Defaults to +91. */
+  phoneCountryCode?: string;
   customerEmail?: string;
   items: {
     serviceId: string;
@@ -52,8 +50,8 @@ interface CreatePublicOrderInput {
   pickupDate: string;
   pickupSlot: string;
   deliveryAddress: {
-    lat: number;
-    lng: number;
+    lat?: number;
+    lng?: number;
     flatNumber?: string;
     landmark?: string;
     fullAddress?: string;
@@ -76,12 +74,21 @@ export const createPublicOrder = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Missing required fields");
   }
 
-  const phoneNorm = normalizePhone(data.customerPhone);
-  if (phoneNorm.length < 10) {
+  // Phone: prefix with the shop's country dial code (e.g. +91, +971), not hardcoded India.
+  const dialCode = ((data.phoneCountryCode || "+91").replace(/[^\d+]/g, "")) || "+91";
+  const dialDigits = dialCode.replace(/\D/g, "");
+  let phoneNorm = (data.customerPhone || "").replace(/\D/g, "");
+  // If the customer also typed the country code into the number field, drop it.
+  if (dialDigits && phoneNorm.startsWith(dialDigits) && phoneNorm.length > dialDigits.length + 5) {
+    phoneNorm = phoneNorm.slice(dialDigits.length);
+  }
+  if (phoneNorm.length < 6) {
     throw new HttpsError("invalid-argument", "Invalid phone number");
   }
+  const fullPhone = (dialCode.startsWith("+") ? dialCode : "+" + dialCode) + phoneNorm;
 
-  if (!data.deliveryAddress?.lat || !data.deliveryAddress?.flatNumber?.trim()) {
+  // Address: a typed address is fine — coordinates are optional (no forced geolocation).
+  if (!data.deliveryAddress?.flatNumber?.trim()) {
     throw new HttpsError("invalid-argument", "Pickup address required");
   }
 
@@ -169,7 +176,7 @@ export const createPublicOrder = onCall(async (request) => {
 
   // Create or find customer by phone, then by email (so POS and public-page orders stay on same customer)
   const customersRef = shopRef.collection("customers");
-  const phoneFormats = ["+91" + phoneNorm, phoneNorm, "91" + phoneNorm];
+  const phoneFormats = [fullPhone, phoneNorm, dialDigits + phoneNorm];
   let customerId: string | null = null;
 
   for (const fmt of phoneFormats) {
@@ -198,7 +205,7 @@ export const createPublicOrder = onCall(async (request) => {
   if (customerId) {
     await customersRef.doc(customerId).update({
       name: data.customerName,
-      phone: "+91" + phoneNorm,
+      phone: fullPhone,
       email: data.customerEmail?.trim() || null,
       address: buildAddressString(data.deliveryAddress),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -208,7 +215,7 @@ export const createPublicOrder = onCall(async (request) => {
   if (!customerId) {
     const newCustomer = await customersRef.add({
       name: data.customerName,
-      phone: "+91" + phoneNorm,
+      phone: fullPhone,
       email: data.customerEmail || null,
       address: buildAddressString(data.deliveryAddress),
       totalOrders: 0,
@@ -345,7 +352,7 @@ export const createPublicOrder = onCall(async (request) => {
     publicId: orderNumber,
     customerId,
     customerName: data.customerName,
-    customerPhone: "+91" + phoneNorm,
+    customerPhone: fullPhone,
     customerEmail: data.customerEmail || null,
     isGuest: false,
     items: finalItems,

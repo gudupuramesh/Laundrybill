@@ -14,20 +14,26 @@ function formatOrderId(shopCode, orderNumber) {
     const padded = orderNumber.toString().padStart(5, "0");
     return `${shopCode}-${padded}`;
 }
-function normalizePhone(phone) {
-    return phone.replace(/\D/g, "").slice(-10) || "";
-}
 exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const data = request.data;
     if (!(data === null || data === void 0 ? void 0 : data.shopId) || !(data === null || data === void 0 ? void 0 : data.customerName) || !(data === null || data === void 0 ? void 0 : data.customerPhone)) {
         throw new https_1.HttpsError("invalid-argument", "Missing required fields");
     }
-    const phoneNorm = normalizePhone(data.customerPhone);
-    if (phoneNorm.length < 10) {
+    // Phone: prefix with the shop's country dial code (e.g. +91, +971), not hardcoded India.
+    const dialCode = ((data.phoneCountryCode || "+91").replace(/[^\d+]/g, "")) || "+91";
+    const dialDigits = dialCode.replace(/\D/g, "");
+    let phoneNorm = (data.customerPhone || "").replace(/\D/g, "");
+    // If the customer also typed the country code into the number field, drop it.
+    if (dialDigits && phoneNorm.startsWith(dialDigits) && phoneNorm.length > dialDigits.length + 5) {
+        phoneNorm = phoneNorm.slice(dialDigits.length);
+    }
+    if (phoneNorm.length < 6) {
         throw new https_1.HttpsError("invalid-argument", "Invalid phone number");
     }
-    if (!((_a = data.deliveryAddress) === null || _a === void 0 ? void 0 : _a.lat) || !((_c = (_b = data.deliveryAddress) === null || _b === void 0 ? void 0 : _b.flatNumber) === null || _c === void 0 ? void 0 : _c.trim())) {
+    const fullPhone = (dialCode.startsWith("+") ? dialCode : "+" + dialCode) + phoneNorm;
+    // Address: a typed address is fine — coordinates are optional (no forced geolocation).
+    if (!((_b = (_a = data.deliveryAddress) === null || _a === void 0 ? void 0 : _a.flatNumber) === null || _b === void 0 ? void 0 : _b.trim())) {
         throw new https_1.HttpsError("invalid-argument", "Pickup address required");
     }
     const shopRef = db.collection("shops").doc(data.shopId);
@@ -103,7 +109,7 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     const orderNumber = formatOrderId(shopCode, nextOrderNumber);
     // Create or find customer by phone, then by email (so POS and public-page orders stay on same customer)
     const customersRef = shopRef.collection("customers");
-    const phoneFormats = ["+91" + phoneNorm, phoneNorm, "91" + phoneNorm];
+    const phoneFormats = [fullPhone, phoneNorm, dialDigits + phoneNorm];
     let customerId = null;
     for (const fmt of phoneFormats) {
         const phoneQuery = await customersRef
@@ -116,7 +122,7 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
         }
     }
     // If no match by phone, try by email so same person ordering with different number still links
-    if (!customerId && ((_d = data.customerEmail) === null || _d === void 0 ? void 0 : _d.trim())) {
+    if (!customerId && ((_c = data.customerEmail) === null || _c === void 0 ? void 0 : _c.trim())) {
         const emailNorm = data.customerEmail.trim().toLowerCase();
         const emailQuery = await customersRef
             .where("email", "==", emailNorm)
@@ -129,8 +135,8 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     if (customerId) {
         await customersRef.doc(customerId).update({
             name: data.customerName,
-            phone: "+91" + phoneNorm,
-            email: ((_e = data.customerEmail) === null || _e === void 0 ? void 0 : _e.trim()) || null,
+            phone: fullPhone,
+            email: ((_d = data.customerEmail) === null || _d === void 0 ? void 0 : _d.trim()) || null,
             address: buildAddressString(data.deliveryAddress),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -138,7 +144,7 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     if (!customerId) {
         const newCustomer = await customersRef.add({
             name: data.customerName,
-            phone: "+91" + phoneNorm,
+            phone: fullPhone,
             email: data.customerEmail || null,
             address: buildAddressString(data.deliveryAddress),
             totalOrders: 0,
@@ -236,8 +242,8 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
     }
     else if (isQuickOrder && deliveryCharge === 0 && delivery) {
         const fee = (delivery.deliveryFeeEnabled === true)
-            ? ((_g = (_f = delivery.deliveryFeeAmount) !== null && _f !== void 0 ? _f : delivery.defaultCharge) !== null && _g !== void 0 ? _g : 50)
-            : ((_h = delivery.defaultCharge) !== null && _h !== void 0 ? _h : 50);
+            ? ((_f = (_e = delivery.deliveryFeeAmount) !== null && _e !== void 0 ? _e : delivery.defaultCharge) !== null && _f !== void 0 ? _f : 50)
+            : ((_g = delivery.defaultCharge) !== null && _g !== void 0 ? _g : 50);
         deliveryCharge = typeof fee === "number" && fee >= 0 ? fee : 50;
     }
     const subtotal = rawFinancials.subtotal || 0;
@@ -263,9 +269,9 @@ exports.createPublicOrder = (0, https_1.onCall)(async (request) => {
         amountPaid: 0,
         balance: total,
     };
-    const orderData = Object.assign(Object.assign({ orderNumber, publicId: orderNumber, customerId, customerName: data.customerName, customerPhone: "+91" + phoneNorm, customerEmail: data.customerEmail || null, isGuest: false, items: finalItems, financials, status: "pending", paymentMethod: "cash", paymentStatus: "unpaid", deliveryType: "pickup_home", deliveryAddress: buildAddressString(data.deliveryAddress) }, (((_j = data.deliveryAddress) === null || _j === void 0 ? void 0 : _j.lat) != null && ((_k = data.deliveryAddress) === null || _k === void 0 ? void 0 : _k.lng) != null
+    const orderData = Object.assign(Object.assign({ orderNumber, publicId: orderNumber, customerId, customerName: data.customerName, customerPhone: fullPhone, customerEmail: data.customerEmail || null, isGuest: false, items: finalItems, financials, status: "pending", paymentMethod: "cash", paymentStatus: "unpaid", deliveryType: "pickup_home", deliveryAddress: buildAddressString(data.deliveryAddress) }, (((_h = data.deliveryAddress) === null || _h === void 0 ? void 0 : _h.lat) != null && ((_j = data.deliveryAddress) === null || _j === void 0 ? void 0 : _j.lng) != null
         ? { deliveryLat: data.deliveryAddress.lat, deliveryLng: data.deliveryAddress.lng }
-        : {})), { deliveryNotes: data.customerNotes || null, pickupAddress: buildAddressString(data.deliveryAddress), scheduledPickupDate: admin.firestore.Timestamp.fromDate(pickupDateObj), scheduledPickupTime: data.pickupSlot || null, expectedDelivery: admin.firestore.Timestamp.fromDate(expectedDelivery), staffId: "online", staffName: "Online", assignedAgentId: assignedAgentId, assignedAgentName: assignedAgentName, assignedAt: assignedAgentId ? now : null, shopId: data.shopId, orderSource: "online", publicPageSlug: data.shopSlug, shopName: shopData.name || shopData.shopName || "Shop", deliveryArea: data.deliveryArea || null, isQuickOrder: (_l = data.isQuickOrder) !== null && _l !== void 0 ? _l : isQuickOrder, estimatedWeight: data.estimatedWeight || null, estimatedPieces: data.estimatedPieces || null, timeline: [
+        : {})), { deliveryNotes: data.customerNotes || null, pickupAddress: buildAddressString(data.deliveryAddress), scheduledPickupDate: admin.firestore.Timestamp.fromDate(pickupDateObj), scheduledPickupTime: data.pickupSlot || null, expectedDelivery: admin.firestore.Timestamp.fromDate(expectedDelivery), staffId: "online", staffName: "Online", assignedAgentId: assignedAgentId, assignedAgentName: assignedAgentName, assignedAt: assignedAgentId ? now : null, shopId: data.shopId, orderSource: "online", publicPageSlug: data.shopSlug, shopName: shopData.name || shopData.shopName || "Shop", deliveryArea: data.deliveryArea || null, isQuickOrder: (_k = data.isQuickOrder) !== null && _k !== void 0 ? _k : isQuickOrder, estimatedWeight: data.estimatedWeight || null, estimatedPieces: data.estimatedPieces || null, timeline: [
             {
                 id: `t-${Date.now()}`,
                 status: "pending",

@@ -14,6 +14,7 @@ interface CreatePublicOrderPayload {
   deliveryArea: string;
   customerName: string;
   customerPhone: string;
+  phoneCountryCode?: string;
   customerEmail?: string;
   items: {
     serviceId: string;
@@ -67,6 +68,7 @@ export function useCreatePublicOrder() {
         deliveryArea: string;
         customerName: string;
         customerPhone: string;
+        phoneCountryCode?: string;
         customerEmail?: string;
         items: PublicCartItem[];
         subtotal: number;
@@ -110,6 +112,7 @@ export function useCreatePublicOrder() {
           deliveryArea: input.deliveryArea,
           customerName: input.customerName,
           customerPhone: input.customerPhone,
+          phoneCountryCode: input.phoneCountryCode,
           customerEmail: input.customerEmail,
           items: input.items.map((i) => ({
             serviceId: i.service.id,
