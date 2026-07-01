@@ -389,12 +389,18 @@ export function SettingsPageMasterDetail() {
     const countryChanged = selectedCountryCode !== (shop?.settings?.countryCode || "IN");
 
     // Header "Save changes" dispatches by section
-    const handleSave = () => {
+    const handleSave = async () => {
         if (selectedSection === "business") return handleSaveShopInfo();
         if (selectedSection === "preferences") {
             if (countryChanged) return handleSaveCountry();
             addToast({ type: "success", title: t("shop.settingsSaved", "Saved") });
             return;
+        }
+        // The "tax" section hosts the Country & currency picker, so a country change must be
+        // persisted from the header Save too — otherwise it falls through to the financials
+        // write below and is silently dropped. Save it first, then the tax/bank/delivery write.
+        if (selectedSection === "tax" && countryChanged) {
+            await handleSaveCountry();
         }
         return handleSaveFinancials(); // tax, bank, operations share the financials write
     };
