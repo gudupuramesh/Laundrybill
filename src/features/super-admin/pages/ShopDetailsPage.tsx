@@ -40,6 +40,7 @@ import { format } from "date-fns";
 import type { Shop } from "@/types/shop";
 import type { PlanType } from "@/types/plans";
 import { normalizePlanId } from "@/types/plans";
+import { getCachedShop } from "../hooks/use-all-shops";
 import { useShopOrderStats } from "../hooks/use-shop-order-stats";
 import { useShopCategoryStats } from "../hooks/use-shop-category-stats";
 import {
@@ -75,13 +76,29 @@ function formatAmount(amount: number): string {
   }).format(amount);
 }
 
+type ShopSub = { planId: PlanType; status: string; endDate?: Date };
+
+/** Read a shop + its subscription from the shops-list session cache (for instant seed). */
+function readSeed(id: string | undefined): { shop: Shop | null; sub: ShopSub | null } {
+  const s = id ? getCachedShop(id) : undefined;
+  return {
+    shop: s ? (s as Shop) : null,
+    sub: s?.subscription
+      ? { planId: s.subscription.planId, status: s.subscription.status, endDate: s.subscription.endDate }
+      : null,
+  };
+}
+
 export function ShopDetailsPage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [sub, setSub] = useState<{ planId: PlanType; status: string; endDate?: Date } | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // Seed from the shops-list session cache so opening a shop from the list is
+  // instant — no full-screen loader. A cold load (direct URL) still fetches.
+  const [shop, setShop] = useState<Shop | null>(() => readSeed(shopId).shop);
+  const [sub, setSub] = useState<ShopSub | null>(() => readSeed(shopId).sub);
+  const [loading, setLoading] = useState(() => !readSeed(shopId).shop);
 
   // Plan management state
   const [showOverrideForm, setShowOverrideForm] = useState(false);
@@ -142,21 +159,31 @@ export function ShopDetailsPage() {
   }, [mapServiceOptions, mapServiceFilter]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // Re-seed synchronously on shopId change so we never render the previous shop's
+    // data under the new URL (the route reuses this component instance, no remount).
+    const seed = readSeed(shopId);
+    setShop(seed.shop);
+    setSub(seed.sub);
+
     async function fetchShop() {
       if (!shopId) {
         setLoading(false);
         return;
       }
-      setLoading(true);
+      // Only block on a true cold load; a cache-seeded page refreshes silently.
+      setLoading(!seed.shop);
       try {
         const [shopSnap, subSnap] = await Promise.all([
           getDoc(doc(db, "shops", shopId)),
           getDoc(doc(db, "subscriptions", shopId)),
         ]);
+        if (cancelled) return; // a newer shopId (or unmount) supersedes this fetch
         if (shopSnap.exists()) {
           setShop({ id: shopSnap.id, ...shopSnap.data() } as Shop);
         } else {
-          setShop(null);
+          setShop(null); // authoritative: the shop really doesn't exist
         }
         if (subSnap.exists()) {
           const d = subSnap.data();
@@ -169,13 +196,17 @@ export function ShopDetailsPage() {
           setSub(null);
         }
       } catch {
-        setShop(null);
-        setSub(null);
+        // Transient background-refresh failure: keep the already-seeded shop on
+        // screen rather than wiping it to "Shop not found". A cold load stays empty.
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchShop();
+
+    return () => {
+      cancelled = true;
+    };
   }, [shopId]);
 
   if (!shopId) {

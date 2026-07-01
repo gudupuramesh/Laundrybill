@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAllShops } from "../hooks/use-all-shops";
-import { LCard, LPageLoader, LButton, LBottomSheet } from "@/components/laundry";
+import { LCard, LSkeletonList, LButton, LBottomSheet } from "@/components/laundry";
 import {
     Search,
     Filter,
@@ -43,6 +43,7 @@ const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [
     { value: "all", label: "All Plans" },
     { value: "free", label: "Free" },
     { value: "pro", label: "Pro" },
+    { value: "pro_plus", label: "Pro+" },
     { value: "business", label: "Business" },
 ];
 
@@ -52,10 +53,12 @@ export function ShopsPage() {
     const [planFilter, setPlanFilter] = useState<PlanType | "all">("all");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-    const { shops, loading, error, hasMore, total, loadMore } = useAllShops({
+    const { shops, loading, error, hasMore, total, matchedCount, loadMore, refresh } = useAllShops({
         searchTerm,
         planFilter,
     });
+
+    const isFiltering = searchTerm.trim() !== "" || planFilter !== "all";
 
     return (
         <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
@@ -63,7 +66,9 @@ export function ShopsPage() {
             <div>
                 <h1 className="text-xl md:text-2xl font-bold text-foreground">All Shops</h1>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                    {total} registered shops on the platform
+                    {isFiltering
+                        ? `${matchedCount} of ${total} shops match`
+                        : `${total} registered shops on the platform`}
                 </p>
             </div>
 
@@ -73,7 +78,7 @@ export function ShopsPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
-                        placeholder="Search by name, phone, or email..."
+                        placeholder="Search name, phone, email, code, city…"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full h-10 pl-10 pr-4 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm md:text-base"
@@ -124,22 +129,23 @@ export function ShopsPage() {
                 </div>
             </LBottomSheet>
 
-            {/* Loading */}
+            {/* Loading — instant skeleton rows (no full-screen blocking loader) */}
             {loading && shops.length === 0 && (
-                <div className="flex items-center justify-center h-40">
-                    <LPageLoader message="Loading shops..." />
-                </div>
+                <LSkeletonList count={8} className="mt-1" />
             )}
 
             {/* Error */}
             {error && (
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
-                    {error}
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-destructive">{error}</span>
+                    <LButton variant="outline" size="sm" onClick={refresh}>
+                        Retry
+                    </LButton>
                 </div>
             )}
 
-            {/* Shops List */}
-            {!loading && shops.length === 0 && (
+            {/* Shops List — hidden while an error is shown so both don't render together */}
+            {!loading && !error && shops.length === 0 && (
                 <div className="text-center py-12">
                     <Store className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-1">No shops found</h3>
@@ -235,14 +241,10 @@ export function ShopsPage() {
                         );
                     })}
 
-                    {/* Load More */}
+                    {/* Load More — instant, client-side paging */}
                     {hasMore && (
                         <div className="text-center pt-4">
-                            <LButton
-                                variant="outline"
-                                onClick={loadMore}
-                                loading={loading}
-                            >
+                            <LButton variant="outline" onClick={loadMore}>
                                 Load More Shops
                             </LButton>
                         </div>
