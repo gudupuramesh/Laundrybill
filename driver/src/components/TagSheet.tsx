@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, Modal, Pressable, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Alert } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, Modal, Pressable, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Alert, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
@@ -7,10 +7,21 @@ import QRCodeGen from 'qrcode';
 import { colors, fonts, radii } from '../theme';
 import { Button } from './ui/Button';
 import { useDriverAuth } from '../lib/DriverAuthContext';
+import { firestore } from '../lib/firebase';
 import type { Order } from '../types/order';
 
 function esc(s: string): string {
   return (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c));
+}
+
+// QR (default) or Code128 barcode as remote PNGs — mirrors the owner app so the same Scan
+// screens resolve them. QR encodes the order doc id; barcode encodes the short order number
+// (a full doc id makes an unscannably dense barcode on a small label).
+function getQRImageUrl(data: string, size = 300): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
+}
+function getBarcodeImageUrl(data: string): string {
+  return `https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(data)}&scale=3&height=10&includetext&textsize=11&paddingwidth=6&paddingheight=4&backgroundcolor=ffffff`;
 }
 
 // The "service" is the category (Wash & Fold / Iron / Dry Clean), not the garment name.
@@ -22,17 +33,38 @@ type Mode = 'basket' | 'items';
 
 /**
  * Generates scannable tags for an order — a single Basket tag (QR = order id)
- * or one tag per garment (QR = `orderId:index`). Mirrors the web
- * TagGeneratorModal's QR payloads so the same Scan screen resolves them.
- * On-screen for now; print/PDF is a follow-up (needs expo-print + a rebuild).
+ * or one tag per garment (QR = `orderId:index`). Mirrors the web/owner-app
+ * TagGeneratorModal's payloads so the same Scan screens resolve them. Supports
+ * QR (default) or a compact Code128 barcode, remembered per shop in settings.tagStyle.
  */
 export function TagSheet({ order, open, onClose }: { order: Order | null; open: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
-  const { shopName } = useDriverAuth();
+  const { shopId, shopName } = useDriverAuth();
   const [mode, setMode] = useState<Mode>('basket');
   const [printing, setPrinting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const width = Dimensions.get('window').width;
+
+  // Tag code style — QR (default) or Code128 barcode. Remembered per shop in settings.tagStyle
+  // (shared with the owner app). A local override lets the user flip it for this print.
+  const [shopTagStyle, setShopTagStyle] = useState<'qr' | 'barcode'>('qr');
+  const [tagStyleOverride, setTagStyleOverride] = useState<'qr' | 'barcode' | null>(null);
+  useEffect(() => {
+    if (!shopId) return;
+    firestore().collection('shops').doc(shopId).get()
+      .then((s) => {
+        const v = (s.data() as { settings?: { tagStyle?: string } } | undefined)?.settings?.tagStyle;
+        setShopTagStyle(v === 'barcode' ? 'barcode' : 'qr');
+      })
+      .catch(() => {});
+  }, [shopId]);
+  const isBarcode = (tagStyleOverride ?? shopTagStyle) === 'barcode';
+  const tagHeightMm = isBarcode ? 30 : 60; // barcodes get a shorter 30mm label
+  const setTagStyle = (style: 'qr' | 'barcode') => {
+    setTagStyleOverride(style);
+    // set-merge (not update): creates the settings map if the shop doc lacks one. Mirrors the owner app.
+    if (shopId) firestore().collection('shops').doc(shopId).set({ settings: { tagStyle: style } }, { merge: true }).catch(() => {});
+  };
 
   // The "service" is the category (Wash & Fold / Iron / Dry Clean); serviceName is the garment.
   const serviceGroups = useMemo(() => {
@@ -64,39 +96,56 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
 
   const serviceSummary = serviceGroups.map((g) => `${g.name} ×${g.qty}`).join('  ·  ');
 
-  // One tag per page, page = exactly 50mm × 60mm (matches the web TagGeneratorModal).
+  // Short order number for barcodes (a doc id is too dense to scan on a small label).
+  const pubId = order?.publicId || order?.orderNumber || order?.id || '';
+
+  // One tag per page — 50mm × 60mm for QR, a shorter 50mm × 30mm for barcode.
   const buildHtml = async (): Promise<string> => {
     if (!order) return '';
     const orderNo = order.orderNumber || order.publicId;
     const customer = order.customerName || '';
     const meta = `#${orderNo}${customer ? ` · ${customer}` : ''}`;
-    // basket = one tag per service (service name + qty); items = one tag per garment (per-service #).
+    // QR encodes the order doc id (orderId / orderId:index); barcode encodes the short order
+    // number (pubId / pubId:index) so the Scan screens resolve it back to the order.
     const tags =
       mode === 'basket'
-        ? serviceGroups.map((g) => ({ value: order.id, service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}` }))
-        : garments.map((g) => ({ value: `${order.id}:${g.index}`, service: g.service, line2: `${g.idxInService}/${g.serviceTotal}` }));
+        ? serviceGroups.map((g) => ({ qr: order.id, code: pubId, service: g.name, line2: `${g.qty} ${g.qty === 1 ? 'item' : 'items'}` }))
+        : garments.map((g) => ({ qr: `${order.id}:${g.index}`, code: `${pubId}:${g.index}`, service: g.service, line2: `${g.idxInService}/${g.serviceTotal}` }));
     const blocks = await Promise.all(
       tags.map(async (t) => {
-        const svg = await QRCodeGen.toString(t.value, { type: 'svg', margin: 1, width: 300 });
-        return `<div class="tag">${shopName ? `<div class="shop">${esc(shopName)}</div>` : ''}<div class="qr">${svg}</div><div class="title">${esc(t.service)}</div><div class="sub">${esc(t.line2)}</div><div class="meta">${esc(meta)}</div></div>`;
+        const codeEl = isBarcode
+          ? `<img class="code" src="${getBarcodeImageUrl(t.code)}" />`
+          : `<div class="code">${await QRCodeGen.toString(t.qr, { type: 'svg', margin: 1, width: 300 })}</div>`;
+        return `<div class="tag">${shopName ? `<div class="shop">${esc(shopName)}</div>` : ''}${codeEl}<div class="title">${esc(t.service)}</div><div class="sub">${esc(t.line2)}</div><div class="meta">${esc(meta)}</div></div>`;
       }),
     );
+    // Barcode labels are half-height (30mm), so the layout is tighter; QR keeps the 60mm layout.
+    const codeCss = isBarcode
+      ? '.code{width:44mm;height:9mm;object-fit:contain;margin-top:1mm;line-height:0;}'
+      : '.code{margin-top:1.5mm;line-height:0;} .code svg{width:32mm;height:32mm;}';
+    const pad = isBarcode ? 2 : 3;
+    const shopPt = isBarcode ? 6.5 : 7.5;
+    const titlePt = isBarcode ? 8.5 : 11;
+    const subPt = isBarcode ? 8 : 10;
+    const metaPt = isBarcode ? 6 : 7.5;
+    const gap = isBarcode ? 0.5 : 1.5;
+    // No fixed .tag height: a full-page-height box + page-break-after makes WebKit emit a
+    // blank page after every tag. Letting content flow + break between tags = one label per page.
     return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"/><style>
-      @page { size: 50mm 60mm; margin: 0; }
+      @page { size: 50mm ${tagHeightMm}mm; margin: 0; }
       *{box-sizing:border-box;font-family:-apple-system,Helvetica,Arial,sans-serif;}
       html,body{margin:0;padding:0;}
-      .tag{width:50mm;height:60mm;padding:3mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;overflow:hidden;page-break-after:always;}
-      .tag:last-child{page-break-after:auto;}
-      .shop{font-size:7.5pt;color:#000;font-weight:700;line-height:1.1;}
-      .qr{margin-top:1.5mm;line-height:0;}
-      .qr svg{width:32mm;height:32mm;}
-      .title{font-size:11pt;font-weight:700;margin-top:1.5mm;line-height:1.1;}
-      .sub{font-size:10pt;font-weight:700;color:#000;margin-top:0.5mm;line-height:1.1;}
-      .meta{font-size:7.5pt;color:#555;margin-top:1mm;line-height:1.2;}
+      .tag{width:50mm;padding:${pad}mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;overflow:hidden;page-break-after:always;break-after:page;}
+      .tag:last-child{page-break-after:auto;break-after:auto;}
+      .shop{font-size:${shopPt}pt;color:#000;font-weight:700;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      ${codeCss}
+      .title{font-size:${titlePt}pt;font-weight:700;margin-top:${gap}mm;line-height:1.1;}
+      .sub{font-size:${subPt}pt;font-weight:700;color:#000;margin-top:0.4mm;line-height:1.1;}
+      .meta{font-size:${metaPt}pt;color:#555;margin-top:${gap}mm;line-height:1.1;}
     </style></head><body>${blocks.join('')}</body></html>`;
   };
 
-  // Build a PDF whose pages are exactly 50mm × 60mm (in PDF points) — 1:1, never A4.
+  // Build a PDF whose pages are exactly 50mm × tagHeightMm (in PDF points) — 1:1, never A4.
   // Lazy-load the native print module so the bundle still runs in a dev client that
   // wasn't built with expo-print yet (printing needs a rebuild).
   const generatePdf = async (): Promise<{ Print: typeof import('expo-print'); uri: string }> => {
@@ -106,7 +155,7 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
     const { uri } = await Print.printToFileAsync({
       html,
       width: Math.round(50 * MM_TO_PT),
-      height: Math.round(60 * MM_TO_PT),
+      height: Math.round(tagHeightMm * MM_TO_PT),
     });
     return { Print, uri };
   };
@@ -118,7 +167,7 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
       const { Print, uri } = await generatePdf();
       await Print.printAsync({ uri });
     } catch (e) {
-      Alert.alert('Printing unavailable', 'Tag printing needs the latest app build. The on-screen QR still works for scanning.');
+      Alert.alert('Printing unavailable', 'Tag printing needs the latest app build. The on-screen code still works for scanning.');
     } finally {
       setPrinting(false);
     }
@@ -136,7 +185,7 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
         await Print.printAsync({ uri });
       }
     } catch (e) {
-      Alert.alert('Sharing unavailable', 'Sharing needs the latest app build. The on-screen QR still works for scanning.');
+      Alert.alert('Sharing unavailable', 'Sharing needs the latest app build. The on-screen code still works for scanning.');
     } finally {
       setSharing(false);
     }
@@ -182,10 +231,22 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
             </TouchableOpacity>
           </View>
 
+          {/* Code style toggle: QR or Barcode (remembered per shop, shared with the owner app) */}
+          <View style={styles.segment}>
+            <TouchableOpacity style={[styles.segBtn, !isBarcode && styles.segBtnActive]} onPress={() => setTagStyle('qr')}>
+              <Text style={[styles.segText, !isBarcode && styles.segTextActive]}>QR code</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.segBtn, isBarcode && styles.segBtnActive]} onPress={() => setTagStyle('barcode')}>
+              <Text style={[styles.segText, isBarcode && styles.segTextActive]}>Barcode</Text>
+            </TouchableOpacity>
+          </View>
+
           {mode === 'basket' ? (
             <View style={styles.basketWrap}>
               <View style={styles.qrCard}>
-                <QRCode value={order.id} size={196} backgroundColor="#fff" color={colors.text} />
+                {isBarcode
+                  ? <Image source={{ uri: getBarcodeImageUrl(pubId) }} style={{ width: 220, height: 80 }} resizeMode="contain" />
+                  : <QRCode value={order.id} size={196} backgroundColor="#fff" color={colors.text} />}
               </View>
               <Text style={styles.tagLabel}>{order.orderNumber || order.publicId}</Text>
               <Text style={styles.tagSub}>
@@ -205,7 +266,9 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
               {garments.map((g) => (
                 <View key={g.index} style={[styles.itemPage, { width: width - 32 }]}>
                   <View style={styles.qrCard}>
-                    <QRCode value={`${order.id}:${g.index}`} size={170} backgroundColor="#fff" color={colors.text} />
+                    {isBarcode
+                      ? <Image source={{ uri: getBarcodeImageUrl(`${pubId}:${g.index}`) }} style={{ width: 200, height: 72 }} resizeMode="contain" />
+                      : <QRCode value={`${order.id}:${g.index}`} size={170} backgroundColor="#fff" color={colors.text} />}
                   </View>
                   <Text style={styles.tagLabel}>{g.service}</Text>
                   <Text style={styles.tagSub}>
@@ -222,6 +285,12 @@ export function TagSheet({ order, open, onClose }: { order: Order | null; open: 
             <Text style={styles.noteText}>
               {mode === 'items' ? 'Swipe to see each garment tag. ' : ''}Scan a tag from the Scan tab to open this order.
             </Text>
+          </View>
+
+          {/* Label size — tells the user what to set their label printer to (updates with the style). */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 10 }}>
+            <MaterialIcons name="straighten" size={13} color={colors.textMuted} />
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: colors.textSecondary }}>Label size {isBarcode ? '50 × 30 mm' : '50 × 60 mm'} — set your printer to this</Text>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>

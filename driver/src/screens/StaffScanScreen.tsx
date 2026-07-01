@@ -5,8 +5,9 @@ import { useDriverAuth } from '../lib/DriverAuthContext';
 import { useNav } from '../lib/nav';
 import { QrScanner } from '../components/QrScanner';
 
-/** Order/tag QR encodes the order doc id (a `/track/<id>` link or `orderId:itemIndex`). */
-function resolveOrderId(raw: string): string {
+/** QR tags encode the order doc id; barcode tags encode the short order number.
+ *  Strip any `/track/<id>` wrapper and the `:itemIndex` suffix to get the raw token. */
+function resolveToken(raw: string): string {
   const data = raw.trim();
   const m = data.match(/\/track\/([^/?#]+)/);
   if (m) return m[1];
@@ -24,10 +25,21 @@ export default function StaffScanScreen({ onBack }: { onBack?: () => void } = {}
 
   const onResult = async (raw: string, reset: () => void) => {
     if (!shopId) return;
-    const orderId = resolveOrderId(raw);
+    const token = resolveToken(raw);
+    const ordersRef = firestore().collection(`shops/${shopId}/orders`);
     try {
-      const snap = await firestore().doc(`shops/${shopId}/orders/${orderId}`).get();
-      if (snap.exists) {
+      // QR tags encode the doc id (direct lookup); barcode tags encode the short order
+      // number → fall back to a query on orderNumber, then publicId.
+      let orderId: string | null = null;
+      const direct = await ordersRef.doc(token).get();
+      if (direct.exists) {
+        orderId = token;
+      } else {
+        let qs = await ordersRef.where('orderNumber', '==', token).limit(1).get();
+        if (qs.empty) qs = await ordersRef.where('publicId', '==', token).limit(1).get();
+        if (!qs.empty) orderId = qs.docs[0].id;
+      }
+      if (orderId) {
         nav.navigate({ name: 'orderDetail', orderId });
       } else {
         Alert.alert('Order not found', 'No order matches this tag in your shop.', [
@@ -45,9 +57,9 @@ export default function StaffScanScreen({ onBack }: { onBack?: () => void } = {}
     <QrScanner
       onBack={onBack}
       title="Scan order"
-      instruction="Point at an order or garment tag QR"
+      instruction="Point at an order or garment tag"
       permissionTitle="Scan an order"
-      permissionBody="Laundrybill needs the camera only to scan an order QR tag and open it. Scanning just reads the code — no photo or video is taken or stored."
+      permissionBody="Laundrybill needs the camera only to scan an order tag and open it. Scanning just reads the code — no photo or video is taken or stored."
       onResult={onResult}
     />
   );

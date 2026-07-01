@@ -38,7 +38,7 @@ export default function ScanScreen() {
             : { name: 'pickupDetail', orderId: anyMatch.orderId },
         );
       } else {
-        Alert.alert('Order not found', 'This QR is not one of your assigned orders.', [
+        Alert.alert('Order not found', 'This tag is not one of your assigned orders.', [
           { text: 'Scan again', onPress: reset },
         ]);
       }
@@ -48,9 +48,9 @@ export default function ScanScreen() {
   return (
     <QrScanner
       title="Scan order"
-      instruction="Point at the order QR to confirm pickup or delivery"
-      permissionTitle="Scan order QR codes"
-      permissionBody="Laundrybill needs the camera only to scan order QR tags so you can confirm pickups and deliveries. Scanning just reads the code — no photo or video is taken or stored."
+      instruction="Point at the order tag to confirm pickup or delivery"
+      permissionTitle="Scan order tags"
+      permissionBody="Laundrybill needs the camera only to scan order tags so you can confirm pickups and deliveries. Scanning just reads the code — no photo or video is taken or stored."
       onResult={onResult}
     />
   );
