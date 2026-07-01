@@ -23,6 +23,10 @@ export function PublicOrderPage() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cartHasItems, setCartHasItems] = useState(false);
 
+  // Prettify the URL slug into a display name so the loading splash can greet by store
+  // name before the shop doc has loaded (e.g. "dry-laun" → "Dry Laun", "ramesh" → "Ramesh").
+  const storeName = (shopSlug || "").replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 px-8 text-center">
@@ -40,8 +44,9 @@ export function PublicOrderPage() {
             <Store size={30} color="#fff" strokeWidth={2} />
           </span>
         </div>
-        <h1 className="mt-8 text-xl font-bold text-foreground">Connecting to Store</h1>
-        <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        <p className="mt-7 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Connecting to store</p>
+        <h1 className="mt-1.5 text-2xl font-bold text-foreground">{storeName || "Your store"}</h1>
+        <p className="mt-3 max-w-xs text-sm text-muted-foreground">
           Securely fetching live rates and pickup availability…
         </p>
       </div>
