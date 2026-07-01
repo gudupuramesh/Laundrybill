@@ -30,12 +30,15 @@ const updateSW = registerSW({
     console.log("App ready to work offline");
   },
   onRegisteredSW(_swUrl, r) {
-    // Check for updates every hour (instead of on every page load)
-    if (r) {
-      setInterval(() => {
-        r.update();
-      }, 60 * 60 * 1000); // 1 hour
-    }
+    if (!r) return;
+    // Pick up a new deploy promptly so a long-open tab doesn't keep running stale
+    // code: check hourly AND whenever the tab regains focus (throttled to 1/min).
+    let lastCheck = Date.now();
+    const check = () => { lastCheck = Date.now(); r.update(); };
+    setInterval(check, 60 * 60 * 1000); // 1 hour
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && Date.now() - lastCheck > 60 * 1000) check();
+    });
   },
 });
 
