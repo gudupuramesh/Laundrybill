@@ -186,8 +186,10 @@ export function TagGeneratorModal({ open, onClose, order }: TagGeneratorModalPro
             @page { size: 50mm 60mm; margin: 0; }
             * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
             html, body { margin: 0; padding: 0; background: #fff; }
-            .tag { width: 50mm; height: 60mm; padding: 3mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; overflow: hidden; page-break-after: always; }
-            .tag:last-child { page-break-after: auto; }
+            /* No fixed .tag height: a full-page-height box + page-break-after can emit a blank
+               page after every tag. Letting content flow + break between tags = one label per page. */
+            .tag { width: 50mm; padding: 3mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; overflow: hidden; page-break-after: always; break-after: page; }
+            .tag:last-child { page-break-after: auto; break-after: auto; }
             .shop { font-size: 7.5pt; font-weight: 700; line-height: 1.1; }
             .qr { width: 32mm; height: 32mm; margin-top: 1.5mm; }
             .title { font-size: 11pt; font-weight: 700; margin-top: 1.5mm; line-height: 1.1; }

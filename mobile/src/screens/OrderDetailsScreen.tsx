@@ -417,7 +417,7 @@ export default function OrderDetailsScreen({
   // Tag code style: the user's in-modal choice overrides the saved shop setting.
   const tagStyle: 'qr' | 'barcode' = tagStyleOverride ?? (shopData?.settings?.tagStyle === 'barcode' ? 'barcode' : 'qr');
   const isBarcodeTag = tagStyle === 'barcode';
-  const tagHeightMm = isBarcodeTag ? 38 : 60; // barcodes need a shorter tag → smaller labels
+  const tagHeightMm = isBarcodeTag ? 30 : 60; // barcodes need a shorter tag → smaller labels
   const setTagStyle = (style: 'qr' | 'barcode') => {
     setTagStyleOverride(style);
     if (shopId) firestore().collection('shops').doc(shopId).set({ settings: { tagStyle: style } }, { merge: true }).catch(() => {});
@@ -616,7 +616,7 @@ export default function OrderDetailsScreen({
   };
 
   /** Build the tag HTML for the active tab. 50mm wide; height depends on code style
-   *  (60mm for QR, a shorter 38mm for barcode → smaller labels). */
+   *  (60mm for QR, a shorter 30mm for barcode → smaller labels). */
   const buildTagsHtml = (): string => {
     const shopName = shopData?.name || 'LaundryBill';
     const customer = order?.customerName || t('mobile.guestLabel');
@@ -635,22 +635,32 @@ export default function OrderDetailsScreen({
         <div class="meta">${escHtml(meta)}</div>
       </div>`).join('');
 
+    // Barcode labels are half-height (30mm) so the layout is tighter; QR keeps the roomier 60mm layout.
     const codeCss = isBarcodeTag
-      ? '.code { width:44mm; height:13mm; object-fit:contain; margin-top:1.5mm; }'
+      ? '.code { width:44mm; height:9mm; object-fit:contain; margin-top:1mm; }'
       : '.code { width:32mm; height:32mm; margin-top:1.5mm; }';
+    const pad = isBarcodeTag ? 2 : 3;
+    const shopPt = isBarcodeTag ? 6.5 : 8;
+    const titlePt = isBarcodeTag ? 8.5 : 11;
+    const subPt = isBarcodeTag ? 8 : 10;
+    const metaPt = isBarcodeTag ? 6 : 7.5;
+    const gap = isBarcodeTag ? 0.5 : 1.5;
 
+    // The .tag has NO fixed height on purpose: a full-page-height box + page-break-after makes
+    // WebKit's PDF renderer emit a blank page after every tag. Letting the shorter content flow
+    // and forcing the break between tags yields exactly one label per page with no blanks.
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
       <style>
         @page { size: 50mm ${tagHeightMm}mm; margin: 0; }
         * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
         html, body { margin:0; padding:0; }
-        .tag { width:50mm; height:${tagHeightMm}mm; padding:3mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow:hidden; page-break-after:always; }
-        .tag:last-child { page-break-after:auto; }
-        .shop { font-size:8pt; font-weight:700; color:#000; line-height:1.1; }
+        .tag { width:50mm; padding:${pad}mm; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; overflow:hidden; page-break-after:always; break-after:page; }
+        .tag:last-child { page-break-after:auto; break-after:auto; }
+        .shop { font-size:${shopPt}pt; font-weight:700; color:#000; line-height:1.1; }
         ${codeCss}
-        .title { font-size:11pt; font-weight:700; margin-top:1.5mm; line-height:1.1; }
-        .sub { font-size:10pt; font-weight:700; color:#000; margin-top:0.5mm; line-height:1.1; }
-        .meta { font-size:7.5pt; color:#555; margin-top:1mm; line-height:1.2; }
+        .title { font-size:${titlePt}pt; font-weight:700; margin-top:${gap}mm; line-height:1.1; }
+        .sub { font-size:${subPt}pt; font-weight:700; color:#000; margin-top:0.4mm; line-height:1.1; }
+        .meta { font-size:${metaPt}pt; color:#555; margin-top:${gap}mm; line-height:1.1; }
       </style></head><body>${blocks}</body></html>`;
   };
 
@@ -1136,6 +1146,14 @@ export default function OrderDetailsScreen({
                 <MaterialIcons name="view-week" size={16} color={isBarcodeTag ? '#fff' : '#434654'} />
                 <Text style={[styles.qrTabText, isBarcodeTag && styles.qrTabTextActive]}>{t('mobile.tagStyleBarcode', 'Barcode')}</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Label size — tells the owner exactly what to set their label printer to (updates with the selected style). */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+              <MaterialIcons name="straighten" size={13} color={colors.textMuted} />
+              <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color: colors.textSecondary }}>
+                {t('mobile.labelSizeHint', { size: isBarcodeTag ? '50 × 30 mm' : '50 × 60 mm', defaultValue: 'Label size {{size}} — set your printer to this' })}
+              </Text>
             </View>
 
             {qrTab === 'order' ? (
