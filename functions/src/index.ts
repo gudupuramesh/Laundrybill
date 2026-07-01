@@ -58,9 +58,15 @@ export const checkSubscriptionExpiration = onSchedule("every day 00:00", async (
 
                 console.log(`Processing expired subscription for shop: ${shopId}`);
 
-                // 1. Update Subscription Status
+                // 1. Update Subscription Status + downgrade the plan.
+                // Must also flip planId/planName to "free" (not just status): the native
+                // owner-mobile + Team apps read plan limits from the subscription's planId,
+                // so without this a lapsed Pro+ still resolves unlimited orders and staff/
+                // driver/plant/manager can keep creating orders. Mirrors the Razorpay webhook.
                 batch.update(doc.ref, {
                     status: "expired",
+                    planId: "free",
+                    planName: "Free",
                     updatedAt: now,
                     expiredAt: now,
                 });
