@@ -18,6 +18,7 @@ import {
     LPageLoader,
 } from "@/components/laundry";
 import { useOrderTracking } from "@/hooks/use-tracking";
+import { useCurrencyByShopId } from "@/hooks/use-currency";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import {
     Search,
@@ -92,6 +93,9 @@ export function PublicTrackingPage() {
     // Order IDs are now globally unique (format: XXXX-00001)
     // Legacy IDs (A-001) may still exist but will match the first shop
     const { data, loading, error } = useOrderTracking(effectiveTrackingId, phoneVerified);
+    // Public page has no logged-in shop, so amounts must use the ORDER's shop currency
+    // (e.g. AED), not the default ₹.
+    const { currencySymbol } = useCurrencyByShopId(data?.shopId || null);
 
     const handleSearch = () => {
         const code = searchQuery.trim();
@@ -454,27 +458,27 @@ export function PublicTrackingPage() {
                         <div className="space-y-1">
                             <div className="flex justify-between text-sm text-muted-foreground">
                                 <span>{t('pos.subtotal')}</span>
-                                <LAmount value={data.total - (data.taxAmount || 0) - (data.deliveryCharge || 0) + (data.discountAmount || 0)} size="sm" />
+                                <LAmount value={data.total - (data.taxAmount || 0) - (data.deliveryCharge || 0) + (data.discountAmount || 0)} currency={currencySymbol} size="sm" />
                             </div>
 
                             {(data.discountAmount || 0) > 0 && (
                                 <div className="flex justify-between text-sm text-success">
                                     <span>{t('checkout.discount')}</span>
-                                    <span>-<LAmount value={data.discountAmount || 0} size="sm" /></span>
+                                    <span>-<LAmount value={data.discountAmount || 0} currency={currencySymbol} size="sm" /></span>
                                 </div>
                             )}
 
                             {(data.deliveryCharge || 0) > 0 && (
                                 <div className="flex justify-between text-sm text-muted-foreground">
                                     <span>{t('checkout.delivery')}</span>
-                                    <LAmount value={data.deliveryCharge || 0} size="sm" />
+                                    <LAmount value={data.deliveryCharge || 0} currency={currencySymbol} size="sm" />
                                 </div>
                             )}
 
                             {(data.taxAmount || 0) > 0 && (
                                 <div className="flex justify-between text-sm text-foreground">
                                     <span>{t('pos.tax', { name: data.taxName, rate: data.taxRate })}</span>
-                                    <LAmount value={data.taxAmount || 0} size="sm" />
+                                    <LAmount value={data.taxAmount || 0} currency={currencySymbol} size="sm" />
                                 </div>
                             )}
 
@@ -482,12 +486,12 @@ export function PublicTrackingPage() {
 
                             <div className="flex justify-between font-semibold">
                                 <span>{t('common.total')}</span>
-                                <LAmount value={data.total} />
+                                <LAmount value={data.total} currency={currencySymbol} />
                             </div>
                             {data.balance > 0 && (
                                 <div className="flex justify-between text-sm text-destructive">
                                     <span>{t('tracking.balanceDue')}</span>
-                                    <LAmount value={data.balance} />
+                                    <LAmount value={data.balance} currency={currencySymbol} />
                                 </div>
                             )}
                         </div>

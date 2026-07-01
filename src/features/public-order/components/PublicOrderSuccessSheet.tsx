@@ -31,7 +31,7 @@ export function PublicOrderSuccessSheet({
   phone,
 }: PublicOrderSuccessSheetProps) {
   const { data, loading, error } = useOrderTracking(publicId, phone);
-  const { formatAmount } = useCurrencyByShopId(data?.shopId || null);
+  const { formatAmount, currencySymbol } = useCurrencyByShopId(data?.shopId || null);
 
   const trackingUrl = `${window.location.origin}/track/${publicId}`;
 
@@ -107,7 +107,7 @@ export function PublicOrderSuccessSheet({
             <LDivider />
             <div className="flex justify-between font-semibold">
               <span>Total</span>
-              <LAmount value={data.total} size="md" />
+              <LAmount value={data.total} currency={currencySymbol} size="md" />
             </div>
           </div>
         </LCard>
