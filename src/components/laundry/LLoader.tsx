@@ -289,17 +289,15 @@ export interface LInlineLoaderProps {
   className?: string;
 }
 
-export const LInlineLoader: React.FC<LInlineLoaderProps> = ({ 
-  variant = 'bubbles', 
-  light = true,
+export const LInlineLoader: React.FC<LInlineLoaderProps> = ({
   size = 'sm',
   className = ''
 }) => {
-  const colorClass = light ? 'brightness-200 contrast-0 grayscale' : '';
+  // Small ring that inherits the current text color (white on a primary button, dark
+  // on a light one). `variant`/`light` are accepted but ignored for compatibility.
+  const dim = size === 'lg' ? 'h-6 w-6' : size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
   return (
-    <div className={`inline-block align-middle ${colorClass} ${className}`}>
-      <LLoader variant={variant} size={size} />
-    </div>
+    <span className={`inline-block align-middle animate-spin rounded-full border-2 border-current border-t-transparent ${dim} ${className}`} />
   );
 };
 
@@ -309,24 +307,19 @@ export interface LPageLoaderProps {
   className?: string;
 }
 
-export const LPageLoader: React.FC<LPageLoaderProps> = ({ 
-  variant = 'machine', 
+export const LPageLoader: React.FC<LPageLoaderProps> = ({
   message = 'Loading...',
   className = ''
 }) => {
+  // Simple, fast: a centered ring on a plain scrim — no backdrop-blur, no injected
+  // keyframes, no branded animation (those were the slow part). `variant` is still
+  // accepted on the props but ignored, so existing call sites keep compiling.
   return (
-    <>
-      <style>{LOADER_STYLES}</style>
-      <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/20 backdrop-blur-md ${className}`}>
-        <div className="bg-white p-8 rounded-2xl shadow-xl flex flex-col items-center border border-slate-100 min-w-[200px]">
-          <LLoader variant={variant} size="xl" />
-          {message && (
-            <p className="mt-6 text-slate-700 font-bold tracking-wide animate-pulse text-sm uppercase">
-              {message}
-            </p>
-          )}
-        </div>
-      </div>
-    </>
+    <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 ${className}`}>
+      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-primary/25 border-t-primary" />
+      {message && (
+        <p className="mt-4 text-sm text-muted-foreground">{message}</p>
+      )}
+    </div>
   );
 };
