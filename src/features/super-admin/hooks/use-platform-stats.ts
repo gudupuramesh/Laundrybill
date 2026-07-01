@@ -90,7 +90,29 @@ export function usePlatformStats() {
                 // ignore
             }
 
-            // Aggregate orders, customers, storage from ALL shops (real data)
+            // Render the dashboard NOW on the cheap stats (shops/subs/payments). The per-shop
+            // aggregation below is O(shops) — 4 reads per shop — so it must not block first
+            // paint; it runs after and fills in orders/customers/storage when ready.
+            setStats({
+                totalShops: shops.length,
+                newShopsThisMonth,
+                activeSubscriptions: activeSubscriptions || 0,
+                trialUsers,
+                expiringSoon,
+                paymentsFailed: 0,
+                monthlyRevenue,
+                revenueGrowth: 0,
+                totalOrders: 0,
+                totalCustomers: 0,
+                ordersToday: 0,
+                revenueToday,
+                totalStorageBytes: 0,
+                totalStorageImageCount: 0,
+                planDistribution,
+            });
+            setLoading(false);
+
+            // Background aggregation: orders / customers / storage across every shop.
             let totalOrders = 0;
             let ordersToday = 0;
             let totalCustomers = 0;

@@ -84,8 +84,9 @@ export function SuperAdminAuthProvider({ children }: { children: React.ReactNode
                             updatedAt: data.updatedAt,
                         });
 
-                        // Update last login
-                        await setDoc(adminRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+                        // Update last login — fire-and-forget so the "Authenticating…" gate
+                        // isn't blocked on a write round-trip it doesn't need to wait for.
+                        void setDoc(adminRef, { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
                     } else {
                         // Create super admin document for first-time login
                         const newAdmin: Omit<SuperAdmin, "id"> = {
