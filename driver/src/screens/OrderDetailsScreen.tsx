@@ -15,6 +15,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { colors, fonts, radii, shadows } from '../theme';
 import { HelpButton } from '../components/HelpButton';
+import { TagSheet } from '../components/TagSheet';
 
 // ─── Constants ────────────────────────────────────────────────────────
 
@@ -283,6 +284,7 @@ export default function OrderDetailsScreen({
   const [statusModal, setStatusModal] = useState(false);
   const [paymentModal, setPaymentModal] = useState(false);
   const [qrModal, setQrModal] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
   const [cancelModal, setCancelModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
 
@@ -701,7 +703,7 @@ export default function OrderDetailsScreen({
             <MaterialIcons name="share" size={18} color="#00408f" />
             <Text style={styles.actionChipText}>{t('mobile.shareChip')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={() => { setQrTab('order'); setQrModal(true); }}>
+          <TouchableOpacity style={styles.actionChip} onPress={() => setTagOpen(true)}>
             <MaterialIcons name="qr-code-2" size={18} color="#00408f" />
             <Text style={styles.actionChipText}>{t('mobile.qrCodeChip')}</Text>
           </TouchableOpacity>
@@ -1210,6 +1212,10 @@ export default function OrderDetailsScreen({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Owner-parity tag sheet (QR / Code128 barcode, Print + Share PDF, size hint) —
+          the same TagSheet the plant screen uses, so staff/manager match plant & owner. */}
+      <TagSheet order={order} open={tagOpen} onClose={() => setTagOpen(false)} />
     </View>
   );
 }

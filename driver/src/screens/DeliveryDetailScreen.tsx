@@ -10,6 +10,7 @@ import { CompleteDeliverySheet } from '../components/CompleteDeliverySheet';
 import { OrderItemsCard } from '../components/OrderItemsCard';
 import { OrderSummaryCard } from '../components/OrderSummaryCard';
 import { ProofPhotosCard } from '../components/ProofPhotosCard';
+import { TagSheet } from '../components/TagSheet';
 import { useDriverTasks } from '../hooks/use-driver-tasks';
 import { useNav } from '../lib/nav';
 import { callCustomer, navigateToAddress } from '../lib/actions';
@@ -28,6 +29,7 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
   const { format: money } = useCurrency();
   const task = deliveryTasks.find((t) => t.orderId === orderId);
   const [sheet, setSheet] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
 
   if (!task) {
     return (
@@ -78,6 +80,8 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
         <OrderItemsCard items={task.items} />
 
         <OrderSummaryCard task={task} />
+
+        <Button label="Generate Tag" icon="qr-code-2" variant="tint" onPress={() => setTagOpen(true)} style={{ marginBottom: 11 }} />
 
         <ProofPhotosCard pickupPhoto={task.pickupPhoto} deliveryPhoto={task.deliveryPhoto} />
 
@@ -132,6 +136,7 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
           nav.goBack();
         }}
       />
+      <TagSheet order={task.raw} open={tagOpen} onClose={() => setTagOpen(false)} />
     </View>
   );
 }
