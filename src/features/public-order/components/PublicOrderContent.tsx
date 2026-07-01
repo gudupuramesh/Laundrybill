@@ -484,17 +484,23 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
                             </div>
                         )}
 
-                        {/* sticky cart bar — shows on item add; opens the checkout step (no popup) */}
+                        {/* Floating cart bar — FIXED to the viewport bottom so the total + Schedule
+                            Pickup CTA stays visible on mobile while scrolling the item list. (It was
+                            position:sticky as the LAST child of its container, so nothing scrolled
+                            past it and it never actually stuck — it just sat at the end of the list.)
+                            The scroll wrapper reserves 120px bottom padding so items aren't hidden. */}
                         {cartHasItems && (
-                            <div style={{ position: "sticky", bottom: 0, marginTop: 4, display: "flex", flexDirection: "column", gap: 8, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "var(--sh-md)", padding: "12px 14px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
-                                        <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
+                            <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, padding: "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", pointerEvents: "none" }}>
+                                <div style={{ maxWidth: 560, margin: "0 auto", pointerEvents: "auto", display: "flex", flexDirection: "column", gap: 8, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 16, boxShadow: "0 -6px 24px rgba(16,24,40,.14), var(--sh-md)", padding: "12px 14px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", color: "var(--c-text-3)" }}>{cartCount} ITEM{cartCount === 1 ? "" : "S"} ADDED</div>
+                                            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: MONO }}>{fmt(cart.total)}</div>
+                                        </div>
+                                        <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); window.scrollTo({ top: 0, behavior: "auto" }); }} disabled={belowMin} style={{ cursor: belowMin ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8, flex: "none" }}>Schedule Pickup →</button>
                                     </div>
-                                    <button onClick={() => { if (!cart.pickupDate) cart.setPickupSlot(today, cart.pickupSlot); setCheckoutOpen(true); window.scrollTo({ top: 0, behavior: "auto" }); }} disabled={belowMin} style={{ cursor: belowMin ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: belowMin ? "var(--c-border-strong)" : "var(--c-primary)", border: 0, borderRadius: 12, padding: "13px 22px", display: "inline-flex", alignItems: "center", gap: 8 }}>Schedule Pickup →</button>
+                                    {belowMin && <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--c-warning)" }}>Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.</div>}
                                 </div>
-                                {belowMin && <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--c-warning)" }}>Add {fmt(minOrderValue - cart.total)} more to reach the minimum order of {fmt(minOrderValue)}.</div>}
                             </div>
                         )}
                     </div>
