@@ -1,77 +1,114 @@
+import { lazy, Suspense, type ComponentType } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, LoginPage, ProtectedRoute } from "@/features/auth";
+import { AuthProvider, ProtectedRoute } from "@/features/auth";
 import { ReceiptPrintProvider } from "@/context/ReceiptPrintContext";
-import { LToastProvider } from "@/components/laundry";
+import { LToastProvider, LSpinner } from "@/components/laundry";
 import { AppManifestUpdater } from "@/components/AppManifestUpdater";
 import { FeatureGuard } from "@/components/FeatureGuard";
-import { AppLayout } from "@/layouts/AppLayout";
-import { DashboardPage } from "@/features/dashboard";
-import { SettingsPageMasterDetail, ShopSettingsPage, DeliverySettingsPage } from "@/features/settings";
-import { SubscriptionPage } from "@/features/settings/pages/SubscriptionPage";
-import { PaymentHistoryPage } from "@/features/settings/pages/PaymentHistoryPage";
-import { PublicPageSettingsPage } from "@/features/settings/pages/PublicPageSettingsPage";
-import { NewOrderPage } from "@/features/pos";
-import { OrdersPage, OrderDetailPage } from "@/features/orders";
-import { CustomersPageMasterDetail, CustomerDetailPage } from "@/features/customers";
-import { InventoryPage } from "@/features/inventory";
-import { StaffPageMasterDetail, AttendancePageMasterDetail, PayrollPageMasterDetail } from "@/features/staff";
-import { ExpensesPageMasterDetail, ReportsPage } from "@/features/finance";
-import { AppsPage } from "@/features/apps/AppsPage";
-import { HelpPage } from "@/features/help";
-import { PublicTrackingPage } from "@/features/tracking";
-import { PublicReceiptPage } from "@/features/tracking/PublicReceiptPage";
-import { PublicOrderPage } from "@/features/public-order";
-import {
-  SuperAdminAuthProvider,
-  SuperAdminProtectedRoute,
-  SuperAdminLayout,
-  SuperAdminLoginPage,
-  SuperAdminDashboard,
-  ShopsPage as SuperAdminShopsPage,
-  ShopDetailsPage,
-  ShopsMapPage,
-  SubscriptionsPage,
-  PlansPage,
-  PaymentsPage,
-  PlatformSettingsPage,
-  SupportHelpPage,
-  FeedbackPage,
-  ItemsListPage,
-  NotificationsPage,
-} from "@/features/super-admin";
-import {
-  StaffAuthProvider,
-  StaffProtectedRoute,
-  StaffAppLayout,
-  StaffHomePage,
-  StaffProfilePage,
-} from "@/features/staff-app";
-import { TeamLoginPage, TeamSignupPage } from "@/features/team-auth";
-import {
-  DriverAuthProvider,
-  DriverProtectedRoute,
-  DriverAppLayout,
-} from "@/features/driver-app";
-import { TodayPage } from "@/features/driver-app/pages/TodayPage";
-import { PickupsPage } from "@/features/driver-app/pages/PickupsPage";
-import { PickupDetailPage } from "@/features/driver-app/pages/PickupDetailPage";
-import { DeliveriesPage } from "@/features/driver-app/pages/DeliveriesPage";
-import { DeliveryDetailPage } from "@/features/driver-app/pages/DeliveryDetailPage";
-import { DriverProfilePage } from "@/features/driver-app/pages/DriverProfilePage";
-import { PlantProtectedRoute } from "@/features/plant-app/PlantProtectedRoute";
-import { PlantLayout } from "@/features/plant-app/PlantLayout";
-import { PlantDashboard } from "@/features/plant-app/pages/PlantDashboard";
-import { PlantInboundPage } from "@/features/plant-app/pages/PlantInboundPage";
-import { PlantProcessingPage } from "@/features/plant-app/pages/PlantProcessingPage";
-import { PlantReadyPage } from "@/features/plant-app/pages/PlantReadyPage";
-import { PlantOrderDetailPage } from "@/features/plant-app/pages/PlantOrderDetailPage";
-import { PlantScanPage } from "@/features/plant-app/pages/PlantScanPage";
-import { PlantCompletedPage } from "@/features/plant-app/pages/PlantCompletedPage";
-import { DriverScanPage } from "@/features/driver-app/pages/DriverScanPage";
-import { StaffScanPage } from "@/features/staff-app/pages/StaffScanPage";
-import { SuperAdminScanPage } from "@/features/super-admin/pages/SuperAdminScanPage";
-import { AdminScanPage } from "@/features/dashboard/AdminScanPage";
 import "./index.css";
+
+/**
+ * Route-level code splitting. Every page/layout/role-provider below is lazy, so a
+ * visitor downloads only the chunk for the route they open. Public pages
+ * (booking / tracking / receipt) no longer pull in the owner dashboard, super-admin,
+ * or the staff/agent/plant apps — the first-load bundle drops from one ~3 MB blob to
+ * a small shell. Firebase + vendor remain shared chunks. Only the router primitives,
+ * top-level providers, and the auth gate stay eager (needed on first paint).
+ */
+const named = <T,>(p: Promise<T>, key: keyof T) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  p.then((m) => ({ default: m[key] as unknown as ComponentType<any> }));
+
+// Public + auth
+const LoginPage = lazy(() => named(import("@/features/auth"), "LoginPage"));
+const PublicOrderPage = lazy(() => named(import("@/features/public-order"), "PublicOrderPage"));
+const PublicTrackingPage = lazy(() => named(import("@/features/tracking"), "PublicTrackingPage"));
+const PublicReceiptPage = lazy(() => named(import("@/features/tracking/PublicReceiptPage"), "PublicReceiptPage"));
+const TeamLoginPage = lazy(() => named(import("@/features/team-auth"), "TeamLoginPage"));
+const TeamSignupPage = lazy(() => named(import("@/features/team-auth"), "TeamSignupPage"));
+
+// Owner app
+const AppLayout = lazy(() => named(import("@/layouts/AppLayout"), "AppLayout"));
+const DashboardPage = lazy(() => named(import("@/features/dashboard"), "DashboardPage"));
+const AdminScanPage = lazy(() => named(import("@/features/dashboard/AdminScanPage"), "AdminScanPage"));
+const NewOrderPage = lazy(() => named(import("@/features/pos"), "NewOrderPage"));
+const OrdersPage = lazy(() => named(import("@/features/orders"), "OrdersPage"));
+const OrderDetailPage = lazy(() => named(import("@/features/orders"), "OrderDetailPage"));
+const CustomersPageMasterDetail = lazy(() => named(import("@/features/customers"), "CustomersPageMasterDetail"));
+const CustomerDetailPage = lazy(() => named(import("@/features/customers"), "CustomerDetailPage"));
+const InventoryPage = lazy(() => named(import("@/features/inventory"), "InventoryPage"));
+const StaffPageMasterDetail = lazy(() => named(import("@/features/staff"), "StaffPageMasterDetail"));
+const AttendancePageMasterDetail = lazy(() => named(import("@/features/staff"), "AttendancePageMasterDetail"));
+const PayrollPageMasterDetail = lazy(() => named(import("@/features/staff"), "PayrollPageMasterDetail"));
+const ExpensesPageMasterDetail = lazy(() => named(import("@/features/finance"), "ExpensesPageMasterDetail"));
+const ReportsPage = lazy(() => named(import("@/features/finance"), "ReportsPage"));
+const AppsPage = lazy(() => named(import("@/features/apps/AppsPage"), "AppsPage"));
+const HelpPage = lazy(() => named(import("@/features/help"), "HelpPage"));
+const SettingsPageMasterDetail = lazy(() => named(import("@/features/settings"), "SettingsPageMasterDetail"));
+const ShopSettingsPage = lazy(() => named(import("@/features/settings"), "ShopSettingsPage"));
+const DeliverySettingsPage = lazy(() => named(import("@/features/settings"), "DeliverySettingsPage"));
+const SubscriptionPage = lazy(() => named(import("@/features/settings/pages/SubscriptionPage"), "SubscriptionPage"));
+const PaymentHistoryPage = lazy(() => named(import("@/features/settings/pages/PaymentHistoryPage"), "PaymentHistoryPage"));
+const PublicPageSettingsPage = lazy(() => named(import("@/features/settings/pages/PublicPageSettingsPage"), "PublicPageSettingsPage"));
+
+// Super Admin
+const SuperAdminAuthProvider = lazy(() => named(import("@/features/super-admin"), "SuperAdminAuthProvider"));
+const SuperAdminProtectedRoute = lazy(() => named(import("@/features/super-admin"), "SuperAdminProtectedRoute"));
+const SuperAdminLayout = lazy(() => named(import("@/features/super-admin"), "SuperAdminLayout"));
+const SuperAdminLoginPage = lazy(() => named(import("@/features/super-admin"), "SuperAdminLoginPage"));
+const SuperAdminDashboard = lazy(() => named(import("@/features/super-admin"), "SuperAdminDashboard"));
+const SuperAdminShopsPage = lazy(() => named(import("@/features/super-admin"), "ShopsPage"));
+const ShopDetailsPage = lazy(() => named(import("@/features/super-admin"), "ShopDetailsPage"));
+const ShopsMapPage = lazy(() => named(import("@/features/super-admin"), "ShopsMapPage"));
+const SubscriptionsPage = lazy(() => named(import("@/features/super-admin"), "SubscriptionsPage"));
+const PlansPage = lazy(() => named(import("@/features/super-admin"), "PlansPage"));
+const PaymentsPage = lazy(() => named(import("@/features/super-admin"), "PaymentsPage"));
+const PlatformSettingsPage = lazy(() => named(import("@/features/super-admin"), "PlatformSettingsPage"));
+const SupportHelpPage = lazy(() => named(import("@/features/super-admin"), "SupportHelpPage"));
+const FeedbackPage = lazy(() => named(import("@/features/super-admin"), "FeedbackPage"));
+const ItemsListPage = lazy(() => named(import("@/features/super-admin"), "ItemsListPage"));
+const NotificationsPage = lazy(() => named(import("@/features/super-admin"), "NotificationsPage"));
+const SuperAdminScanPage = lazy(() => named(import("@/features/super-admin/pages/SuperAdminScanPage"), "SuperAdminScanPage"));
+
+// Staff app
+const StaffAuthProvider = lazy(() => named(import("@/features/staff-app"), "StaffAuthProvider"));
+const StaffProtectedRoute = lazy(() => named(import("@/features/staff-app"), "StaffProtectedRoute"));
+const StaffAppLayout = lazy(() => named(import("@/features/staff-app"), "StaffAppLayout"));
+const StaffHomePage = lazy(() => named(import("@/features/staff-app"), "StaffHomePage"));
+const StaffProfilePage = lazy(() => named(import("@/features/staff-app"), "StaffProfilePage"));
+const StaffScanPage = lazy(() => named(import("@/features/staff-app/pages/StaffScanPage"), "StaffScanPage"));
+
+// Driver / Agent app
+const DriverAuthProvider = lazy(() => named(import("@/features/driver-app"), "DriverAuthProvider"));
+const DriverProtectedRoute = lazy(() => named(import("@/features/driver-app"), "DriverProtectedRoute"));
+const DriverAppLayout = lazy(() => named(import("@/features/driver-app"), "DriverAppLayout"));
+const TodayPage = lazy(() => named(import("@/features/driver-app/pages/TodayPage"), "TodayPage"));
+const PickupsPage = lazy(() => named(import("@/features/driver-app/pages/PickupsPage"), "PickupsPage"));
+const PickupDetailPage = lazy(() => named(import("@/features/driver-app/pages/PickupDetailPage"), "PickupDetailPage"));
+const DeliveriesPage = lazy(() => named(import("@/features/driver-app/pages/DeliveriesPage"), "DeliveriesPage"));
+const DeliveryDetailPage = lazy(() => named(import("@/features/driver-app/pages/DeliveryDetailPage"), "DeliveryDetailPage"));
+const DriverProfilePage = lazy(() => named(import("@/features/driver-app/pages/DriverProfilePage"), "DriverProfilePage"));
+const DriverScanPage = lazy(() => named(import("@/features/driver-app/pages/DriverScanPage"), "DriverScanPage"));
+
+// Plant portal
+const PlantProtectedRoute = lazy(() => named(import("@/features/plant-app/PlantProtectedRoute"), "PlantProtectedRoute"));
+const PlantLayout = lazy(() => named(import("@/features/plant-app/PlantLayout"), "PlantLayout"));
+const PlantDashboard = lazy(() => named(import("@/features/plant-app/pages/PlantDashboard"), "PlantDashboard"));
+const PlantInboundPage = lazy(() => named(import("@/features/plant-app/pages/PlantInboundPage"), "PlantInboundPage"));
+const PlantProcessingPage = lazy(() => named(import("@/features/plant-app/pages/PlantProcessingPage"), "PlantProcessingPage"));
+const PlantReadyPage = lazy(() => named(import("@/features/plant-app/pages/PlantReadyPage"), "PlantReadyPage"));
+const PlantOrderDetailPage = lazy(() => named(import("@/features/plant-app/pages/PlantOrderDetailPage"), "PlantOrderDetailPage"));
+const PlantScanPage = lazy(() => named(import("@/features/plant-app/pages/PlantScanPage"), "PlantScanPage"));
+const PlantCompletedPage = lazy(() => named(import("@/features/plant-app/pages/PlantCompletedPage"), "PlantCompletedPage"));
+
+/** Fallback shown while a route chunk downloads — the same lightweight ring. */
+function RouteFallback() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-background">
+      <LSpinner size="lg" />
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -80,6 +117,7 @@ function App() {
       <LToastProvider>
         <AuthProvider>
           <ReceiptPrintProvider>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -258,6 +296,7 @@ function App() {
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
+          </Suspense>
           </ReceiptPrintProvider>
         </AuthProvider>
       </LToastProvider>
