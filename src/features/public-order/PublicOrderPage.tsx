@@ -10,9 +10,9 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { usePublicShop } from "./hooks/use-public-shop";
-import { LCard, LSpinner } from "@/components/laundry";
+import { LCard } from "@/components/laundry";
 import { PublicOrderContent } from "./components/PublicOrderContent";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Store } from "lucide-react";
 import { PublicOrderHero } from "./components/PublicOrderHero";
 import { getPublicTemplate } from "./config/templates";
 
@@ -25,8 +25,25 @@ export function PublicOrderPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <LSpinner size="lg" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 px-8 text-center">
+        {/* Branded "Connecting to Store" splash — store badge with a soft pulsing halo.
+            Pure-CSS (Tailwind animate-ping); no blur / framer-motion / injected keyframes. */}
+        <div className="relative flex h-24 w-24 items-center justify-center">
+          <span
+            className="absolute inline-flex h-full w-full rounded-full opacity-20 animate-ping"
+            style={{ background: "var(--c-primary, #1A4FD6)" }}
+          />
+          <span
+            className="relative inline-flex items-center justify-center rounded-full"
+            style={{ height: 72, width: 72, background: "var(--c-primary, #1A4FD6)", boxShadow: "0 12px 30px rgba(26,79,214,.35)" }}
+          >
+            <Store size={30} color="#fff" strokeWidth={2} />
+          </span>
+        </div>
+        <h1 className="mt-8 text-xl font-bold text-foreground">Connecting to Store</h1>
+        <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+          Securely fetching live rates and pickup availability…
+        </p>
       </div>
     );
   }
