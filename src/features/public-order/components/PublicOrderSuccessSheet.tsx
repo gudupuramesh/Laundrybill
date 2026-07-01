@@ -9,7 +9,7 @@ import {
   LCard,
   LAmount,
   LDivider,
-  LPageLoader,
+  LSpinner,
 } from "@/components/laundry";
 import { useOrderTracking } from "@/hooks/use-tracking";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
@@ -38,7 +38,10 @@ export function PublicOrderSuccessSheet({
   if (loading) {
     return (
       <LResponsiveDialog open={open} onClose={onClose} title="" size="sm">
-        <LPageLoader message="Loading order..." />
+        <div className="flex flex-col items-center justify-center gap-3 py-10">
+          <LSpinner size="lg" />
+          <p className="text-sm text-muted-foreground">Loading order…</p>
+        </div>
       </LResponsiveDialog>
     );
   }

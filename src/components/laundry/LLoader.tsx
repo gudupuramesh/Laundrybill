@@ -1,4 +1,5 @@
 import React from "react";
+import { LSpinner } from "./LSpinner";
 
 /**
  * ==========================================
@@ -316,7 +317,7 @@ export const LPageLoader: React.FC<LPageLoaderProps> = ({
   // accepted on the props but ignored, so existing call sites keep compiling.
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 ${className}`}>
-      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-primary/25 border-t-primary" />
+      <LSpinner size="lg" />
       {message && (
         <p className="mt-4 text-sm text-muted-foreground">{message}</p>
       )}

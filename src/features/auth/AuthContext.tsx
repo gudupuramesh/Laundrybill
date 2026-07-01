@@ -22,6 +22,7 @@ import type { User, ConfirmationResult } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, writeBatch, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { claimWebSession, releaseWebSession, teardownWebSession } from "@/lib/session-guard";
+import { LSpinner } from "@/components/laundry";
 import { loadLanguageFromFirebase } from "@/lib/i18n";
 
 // Simplified user type for auth
@@ -849,7 +850,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             {/* Loading overlay — simple, fast ring spinner; skip on staff/super-admin routes (own auth context) */}
             {state.loading && !window.location.pathname.startsWith("/staff") && !window.location.pathname.startsWith("/super-admin") && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
-                    <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-primary/25 border-t-primary" />
+                    <LSpinner size="lg" />
                 </div>
             )}
 

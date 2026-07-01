@@ -12,21 +12,29 @@ const RING: Record<NonNullable<LSpinnerProps["size"]>, string> = {
 };
 
 /**
- * Simple, fast ring spinner — pure CSS `animate-spin`, nothing else.
- * No injected <style>, no backdrop-blur, no framer-motion. This is the
- * single loading animation used across the whole web app; the branded
- * washing-machine/bubbles loaders were removed for performance.
+ * Simple, fast ring spinner — pure CSS `animate-spin`, no injected styles/blur/motion.
+ *
+ * The border colors are set INLINE via the design-system CSS var, not Tailwind's
+ * `border-primary`/`border-t-primary`: those aren't registered as color utilities in
+ * this Tailwind v4 setup, so they generate no CSS and the border falls back to the
+ * global grey default (`* { border-color: hsl(var(--border)) }`) — a uniform grey
+ * ring that looks static. Track = primary-soft, top arc = primary, so it's clearly
+ * visible and the rotation reads as motion.
  */
 export function LSpinner({ size = "md", className }: LSpinnerProps) {
     return (
-        <div
+        <span
             role="status"
             aria-label="Loading"
             className={cn(
-                "inline-block align-middle animate-spin rounded-full border-primary/25 border-t-primary",
+                "inline-block align-middle animate-spin rounded-full border-solid",
                 RING[size],
                 className
             )}
+            style={{
+                borderColor: "var(--c-primary-soft, #EAEFFC)",
+                borderTopColor: "var(--c-primary, #1A4FD6)",
+            }}
         />
     );
 }

@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { usePublicShop } from "./hooks/use-public-shop";
-import { LCard } from "@/components/laundry";
+import { LCard, LSpinner } from "@/components/laundry";
 import { PublicOrderContent } from "./components/PublicOrderContent";
 import { AlertCircle } from "lucide-react";
 import { PublicOrderHero } from "./components/PublicOrderHero";
@@ -26,7 +26,7 @@ export function PublicOrderPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-primary/25 border-t-primary" />
+        <LSpinner size="lg" />
       </div>
     );
   }
