@@ -7,9 +7,9 @@
  * - Phase 3: Delivery map (OpenStreetMap) – pins by delivery/pickup location, filter by month & type.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, type DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   LCard,
@@ -35,6 +35,10 @@ import {
   ArrowDownToLine,
   CheckCircle2,
   AlertCircle,
+  Wallet,
+  Receipt,
+  History,
+  Repeat,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Shop } from "@/types/shop";
@@ -49,6 +53,10 @@ import {
   type MapDeliveryFilter,
 } from "../hooks/use-shop-orders-for-map";
 import { useMoveSubscriptionToFree, useOverridePlan } from "../hooks/use-subscriptions";
+import { usePayments } from "../hooks/use-payments";
+import { useShopSubscriptionEvents } from "../hooks/use-shop-subscription-events";
+import { ACTIVITY_TYPE_CONFIG } from "../hooks/use-activity-logs";
+import { monthlyPrice } from "../lib/subscription-events";
 import { DeliveryMap } from "../components/DeliveryMap";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -89,6 +97,57 @@ function readSeed(id: string | undefined): { shop: Shop | null; sub: ShopSub | n
   };
 }
 
+function tsToDate(v: unknown): Date | null {
+  const d = (v as { toDate?: () => Date })?.toDate?.();
+  if (d instanceof Date) return d;
+  if (v instanceof Date) return v;
+  return null;
+}
+const fmtDate = (v: unknown): string => {
+  const d = tsToDate(v);
+  return d ? format(d, "MMM d, yyyy") : "—";
+};
+const fmtDateTime = (v: unknown): string => {
+  const d = tsToDate(v);
+  return d ? format(d, "MMM d, yyyy · h:mm a") : "—";
+};
+
+function subProviderLabel(p?: string): string {
+  switch (p) {
+    case "apple_iap": return "Apple IAP";
+    case "google_play": return "Google Play";
+    case "razorpay": return "Razorpay";
+    case "manual": return "Manual";
+    case "free": return "—";
+    default: return p || "—";
+  }
+}
+
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  success: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  pending: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  failed: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  refunded: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+};
+
+const TIMELINE_DOT_COLORS: Record<string, string> = {
+  green: "bg-green-100 text-green-600",
+  blue: "bg-blue-100 text-blue-600",
+  purple: "bg-purple-100 text-purple-600",
+  orange: "bg-orange-100 text-orange-600",
+  red: "bg-red-100 text-red-600",
+  gray: "bg-gray-100 text-gray-600",
+};
+
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className="text-sm text-foreground mt-0.5 break-words">{value}</p>
+    </div>
+  );
+}
+
 export function ShopDetailsPage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
@@ -98,6 +157,7 @@ export function ShopDetailsPage() {
   // instant — no full-screen loader. A cold load (direct URL) still fetches.
   const [shop, setShop] = useState<Shop | null>(() => readSeed(shopId).shop);
   const [sub, setSub] = useState<ShopSub | null>(() => readSeed(shopId).sub);
+  const [subDoc, setSubDoc] = useState<DocumentData | null>(null); // full subscription doc for billing/history
   const [loading, setLoading] = useState(() => !readSeed(shopId).shop);
 
   // Plan management state
@@ -111,6 +171,10 @@ export function ShopDetailsPage() {
 
   const { moveToFree, loading: moveToFreeLoading, error: moveToFreeError } = useMoveSubscriptionToFree();
   const { overridePlan, loading: overrideLoading, error: overrideError } = useOverridePlan();
+
+  // Billing history + audit timeline
+  const { payments, loading: paymentsLoading } = usePayments({ shopId: shopId || undefined });
+  const { events, loading: eventsLoading, refetch: refetchEvents } = useShopSubscriptionEvents(shopId ?? null);
 
   const {
     thisMonth,
@@ -192,8 +256,10 @@ export function ShopDetailsPage() {
             status: d.status || "active",
             endDate: d.endDate?.toDate?.() ?? undefined,
           });
+          setSubDoc(d);
         } else {
           setSub(null);
+          setSubDoc(null);
         }
       } catch {
         // Transient background-refresh failure: keep the already-seeded shop on
@@ -428,6 +494,7 @@ export function ShopDetailsPage() {
                       setShowMoveToFreeConfirm(false);
                       setMoveToFreeReason("");
                       setActionSuccess("Successfully moved to Free plan");
+                      refetchEvents();
                     }
                   }}
                 >
@@ -460,6 +527,7 @@ export function ShopDetailsPage() {
                   >
                     <option value="free">Free</option>
                     <option value="pro">Pro</option>
+                    <option value="pro_plus">Pro+</option>
                     <option value="business">Business</option>
                   </select>
                 </div>
@@ -508,6 +576,7 @@ export function ShopDetailsPage() {
                       setOverrideReason("");
                       setOverrideEndDate("");
                       setActionSuccess(`Plan overridden to ${PLAN_LABELS[overridePlanId]}`);
+                      refetchEvents();
                     }
                   }}
                 >
@@ -520,6 +589,154 @@ export function ShopDetailsPage() {
                 >
                   Cancel
                 </LButton>
+              </div>
+            </div>
+          )}
+        </LCard>
+      </div>
+
+      {/* Subscription & billing */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Subscription &amp; billing
+          </h2>
+          {subDoc?.provider && (
+            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground inline-flex items-center gap-1">
+              <Repeat className="h-3 w-3" /> {subProviderLabel(subDoc.provider)}
+            </span>
+          )}
+        </div>
+        <LCard variant="outlined" className="p-4">
+          <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
+            <Field label="Plan" value={PLAN_LABELS[planId]} />
+            <Field label="Status" value={<span className="capitalize">{(sub?.status ?? "free").replace("_", " ")}</span>} />
+            <Field
+              label="Price"
+              value={
+                monthlyPrice(sub?.planId, subDoc?.billingCycle) > 0
+                  ? `₹${monthlyPrice(sub?.planId, subDoc?.billingCycle).toLocaleString("en-IN")}/mo`
+                  : "Free"
+              }
+            />
+            <Field label="Billing cycle" value={<span className="capitalize">{subDoc?.billingCycle ?? "—"}</span>} />
+            <Field label="Auto-renew" value={subDoc?.isAutoRenew ?? subDoc?.autoRenew ? "On" : "Off"} />
+            <Field label="Started" value={fmtDate(subDoc?.startDate)} />
+            <Field label="Current period ends" value={fmtDate(subDoc?.currentPeriodEnd ?? sub?.endDate)} />
+            <Field
+              label={sub?.status === "cancelled" || sub?.status === "expired" ? "Access until" : "Renews / expires"}
+              value={fmtDate(subDoc?.nextPaymentDate ?? subDoc?.activeUntil ?? sub?.endDate)}
+            />
+            <Field label="Last payment" value={fmtDate(subDoc?.lastPaymentDate)} />
+            {subDoc?.providerRef && (
+              <Field label="Gateway ref" value={<span className="font-mono text-xs">{subDoc.providerRef}</span>} />
+            )}
+          </div>
+
+          {sub?.status === "trial" && (
+            <div className="mt-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-sm text-blue-700 dark:text-blue-300">
+              Trial — {subDoc?.trialOrdersUsed ?? 0}/{subDoc?.trialOrderLimit ?? "?"} orders used · ends {fmtDate(subDoc?.trialEndDate)}
+            </div>
+          )}
+          {subDoc?.lastPurchaseError && (
+            <div className="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {String(subDoc.lastPurchaseError)}
+            </div>
+          )}
+          {subDoc?.manualOverride && (
+            <div className="mt-3 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
+              Last manual override by {subDoc.manualOverride.overriddenBy || "admin"} on {fmtDate(subDoc.manualOverride.overriddenAt)}
+              {subDoc.manualOverride.reason ? ` — ${subDoc.manualOverride.reason}` : ""}
+            </div>
+          )}
+        </LCard>
+      </div>
+
+      {/* Payment history */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Receipt className="h-5 w-5" />
+          Payment history
+        </h2>
+        <LCard variant="outlined" className="overflow-hidden">
+          {paymentsLoading ? (
+            <div className="p-8 flex justify-center">
+              <LSpinner className="h-6 w-6" />
+            </div>
+          ) : payments.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No payments recorded for this shop yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50 text-left">
+                    <th className="font-medium p-3">Date</th>
+                    <th className="font-medium p-3">Plan</th>
+                    <th className="font-medium p-3 text-right">Amount</th>
+                    <th className="font-medium p-3">Method</th>
+                    <th className="font-medium p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((p) => (
+                    <tr key={p.id} className="border-b border-border/50">
+                      <td className="p-3 whitespace-nowrap text-muted-foreground">{fmtDate(p.createdAt)}</td>
+                      <td className="p-3">{PLAN_LABELS[normalizePlanId(p.planId)]}</td>
+                      <td className="p-3 text-right font-medium text-foreground whitespace-nowrap">
+                        ₹{Number(p.amount || 0).toLocaleString("en-IN")}
+                      </td>
+                      <td className="p-3 capitalize text-muted-foreground whitespace-nowrap">{subProviderLabel(p.method)}</td>
+                      <td className="p-3">
+                        <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-medium capitalize", PAYMENT_STATUS_COLORS[p.status] || PAYMENT_STATUS_COLORS.pending)}>
+                          {p.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </LCard>
+      </div>
+
+      {/* Subscription history timeline */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+          <History className="h-5 w-5" />
+          Subscription history
+        </h2>
+        <LCard variant="outlined" className="p-4">
+          {eventsLoading ? (
+            <div className="p-4 flex justify-center">
+              <LSpinner className="h-6 w-6" />
+            </div>
+          ) : events.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No plan changes recorded yet. New subscription events (overrides, renewals, cancellations) will appear here.
+            </p>
+          ) : (
+            <div className="relative">
+              <div className="absolute left-3 top-1 bottom-1 w-0.5 bg-border" />
+              <div className="space-y-4">
+                {events.map((e) => {
+                  const cfg = ACTIVITY_TYPE_CONFIG[e.type] || { label: e.type, color: "gray" };
+                  return (
+                    <div key={e.id} className="relative flex gap-3 pl-1">
+                      <div className={cn("relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0", TIMELINE_DOT_COLORS[cfg.color] || TIMELINE_DOT_COLORS.gray)}>
+                        <Repeat className="h-3 w-3" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-foreground">{e.description || cfg.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {fmtDateTime(e.createdAt)}
+                          {e.superAdminId ? " · admin" : ""}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
