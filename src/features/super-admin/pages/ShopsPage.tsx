@@ -81,14 +81,14 @@ export function ShopsPage() {
                         placeholder="Search name, phone, email, code, city…"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full h-10 pl-10 pr-4 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm md:text-base"
+                        className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm md:text-base"
                     />
                 </div>
                 <button
                     type="button"
                     onClick={() => setFilterSheetOpen(true)}
                     className={cn(
-                        "h-10 px-3 rounded-lg border border-input bg-background flex items-center gap-2 shrink-0",
+                        "h-11 px-3 rounded-xl border border-input bg-background flex items-center gap-2 shrink-0",
                         "hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
                     )}
                     aria-label="Filter by plan"

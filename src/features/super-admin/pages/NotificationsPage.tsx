@@ -136,12 +136,14 @@ export function NotificationsPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Bell className="h-6 w-6 text-primary" />
-            Push Notifications
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Configure reminders & send announcements</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Bell className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Push Notifications</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Configure reminders & send announcements</p>
+          </div>
         </div>
       </div>
 
