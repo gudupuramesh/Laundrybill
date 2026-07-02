@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
 import { normalizePlanId, planDisplayName } from "./lib/plan-normalize";
 import { getTrialConfig } from "./services/trial-config";
+import { logSubscriptionEvent } from "./lib/subscription-events";
 
 dotenv.config();
 
@@ -89,6 +90,18 @@ export const checkSubscriptionExpiration = onSchedule("every day 00:00", async (
             await batch.commit();
         }
 
+        for (const doc of expiredSubsSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId) continue;
+            await logSubscriptionEvent({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Subscription expired — reverted to Free (paid plan lapsed).",
+                metadata: { fromPlan: normalizePlanId(d.planId), toPlan: "free", fromStatus: "active", toStatus: "expired" },
+            });
+        }
+
         console.log("Expiration check completed successfully.");
 
     } catch (error) {
@@ -142,6 +155,15 @@ export const createTrialSubscriptionOnShopCreate = onDocumentCreated("shops/{sho
         });
 
         console.log(`Trial subscription (${trialPlanId}, ${trial.trialOrderLimit} orders) created for shop ${shopId}.`);
+
+        await logSubscriptionEvent({
+            type: "subscription_created",
+            shopId,
+            shopName: shopData.name || null,
+            provider: "system",
+            description: `Trial started — ${planDisplayName(trialPlanId)} for ${trial.trialOrderLimit} orders.`,
+            metadata: { toPlan: trialPlanId, toStatus: "trial", trialOrderLimit: trial.trialOrderLimit },
+        });
 
         // --- Notify all Super Admins about new shop registration ---
         try {
@@ -199,7 +221,13 @@ export const meterTrialOrderOnCreate = onDocumentCreated("shops/{shopId}/orders/
     if (!shopId) return;
     const subRef = db.collection("subscriptions").doc(shopId);
     try {
+        let trialConverted = false;
+        let trialFromPlan = "pro";
         await db.runTransaction(async (tx) => {
+            // Reset on every attempt — the Firestore SDK re-runs this closure on a
+            // write-contention retry, and stale flags from a prior attempt would double-log.
+            trialConverted = false;
+            trialFromPlan = "pro";
             const snap = await tx.get(subRef);
             if (!snap.exists) return;
             const sub = snap.data() || {};
@@ -219,10 +247,21 @@ export const meterTrialOrderOnCreate = onDocumentCreated("shops/{shopId}/orders/
                     trialExpiredAt: now,
                     updatedAt: now,
                 });
+                trialConverted = true;
+                trialFromPlan = normalizePlanId(sub.planId);
             } else {
                 tx.update(subRef, { trialOrdersUsed: used, updatedAt: now });
             }
         });
+        if (trialConverted) {
+            await logSubscriptionEvent({
+                type: "subscription_expired",
+                shopId,
+                provider: "system",
+                description: "Trial order limit reached — moved to Free.",
+                metadata: { fromPlan: trialFromPlan, toPlan: "free", fromStatus: "trial", toStatus: "free" },
+            });
+        }
     } catch (e) {
         console.error(`meterTrialOrderOnCreate failed for shop ${shopId}:`, e);
     }
@@ -294,6 +333,18 @@ export const checkTrialExpiry = onSchedule("every day 00:05", async (event) => {
             }
 
             await batch.commit();
+        }
+
+        for (const doc of trialSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId) continue;
+            await logSubscriptionEvent({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Trial period ended — moved to Free.",
+                metadata: { fromPlan: normalizePlanId(d.planId), toPlan: "free", fromStatus: "trial", toStatus: "free" },
+            });
         }
 
         console.log("Trial expiry check completed.");
@@ -372,6 +423,18 @@ export const checkGracePeriodExpiry = onSchedule("every day 00:10", async (event
             await batch.commit();
         }
 
+        for (const doc of graceExpiredSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId) continue;
+            await logSubscriptionEvent({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Grace period ended after failed payment — reverted to Free.",
+                metadata: { fromPlan: normalizePlanId(d.planId), toPlan: "free", fromStatus: "grace_period", toStatus: "expired" },
+            });
+        }
+
         console.log("Grace period expiry check completed successfully.");
     } catch (error) {
         console.error("Error running grace period expiry check:", error);
@@ -448,6 +511,18 @@ export const checkCancelledSubscriptionEnd = onSchedule("every day 00:15", async
             await batch.commit();
         }
 
+        for (const doc of cancelledSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId) continue;
+            await logSubscriptionEvent({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Cancelled subscription period ended — reverted to Free.",
+                metadata: { fromPlan: normalizePlanId(d.planId), toPlan: "free", fromStatus: "cancelled", toStatus: "expired" },
+            });
+        }
+
         console.log("Cancelled subscription end check completed successfully.");
     } catch (error) {
         console.error("Error running cancelled subscription end check:", error);
@@ -502,6 +577,14 @@ export const applyScheduledDowngrades = onSchedule("every day 00:20", async (eve
 
             // syncSubscriptionToShop trigger will update the shop from this subscription doc
             console.log(`Downgrade applied for shop ${shopId} → ${toPlan}`);
+
+            await logSubscriptionEvent({
+                type: "subscription_downgraded",
+                shopId,
+                provider: "system",
+                description: `Scheduled downgrade applied — ${planDisplayName(subData.planId || "free")} → ${planName}.`,
+                metadata: { fromPlan: normalizePlanId(subData.planId), toPlan, toStatus: subData.status || "active" },
+            });
         }
 
         console.log("Scheduled downgrade check completed.");

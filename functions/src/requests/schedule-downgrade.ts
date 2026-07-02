@@ -6,6 +6,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { normalizePlanId, planDisplayName } from "../lib/plan-normalize";
+import { logSubscriptionEvent } from "../lib/subscription-events";
 
 const PLAN_ORDER: Record<string, number> = {
     free: 0,
@@ -90,6 +91,15 @@ export const scheduleDowngrade = onCall(async (request) => {
         });
 
         const effectiveDateObj = effectiveDate?.toDate?.();
+
+        await logSubscriptionEvent({
+            type: "subscription_downgraded",
+            shopId,
+            shopName: shopData?.name ?? null,
+            provider: subData?.provider ?? null,
+            description: `Downgrade to ${planDisplayName(toPlanNorm)} scheduled for period end (by owner)${effectiveDateObj ? ` — ${effectiveDateObj.toLocaleDateString()}` : ""}.`,
+            metadata: { fromPlan: currentPlanNorm, toPlan: toPlanNorm, action: "downgrade_scheduled", actor: "user", uid },
+        });
 
         return {
             success: true,

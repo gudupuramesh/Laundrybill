@@ -89,6 +89,11 @@ export function getCachedShop(id: string): ShopWithSubscription | undefined {
     return shopsCache?.find((s) => s.id === id);
 }
 
+/** Drop the shops cache so the next load re-reads Firestore (call after a plan mutation). */
+export function invalidateShopsCache() {
+    shopsCache = null;
+}
+
 function shopMatches(shop: ShopWithSubscription, term: string, digits: string): boolean {
     const loc = (shop as unknown as { location?: Record<string, unknown> }).location;
     const haystack = [

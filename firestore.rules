@@ -330,7 +330,9 @@ service cloud.firestore {
     // Activity logs (super admin only)
     match /activity_logs/{logId} {
       allow read: if isSuperAdmin();
-      allow create: if isAuthenticated(); // Any action can create log
+      // Only super-admins write from the client; system/webhook writes use the Admin
+      // SDK (which bypasses rules). Prevents any authed shop user forging audit rows.
+      allow create: if isSuperAdmin();
       allow update, delete: if false; // Immutable
     }
     

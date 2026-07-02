@@ -34,6 +34,7 @@ import {
     planLabel,
     monthlyPrice,
 } from "../lib/subscription-events";
+import { invalidateShopsCache } from "./use-all-shops";
 
 // Extended subscription with shop details for the list view
 export interface SubscriptionWithShop extends Subscription {
@@ -223,7 +224,10 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
         for (const s of all) {
             if (isActivePaid(s)) {
                 k.activePaid++;
-                k.mrr += monthlyPrice(s.planId, s.billingCycle);
+                // MRR = currently-collected recurring revenue only. grace_period is a
+                // dunning/at-risk window (last renewal failed), so exclude it from MRR
+                // even though it counts as an active-paid subscriber for the view.
+                if (s.status === "active") k.mrr += monthlyPrice(s.planId, s.billingCycle);
                 const p = normalizePlanId(s.planId);
                 if (p === "pro" || p === "business") k.byPlan[p]++;
                 else if (p === "pro_plus") k.byPlan.pro_plus++;
@@ -329,6 +333,7 @@ export function useOverridePlan() {
             }
 
             invalidateSubscriptionsCache();
+            invalidateShopsCache();
             await logSubscriptionEvent({
                 type: planChangeActivityType(subData.planId, newPlanId),
                 shopId,
@@ -420,6 +425,7 @@ export function useCreateSubscription() {
             });
 
             invalidateSubscriptionsCache();
+            invalidateShopsCache();
             await logSubscriptionEvent({
                 type: "subscription_created",
                 shopId,
@@ -509,6 +515,7 @@ export function useMoveSubscriptionToFree() {
             });
 
             invalidateSubscriptionsCache();
+            invalidateShopsCache();
             await logSubscriptionEvent({
                 type: planChangeActivityType(subData?.planId, "free"),
                 shopId,

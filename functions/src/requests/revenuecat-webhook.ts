@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import { logSubscriptionEvent } from "../lib/subscription-events";
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -106,6 +107,13 @@ export const revenueCatWebhook = onRequest(async (req, res) => {
         }, { merge: true });
 
         console.log(`[RC webhook] ${eventType} → active for ${shopId}`);
+        await logSubscriptionEvent({
+            type: eventType === "INITIAL_PURCHASE" ? "subscription_upgraded" : "subscription_renewed",
+            shopId,
+            provider,
+            description: `Store subscription ${eventType === "INITIAL_PURCHASE" ? "activated" : "renewed"} — Pro (${provider === "apple_iap" ? "Apple" : provider === "google_play" ? "Google Play" : "store"}).`,
+            metadata: { toPlan: "pro", toStatus: "active", eventType, productId },
+        });
     } else if (cancelledEvents.includes(eventType)) {
         await subRef.set({
             status: "cancelled",
@@ -117,6 +125,13 @@ export const revenueCatWebhook = onRequest(async (req, res) => {
         }, { merge: true });
 
         console.log(`[RC webhook] ${eventType} → cancelled for ${shopId}`);
+        await logSubscriptionEvent({
+            type: "subscription_cancelled",
+            shopId,
+            provider,
+            description: `Store subscription cancelled${expiresAt ? ` — access until ${expiresAt.toDate().toLocaleDateString()}` : ""}.`,
+            metadata: { toStatus: "cancelled", eventType },
+        });
     } else if (expiredEvents.includes(eventType)) {
         const newStatus = eventType === "BILLING_ISSUE" ? "grace_period" : "expired";
         await subRef.set({
@@ -128,6 +143,13 @@ export const revenueCatWebhook = onRequest(async (req, res) => {
         }, { merge: true });
 
         console.log(`[RC webhook] ${eventType} → ${newStatus} for ${shopId}`);
+        await logSubscriptionEvent({
+            type: eventType === "BILLING_ISSUE" ? "payment_failed" : "subscription_expired",
+            shopId,
+            provider,
+            description: eventType === "BILLING_ISSUE" ? "Store billing issue — grace period." : "Store subscription expired.",
+            metadata: { toStatus: newStatus, eventType },
+        });
     } else {
         console.log(`[RC webhook] Unhandled event type: ${eventType} for ${shopId}`);
     }

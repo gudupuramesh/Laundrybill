@@ -8,6 +8,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../lib/secrets";
 import { rzpCancelSubscription } from "../services/razorpay";
+import { logSubscriptionEvent } from "../lib/subscription-events";
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -63,6 +64,15 @@ export const cancelSubscriptionAtPeriodEnd = onCall(
             cancelledBy: "user",
             activeUntil,
             updatedAt: now,
+        });
+
+        await logSubscriptionEvent({
+            type: "subscription_cancelled",
+            shopId,
+            shopName: shopData?.name ?? null,
+            provider: subData?.provider ?? null,
+            description: `Subscription cancelled by owner${activeUntil?.toDate?.() ? ` — access until ${activeUntil.toDate().toLocaleDateString()}` : ""}.`,
+            metadata: { fromPlan: subData?.planId ?? null, toStatus: "cancelled", actor: "user", uid },
         });
 
         // For Razorpay subscriptions, also cancel the recurring mandate at cycle end so
