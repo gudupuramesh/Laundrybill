@@ -262,15 +262,17 @@ export function SupportHelpPage() {
   if (loading) return <LPageLoader message="Loading Support & Help..." />;
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2">
-          <HelpCircle className="h-8 w-8 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <HelpCircle className="h-5 w-5 text-primary" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">
               Support & Help
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Contact details, welcome message, and per-page video/docs for the Help page
             </p>
           </div>
@@ -285,7 +287,7 @@ export function SupportHelpPage() {
       </div>
 
       {/* Contact */}
-      <LCard className="p-6">
+      <LCard variant="elevated" padding="lg" className="rounded-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Phone className="h-5 w-5 text-primary" />
           Contact
@@ -327,7 +329,7 @@ export function SupportHelpPage() {
       </LCard>
 
       {/* Welcome (first-time) */}
-      <LCard className="p-6">
+      <LCard variant="elevated" padding="lg" className="rounded-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Video className="h-5 w-5 text-primary" />
           Welcome notification (first-time login)
@@ -353,7 +355,7 @@ export function SupportHelpPage() {
       </LCard>
 
       {/* Per-page tutorial videos */}
-      <LCard className="p-6">
+      <LCard variant="elevated" padding="lg" className="rounded-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-2 flex items-center gap-2">
           <Video className="h-5 w-5 text-primary" />
           Per-page tutorial videos
@@ -364,7 +366,7 @@ export function SupportHelpPage() {
         </p>
         <div className="space-y-4">
           {state.pageHelp.map((entry, index) => (
-            <div key={entry.pageId} className="rounded-xl border border-border p-4 bg-background/40">
+            <div key={entry.pageId} className="rounded-2xl border border-border p-4 bg-background/40">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-foreground">{entry.pageTitle}</h3>
                 <span className="text-xs text-muted-foreground">
@@ -381,14 +383,14 @@ export function SupportHelpPage() {
                       placeholder="Video heading (e.g. How to create an order)"
                       value={v.title}
                       onChange={(e) => updatePageVideo(index, vi, "title", e.target.value)}
-                      className="flex-1 min-w-[180px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      className="flex-1 min-w-[180px] h-11 px-4 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                     <input
                       type="url"
                       placeholder="https://youtube.com/watch?v=..."
                       value={v.url}
                       onChange={(e) => updatePageVideo(index, vi, "url", e.target.value)}
-                      className="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      className="flex-1 min-w-[200px] h-11 px-4 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                     <LButton
                       variant="ghost"
@@ -420,7 +422,7 @@ export function SupportHelpPage() {
                   placeholder="Optional documentation URL"
                   value={entry.docUrl}
                   onChange={(e) => updatePageHelp(index, "docUrl", e.target.value)}
-                  className="flex-1 min-w-[200px] h-9 px-3 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="flex-1 min-w-[200px] h-11 px-4 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
             </div>
@@ -429,7 +431,7 @@ export function SupportHelpPage() {
       </LCard>
 
       {/* Extra video tutorials (optional list) */}
-      <LCard className="p-6">
+      <LCard variant="elevated" padding="lg" className="rounded-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-2 flex items-center gap-2">
           <Video className="h-5 w-5 text-primary" />
           Extra video tutorials
@@ -469,7 +471,7 @@ export function SupportHelpPage() {
       </LCard>
 
       {/* Extra support docs (optional list) */}
-      <LCard className="p-6">
+      <LCard variant="elevated" padding="lg" className="rounded-2xl">
         <h2 className="text-lg font-semibold text-foreground mb-2 flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
           Extra support docs / links

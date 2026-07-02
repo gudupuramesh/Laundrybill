@@ -111,7 +111,7 @@ export function PlanEditorSheet({
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Basic Info */}
                     <div className="space-y-4">
-                        <h3 className="font-medium border-b pb-2">Basic Info</h3>
+                        <h3 className="font-medium border-b border-border pb-2 text-foreground">Basic Info</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <LTextInput
                                 label="Plan Name"
@@ -135,7 +135,7 @@ export function PlanEditorSheet({
 
                     {/* Pricing */}
                     <div className="space-y-4">
-                        <h3 className="font-medium border-b pb-2">Pricing (₹)</h3>
+                        <h3 className="font-medium border-b border-border pb-2 text-foreground">Pricing (₹)</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <LTextInput
                                 label="Monthly Price"
@@ -162,7 +162,7 @@ export function PlanEditorSheet({
 
                     {/* Limits */}
                     <div className="space-y-4">
-                        <h3 className="font-medium border-b pb-2">Hard Limits (-1 for Unlimited)</h3>
+                        <h3 className="font-medium border-b border-border pb-2 text-foreground">Hard Limits (-1 for Unlimited)</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <LTextInput
                                 label="Max Orders/Mo"
@@ -223,26 +223,35 @@ export function PlanEditorSheet({
 
                     {/* Features */}
                     <div className="space-y-4">
-                        <h3 className="font-medium border-b pb-2">Features</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {Object.entries(FEATURE_LABELS).map(([key, label]) => (
-                                <div key={key} className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id={`feature-${key}`}
-                                        checked={!!formData.features[key as keyof PlanFeatures]}
-                                        onCheckedChange={(checked) => {
-                                            setFormData({
-                                                ...formData,
-                                                features: {
-                                                    ...formData.features,
-                                                    [key]: checked === true
-                                                }
-                                            });
-                                        }}
-                                    />
-                                    <Label htmlFor={`feature-${key}`}>{label}</Label>
-                                </div>
-                            ))}
+                        <h3 className="font-medium border-b border-border pb-2 text-foreground">Features</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {Object.entries(FEATURE_LABELS).map(([key, label]) => {
+                                const enabled = !!formData.features[key as keyof PlanFeatures];
+                                return (
+                                    <label
+                                        key={key}
+                                        htmlFor={`feature-${key}`}
+                                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${enabled
+                                            ? "border-primary bg-primary/10"
+                                            : "border-border bg-background hover:border-primary/50"}`}
+                                    >
+                                        <Checkbox
+                                            id={`feature-${key}`}
+                                            checked={enabled}
+                                            onCheckedChange={(checked) => {
+                                                setFormData({
+                                                    ...formData,
+                                                    features: {
+                                                        ...formData.features,
+                                                        [key]: checked === true
+                                                    }
+                                                });
+                                            }}
+                                        />
+                                        <Label htmlFor={`feature-${key}`} className="cursor-pointer text-sm">{label}</Label>
+                                    </label>
+                                );
+                            })}
                         </div>
                     </div>
 

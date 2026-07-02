@@ -122,15 +122,15 @@ export function FeedbackPage() {
   if (loading) return <LPageLoader />;
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-          <MessageSquare className="h-5 w-5" />
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <MessageSquare className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Feedback</h1>
-          <p className="text-sm text-muted-foreground">Issues & suggestions from shop owners</p>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Feedback</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Issues & suggestions from shop owners</p>
         </div>
       </div>
 
@@ -145,10 +145,10 @@ export function FeedbackPage() {
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={
-              "rounded-full px-4 py-1.5 text-sm font-semibold transition " +
+              "rounded-full px-4 py-1.5 text-sm font-semibold transition-colors " +
               (filter === f.key
-                ? "bg-blue-600 text-white"
-                : "bg-muted text-muted-foreground hover:bg-muted/70")
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80")
             }
           >
             {f.label}
@@ -158,7 +158,7 @@ export function FeedbackPage() {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <LCard className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+        <LCard variant="elevated" padding="md" className="flex flex-col items-center justify-center gap-2 py-16 text-center">
           <Inbox className="h-10 w-10 text-muted-foreground" />
           <p className="font-semibold text-foreground">No feedback here</p>
           <p className="text-sm text-muted-foreground">
@@ -172,7 +172,7 @@ export function FeedbackPage() {
             const Icon = meta.icon;
             const isResolved = (item.status ?? "new") === "resolved";
             return (
-              <LCard key={item.id} className="p-4">
+              <LCard key={item.id} variant="elevated" padding="md">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className={"inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold " + meta.cls}>
@@ -184,7 +184,7 @@ export function FeedbackPage() {
                         <CheckCircle2 className="h-3.5 w-3.5" /> Resolved
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
                         New
                       </span>
                     )}

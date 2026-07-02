@@ -106,7 +106,7 @@ export function ShopsMapPage() {
   if (loadError) {
     return (
       <div className="p-4 md:p-6">
-        <LCard variant="outlined" className="p-6">
+        <LCard variant="elevated" padding="md">
           <p className="text-sm text-destructive">Failed to load map. Please check your connection.</p>
         </LCard>
       </div>
@@ -116,7 +116,7 @@ export function ShopsMapPage() {
   if (!apiKey) {
     return (
       <div className="p-4 md:p-6">
-        <LCard variant="outlined" className="p-6">
+        <LCard variant="elevated" padding="md">
           <p className="text-sm text-muted-foreground">Google Maps API key is required for the shops map.</p>
         </LCard>
       </div>
@@ -127,14 +127,16 @@ export function ShopsMapPage() {
     <div className="flex flex-col h-full">
       <div className="p-4 md:p-6 space-y-3 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Shops map
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              All registered shops with saved location. Use the dropdown or click on the map to filter by state/region.
-            </p>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <MapPin className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">Shops map</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                All registered shops with saved location. Use the dropdown or click on the map to filter by state/region.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {stateFilter !== "all" && (
@@ -177,15 +179,15 @@ export function ShopsMapPage() {
 
       <div className="flex-1 min-h-[400px] px-4 md:px-6 pb-4 md:pb-6">
         {loading ? (
-          <LCard variant="outlined" className="flex items-center justify-center min-h-[400px]">
+          <LCard variant="elevated" className="flex items-center justify-center min-h-[400px]">
             <LSpinner className="h-8 w-8" />
           </LCard>
         ) : !isLoaded ? (
-          <LCard variant="outlined" className="flex items-center justify-center min-h-[400px]">
+          <LCard variant="elevated" className="flex items-center justify-center min-h-[400px]">
             <LSpinner className="h-8 w-8" />
           </LCard>
         ) : (
-          <div className={cn("rounded-lg overflow-hidden border border-border", "h-[min(70vh,600px)]")}>
+          <div className={cn("rounded-2xl overflow-hidden border border-border", "h-[min(70vh,600px)]")}>
             <GoogleMap
               mapContainerStyle={MAP_CONTAINER_STYLE}
               center={INDIA_CENTER}
@@ -230,7 +232,7 @@ export function ShopsMapPage() {
                       )}
                       <a
                         href={`/super-admin/shops/${pin.id}`}
-                        className="inline-flex items-center justify-center gap-1.5 mt-2 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium hover:bg-muted"
+                        className="inline-flex items-center justify-center gap-1.5 mt-2 w-full px-3 py-2 rounded-xl border border-border bg-background text-sm font-medium hover:border-primary/50 hover:bg-muted transition-colors"
                         onClick={(e) => {
                           e.preventDefault();
                           navigate(`/super-admin/shops/${pin.id}`);

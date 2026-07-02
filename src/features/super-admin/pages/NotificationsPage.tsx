@@ -138,10 +138,10 @@ export function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Bell className="h-6 w-6 text-blue-600" />
+            <Bell className="h-6 w-6 text-primary" />
             Push Notifications
           </h1>
-          <p className="text-sm text-muted-foreground">Configure reminders & send announcements</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Configure reminders & send announcements</p>
         </div>
       </div>
 
@@ -151,7 +151,7 @@ export function NotificationsPage() {
         <LCard variant="elevated" padding={isMobile ? "md" : "lg"} className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2">
-              <Settings className="h-4 w-4 text-orange-500" />
+              <Settings className="h-4 w-4 text-primary" />
               Upgrade Reminders
             </h2>
             <button
@@ -182,7 +182,7 @@ export function NotificationsPage() {
                 <select
                   value={config.upgradeReminderIntervalDays}
                   onChange={(e) => setConfig({ ...config, upgradeReminderIntervalDays: parseInt(e.target.value) })}
-                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex-1 h-11 rounded-xl border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                 >
                   <option value={1}>Every day</option>
                   <option value={2}>Every 2 days</option>
@@ -199,7 +199,7 @@ export function NotificationsPage() {
                 type="text"
                 value={config.upgradeReminderTitle}
                 onChange={(e) => setConfig({ ...config, upgradeReminderTitle: e.target.value })}
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full mt-1 h-11 rounded-xl border border-input bg-background px-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
               />
             </div>
 
@@ -209,7 +209,7 @@ export function NotificationsPage() {
                 value={config.upgradeReminderBody}
                 onChange={(e) => setConfig({ ...config, upgradeReminderBody: e.target.value })}
                 rows={3}
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                className="w-full mt-1 rounded-xl border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm resize-none"
               />
             </div>
 
@@ -222,7 +222,7 @@ export function NotificationsPage() {
         {/* ─── Send Custom Notification ────────────────────── */}
         <LCard variant="elevated" padding={isMobile ? "md" : "lg"} className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2">
-            <Send className="h-4 w-4 text-blue-500" />
+            <Send className="h-4 w-4 text-primary" />
             Send Notification
           </h2>
 
@@ -234,13 +234,13 @@ export function NotificationsPage() {
                   <button
                     key={opt.value}
                     onClick={() => setSendTarget(opt.value)}
-                    className={`text-left rounded-lg border p-2 transition-colors ${
+                    className={`text-left rounded-xl border p-2 transition-colors ${
                       sendTarget === opt.value
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-                        : "border-input hover:bg-accent"
+                        ? "border-primary bg-primary/10"
+                        : "border-input hover:border-primary/50 hover:bg-accent"
                     }`}
                   >
-                    <span className={`text-sm font-semibold ${sendTarget === opt.value ? "text-blue-700 dark:text-blue-300" : ""}`}>
+                    <span className={`text-sm font-semibold ${sendTarget === opt.value ? "text-primary" : ""}`}>
                       {opt.label}
                     </span>
                     <p className="text-xs text-muted-foreground">{opt.desc}</p>
@@ -256,7 +256,7 @@ export function NotificationsPage() {
                 value={sendTitle}
                 onChange={(e) => setSendTitle(e.target.value)}
                 placeholder="e.g. New Feature: QR Code Scanning"
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full mt-1 h-11 rounded-xl border border-input bg-background px-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
               />
             </div>
 
@@ -267,7 +267,7 @@ export function NotificationsPage() {
                 onChange={(e) => setSendBody(e.target.value)}
                 placeholder="e.g. Scan garment QR codes to instantly track items..."
                 rows={3}
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                className="w-full mt-1 rounded-xl border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm resize-none"
               />
             </div>
 
@@ -280,7 +280,7 @@ export function NotificationsPage() {
             </LButton>
 
             {sendResult && (
-              <div className={`text-sm p-2 rounded-md ${sendResult.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+              <div className={`text-sm p-2 rounded-xl ${sendResult.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
                 {sendResult}
               </div>
             )}
@@ -291,7 +291,7 @@ export function NotificationsPage() {
       {/* ─── Notification History ───────────────────────────── */}
       <LCard variant="elevated" padding={isMobile ? "md" : "lg"}>
         <h2 className="text-base font-bold flex items-center gap-2 mb-3">
-          <History className="h-4 w-4 text-purple-500" />
+          <History className="h-4 w-4 text-primary" />
           Notification History
         </h2>
 
@@ -300,12 +300,12 @@ export function NotificationsPage() {
         ) : (
           <div className="space-y-2">
             {history.map((entry) => (
-              <div key={entry.id} className="flex items-start justify-between p-3 rounded-lg bg-accent/50 gap-3">
+              <div key={entry.id} className="flex items-start justify-between p-3 rounded-xl bg-accent/50 gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{entry.title}</p>
                   <p className="text-xs text-muted-foreground truncate">{entry.body}</p>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium capitalize">
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium capitalize">
                       {entry.target}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">

@@ -180,7 +180,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
             <div className="mt-6 space-y-6">
                 {/* Shop Info */}
                 <div>
-                    <h3 className="text-lg font-semibold mb-3">{shop.name}</h3>
+                    <h3 className="text-xl md:text-2xl font-bold text-foreground mb-3">{shop.name}</h3>
                     <div className="space-y-2 text-sm">
                         {shop.email && (
                             <div className="flex items-center gap-2 text-muted-foreground">
@@ -291,7 +291,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                             value={moveToFreeReason}
                                             onChange={(e) => setMoveToFreeReason(e.target.value)}
                                             placeholder="e.g. Preview cleanup, customer request"
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         />
                                     </div>
                                     <div className="flex gap-2">
@@ -340,7 +340,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                         <select
                                             value={newPlan}
                                             onChange={(e) => setNewPlan(e.target.value as PlanType)}
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         >
                                             {Object.values(PLANS).map((plan) => (
                                                 <option key={plan.id} value={plan.id}>
@@ -355,7 +355,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                             type="date"
                                             value={newEndDate}
                                             onChange={(e) => setNewEndDate(e.target.value)}
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         />
                                     </div>
                                     <div>
@@ -365,7 +365,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                             value={overrideReason}
                                             onChange={(e) => setOverrideReason(e.target.value)}
                                             placeholder="e.g. Customer request, Trial extension"
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         />
                                     </div>
                                     <div className="flex gap-2">
@@ -413,7 +413,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                         <select
                                             value={newPlan}
                                             onChange={(e) => setNewPlan(e.target.value as PlanType)}
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         >
                                             {Object.values(PLANS).map((plan) => (
                                                 <option key={plan.id} value={plan.id}>
@@ -428,7 +428,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                             type="date"
                                             value={newEndDate}
                                             onChange={(e) => setNewEndDate(e.target.value)}
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         />
                                     </div>
                                     <div>
@@ -438,7 +438,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                                             value={overrideReason}
                                             onChange={(e) => setOverrideReason(e.target.value)}
                                             placeholder="e.g. Manual upgrade, Testing"
-                                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                                            className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                                         />
                                     </div>
                                     <div className="flex gap-2">
@@ -540,7 +540,7 @@ export function ShopDetailSheet({ shopId, open, onClose, onUpdate }: ShopDetailS
                         </div>
                     ) : (
                         <>
-                            <div className="grid grid-cols-2 gap-4 mb-4 p-3 rounded-lg bg-muted/50">
+                            <div className="grid grid-cols-2 gap-4 mb-4 p-3 rounded-xl bg-muted/50">
                                 <div>
                                     <p className="text-xs text-muted-foreground">Total storage (compressed)</p>
                                     <p className="font-semibold text-foreground">

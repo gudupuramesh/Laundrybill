@@ -1,7 +1,8 @@
 /**
  * Super Admin Login Page
- * 
- * Login page for platform administrators
+ *
+ * Platform administrator login — brand-blue design system, matching the
+ * shop-owner web login (src/features/auth/LoginPage.tsx).
  */
 
 import { useState } from "react";
@@ -17,16 +18,16 @@ function InstallPrompt() {
     if (!canInstall) return null;
 
     return (
-        <LCard className="mb-6 border-red-200 bg-red-50">
+        <LCard className="mb-6 border-primary/20 bg-primary/5 rounded-2xl">
             <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                    <Download className="h-5 w-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Download className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1">
                     <h3 className="font-bold text-sm text-gray-900">Install App</h3>
                     <p className="text-xs text-gray-500">Add to your home screen for better experience</p>
                 </div>
-                <LButton size="sm" onClick={promptInstall} className="bg-red-600 hover:bg-red-700 text-white">
+                <LButton size="sm" onClick={promptInstall} variant="outline" className="border-primary text-primary hover:bg-primary/5">
                     Install
                 </LButton>
             </div>
@@ -85,8 +86,8 @@ export function SuperAdminLoginPage() {
 
                 <LCard variant="elevated" padding="lg" className="bg-white shadow-xl rounded-3xl border-border/50">
                     <div className="text-center mb-6">
-                        <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mx-auto mb-3">
-                            <Shield className="h-6 w-6 text-red-600" />
+                        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <Shield className="h-6 w-6 text-primary" />
                         </div>
                         <h2 className="text-xl font-bold text-gray-900">
                             Super Admin Login
@@ -115,9 +116,9 @@ export function SuperAdminLoginPage() {
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
                                     placeholder="admin@laundrybill.com"
-                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 
-                                        text-gray-900 placeholder:text-gray-400 
-                                        focus:outline-none focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-500/10 transition-all"
+                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50
+                                        text-gray-900 placeholder:text-gray-400
+                                        focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
                                 />
                             </div>
                         </div>
@@ -133,9 +134,9 @@ export function SuperAdminLoginPage() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
                                     placeholder="••••••••"
-                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 
-                                        text-gray-900 placeholder:text-gray-400 
-                                        focus:outline-none focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-500/10 transition-all"
+                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50
+                                        text-gray-900 placeholder:text-gray-400
+                                        focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
                                 />
                             </div>
                         </div>
@@ -147,7 +148,7 @@ export function SuperAdminLoginPage() {
                             size="lg"
                             fullWidth
                             loading={submitting || loading}
-                            className="h-12 rounded-2xl text-base mt-2 bg-red-600 hover:bg-red-700 border-red-600"
+                            className="h-12 rounded-2xl text-base mt-2"
                         >
                             Sign In to Admin Panel
                         </LButton>

@@ -7,7 +7,7 @@
 import { usePlatformStats } from "../hooks/use-platform-stats";
 import { formatStorageBytes } from "../hooks/use-shop-storage-stats";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { LCard, LPageLoader } from "@/components/laundry";
+import { LCard, LSkeletonList } from "@/components/laundry";
 import {
     Store,
     Users,
@@ -31,8 +31,14 @@ export function SuperAdminDashboard() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <LPageLoader message="Loading dashboard..." />
+            <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
+                <div>
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground">Platform Dashboard</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        Overview of LaundryBill platform metrics
+                    </p>
+                </div>
+                <LSkeletonList count={6} />
             </div>
         );
     }
@@ -40,7 +46,7 @@ export function SuperAdminDashboard() {
     if (error) {
         return (
             <div className="p-6">
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-destructive">
                     {error}
                 </div>
             </div>
@@ -53,12 +59,12 @@ export function SuperAdminDashboard() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-foreground">Platform Dashboard</h1>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                         Overview of LaundryBill platform metrics
                     </p>
                 </div>
                 <button
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
+                    className="p-2 rounded-xl hover:bg-muted transition-colors"
                     aria-label="Refresh"
                     onClick={() => refetch()}
                 >
@@ -310,7 +316,7 @@ function StatCard({ icon: Icon, label, value, change, changeLabel, subValue, col
         return (
             <LCard variant="elevated" padding="sm" className="min-w-0 overflow-hidden">
                 <div className="flex items-center gap-2">
-                    <div className={cn("p-1.5 rounded-md shrink-0", colorClasses[color])}>
+                    <div className={cn("p-1.5 rounded-xl shrink-0", colorClasses[color])}>
                         <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -325,7 +331,7 @@ function StatCard({ icon: Icon, label, value, change, changeLabel, subValue, col
     return (
         <LCard variant="elevated" padding="md">
             <div className="flex items-start justify-between">
-                <div className={cn("p-2 rounded-lg", colorClasses[color])}>
+                <div className={cn("p-2 rounded-xl", colorClasses[color])}>
                     <Icon className="h-5 w-5" />
                 </div>
                 {change !== undefined && change > 0 && (
@@ -390,7 +396,7 @@ interface QuickStatProps {
 
 function QuickStat({ icon: Icon, label, value, subValue, compact }: QuickStatProps) {
     return (
-        <div className={cn("rounded-lg bg-muted/50 min-w-0 overflow-hidden", compact ? "p-2" : "p-4")}>
+        <div className={cn("rounded-xl bg-muted/50 min-w-0 overflow-hidden", compact ? "p-2" : "p-4")}>
             <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
                 <Icon className={cn("shrink-0", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
                 <span className="text-xs truncate">{label}</span>
@@ -413,11 +419,11 @@ function QuickAction({ label, icon: Icon, href, compact }: QuickActionProps) {
         <Link
             to={href}
             className={cn(
-                "flex flex-col items-center gap-1.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-center shrink-0 min-w-0 overflow-hidden",
+                "flex flex-col items-center gap-1.5 rounded-xl bg-muted/50 hover:bg-muted hover:border-primary/50 border border-transparent transition-colors text-center shrink-0 min-w-0 overflow-hidden",
                 compact ? "p-3 min-w-[80px]" : "p-4 gap-2"
             )}
         >
-            <Icon className={cn("text-muted-foreground shrink-0", compact ? "h-5 w-5" : "h-6 w-6")} />
+            <Icon className={cn("text-primary shrink-0", compact ? "h-5 w-5" : "h-6 w-6")} />
             <span className={cn("font-medium truncate w-full px-0.5", compact ? "text-xs" : "text-sm")}>{label}</span>
         </Link>
     );

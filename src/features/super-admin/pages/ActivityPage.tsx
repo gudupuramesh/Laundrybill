@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useActivityLogs, ACTIVITY_TYPE_CONFIG } from "../hooks/use-activity-logs";
-import { LCard, LPageLoader, LButton } from "@/components/laundry";
+import { LCard, LSkeletonList, LButton } from "@/components/laundry";
 import {
     Activity,
     Store,
@@ -77,16 +77,14 @@ export function ActivityPage() {
                 ))}
             </div>
 
-            {/* Loading */}
+            {/* Loading — instant skeleton rows (no full-screen blocking loader) */}
             {loading && logs.length === 0 && (
-                <div className="flex items-center justify-center h-40">
-                    <LPageLoader message="Loading activity..." />
-                </div>
+                <LSkeletonList count={6} className="mt-1" />
             )}
 
             {/* Error */}
             {error && (
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-2xl p-4 text-destructive">
                     {error}
                 </div>
             )}

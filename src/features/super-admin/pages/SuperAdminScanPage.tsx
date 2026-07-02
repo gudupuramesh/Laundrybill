@@ -46,28 +46,32 @@ export function SuperAdminScanPage() {
     };
 
     return (
-        <div className="space-y-6 p-6">
-            <h1 className="text-2xl font-bold">Global Order Lookup</h1>
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
+            {/* Header */}
+            <div>
+                <h1 className="text-xl md:text-2xl font-bold text-foreground">Global Order Lookup</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Scan or enter an order ID to find it across any shop</p>
+            </div>
 
             <div className="flex gap-2 max-w-md">
                 <LButton variant={scanMode === "camera" ? "primary" : "outline"} onClick={() => setScanMode("camera")} className="flex-1">Camera</LButton>
                 <LButton variant={scanMode === "manual" ? "primary" : "outline"} onClick={() => setScanMode("manual")} className="flex-1">Manual</LButton>
             </div>
 
-            <LCard className="p-4 max-w-md min-h-[300px] flex items-center justify-center">
+            <LCard variant="elevated" padding="md" className="max-w-md min-h-[300px] flex items-center justify-center">
                 {scanMode === "camera" ? (
-                    <div className="w-full aspect-square bg-black rounded overflow-hidden relative">
+                    <div className="w-full aspect-square bg-black rounded-xl overflow-hidden relative">
                         <Scanner onScan={r => r?.[0]?.rawValue && lookupOrder(r[0].rawValue)} />
                         {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><LSpinner /></div>}
                     </div>
                 ) : (
                     <div className="w-full flex gap-2">
-                        <input className="border p-2 flex-1 rounded" placeholder="Order ID" value={scanInput} onChange={e => setScanInput(e.target.value)} />
+                        <input className="h-11 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm px-3 flex-1" placeholder="Order ID" value={scanInput} onChange={e => setScanInput(e.target.value)} />
                         <LButton onClick={() => lookupOrder(scanInput)}>Go</LButton>
                     </div>
                 )}
             </LCard>
-            {error && <p className="text-red-500">{error}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
         </div>
     );
 }

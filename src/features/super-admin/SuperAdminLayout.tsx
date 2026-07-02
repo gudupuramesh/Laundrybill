@@ -112,7 +112,7 @@ export function SuperAdminLayout() {
                 {/* Header */}
                 <div className="h-16 flex items-center justify-between px-4 border-b border-border">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
                             <Shield className="h-5 w-5 text-primary-foreground" />
                         </div>
                         <div>
@@ -121,7 +121,7 @@ export function SuperAdminLayout() {
                         </div>
                     </div>
                     <button
-                        className="lg:hidden p-2 hover:bg-muted rounded-lg"
+                        className="lg:hidden p-2 hover:bg-muted rounded-xl"
                         onClick={() => setSidebarOpen(false)}
                     >
                         <X className="h-5 w-5" />
@@ -138,7 +138,7 @@ export function SuperAdminLayout() {
                             onClick={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
                                 cn(
-                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
                                     isActive
                                         ? "bg-primary text-primary-foreground"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -186,7 +186,7 @@ export function SuperAdminLayout() {
                 {/* Mobile header */}
                 <header className="h-14 border-b border-border bg-card flex items-center px-4 lg:hidden shrink-0">
                     <button
-                        className="p-2 hover:bg-muted rounded-lg"
+                        className="p-2 hover:bg-muted rounded-xl"
                         onClick={() => setSidebarOpen(true)}
                         aria-label="Menu"
                     >
@@ -231,7 +231,7 @@ export function SuperAdminLayout() {
                                         setMoreSheetOpen(false);
                                     }}
                                     className={cn(
-                                        "flex items-center gap-3 w-full px-3 py-3 rounded-lg text-left text-sm font-medium transition-colors",
+                                        "flex items-center gap-3 w-full px-3 py-3 rounded-xl text-left text-sm font-medium transition-colors",
                                         location.pathname.startsWith(item.path)
                                             ? "bg-primary/10 text-primary"
                                             : "text-foreground hover:bg-muted"

@@ -11,7 +11,7 @@ import {
   LCard,
   LButton,
   LTextInput,
-  LPageLoader,
+  LSkeletonList,
   LEmptyState,
   useLToast,
   LNumberInput,
@@ -274,14 +274,25 @@ export function ItemsListPage() {
     return map;
   }, [categories, items]);
 
-  if (loading) return <LPageLoader />;
+  if (loading)
+    return (
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Items List (Default Catalog)</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Same categories and items as user POS. Set image URLs here; new shops get this list with images.
+          </p>
+        </div>
+        <LSkeletonList count={6} />
+      </div>
+    );
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Items List (Default Catalog)</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Items List (Default Catalog)</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Same categories and items as user POS. Set image URLs here; new shops get this list with images.
           </p>
         </div>
@@ -340,22 +351,25 @@ export function ItemsListPage() {
               const catItems = itemsByCategory[cat.id] ?? [];
               const isExpanded = expandedCategoryId === cat.id;
               return (
-                <LCard key={cat.id} className="overflow-hidden">
+                <LCard key={cat.id} variant="elevated" padding="none" className="overflow-hidden">
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+                    className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/50 transition-colors"
                     onClick={() =>
                       setExpandedCategoryId((id) => (id === cat.id ? null : cat.id))
                     }
                   >
-                    <span className="font-medium">{cat.name}</span>
-                    <span className="text-muted-foreground text-sm">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Package className="h-5 w-5 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground flex-1 min-w-0 truncate">{cat.name}</span>
+                    <span className="text-muted-foreground text-sm shrink-0">
                       {catItems.length} items
                     </span>
                     {isExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                     ) : (
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
                   </button>
                   {isExpanded && (
@@ -366,7 +380,7 @@ export function ItemsListPage() {
                             key={`${item.categoryId}-${item.name}-${item.order}`}
                             className="flex flex-wrap items-center gap-3 p-3 md:flex-nowrap"
                           >
-                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted">
                               {item.imageUrl ? (
                                 <img
                                   src={item.imageUrl}
@@ -383,7 +397,7 @@ export function ItemsListPage() {
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium truncate">{item.name}</p>
+                              <p className="font-medium text-foreground truncate">{item.name}</p>
                               <p className="text-sm text-muted-foreground">
                                 {formatCurrencyValue(item.basePrice)} / {item.pricingType}
                                 {item.subCategory ? ` · ${item.subCategory}` : ""}

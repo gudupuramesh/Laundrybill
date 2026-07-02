@@ -225,10 +225,10 @@ export function PlatformSettingsPage() {
 
     return (
         <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Platform Settings</h1>
-                    <p className="text-muted-foreground">Configure company branding and contact info for emails</p>
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground">Platform Settings</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Configure company branding and contact info for emails</p>
                 </div>
                 <LButton
                     onClick={handleSave}
@@ -240,10 +240,12 @@ export function PlatformSettingsPage() {
             </div>
 
             {/* Brand Settings */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Image className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Brand Settings</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Image className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Brand Settings</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <LTextInput
@@ -277,10 +279,12 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Duration discounts for shop subscription (3/6/9/12 months) */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Percent className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Subscription duration discounts</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Percent className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Subscription duration discounts</h2>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
                     Discount % for 3, 6, 9, and 12 month plans. Shop subscription page shows these options; longer duration gets this discount off (monthly × months).
@@ -301,7 +305,7 @@ export function PlatformSettingsPage() {
                                         if (!Number.isNaN(v) && v >= 0 && v <= 100)
                                             setDurationDiscounts(prev => ({ ...prev, [key]: v }));
                                     }}
-                                    className="w-full h-11 px-3 rounded-lg border border-border bg-background text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                    className="w-full h-11 px-3 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                 />
                             </div>
                         );
@@ -310,15 +314,17 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Subscription Controls */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <CreditCard className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Subscription Controls</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <CreditCard className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Subscription Controls</h2>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
                     Control whether shop owners can upgrade, downgrade, or cancel their subscriptions from the Subscription page.
                 </p>
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
                     <div>
                         <p className="font-medium text-foreground">Enable subscription buttons</p>
                         <p className="text-sm text-muted-foreground">
@@ -333,10 +339,12 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* App Version Control */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Smartphone className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">App Version Control</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Smartphone className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">App Version Control</h2>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
                     When you publish a new version to the Play Store, update the version here. Users will see an update prompt when they open the app.
@@ -363,17 +371,19 @@ export function PlatformSettingsPage() {
                             onChange={(e) => setAppVersion(prev => ({ ...prev, whatsNew: e.target.value }))}
                             placeholder="e.g. Bug fixes and performance improvements"
                             rows={3}
-                            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none"
+                            className="w-full px-3 py-2 rounded-xl border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
                         />
                     </div>
                 </div>
             </LCard>
 
             {/* Legal / Company Details */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Building2 className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Company Details</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Company Details</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <LTextInput
@@ -401,10 +411,12 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Support Contacts */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Phone className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Support Contacts</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Phone className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Support Contacts</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <LTextInput
@@ -434,15 +446,17 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Support & Help: configured in dedicated page */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                 <p><strong>Support & Help:</strong> Contact details for the Help page, welcome message, and per-page video/docs are configured in <strong>Support & Help</strong> (sidebar).</p>
             </div>
 
             {/* Help Resources (single URLs for emails) */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <BookOpen className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Help Resources (for emails)</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Help Resources (for emails)</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <LTextInput
@@ -463,10 +477,12 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Social Media */}
-            <LCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <Globe className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Social Media (Optional)</h2>
+            <LCard variant="elevated" padding="md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Globe className="h-5 w-5 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Social Media (Optional)</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <LTextInput
@@ -501,7 +517,7 @@ export function PlatformSettingsPage() {
             </LCard>
 
             {/* Preview Note */}
-            <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+            <div className="bg-muted/50 rounded-2xl p-4 text-sm text-muted-foreground">
                 <p><strong>Note:</strong> These settings will be used in all outgoing emails (welcome, upgrade confirmation, expiry reminders). Changes take effect immediately for new emails.</p>
             </div>
 

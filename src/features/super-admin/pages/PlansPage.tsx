@@ -60,9 +60,13 @@ export function PlansPage() {
 
     if (error) {
         return (
-            <div className="p-8 text-center text-destructive">
-                <p>{error}</p>
-                <LButton onClick={() => window.location.reload()} className="mt-4">Retry</LButton>
+            <div className="p-4 md:p-6 max-w-5xl mx-auto">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-destructive">{error}</span>
+                    <LButton variant="outline" size="sm" onClick={() => window.location.reload()}>
+                        Retry
+                    </LButton>
+                </div>
             </div>
         );
     }
@@ -70,8 +74,8 @@ export function PlansPage() {
     return (
         <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
             <div>
-                <h1 className="text-2xl font-bold">Subscription Plans</h1>
-                <p className="text-muted-foreground mt-1 max-w-3xl">
+                <h1 className="text-xl md:text-2xl font-bold text-foreground">Subscription Plans</h1>
+                <p className="text-sm text-muted-foreground mt-0.5 max-w-3xl">
                     Control free tier limits (orders/month, staff, etc.). Pricing is managed in Google Play / App Store.
                     When a free user hits the limit, they are shown an upgrade prompt.
                 </p>
@@ -86,7 +90,7 @@ export function PlansPage() {
                         padding="none"
                         className={cn(
                             "flex flex-col h-full overflow-visible",
-                            isPro && "ring-2 ring-blue-500/30",
+                            isPro && "ring-2 ring-primary/30",
                         )}
                     >
                         <div className="p-5 md:p-6 flex-1 flex flex-col">
@@ -201,7 +205,7 @@ export function PlansPage() {
 function LimitItem({ label, value }: { label: string; value: number | string }) {
     const isUnlimited = value === -1 || value === "Unlimited";
     return (
-        <div className="rounded-lg bg-muted/50 p-2.5">
+        <div className="rounded-xl bg-muted/50 p-2.5">
             <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
             <p className={cn("text-sm font-semibold", isUnlimited ? "text-primary" : "text-foreground")}>
                 {isUnlimited ? "Unlimited" : typeof value === "number" && value === 0 ? "—" : value}

@@ -88,7 +88,7 @@ export function PaymentsPage() {
             {/* Failed payments alert */}
             {!statsLoading && stats.recentFailedCount > 0 && (
                 <div
-                    className="flex items-center gap-3 p-4 rounded-lg border border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                    className="flex items-center gap-3 p-4 rounded-2xl border border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
                     role="alert"
                 >
                     <AlertTriangle className="h-5 w-5 flex-shrink-0" />
@@ -100,7 +100,7 @@ export function PaymentsPage() {
                     </div>
                     <button
                         onClick={() => setStatusFilter("failed")}
-                        className="ml-auto px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500/20 hover:bg-amber-500/30 transition-colors"
+                        className="ml-auto px-3 py-1.5 rounded-xl text-sm font-medium bg-amber-500/20 hover:bg-amber-500/30 transition-colors"
                     >
                         View failed
                     </button>
@@ -196,15 +196,15 @@ export function PaymentsPage() {
                         placeholder="Search by shop, invoice, or transaction ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full h-10 pl-10 pr-4 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm md:text-base"
+                        className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                     />
                 </div>
                 <button
                     type="button"
                     onClick={() => setFilterSheetOpen(true)}
                     className={cn(
-                        "h-10 px-3 rounded-lg border border-input bg-background flex items-center gap-2 shrink-0",
-                        "hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+                        "h-11 px-3 rounded-xl border border-input bg-background flex items-center gap-2 shrink-0",
+                        "hover:border-primary/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     )}
                     aria-label="Filter by status"
                 >
@@ -231,7 +231,7 @@ export function PaymentsPage() {
                                 setFilterSheetOpen(false);
                             }}
                             className={cn(
-                                "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm font-medium transition-colors",
+                                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-medium transition-colors",
                                 statusFilter === filter.value
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-muted/50 text-foreground hover:bg-muted"
@@ -253,7 +253,7 @@ export function PaymentsPage() {
 
             {/* Error */}
             {error && (
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-2xl p-4 text-destructive">
                     {error}
                 </div>
             )}
@@ -283,7 +283,7 @@ export function PaymentsPage() {
                             <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-4 min-w-0 flex-1">
                                     <div className={cn(
-                                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+                                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                                         STATUS_COLORS[payment.status]
                                     )}>
                                         {payment.status === "success" && <CheckCircle className="h-5 w-5" />}
