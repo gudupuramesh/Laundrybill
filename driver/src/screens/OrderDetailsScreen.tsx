@@ -166,6 +166,8 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
     : shopCountry === 'AE'
       ? 'TRN:'
       : `${shopData?.settings?.tax?.name || 'Tax'} No.:`;
+  // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
+  const isTaxInvoice = shopCountry === 'AE' && !!gstNumber;
   const publicId = order.publicId || order.orderNumber || '';
   const createdAt = toDate(order.createdAt);
   const expectedDelivery = toDate(order.expectedDelivery);
@@ -223,6 +225,7 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
     ${shopPhone ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlTel'))} ${escHtml(shopPhone)}</div>` : ''}
     ${shopAddress ? `<div class="shop-info">${escHtml(shopAddress)}</div>` : ''}
     ${gstNumber ? `<div class="shop-info">${escHtml(taxIdLabel)} ${escHtml(gstNumber)}</div>` : ''}
+    ${isTaxInvoice ? `<div style="font-size:13px;font-weight:800;letter-spacing:2px;margin-top:8px;">TAX INVOICE</div>` : ''}
   </div>
 
   <hr class="divider"/>

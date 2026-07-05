@@ -112,6 +112,12 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     if (shopInfo.address) centerText(shopInfo.address, 9, "normal", [100, 100, 100]);
     if (shopInfo.gstNumber) centerText(`${getTaxIdLabel(shopInfo.countryCode)}: ${shopInfo.gstNumber}`, 9, "normal", [100, 100, 100]);
 
+    // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
+    if ((shopInfo.countryCode || "").toUpperCase() === "AE" && shopInfo.gstNumber) {
+        y += 3;
+        centerText("TAX INVOICE", 12, "bold");
+    }
+
     y += 2;
     divider();
 
