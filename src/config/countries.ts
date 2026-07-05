@@ -63,6 +63,30 @@ export function getCountry(code: string): CountryConfig {
 }
 
 /**
+ * Split a stored phone into its OWN dial code + local digits, without assuming any
+ * country. Longest dial-code prefix wins ("+971…" → AE before "+91…" → IN). Only
+ * treats the number as international when it was stored with "+" or is longer than
+ * a bare local number — a plain local number is returned untouched. Use this to
+ * DISPLAY a registered number faithfully; never re-prefix a stored phone with a
+ * different country's code.
+ */
+export function splitInternationalPhone(raw?: string | null): { dialCode: string; local: string } {
+    const s = String(raw || "").trim();
+    const digits = s.replace(/\D/g, "");
+    if (!digits) return { dialCode: "", local: "" };
+    if (s.startsWith("+") || digits.length > 10) {
+        const codes = Array.from(new Set(COUNTRIES.map((c) => c.phoneCode.replace(/\D/g, ""))))
+            .sort((a, b) => b.length - a.length);
+        for (const code of codes) {
+            if (digits.startsWith(code) && digits.length >= code.length + 6) {
+                return { dialCode: `+${code}`, local: digits.slice(code.length) };
+            }
+        }
+    }
+    return { dialCode: "", local: digits };
+}
+
+/**
  * Country-specific label for the tax registration number shown on invoices/receipts.
  * India → "GSTIN"; UAE → "TRN" (FTA requires exactly this label); everywhere else the
  * generic "<taxName> No." (e.g. "VAT No."), preferring the shop's own configured tax

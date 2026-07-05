@@ -20,7 +20,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { COUNTRIES, getCountry } from "@/config/countries";
+import { COUNTRIES, getCountry, splitInternationalPhone } from "@/config/countries";
 import { reverseGeocode } from "@/lib/geocoding";
 import { useTranslation } from "react-i18next";
 import {
@@ -47,8 +47,6 @@ import {
 } from "lucide-react";
 import {
     toTitleCase,
-    isValidIndianPhone,
-    normalizePhone,
     isValidEmail,
     normalizeEmail,
     isValidPAN,
@@ -114,6 +112,9 @@ export function SettingsPageMasterDetail() {
     // Form state
     const [formShopName, setFormShopName] = useState("");
     const [phone, setPhone] = useState("");
+    // Dial code the registered phone was STORED with (e.g. "+91"). The locked field
+    // must show the real number — never re-prefix it with the current country's code.
+    const [registeredDialCode, setRegisteredDialCode] = useState("");
     const [email, setEmail] = useState("");
     const [whatsappNumber, setWhatsappNumber] = useState("");
     const [address, setAddress] = useState("");
@@ -167,11 +168,13 @@ export function SettingsPageMasterDetail() {
     useEffect(() => {
         if (shop && !initialized) {
             setFormShopName(shop.name || "");
-            const rawPhone = shop.phone || user?.phone || "";
-            setPhone(rawPhone.replace(/^\+?91/, "").replace(/\D/g, "").slice(-10));
+            // Parse the stored phone by its OWN dial code (works for +91, +971, …) —
+            // never assume India, and never re-prefix with the current country's code.
+            const parsedPhone = splitInternationalPhone(shop.phone || user?.phone || "");
+            setPhone(parsedPhone.local);
+            setRegisteredDialCode(parsedPhone.dialCode);
             setEmail(shop.email || user?.email || "");
-            const rawPhoneForWhatsApp = shop.phone || user?.phone || "";
-            setWhatsappNumber(shop.whatsappNumber || rawPhoneForWhatsApp.replace(/^\+?91/, "").replace(/\D/g, "").slice(-10) || "");
+            setWhatsappNumber(splitInternationalPhone(shop.whatsappNumber || shop.phone || user?.phone || "").local);
             if (shop.location) {
                 setAddress(shop.location.address || "");
                 setCity(shop.location.city || "");
@@ -266,12 +269,15 @@ export function SettingsPageMasterDetail() {
     };
 
     const handleSaveShopInfo = async () => {
-        if (phone && !isValidIndianPhone(phone)) {
-            addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDesc", "Phone must be 10 digits starting with 6-9") });
+        // Validate against the shop's COUNTRY (9 digits for UAE, 10 for India, …), not
+        // an India-only rule — a UAE shop must be able to save its business profile.
+        const country = getCountry(selectedCountryCode);
+        if (!isPhoneLocked && phone && phone.replace(/\D/g, "").length !== country.phoneDigits) {
+            addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDigitsDesc", { count: country.phoneDigits, defaultValue: `Phone must be ${country.phoneDigits} digits` }) });
             return;
         }
-        if (whatsappNumber && !isValidIndianPhone(whatsappNumber)) {
-            addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDesc", "WhatsApp number must be 10 digits starting with 6-9") });
+        if (whatsappNumber && whatsappNumber.replace(/\D/g, "").length !== country.phoneDigits) {
+            addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDigitsDesc", { count: country.phoneDigits, defaultValue: `WhatsApp number must be ${country.phoneDigits} digits` }) });
             return;
         }
         if (email && !isValidEmail(email)) {
@@ -282,9 +288,11 @@ export function SettingsPageMasterDetail() {
         try {
             await updateShop({
                 name: toTitleCase(formShopName),
-                ...(isPhoneLocked ? {} : { phone: phone ? normalizePhone(phone) : "" }),
+                // Store international (+<dial><digits>) under the shop's country — this is
+                // what prints on receipts and feeds WhatsApp links.
+                ...(isPhoneLocked ? {} : { phone: phone ? `${country.phoneCode}${phone.replace(/\D/g, "")}` : "" }),
                 ...(isEmailLocked ? {} : { email: email ? normalizeEmail(email) : "" }),
-                whatsappNumber: whatsappNumber ? normalizePhone(whatsappNumber) : "",
+                whatsappNumber: whatsappNumber ? whatsappNumber.replace(/\D/g, "") : "",
             });
             await updateLocation({
                 address: toTitleCase(address),
@@ -600,7 +608,9 @@ export function SettingsPageMasterDetail() {
                                         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                                             <div>
                                                 <label style={lbl}>{t("shop.phoneNumber", "Phone")}</label>
-                                                <LPhoneInput value={phone} onValueChange={setPhone} showClear={!isPhoneLocked} disabled={isPhoneLocked} countryCode={phoneCountry.phoneCode} maxDigits={phoneCountry.phoneDigits} />
+                                                {/* Locked field shows the number's OWN dial code — switching the shop country
+                                                    must not re-prefix the registered phone into a number that doesn't exist. */}
+                                                <LPhoneInput value={phone} onValueChange={setPhone} showClear={!isPhoneLocked} disabled={isPhoneLocked} countryCode={(isPhoneLocked && registeredDialCode) || phoneCountry.phoneCode} maxDigits={isPhoneLocked && phone ? phone.length : phoneCountry.phoneDigits} />
                                                 {isPhoneLocked && <p style={{ fontSize: 10.5, color: "var(--c-text-3)", marginTop: 4 }}>{t("shop.phoneImmutable", "Registered phone cannot be changed")}</p>}
                                             </div>
                                             <div>

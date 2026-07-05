@@ -35,6 +35,7 @@ import {
     Shield,
 } from "lucide-react";
 import { ServiceAreasSettings } from "./ServiceAreasSettings";
+import { getCountry, splitInternationalPhone } from "@/config/countries";
 import { useAuth } from "@/features/auth/AuthContext";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -101,10 +102,10 @@ export function ShopSettingsPage() {
         if (shop && !initialized) {
             setShopName(shop.name || "");
 
-            // Get phone from shop or auth user (fallback for OTP registration)
+            // Get phone from shop or auth user (fallback for OTP registration).
+            // Parse by the number's OWN dial code (+91, +971, …) — never assume India.
             const rawPhone = shop.phone || user?.phone || "";
-            // Clean phone number: remove +91 prefix and keep last 10 digits
-            const cleanPhone = rawPhone.replace(/^\+?91/, "").replace(/\D/g, "").slice(-10);
+            const cleanPhone = splitInternationalPhone(rawPhone).local;
             setPhone(cleanPhone);
 
             // Get email from shop or auth user (fallback for Google sign-in)
@@ -353,9 +354,11 @@ export function ShopSettingsPage() {
                 whatsappNumber,
             };
 
-            // Only allow phone update if not already locked (use digits only)
-            if (!isPhoneLocked && phone.replace(/\D/g, "").length === 10) {
-                updatePayload.phone = `+91${phone.replace(/\D/g, "").slice(-10)}`;
+            // Only allow phone update if not already locked — store international
+            // under the SHOP's country (+971… for UAE, +91… for India), never hardcode +91.
+            const shopCountry = getCountry(shop?.settings?.countryCode || "IN");
+            if (!isPhoneLocked && phone.replace(/\D/g, "").length === shopCountry.phoneDigits) {
+                updatePayload.phone = `${shopCountry.phoneCode}${phone.replace(/\D/g, "")}`;
             }
 
             // Only allow email update if not already locked

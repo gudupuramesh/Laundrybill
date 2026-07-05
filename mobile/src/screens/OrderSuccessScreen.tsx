@@ -4,7 +4,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Linking, Alert } 
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
-import { formatCurrency } from '../lib/currency-format';
+import { formatCurrency, buildWhatsAppNumber } from '../lib/currency-format';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
@@ -65,12 +65,13 @@ export default function OrderSuccessScreen({
     });
 
   const handleShareWhatsApp = () => {
-    const phone = order.customer.phone.replace(/\D/g, '');
-    if (!phone || phone.length < 10) {
+    // Country-aware: trusts a stored country code, else prepends the SHOP's dial
+    // code — never hardcode India's 91 (UAE customers have 9-digit locals).
+    const fullPhone = buildWhatsAppNumber(order.customer.phone || '', countrySettings);
+    if (!fullPhone || fullPhone.length < 8) {
       Alert.alert(t('mobile.noPhoneTitle'), t('mobile.noPhoneWhatsapp'));
       return;
     }
-    const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
     const dt = order.deliveryType || 'pickup_store';
     const deliveryLabel =
       dt === 'pickup_store' ? t('mobile.delivery_pickup_store')

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable, Image, Alert } from 'react-native';
@@ -64,6 +64,11 @@ export default function RegisterShopScreen({
   const [loading, setLoading] = useState(false);
   const initialDetectedCountry = getCountryCodeFromPhone(initialPhone || auth().currentUser?.phoneNumber || '') || 'IN';
   const [countryCode, setCountryCode] = useState(initialDetectedCountry);
+  // Original stored phone (E.164) + its local digits. If the owner saves without
+  // editing the phone, we write the stored value back VERBATIM — re-prefixing a
+  // registered +91 number with a newly selected country (+971…) would fabricate
+  // a number that doesn't exist.
+  const originalPhoneRef = useRef<{ e164: string; local: string } | null>(null);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showOpenTimePicker, setShowOpenTimePicker] = useState(false);
   const [showCloseTimePicker, setShowCloseTimePicker] = useState(false);
@@ -140,13 +145,22 @@ export default function RegisterShopScreen({
         if (shopDoc.exists) {
           const data = (shopDoc.data() ?? {}) as any;
           const shopSettings = (data.settings ?? {}) as any;
+          // Extract local digits using the stored phone's OWN country (detected from
+          // its "+<dial>" prefix), not the shop's current country — slicing a +91
+          // number by the UAE's 9 digits would silently drop digits.
+          const storedPhone = String(data.phone || initialPhone || auth().currentUser?.phoneNumber || '');
+          const storedPhoneCountry =
+            (storedPhone.trim().startsWith('+') ? getCountryCodeFromPhone(storedPhone) : null) ||
+            shopSettings.countryCode || 'IN';
+          const storedLocal = sanitizePhoneInput(
+            normalizePhoneForCountry(storedPhone, { countryCode: storedPhoneCountry }),
+            storedPhoneCountry
+          );
+          if (data.phone) originalPhoneRef.current = { e164: String(data.phone), local: storedLocal };
           setFormData({
             name: data.name || '',
             email: data.email || authEmail || initialEmail || '',
-            phone: sanitizePhoneInput(
-              normalizePhoneForCountry(data.phone || initialPhone || auth().currentUser?.phoneNumber || '', { countryCode: shopSettings.countryCode || 'IN' }),
-              shopSettings.countryCode || 'IN'
-            ),
+            phone: storedLocal,
             street: data.location?.address || '',
             area: data.location?.area || '',
             city: data.location?.city || '',
@@ -419,10 +433,17 @@ export default function RegisterShopScreen({
         setUploadingLogo(false);
       }
 
+      // Unchanged registered phone → keep the stored E.164 verbatim (its own country
+      // code); only a newly typed number is formatted under the selected country.
+      const phoneE164 =
+        originalPhoneRef.current && originalPhoneRef.current.local === formData.phone
+          ? originalPhoneRef.current.e164
+          : toE164(formData.phone, { countryCode });
+
       const shopData = {
         name: formData.name,
         email: resolvedEmail,
-        phone: toE164(formData.phone, { countryCode }),
+        phone: phoneE164,
         logoUrl: finalLogoUrl || '',
         logoKey: finalLogoKey || '',
         ownerId: uid,
@@ -487,7 +508,7 @@ export default function RegisterShopScreen({
       const upsertUserMapping = async () => {
         await firestore().collection('users').doc(uid).set({
           email: resolvedEmail,
-          phone: toE164(formData.phone, { countryCode }),
+          phone: phoneE164,
           shopId: saveId,
           shopName: formData.name,
           role: 'admin',
