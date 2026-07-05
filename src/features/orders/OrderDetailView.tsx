@@ -161,6 +161,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 phone: shop.phone,
                 address: location?.address ? `${location.address}, ${location.city || ''} ${location.pincode || ''}` : undefined,
                 gstNumber: shop.gstNumber,
+                countryCode: shop.settings?.countryCode,
                 currencySymbol,
                 currencyCode: shop.settings?.currency,
             });
@@ -186,6 +187,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             const blob = await import("@/lib/generateReceipt").then(m => m.getReceiptBlob(order, {
                 ...shopInfo,
                 gstNumber: shop.gstNumber,
+                countryCode: shop.settings?.countryCode,
             }));
             const url = URL.createObjectURL(blob);
             window.open(url, "_blank");

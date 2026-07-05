@@ -162,6 +162,14 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   const shopPhone = shopData?.phone || '';
   const shopAddress = shopData?.address || '';
   const gstNumber = shopData?.gstNumber || '';
+  // Country-aware tax-registration label: India → GSTIN (i18n), UAE → TRN (the FTA
+  // requires exactly this), elsewhere → "<taxName> No." (e.g. "VAT No.").
+  const shopCountry = String(shopData?.settings?.countryCode || 'IN').toUpperCase();
+  const taxIdLabel = shopCountry === 'IN'
+    ? t('mobile.receiptHtmlGstin')
+    : shopCountry === 'AE'
+      ? 'TRN:'
+      : `${shopData?.settings?.tax?.name || 'Tax'} No.:`;
   const publicId = order.publicId || order.orderNumber || '';
   const createdAt = toDate(order.createdAt);
   const expectedDelivery = toDate(order.expectedDelivery);
@@ -218,7 +226,7 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
     <div class="shop-name">${escHtml(shopName)}</div>
     ${shopPhone ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlTel'))} ${escHtml(shopPhone)}</div>` : ''}
     ${shopAddress ? `<div class="shop-info">${escHtml(shopAddress)}</div>` : ''}
-    ${gstNumber ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlGstin'))} ${escHtml(gstNumber)}</div>` : ''}
+    ${gstNumber ? `<div class="shop-info">${escHtml(taxIdLabel)} ${escHtml(gstNumber)}</div>` : ''}
   </div>
 
   <hr class="divider"/>

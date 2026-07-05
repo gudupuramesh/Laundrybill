@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import type { Order, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType } from "@/types/order";
 import { format } from "date-fns";
+import { getTaxIdLabel } from "@/config/countries";
 
 // Delivery type display labels
 const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
@@ -22,6 +23,8 @@ interface ShopInfo {
     phone?: string;
     address?: string;
     gstNumber?: string;
+    /** ISO country code (shop.settings.countryCode) — picks the tax-reg label (GSTIN/TRN/VAT No.). */
+    countryCode?: string;
     /** Shop currency — symbol (e.g. ₹, د.إ, $) and/or ISO code (INR, AED, USD). */
     currencySymbol?: string;
     currencyCode?: string;
@@ -107,7 +110,7 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     y += 2;
     if (shopInfo.phone) centerText(`Tel: ${shopInfo.phone}`, 10);
     if (shopInfo.address) centerText(shopInfo.address, 9, "normal", [100, 100, 100]);
-    if (shopInfo.gstNumber) centerText(`GSTIN: ${shopInfo.gstNumber}`, 9, "normal", [100, 100, 100]);
+    if (shopInfo.gstNumber) centerText(`${getTaxIdLabel(shopInfo.countryCode)}: ${shopInfo.gstNumber}`, 9, "normal", [100, 100, 100]);
 
     y += 2;
     divider();

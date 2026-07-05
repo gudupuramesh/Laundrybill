@@ -62,6 +62,19 @@ export function getCountry(code: string): CountryConfig {
     return COUNTRIES.find((c) => c.code === code) || COUNTRIES[0]; // India fallback
 }
 
+/**
+ * Country-specific label for the tax registration number shown on invoices/receipts.
+ * India → "GSTIN"; UAE → "TRN" (FTA requires exactly this label); everywhere else the
+ * generic "<taxName> No." (e.g. "VAT No."). Missing country = legacy shop = India.
+ */
+export function getTaxIdLabel(countryCode?: string | null): string {
+    const code = (countryCode || DEFAULT_COUNTRY).toUpperCase();
+    if (code === "IN") return "GSTIN";
+    if (code === "AE") return "TRN";
+    const country = COUNTRIES.find((c) => c.code === code);
+    return country ? `${country.taxName} No.` : "Tax Reg. No.";
+}
+
 /** Get country config by currency code. Falls back to India. */
 export function getCountryByCurrency(currencyCode: string): CountryConfig {
     return COUNTRIES.find((c) => c.currencyCode === currencyCode) || COUNTRIES[0];

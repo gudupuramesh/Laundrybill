@@ -78,6 +78,7 @@ export function OrderSuccessSheet({
                 ? `${location.address}, ${location.city || ""} ${location.pincode || ""}`
                 : undefined,
             gstNumber: shop.gstNumber,
+            countryCode: shop.settings?.countryCode,
             currencySymbol,
             currencyCode: shop.settings?.currency,
         };
