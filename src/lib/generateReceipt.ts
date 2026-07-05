@@ -225,9 +225,11 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
         row("Delivery Charge", money(order.financials.deliveryCharge));
     }
 
-    // Add Tax Row
+    // Add Tax Row — named + rated as configured (e.g. "VAT (5%)", "GST (18%)");
+    // tax-invoice rules (UAE FTA etc.) require the actual tax name and rate.
     if ((order.financials.taxAmount || 0) > 0) {
-        row("Tax", money(order.financials.taxAmount || 0));
+        const taxLabel = `${order.financials.taxName || "Tax"}${order.financials.taxRate ? ` (${order.financials.taxRate}%)` : ""}`;
+        row(taxLabel, money(order.financials.taxAmount || 0));
     }
 
     if (order.financials.discountAmount > 0) {
