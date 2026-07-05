@@ -13,6 +13,10 @@ export interface ReceiptShopInfo {
     name: string;
     address?: string;
     phone?: string;
+    /** Tax registration number (GSTIN/TRN) — printed in the receipt header. */
+    gstNumber?: string;
+    /** ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
+    countryCode?: string;
 }
 
 interface ReceiptPrintState {
@@ -73,6 +77,8 @@ export function ReceiptPrintProvider({ children }: { children: React.ReactNode }
                         shopName={state.shopInfo.name}
                         shopAddress={state.shopInfo.address ?? ""}
                         shopPhone={state.shopInfo.phone ?? ""}
+                        gstNumber={state.shopInfo.gstNumber}
+                        countryCode={state.shopInfo.countryCode}
                     />
                 )}
             </div>,

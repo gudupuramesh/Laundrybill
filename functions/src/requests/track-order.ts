@@ -77,6 +77,7 @@ export const trackOrder = onCall(async (request) => {
 
     // Shop details
     let shopName = "", shopPhone = "", shopAddress = "", shopEmail = "";
+    let shopGstNumber = "", shopCountryCode = "";
     try {
         const shopDoc = await db.collection("shops").doc(shopId).get();
         if (shopDoc.exists) {
@@ -86,6 +87,9 @@ export const trackOrder = onCall(async (request) => {
             const loc = s.location;
             shopAddress = loc?.address ? [loc.address, loc.city, loc.pincode].filter(Boolean).join(", ") : (s.address || "");
             shopEmail = s.email || "";
+            // Tax-invoice fields for the public receipt PDF (TRN/GSTIN line + UAE "TAX INVOICE" title)
+            shopGstNumber = s.gstNumber || "";
+            shopCountryCode = s.settings?.countryCode || "";
         }
     } catch { /* ignore */ }
 
@@ -140,6 +144,8 @@ export const trackOrder = onCall(async (request) => {
         shopPhone,
         shopAddress,
         shopEmail,
+        gstNumber: shopGstNumber || null,
+        countryCode: shopCountryCode || null,
         assignedAgentId: o.assignedAgentId || null,
         assignedAgentName: o.assignedAgentName || null,
         assignedAgentPhone: agentPhone || o.assignedAgentPhone || null,

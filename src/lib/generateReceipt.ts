@@ -105,15 +105,21 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
 
     // --- CONTENT GENERATION ---
 
+    // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
+    const isTaxInvoice = (shopInfo.countryCode || "").toUpperCase() === "AE" && !!shopInfo.gstNumber;
+    // jsPDF's built-in Helvetica renders Latin-1 only — a non-Latin configured tax
+    // name would print as garbage, so fall back past it (same policy as currencyLabel).
+    const rawTaxName = order.financials.taxName;
+    const safeTaxName = rawTaxName && /^[\x20-\x7E\xA0-\xFF]+$/.test(rawTaxName) ? rawTaxName : undefined;
+
     // 1. SHOP HEADER
     centerText(shopInfo.name.toUpperCase() || "LAUNDRY SERVICE", 18, "bold");
     y += 2;
     if (shopInfo.phone) centerText(`Tel: ${shopInfo.phone}`, 10);
     if (shopInfo.address) centerText(shopInfo.address, 9, "normal", [100, 100, 100]);
-    if (shopInfo.gstNumber) centerText(`${getTaxIdLabel(shopInfo.countryCode)}: ${shopInfo.gstNumber}`, 9, "normal", [100, 100, 100]);
+    if (shopInfo.gstNumber) centerText(`${getTaxIdLabel(shopInfo.countryCode, safeTaxName)}: ${shopInfo.gstNumber}`, 9, "normal", [100, 100, 100]);
 
-    // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
-    if ((shopInfo.countryCode || "").toUpperCase() === "AE" && shopInfo.gstNumber) {
+    if (isTaxInvoice) {
         y += 3;
         centerText("TAX INVOICE", 12, "bold");
     }
@@ -232,9 +238,12 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     }
 
     // Add Tax Row — named + rated as configured (e.g. "VAT (5%)", "GST (18%)");
-    // tax-invoice rules (UAE FTA etc.) require the actual tax name and rate.
-    if ((order.financials.taxAmount || 0) > 0) {
-        const taxLabel = `${order.financials.taxName || "Tax"}${order.financials.taxRate ? ` (${order.financials.taxRate}%)` : ""}`;
+    // tax-invoice rules (UAE FTA etc.) require the actual tax name and rate, and a
+    // document titled TAX INVOICE always shows the line (zero-rated → "VAT (0%)").
+    if ((order.financials.taxAmount || 0) > 0 || isTaxInvoice) {
+        const name = safeTaxName || (isTaxInvoice ? "VAT" : "Tax");
+        const rate = order.financials.taxRate;
+        const taxLabel = `${name}${rate ? ` (${rate}%)` : isTaxInvoice ? " (0%)" : ""}`;
         row(taxLabel, money(order.financials.taxAmount || 0));
     }
 

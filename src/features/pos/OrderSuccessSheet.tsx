@@ -94,6 +94,8 @@ export function OrderSuccessSheet({
                 name: shopInfo.name,
                 address: shopInfo.address,
                 phone: shopInfo.phone,
+                gstNumber: shopInfo.gstNumber,
+                countryCode: shopInfo.countryCode,
             });
             return;
         }

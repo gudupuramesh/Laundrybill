@@ -10,17 +10,27 @@ import { getTrackingUrl, getQRCodeUrl } from "@/lib/qr-code";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { format } from "date-fns";
 import { useCurrency } from "@/hooks/use-currency";
+import { getTaxIdLabel } from "@/config/countries";
 
 interface OrderReceiptProps {
     order: Order;
     shopName: string;
     shopAddress: string;
     shopPhone: string;
+    /** Tax registration number (GSTIN/TRN) — printed in the header when set. */
+    gstNumber?: string;
+    /** ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
+    countryCode?: string;
 }
 
-export function OrderReceipt({ order, shopName, shopAddress, shopPhone }: OrderReceiptProps) {
+export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumber, countryCode }: OrderReceiptProps) {
     const { formatAmount } = useCurrency();
     const qrUrl = getQRCodeUrl(order.trackingId || order.id, 150);
+
+    // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
+    const isTaxInvoice = (countryCode || "").toUpperCase() === "AE" && !!gstNumber;
+    const fin = order.financials;
+    const taxLabel = `${fin.taxName || (isTaxInvoice ? "VAT" : "Tax")}${fin.taxRate ? ` (${fin.taxRate}%)` : isTaxInvoice ? " (0%)" : ""}`;
 
     return (
         <div className="bg-white p-6 max-w-[300px] font-mono text-sm text-black" id="receipt">
@@ -29,6 +39,12 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone }: OrderR
                 <h1 className="font-bold text-lg">{shopName}</h1>
                 <p className="text-xs text-gray-600">{shopAddress}</p>
                 <p className="text-xs text-gray-600">Tel: {shopPhone}</p>
+                {gstNumber && (
+                    <p className="text-xs text-gray-600">{getTaxIdLabel(countryCode)}: {gstNumber}</p>
+                )}
+                {isTaxInvoice && (
+                    <p className="font-bold tracking-widest mt-1">TAX INVOICE</p>
+                )}
             </div>
 
             <div className="border-t border-dashed border-gray-400 my-3" />
@@ -88,10 +104,22 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone }: OrderR
                         <span>-{formatAmount(order.financials.discountAmount)}</span>
                     </div>
                 )}
+                {(order.financials.expressCharge || 0) > 0 && (
+                    <div className="flex justify-between">
+                        <span>Express:</span>
+                        <span>{formatAmount(order.financials.expressCharge)}</span>
+                    </div>
+                )}
                 {order.financials.deliveryCharge > 0 && (
                     <div className="flex justify-between">
                         <span>Delivery:</span>
                         <span>{formatAmount(order.financials.deliveryCharge)}</span>
+                    </div>
+                )}
+                {((order.financials.taxAmount || 0) > 0 || isTaxInvoice) && (
+                    <div className="flex justify-between">
+                        <span>{taxLabel}:</span>
+                        <span>{formatAmount(order.financials.taxAmount || 0)}</span>
                     </div>
                 )}
                 <div className="flex justify-between font-bold text-base mt-1">

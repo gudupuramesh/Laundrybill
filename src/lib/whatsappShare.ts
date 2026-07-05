@@ -77,6 +77,9 @@ export function generateOrderWhatsAppMessage(order: Order, shop?: Shop, currency
         }),
         ``,
         `💰 *Payment Details:*`,
+        ...((order.financials.taxAmount || 0) > 0
+            ? [`${order.financials.taxName || "Tax"}${order.financials.taxRate ? ` (${order.financials.taxRate}%)` : ""}: ${currencySymbol}${order.financials.taxAmount}`]
+            : []),
         `Total: ${currencySymbol}${order.financials.total}`,
         `Paid: ${currencySymbol}${order.financials.amountPaid}`,
         order.financials.balance > 0

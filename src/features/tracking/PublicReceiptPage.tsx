@@ -119,6 +119,8 @@ export function PublicReceiptPage() {
                 name: data?.shopName || "LaundryBill",
                 phone: data?.shopPhone,
                 address: data?.shopAddress,
+                gstNumber: data?.gstNumber,
+                countryCode: data?.countryCode,
                 currencySymbol,
                 currencyCode,
             };
@@ -154,6 +156,8 @@ export function PublicReceiptPage() {
                 name: data?.shopName || "LaundryBill",
                 phone: data?.shopPhone,
                 address: data?.shopAddress,
+                gstNumber: data?.gstNumber,
+                countryCode: data?.countryCode,
                 currencySymbol,
                 currencyCode,
             };

@@ -176,6 +176,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             name: shop.name || "LaundryBill",
             phone: shop.phone,
             address: location?.address ? `${location.address}, ${location.city || ""} ${location.pincode || ""}` : undefined,
+            gstNumber: shop.gstNumber,
+            countryCode: shop.settings?.countryCode,
             currencySymbol,
             currencyCode: shop.settings?.currency,
         };
@@ -184,11 +186,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             return;
         }
         try {
-            const blob = await import("@/lib/generateReceipt").then(m => m.getReceiptBlob(order, {
-                ...shopInfo,
-                gstNumber: shop.gstNumber,
-                countryCode: shop.settings?.countryCode,
-            }));
+            const blob = await import("@/lib/generateReceipt").then(m => m.getReceiptBlob(order, shopInfo));
             const url = URL.createObjectURL(blob);
             window.open(url, "_blank");
         } catch (error) {

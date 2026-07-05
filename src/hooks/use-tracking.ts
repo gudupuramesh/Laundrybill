@@ -32,6 +32,10 @@ interface TrackingData {
     shopPhone?: string;
     shopAddress?: string;
     shopEmail?: string;
+    /** Shop tax registration number (GSTIN/TRN) — printed on the public receipt PDF. */
+    gstNumber?: string;
+    /** Shop ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
+    countryCode?: string;
     assignedAgentId?: string;
     assignedAgentName?: string;
     assignedAgentPhone?: string;
@@ -130,6 +134,8 @@ export function useOrderTracking(code: string, phone: string) {
                     shopPhone: r.shopPhone || undefined,
                     shopAddress: r.shopAddress || undefined,
                     shopEmail: r.shopEmail || undefined,
+                    gstNumber: r.gstNumber || undefined,
+                    countryCode: r.countryCode || undefined,
                     assignedAgentId: r.assignedAgentId || undefined,
                     assignedAgentName: r.assignedAgentName || undefined,
                     assignedAgentPhone: r.assignedAgentPhone || undefined,

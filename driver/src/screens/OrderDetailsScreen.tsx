@@ -191,7 +191,14 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlSubtotal'))}</td><td style="text-align:right">${fmt(fin.subtotal || 0)}</td></tr>`);
   if (fin.discountAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlDiscount'))}</td><td style="text-align:right;color:#006b5f">-${fmt(fin.discountAmount)}</td></tr>`);
   if (fin.expressCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlExpressCharge'))}</td><td style="text-align:right">+${fmt(fin.expressCharge)}</td></tr>`);
-  if (fin.taxAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate || 0 }))}</td><td style="text-align:right">+${fmt(fin.taxAmount)}</td></tr>`);
+  // Rate suffix only when a rate was stored (legacy orders show the bare name, not "(0%)");
+  // a TAX INVOICE always shows the line — zero-rated renders "VAT (0%)".
+  const receiptTaxLabel = fin.taxRate
+    ? t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate })
+    : isTaxInvoice
+      ? t('mobile.receiptHtmlTaxRow', { name: fin.taxName || 'VAT', rate: 0 })
+      : taxName;
+  if (fin.taxAmount > 0 || isTaxInvoice) finRows.push(`<tr><td>${escHtml(receiptTaxLabel)}</td><td style="text-align:right">+${fmt(fin.taxAmount || 0)}</td></tr>`);
   if (fin.deliveryCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.deliveryChargeLabel'))}</td><td style="text-align:right">+${fmt(fin.deliveryCharge)}</td></tr>`);
 
   return `<!DOCTYPE html>
@@ -859,7 +866,7 @@ export default function OrderDetailsScreen({
           <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text><Text style={styles.finValue}>{formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}</Text></View>
           {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(Math.round(fin.discountAmount), countrySettings)}</Text></View>}
           {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.expressChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.expressCharge), countrySettings)}</Text></View>}
-          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')} ({fin.taxRate}%)</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.taxAmount), countrySettings)}</Text></View>}
+          {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')}{fin.taxRate ? ` (${fin.taxRate}%)` : ''}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.taxAmount), countrySettings)}</Text></View>}
           {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.deliveryChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.deliveryCharge), countrySettings)}</Text></View>}
           <View style={styles.divider} />
           <View style={styles.finRow}><Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text><Text style={styles.totalValue}>{formatCurrency(Math.round(fin.total || 0), countrySettings)}</Text></View>
