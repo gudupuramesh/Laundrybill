@@ -608,7 +608,7 @@ export default function OrderDetailsScreen({
       `${t('mobile.subtotalLabel')}: ${formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}`,
     ];
     if (fin.discountAmount > 0) lines.push(`${t('mobile.discountLabel')}: -${formatCurrency(Math.round(fin.discountAmount), countrySettings)}`);
-    if (fin.taxAmount > 0) lines.push(`${fin.taxName || t('mobile.taxFallback')}: +${formatCurrency(Math.round(fin.taxAmount), countrySettings)}`);
+    if (fin.taxAmount > 0) lines.push(`${fin.taxName || t('mobile.taxFallback')}${fin.taxRate ? ` (${fin.taxRate}%)` : ''}: +${formatCurrency(Math.round(fin.taxAmount), countrySettings)}`);
     lines.push(`${t('mobile.totalLabel')}: ${formatCurrency(Math.round(fin.total || 0), countrySettings)}`);
     if (fin.balance > 0) {
       lines.push(withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string));
