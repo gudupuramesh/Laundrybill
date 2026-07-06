@@ -10,6 +10,21 @@ import { useShop, useShopByShopId } from "@/hooks/use-shop";
 import { getCountryByCurrency } from "@/config/countries";
 import type { Shop } from "@/types/shop";
 
+/**
+ * Some currency symbols are RTL Arabic script (AED د.إ, KWD د.ك, SAR/QAR/OMR ﷼).
+ * Dropped raw into LTR UI text they render with shuffled punctuation ("د.إ15" mangled).
+ * For those, fall back to the ISO code + a space ("AED ") so prices read left-to-right —
+ * the same policy the PDF receipt already uses (currencyLabel in generateReceipt.ts).
+ * LTR symbols (₹, $, £, …) are returned unchanged.
+ */
+const RTL_SYMBOL = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
+export function displayCurrencySymbol(symbol: string | undefined, code: string | undefined): string {
+    const s = (symbol || "").trim();
+    if (s && !RTL_SYMBOL.test(s)) return s;
+    const c = (code || "").trim().toUpperCase();
+    return c ? `${c} ` : (s || "₹");
+}
+
 export interface CurrencyInfo {
     /** ISO 4217 code, e.g. "INR", "USD" */
     currencyCode: string;
@@ -24,8 +39,10 @@ export interface CurrencyInfo {
 /** Build CurrencyInfo from a shop object (or null). */
 function buildCurrencyInfo(shop: Shop | null): CurrencyInfo {
     const code = shop?.settings?.currency || "INR";
-    const symbol = shop?.settings?.currencySymbol || getCountryByCurrency(code).currencySymbol;
+    const rawSymbol = shop?.settings?.currencySymbol || getCountryByCurrency(code).currencySymbol;
     const locale = shop?.settings?.locale || getCountryByCurrency(code).locale;
+    // Display-safe: RTL symbols become the ISO code so they don't mangle LTR layout.
+    const symbol = displayCurrencySymbol(rawSymbol, code);
 
     return {
         currencyCode: code,

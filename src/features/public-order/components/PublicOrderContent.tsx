@@ -32,7 +32,7 @@ import type { Shop } from "@/types/shop";
 import { MapPin, User, Clock, Loader2, Plus, Minus, Star, Info, Search, CalendarClock, ClipboardList, Check, ChevronLeft } from "lucide-react";
 import { getTranslatedItemName, getTranslatedUnit, isWeightUnit } from "@/lib/inventory-translations";
 import { format } from "date-fns";
-import { formatCurrencyValue } from "@/hooks/use-currency";
+import { formatCurrencyValue, displayCurrencySymbol } from "@/hooks/use-currency";
 import { getCountry, getCountryByCurrency, COUNTRIES } from "@/config/countries";
 import { useNavigate } from "react-router-dom";
 import { forwardGeocode } from "@/lib/geocoding";
@@ -74,7 +74,7 @@ export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChang
     const { addToast } = useLToast();
     const navigate = useNavigate();
 
-    const shopCurrencySymbol = shop.settings?.currencySymbol || "₹";
+    const shopCurrencySymbol = displayCurrencySymbol(shop.settings?.currencySymbol, shop.settings?.currency);
     const shopLocale = shop.settings?.locale || "en-IN";
     const fmt = (v: number) => formatCurrencyValue(v, shopCurrencySymbol, shopLocale);
     // Phone country defaults to the shop's country, but the customer can change it —

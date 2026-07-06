@@ -122,6 +122,21 @@ export function getCountryByCurrency(currencyCode?: string): CountryConfig {
   return COUNTRIES.find((c) => c.currencyCode === currencyCode) || getCountry(DEFAULT_COUNTRY_CODE);
 }
 
+// Country-specific address labels (UAE = Emirate / P.O. Box; most others = State / Postal Code).
+const STATE_LABELS: Record<string, string> = {
+  AE: "Emirate", SA: "Region", QA: "Municipality", KW: "Governorate", OM: "Governorate", BH: "Governorate",
+  GB: "County", SG: "District", NL: "Province", KE: "County", IN: "State",
+};
+const PIN_LABELS: Record<string, string> = {
+  IN: "PIN Code", AE: "P.O. Box", US: "ZIP Code", GB: "Postcode", SG: "Postal Code",
+};
+export function getStateLabel(code?: string): string {
+  return STATE_LABELS[(code || DEFAULT_COUNTRY_CODE).toUpperCase()] || "State";
+}
+export function getPinLabel(code?: string): string {
+  return PIN_LABELS[(code || DEFAULT_COUNTRY_CODE).toUpperCase()] || "Postal Code";
+}
+
 /** Get supported units for a country code */
 export function getUnitsForCountry(countryCode?: string): { units: PricingType[]; defaultUnit: PricingType; labels: typeof UNIT_LABELS } {
   const country = getCountry(countryCode);

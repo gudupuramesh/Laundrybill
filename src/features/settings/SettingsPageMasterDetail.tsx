@@ -23,7 +23,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { COUNTRIES, getCountry, splitInternationalPhone } from "@/config/countries";
+import { COUNTRIES, getCountry, splitInternationalPhone, getStateLabel } from "@/config/countries";
 import { reverseGeocode } from "@/lib/geocoding";
 import { useTranslation } from "react-i18next";
 import {
@@ -659,10 +659,11 @@ export function SettingsPageMasterDetail() {
                                             </Field>
                                             <div style={grid2}>
                                                 <Field label={t("shop.city", "City")}><input style={fld} value={city} onChange={(e) => setCity(e.target.value)} /></Field>
-                                                <Field label={t("shop.state", "State")}><input style={fld} value={state} onChange={(e) => setState(e.target.value)} /></Field>
+                                                <Field label={getStateLabel(selectedCountryCode)}><input style={fld} value={state} onChange={(e) => setState(e.target.value)} /></Field>
                                             </div>
-                                            <Field label={t("shop.pincode", "Pincode")}>
-                                                <input style={fldMono} value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} maxLength={6} />
+                                            <Field label={phoneCountry.pinLabel}>
+                                                {/* India PIN is 6 digits; UAE PO Box / other postal codes are alphanumeric — don't force digits-only for non-IN. */}
+                                                <input style={fldMono} value={pincode} onChange={(e) => setPincode(selectedCountryCode === "IN" ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12))} maxLength={12} />
                                             </Field>
                                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 13px", background: "var(--c-surface-2)", borderRadius: 10 }}>
                                                 <div>

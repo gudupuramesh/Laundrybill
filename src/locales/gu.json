@@ -256,8 +256,8 @@
     "capacityHint": "Max orders per day for this slot; leave empty for unlimited",
     "deliveryFee": "Delivery Fee",
     "deliveryFeeHelp": "Applies to Home Delivery and Pickup & Delivery when order is below minimum. Not applied to Shop Pickup.",
-    "deliveryFeeMinOrder": "Min order for free delivery (₹)",
-    "deliveryFeeAmount": "Delivery fee when below min (₹)"
+    "deliveryFeeMinOrder": "Min order for free delivery",
+    "deliveryFeeAmount": "Delivery fee when below min"
   },
   "dashboard": {
     "title": "Dashboard",

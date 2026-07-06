@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { firestore } from "./db";
 import { getShopId } from "./auth";
-import { resolveShopCountrySettings, type ShopCountrySettings } from "./currency-format";
+import { resolveShopCountrySettings, displayCurrencySymbol, type ShopCountrySettings } from "./currency-format";
 
 export function useShopCountrySettings(shopIdFromArgs?: string | null) {
   const [shopSettings, setShopSettings] = useState<ShopCountrySettings | null>(null);
@@ -24,6 +24,11 @@ export function useShopCountrySettings(shopIdFromArgs?: string | null) {
     return unsub;
   }, [shopId]);
 
-  return useMemo(() => resolveShopCountrySettings(shopSettings || {}), [shopSettings]);
+  // Expose a DISPLAY-SAFE currencySymbol: RTL symbols (AED د.إ, ﷼) become the ISO
+  // code so on-screen prices don't render shuffled. Every consumer inherits this.
+  return useMemo(() => {
+    const resolved = resolveShopCountrySettings(shopSettings || {});
+    return { ...resolved, currencySymbol: displayCurrencySymbol(resolved.currencySymbol, resolved.currency) };
+  }, [shopSettings]);
 }
 

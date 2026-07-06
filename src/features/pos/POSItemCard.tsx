@@ -51,10 +51,17 @@ export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemove
         <div style={{ display: "flex", flexDirection: "column", background: "var(--c-surface)", border: `1.5px solid ${inCart ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 13, overflow: "hidden", boxShadow: "var(--sh-sm)", position: "relative" }}>
             {/* hero */}
             <div style={{ aspectRatio: "1.5 / 1", background: `var(--${soft})`, color: `var(--${ref})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-                {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={name} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                    <Shirt size={40} strokeWidth={1.6} />
+                {/* Icon is the always-present base layer; the image (when set) covers it
+                    and reveals it again on a 404 — no broken-image glyph in the grid. */}
+                <Shirt size={40} strokeWidth={1.6} />
+                {item.imageUrl && (
+                    <img
+                        src={item.imageUrl}
+                        alt={name}
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                    />
                 )}
                 {inCart && (
                     <span style={{ position: "absolute", top: 8, right: 8, minWidth: 22, height: 22, padding: "0 6px", borderRadius: 11, background: "var(--c-primary)", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "'IBM Plex Mono'", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--sh-sm)" }}>{isKg ? qty.toFixed(1) : qty}</span>

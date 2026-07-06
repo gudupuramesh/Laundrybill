@@ -11,7 +11,7 @@ let Location: typeof import('expo-location') | null = null;
 try { Location = require('expo-location'); } catch {}
 import { firestore } from '../lib/db';
 import { auth, getShopId, setResolvedShopId } from '../lib/auth';
-import { COUNTRIES, getCountry, getCountryCodeFromPhone } from '../lib/country-config';
+import { COUNTRIES, getCountry, getCountryCodeFromPhone, getStateLabel, getPinLabel } from '../lib/country-config';
 import { normalizePhoneForCountry, toE164 } from '../lib/currency-format';
 const R2_WORKER_URL = process.env.EXPO_PUBLIC_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -701,12 +701,12 @@ export default function RegisterShopScreen({
 
             <View style={styles.row}>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>{t('mobile.stateLabel')}</Text>
-                <TextInput style={styles.input} placeholder="State" value={formData.state} onChangeText={(t) => handleChange('state', t)} />
+                <Text style={styles.label}>{getStateLabel(countryCode)}</Text>
+                <TextInput style={styles.input} placeholder={getStateLabel(countryCode)} value={formData.state} onChangeText={(t) => handleChange('state', t)} />
               </View>
               <View style={styles.flex1Box}>
-                <Text style={styles.label}>{t('mobile.pinCodeLabel')}</Text>
-                <TextInput style={styles.input} placeholder="PIN / ZIP" keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
+                <Text style={styles.label}>{getPinLabel(countryCode)}</Text>
+                <TextInput style={styles.input} placeholder={getPinLabel(countryCode)} keyboardType="number-pad" value={formData.pincode} onChangeText={(t) => handleChange('pincode', t)} />
               </View>
             </View>
           </View>

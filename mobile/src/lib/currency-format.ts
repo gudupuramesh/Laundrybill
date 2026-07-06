@@ -1,5 +1,24 @@
 import { getCountry, getCountryByCurrency } from "./country-config";
 
+/**
+ * RTL Arabic currency symbols (AED د.إ, KWD د.ك, SAR/QAR/OMR ﷼) render with shuffled
+ * punctuation in LTR text. For those, use the ISO code + a space ("AED ") so amounts
+ * read left-to-right — matching the PDF receipt. LTR symbols (₹, $, …) pass through.
+ */
+const RTL_SYMBOL = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
+export function displayCurrencySymbol(symbol?: string, code?: string): string {
+  const s = (symbol || "").trim();
+  if (s && !RTL_SYMBOL.test(s)) return s;
+  const c = (code || "").trim().toUpperCase();
+  return c ? `${c} ` : (s || "₹");
+}
+
+/** Display-safe currency symbol resolved from shop settings (RTL → ISO code). */
+export function getDisplaySymbol(settings?: ShopCountrySettings): string {
+  const s = resolveShopCountrySettings(settings);
+  return displayCurrencySymbol(s.currencySymbol, s.currency);
+}
+
 export type ShopCountrySettings = {
   countryCode?: string;
   currency?: string;
@@ -31,7 +50,7 @@ export function formatCurrency(value: number, settings?: ShopCountrySettings): s
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(abs);
-  return `${sign}${s.currencySymbol}${formatted}`;
+  return `${sign}${displayCurrencySymbol(s.currencySymbol, s.currency)}${formatted}`;
 }
 
 export function formatAmountNumber(value: number, settings?: ShopCountrySettings): string {

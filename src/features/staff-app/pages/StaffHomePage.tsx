@@ -44,12 +44,12 @@ export function StaffHomePage() {
         </div>
     );
 
-    const trendStr = (n: number) => (n > 0 ? `▲ ${n}%` : n < 0 ? `▼ ${Math.abs(n)}%` : "—");
-    const trendRef = (n: number) => (n >= 0 ? "c-success" : "c-error");
+    const trendStr = (n: number | null) => (n == null ? "—" : n > 0 ? `▲ ${n}%` : n < 0 ? `▼ ${Math.abs(n)}%` : "—");
+    const trendRef = (n: number | null) => (n == null ? "c-text-3" : n >= 0 ? "c-success" : "c-error");
 
     const kpis = [
         { label: t('dashboard.todaysOrders', "Orders today"), value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <ShoppingBag size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: t('dashboard.vsYesterday', "vs yesterday"), to: "/staff/orders" },
-        { label: t('dashboard.todaysRevenue', "Revenue today"), value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: t('dashboard.vsPrior', "vs prior"), to: undefined },
+        { label: t('dashboard.todaysRevenue', "Revenue today"), value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: t('dashboard.vsYesterday', "vs yesterday"), to: undefined },
         { label: t('dashboard.readyForPickup', "Ready for pickup"), value: String(stats.readyOrders), ref: "c-info", soft: "c-info-soft", icon: <PackageCheck size={15} />, delta: "● live", deltaRef: "c-info", sub: t('dashboard.inQueue', "in queue"), to: "/staff/orders?status=ready" },
         { label: t('dashboard.pending', "Pending"), value: String(stats.pendingOrders), ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, delta: t('dashboard.needsAction', "needs action"), deltaRef: "c-warning", sub: "", to: "/staff/orders?status=pending" },
         { label: t('dashboard.activeCustomers', "Customers"), value: String(stats.totalCustomers), ref: "c-violet", soft: "c-violet-soft", icon: <Users size={15} />, delta: (stats.newCustomersToday ?? 0) > 0 ? `+${stats.newCustomersToday}` : "—", deltaRef: "c-success", sub: t('dashboard.newToday', "new today"), to: "/staff/customers" },

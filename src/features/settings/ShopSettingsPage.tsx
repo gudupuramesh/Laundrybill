@@ -35,7 +35,7 @@ import {
     Shield,
 } from "lucide-react";
 import { ServiceAreasSettings } from "./ServiceAreasSettings";
-import { getCountry, splitInternationalPhone } from "@/config/countries";
+import { getCountry, splitInternationalPhone, getStateLabel } from "@/config/countries";
 import { useAuth } from "@/features/auth/AuthContext";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -679,7 +679,7 @@ ${latitude && longitude ? `📌 https://maps.google.com/?q=${latitude},${longitu
                                 placeholder="Hyderabad"
                             />
                             <LTextInput
-                                label={t("shop.state")}
+                                label={getStateLabel(shop?.settings?.countryCode)}
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
                                 placeholder="Telangana"
@@ -687,9 +687,9 @@ ${latitude && longitude ? `📌 https://maps.google.com/?q=${latitude},${longitu
                         </div>
 
                         <LTextInput
-                            label={t("shop.pincode")}
+                            label={getCountry(shop?.settings?.countryCode || "IN").pinLabel}
                             value={pincode}
-                            onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                            onChange={(e) => setPincode((shop?.settings?.countryCode || "IN") === "IN" ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12))}
                             placeholder="500001"
                             inputMode="numeric"
                             maxLength={6}

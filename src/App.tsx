@@ -287,6 +287,10 @@ function App() {
               <Route path="help" element={<HelpPage />} />
             </Route>
 
+            {/* Bare /subscription → the real billing page. Without this it would fall
+                through to /:shopSlug and render the "shop not available" public page. */}
+            <Route path="/subscription" element={<Navigate to="/settings/subscription" replace />} />
+
             {/* Public shop page — clean URL: /:shopSlug (e.g. /ramesh). React Router ranks
                 this dynamic route BELOW every static app route, so /dashboard, /orders,
                 /login, /track, etc. still win. Reserved slug names are guarded in the

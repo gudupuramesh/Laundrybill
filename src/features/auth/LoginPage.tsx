@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { reverseGeocode } from "@/lib/geocoding";
-import { COUNTRIES, getCountry, DEFAULT_COUNTRY, detectCountryByTimezone } from "@/config/countries";
+import { COUNTRIES, getCountry, DEFAULT_COUNTRY, detectCountryByTimezone, getStateLabel } from "@/config/countries";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { consumeEvictionFlag } from "@/lib/session-guard";
@@ -473,7 +473,9 @@ export function LoginPage() {
             setStateError(requiredMsg);
             hasErrors = true;
         }
-        if (!pincode.trim()) {
+        // Postal code isn't universal — UAE uses an optional P.O. Box. Only require it
+        // where it's a real mandatory field (India PIN).
+        if (selectedCountry.code === "IN" && !pincode.trim()) {
             setPincodeError(requiredMsg);
             hasErrors = true;
         }
@@ -987,7 +989,7 @@ export function LoginPage() {
                                         error={cityError}
                                     />
                                     <LTextInput
-                                        label={t('shop.state')}
+                                        label={getStateLabel(selectedCountry.code)}
                                         value={formState}
                                         onChange={(e) => {
                                             setFormState(e.target.value);

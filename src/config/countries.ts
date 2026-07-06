@@ -101,6 +101,19 @@ export function getTaxIdLabel(countryCode?: string | null, preferredTaxName?: st
     return `${preferredTaxName || country?.taxName || "Tax"} No.`;
 }
 
+/**
+ * Country-specific label for the "state / region" address field. UAE has Emirates,
+ * KSA has Regions, the UK has Counties; most others use "State". Mirrors `pinLabel`
+ * (already per-country) so address forms read naturally per country.
+ */
+const STATE_LABELS: Record<string, string> = {
+    AE: "Emirate", SA: "Region", QA: "Municipality", KW: "Governorate", OM: "Governorate", BH: "Governorate",
+    GB: "County", SG: "District", NL: "Province", KE: "County",
+};
+export function getStateLabel(countryCode?: string | null): string {
+    return STATE_LABELS[(countryCode || DEFAULT_COUNTRY).toUpperCase()] || "State";
+}
+
 /** Get country config by currency code. Falls back to India. */
 export function getCountryByCurrency(currencyCode: string): CountryConfig {
     return COUNTRIES.find((c) => c.currencyCode === currencyCode) || COUNTRIES[0];

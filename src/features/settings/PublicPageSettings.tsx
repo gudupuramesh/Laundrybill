@@ -78,7 +78,7 @@ const RESERVED_SLUGS = new Set([
     "login", "track", "receipt", "order", "team", "staff", "agent", "plant", "super-admin",
     "dashboard", "scan", "new-order", "orders", "customers", "inventory", "manage-staff",
     "attendance", "payroll", "expenses", "reports", "apps", "settings", "shop-settings",
-    "delivery-settings", "help",
+    "delivery-settings", "help", "subscription",
 ]);
 
 export function PublicPageSettings() {

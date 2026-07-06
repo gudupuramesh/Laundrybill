@@ -7,7 +7,7 @@ import { useState } from "react";
 import { LCard, LButton, LTextInput } from "@/components/laundry";
 import type { Shop } from "@/types/shop";
 import type { PublicCoupon } from "@/types/shop";
-import { formatCurrencyValue } from "@/hooks/use-currency";
+import { formatCurrencyValue, displayCurrencySymbol } from "@/hooks/use-currency";
 
 interface PublicCheckoutCouponProps {
   shop: Shop;
@@ -28,7 +28,7 @@ export function PublicCheckoutCoupon({
 }: PublicCheckoutCouponProps) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const fmt = (v: number) => formatCurrencyValue(v, shop.settings?.currencySymbol || "₹", shop.settings?.locale || "en-IN");
+  const fmt = (v: number) => formatCurrencyValue(v, displayCurrencySymbol(shop.settings?.currencySymbol, shop.settings?.currency), shop.settings?.locale || "en-IN");
 
   const coupons: PublicCoupon[] = shop.settings?.publicCoupons ?? [];
 

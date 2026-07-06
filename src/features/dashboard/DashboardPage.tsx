@@ -82,12 +82,13 @@ export function DashboardPage() {
     const seriesMax = Math.max(1, ...series.map((s) => s.value));
     const seriesTotal = series.reduce((s, x) => s + x.value, 0);
 
-    const trendStr = (n: number) => (n > 0 ? `▲ ${n}%` : n < 0 ? `▼ ${Math.abs(n)}%` : "—");
-    const trendRef = (n: number) => (n >= 0 ? "c-success" : "c-error");
+    // null trend (no comparable yesterday base) → neutral "—", never a fake ▲/▼.
+    const trendStr = (n: number | null) => (n == null ? "—" : n > 0 ? `▲ ${n}%` : n < 0 ? `▼ ${Math.abs(n)}%` : "—");
+    const trendRef = (n: number | null) => (n == null ? "c-text-3" : n >= 0 ? "c-success" : "c-error");
 
     const kpis = [
         { label: "Orders today", value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <Package size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: "vs yesterday" },
-        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs prior" },
+        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs yesterday" },
         { label: "Ready for pickup", value: String(stats.readyOrders), ref: "c-info", soft: "c-info-soft", icon: <PackageCheck size={15} />, delta: "● live", deltaRef: "c-info", sub: "in queue" },
         { label: "Overdue", value: String(fin.pendingCount), ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, delta: "needs action", deltaRef: "c-warning", sub: "" },
         { label: "Customers", value: String(stats.totalCustomers), ref: "c-violet", soft: "c-violet-soft", icon: <CreditCard size={15} />, delta: stats.newCustomersToday > 0 ? `+${stats.newCustomersToday}` : "—", deltaRef: "c-success", sub: "new today" },

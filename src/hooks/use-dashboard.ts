@@ -46,9 +46,9 @@ interface DashboardStats {
     homePickupOrders: number;
     homeDeliveryOrders: number;
 
-    // Trends (7 day comparison)
-    revenueTrend: number; // percentage change
-    ordersTrend: number;
+    // Trend vs yesterday (percentage). null = no comparable base yesterday (chip shows "—").
+    revenueTrend: number | null;
+    ordersTrend: number | null;
     monthlyOrders: number;
 }
 
@@ -392,27 +392,26 @@ export function useDashboard(): UseDashboardReturn {
         const homePickupOrders = todayOrders.filter(o => o.deliveryType === "pickup_home").length;
         const homeDeliveryOrders = todayOrders.filter(o => o.deliveryType === "delivery_home").length;
 
-        // Calculate trends — exclude cancelled
-        const thisWeekRevenue = allOrders
-            .filter(o => {
-                if (o.status === "cancelled") return false;
-                const createdAt = o.createdAt?.toDate?.();
-                return createdAt && createdAt >= weekAgo;
-            })
-            .reduce((sum, order) => sum + (order.financials?.total || 0), 0);
-
-        const thisWeekOrders = allOrders.filter(o => {
+        // Trend = today vs YESTERDAY (the chips are labelled "vs yesterday"). Yesterday's
+        // orders are already within the last-7-days `allOrders` fetch, so filter locally.
+        // When yesterday's base is 0 the percentage is meaningless → null (chip shows "—"),
+        // so "Orders today: 0" never displays a spurious ▲growth.
+        const yesterdayStart = subDays(todayStart, 1);
+        const yesterdayOrders = allOrders.filter((o) => {
+            if (o.status === "cancelled") return false;
             const createdAt = o.createdAt?.toDate?.();
-            return o.status !== "cancelled" && createdAt && createdAt >= weekAgo;
-        }).length;
+            return createdAt && createdAt >= yesterdayStart && createdAt < todayStart;
+        });
+        const prevDayRevenue = yesterdayOrders.reduce((sum, order) => sum + (order.financials?.total || 0), 0);
+        const prevDayOrders = yesterdayOrders.length;
 
-        const revenueTrend = previousRevenue > 0
-            ? Math.round(((thisWeekRevenue - previousRevenue) / previousRevenue) * 100)
-            : 0;
+        const revenueTrend = prevDayRevenue > 0
+            ? Math.round(((todayRevenue - prevDayRevenue) / prevDayRevenue) * 100)
+            : null;
 
-        const ordersTrend = previousOrderCount > 0
-            ? Math.round(((thisWeekOrders - previousOrderCount) / previousOrderCount) * 100)
-            : 0;
+        const ordersTrend = prevDayOrders > 0
+            ? Math.round(((nonCancelledToday.length - prevDayOrders) / prevDayOrders) * 100)
+            : null;
 
         return {
             todayRevenue,
