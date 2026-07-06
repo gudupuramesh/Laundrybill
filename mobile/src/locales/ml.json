@@ -916,7 +916,7 @@
     "receiptHtmlAmountPaid": "അടച്ച തുക",
     "receiptHtmlBalanceDue": "ബാക്കിയുള്ളത്",
     "receiptHtmlPaidInFull": "മുഴുവൻ പണമടച്ചു",
-    "receiptHtmlBalanceDueBanner": "ബാക്കി തുക: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "ബാക്കി തുക: {{amount}}",
     "receiptHtmlGuest": "അതിഥി",
     "receiptHtmlExpressBadge": "എക്സ്പ്രസ്",
     "receiptHtmlItemEa": "/ea",

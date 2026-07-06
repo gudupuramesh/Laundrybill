@@ -1492,7 +1492,7 @@
     "receiptHtmlAmountPaid": "చెల్లించిన మొత్తం",
     "receiptHtmlBalanceDue": "బకాయి",
     "receiptHtmlPaidInFull": "పూర్తిగా చెల్లించారు",
-    "receiptHtmlBalanceDueBanner": "బకాయి: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "బకాయి: {{amount}}",
     "receiptHtmlGuest": "అతిథి",
     "receiptHtmlExpressBadge": "ఎక్స్‌ప్రెస్",
     "receiptHtmlItemEa": "/ఒక్కటి",

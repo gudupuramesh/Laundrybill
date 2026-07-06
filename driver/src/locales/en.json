@@ -1789,7 +1789,7 @@
     "receiptHtmlAmountPaid": "Amount Paid",
     "receiptHtmlBalanceDue": "Balance Due",
     "receiptHtmlPaidInFull": "Paid in Full",
-    "receiptHtmlBalanceDueBanner": "Balance Due: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "Balance Due: {{amount}}",
     "receiptHtmlGuest": "Guest",
     "receiptHtmlExpressBadge": "EXPRESS",
     "receiptHtmlItemEa": "/ea",

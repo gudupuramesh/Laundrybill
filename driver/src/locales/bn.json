@@ -951,7 +951,7 @@
     "receiptHtmlAmountPaid": "প্রদত্ত পরিমাণ",
     "receiptHtmlBalanceDue": "বকেয়া ব্যালেন্স",
     "receiptHtmlPaidInFull": "সম্পূর্ণ অর্থ প্রদান",
-    "receiptHtmlBalanceDueBanner": "বকেয়া ব্যালেন্স: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "বকেয়া ব্যালেন্স: {{amount}}",
     "receiptHtmlGuest": "অতিথি",
     "receiptHtmlExpressBadge": "এক্সপ্রেস",
     "receiptHtmlItemEa": "/ea",

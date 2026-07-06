@@ -916,7 +916,7 @@
     "receiptHtmlAmountPaid": "देय रक्कम",
     "receiptHtmlBalanceDue": "शिल्लक देय",
     "receiptHtmlPaidInFull": "पूर्ण पैसे दिले",
-    "receiptHtmlBalanceDueBanner": "देय शिल्लक: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "देय शिल्लक: {{amount}}",
     "receiptHtmlGuest": "पाहुणे",
     "receiptHtmlExpressBadge": "एक्सप्रेस",
     "receiptHtmlItemEa": "/ea",

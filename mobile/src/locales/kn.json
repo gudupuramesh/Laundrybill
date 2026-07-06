@@ -952,7 +952,7 @@
     "receiptHtmlAmountPaid": "ಪಾವತಿಸಿದ ಮೊತ್ತ",
     "receiptHtmlBalanceDue": "ಬಾಕಿ ಬಾಕಿ",
     "receiptHtmlPaidInFull": "ಪೂರ್ಣವಾಗಿ ಪಾವತಿಸಲಾಗಿದೆ",
-    "receiptHtmlBalanceDueBanner": "ಬಾಕಿ ಬಾಕಿ: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "ಬಾಕಿ ಬಾಕಿ: {{amount}}",
     "receiptHtmlGuest": "ಅತಿಥಿ",
     "receiptHtmlExpressBadge": "ಎಕ್ಸ್ಪ್ರೆಸ್",
     "receiptHtmlItemEa": "/ಇಎ",

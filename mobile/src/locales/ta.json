@@ -952,7 +952,7 @@
     "receiptHtmlAmountPaid": "செலுத்திய தொகை",
     "receiptHtmlBalanceDue": "நிலுவைத் தொகை",
     "receiptHtmlPaidInFull": "முழுமையாக செலுத்தப்பட்டது",
-    "receiptHtmlBalanceDueBanner": "நிலுவைத் தொகை: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "நிலுவைத் தொகை: {{amount}}",
     "receiptHtmlGuest": "விருந்தினர்",
     "receiptHtmlExpressBadge": "எக்ஸ்பிரஸ்",
     "receiptHtmlItemEa": "/ea",

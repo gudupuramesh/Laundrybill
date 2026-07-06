@@ -192,12 +192,15 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   if (fin.discountAmount > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlDiscount'))}</td><td style="text-align:right;color:#006b5f">-${fmt(fin.discountAmount)}</td></tr>`);
   if (fin.expressCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.receiptHtmlExpressCharge'))}</td><td style="text-align:right">+${fmt(fin.expressCharge)}</td></tr>`);
   // Rate suffix only when a rate was stored (legacy orders show the bare name, not "(0%)");
-  // a TAX INVOICE always shows the line — zero-rated renders "VAT (0%)".
+  // a TAX INVOICE always shows the line. When NO tax was charged, the compliance line is
+  // always "VAT (0%)" — never a stale stored name like GST (UAE's tax is VAT, not GST).
   const receiptTaxLabel = fin.taxRate
     ? t('mobile.receiptHtmlTaxRow', { name: taxName, rate: fin.taxRate })
-    : isTaxInvoice
-      ? t('mobile.receiptHtmlTaxRow', { name: fin.taxName || 'VAT', rate: 0 })
-      : taxName;
+    : (fin.taxAmount || 0) > 0
+      ? taxName
+      : isTaxInvoice
+        ? t('mobile.receiptHtmlTaxRow', { name: 'VAT', rate: 0 })
+        : taxName;
   if (fin.taxAmount > 0 || isTaxInvoice) finRows.push(`<tr><td>${escHtml(receiptTaxLabel)}</td><td style="text-align:right">+${fmt(fin.taxAmount || 0)}</td></tr>`);
   if (fin.deliveryCharge > 0) finRows.push(`<tr><td>${escHtml(t('mobile.deliveryChargeLabel'))}</td><td style="text-align:right">+${fmt(fin.deliveryCharge)}</td></tr>`);
 
@@ -259,7 +262,7 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   </table>
 
   <div class="payment-status ${(fin.balance || 0) > 0 ? 'unpaid' : 'paid'}">
-    ${(fin.balance || 0) > 0 ? escHtml(t('mobile.receiptHtmlBalanceDueBanner', { amount: Math.round(fin.balance) })) : escHtml(t('mobile.receiptHtmlPaidInFull'))}
+    ${(fin.balance || 0) > 0 ? escHtml(t('mobile.receiptHtmlBalanceDueBanner', { amount: fmt(fin.balance || 0) })) : escHtml(t('mobile.receiptHtmlPaidInFull'))}
   </div>
 
   ${expectedDelivery ? `

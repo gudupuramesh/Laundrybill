@@ -30,7 +30,10 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumbe
     // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
     const isTaxInvoice = (countryCode || "").toUpperCase() === "AE" && !!gstNumber;
     const fin = order.financials;
-    const taxLabel = `${fin.taxName || (isTaxInvoice ? "VAT" : "Tax")}${fin.taxRate ? ` (${fin.taxRate}%)` : isTaxInvoice ? " (0%)" : ""}`;
+    // Zero-charged compliance line on a TAX INVOICE is always "VAT (0%)" — the stored
+    // tax name (e.g. GST from before a country switch) only applies when tax was charged.
+    const hasTax = (fin.taxAmount || 0) > 0;
+    const taxLabel = `${hasTax ? (fin.taxName || (isTaxInvoice ? "VAT" : "Tax")) : "VAT"}${fin.taxRate ? ` (${fin.taxRate}%)` : isTaxInvoice ? " (0%)" : ""}`;
 
     return (
         <div className="bg-white p-6 max-w-[300px] font-mono text-sm text-black" id="receipt">

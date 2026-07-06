@@ -1753,7 +1753,7 @@
     "receiptHtmlAmountPaid": "ચૂકવેલ રકમ",
     "receiptHtmlBalanceDue": "બાકી બચત",
     "receiptHtmlPaidInFull": "સંપૂર્ણ ચૂકવણી",
-    "receiptHtmlBalanceDueBanner": "બાકી બૅલેન્સ: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "બાકી બૅલેન્સ: {{amount}}",
     "receiptHtmlGuest": "મહેમાન",
     "receiptHtmlExpressBadge": "એક્સપ્રેસ",
     "receiptHtmlItemEa": "/ea",

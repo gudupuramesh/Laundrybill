@@ -1552,7 +1552,7 @@
     "receiptHtmlAmountPaid": "राशि का भुगतान",
     "receiptHtmlBalanceDue": "शेष राशि",
     "receiptHtmlPaidInFull": "पूरा भुगतान किया",
-    "receiptHtmlBalanceDueBanner": "देय शेष: ₹{{amount}}",
+    "receiptHtmlBalanceDueBanner": "देय शेष: {{amount}}",
     "receiptHtmlGuest": "अतिथि",
     "receiptHtmlExpressBadge": "एक्सप्रेस",
     "receiptHtmlItemEa": "/ईए",

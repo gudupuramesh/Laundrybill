@@ -241,8 +241,12 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
     // tax-invoice rules (UAE FTA etc.) require the actual tax name and rate, and a
     // document titled TAX INVOICE always shows the line (zero-rated → "VAT (0%)").
     if ((order.financials.taxAmount || 0) > 0 || isTaxInvoice) {
-        const name = safeTaxName || (isTaxInvoice ? "VAT" : "Tax");
+        const hasTax = (order.financials.taxAmount || 0) > 0;
         const rate = order.financials.taxRate;
+        // A zero-charged line on a TAX INVOICE is a compliance line — always "VAT",
+        // never a stale stored name like GST (UAE's tax is VAT, not GST). The stored
+        // name is only honoured when that tax was actually charged.
+        const name = hasTax ? (safeTaxName || (isTaxInvoice ? "VAT" : "Tax")) : "VAT";
         const taxLabel = `${name}${rate ? ` (${rate}%)` : isTaxInvoice ? " (0%)" : ""}`;
         row(taxLabel, money(order.financials.taxAmount || 0));
     }
