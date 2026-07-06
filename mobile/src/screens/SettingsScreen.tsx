@@ -289,6 +289,41 @@ export default function SettingsScreen({
   };
 
   const saveCountrySettings = async (countryCode: string) => {
+    const sid = getShopId();
+    if (!sid) return;
+    const selected = getCountry(countryCode);
+    const prevCode = countrySettings.countryCode;
+    const prevCurrency = getCountry(prevCode || 'IN').currencyCode;
+
+    // Historical amounts are plain numbers — changing the currency does NOT convert
+    // them, it only relabels them (₹57 would show as AED 57). When the shop already
+    // has orders, require explicit confirmation instead of silently relabelling.
+    if (prevCode && prevCode !== selected.code && prevCurrency !== selected.currencyCode) {
+      let hasOrders = true; // if the check fails, still warn — never relabel silently
+      try {
+        const snap = await firestore().collection('shops').doc(sid).collection('orders').limit(1).get();
+        hasOrders = !snap.empty;
+      } catch { /* keep hasOrders = true */ }
+      if (hasOrders) {
+        Alert.alert(
+          t('mobile.currencyChangeTitle', 'Change currency?'),
+          t('mobile.currencyChangeWarn', {
+            from: prevCurrency,
+            to: selected.currencyCode,
+            defaultValue: `This shop already has orders recorded in ${prevCurrency}. Amounts will NOT be converted — every past order and lifetime total will simply be shown in ${selected.currencyCode}, which misstates your revenue history. Only continue if this shop really operates in ${selected.currencyCode}.`,
+          }),
+          [
+            { text: t('mobile.cancel', 'Cancel'), style: 'cancel' },
+            { text: t('mobile.currencyChangeConfirm', 'Change anyway'), style: 'destructive', onPress: () => { void doSaveCountrySettings(countryCode); } },
+          ],
+        );
+        return;
+      }
+    }
+    return doSaveCountrySettings(countryCode);
+  };
+
+  const doSaveCountrySettings = async (countryCode: string) => {
     try {
       const sid = getShopId();
       if (!sid) return;

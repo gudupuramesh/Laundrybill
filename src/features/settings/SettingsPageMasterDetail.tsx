@@ -15,7 +15,10 @@ import {
     useLToast,
     LLanguageSelector,
     LLocationMap,
+    LConfirmDialog,
 } from "@/components/laundry";
+import { collection, getDocs, limit, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
@@ -150,6 +153,8 @@ export function SettingsPageMasterDetail() {
     // Country & Currency
     const [selectedCountryCode, setSelectedCountryCode] = useState(shop?.settings?.countryCode || "IN");
     const [savingCountry, setSavingCountry] = useState(false);
+    // Set when a currency change would relabel existing orders — asks for explicit confirmation.
+    const [currencyWarn, setCurrencyWarn] = useState<{ from: string; to: string } | null>(null);
 
     // Sync section from URL (?section=...) or redirect legacy publicPage link
     useEffect(() => {
@@ -210,7 +215,7 @@ export function SettingsPageMasterDetail() {
         }
     }, [shop, initialized, user]);
 
-    const handleSaveCountry = async () => {
+    const doSaveCountry = async () => {
         setSavingCountry(true);
         try {
             const country = getCountry(selectedCountryCode);
@@ -230,6 +235,26 @@ export function SettingsPageMasterDetail() {
         } finally {
             setSavingCountry(false);
         }
+    };
+
+    const handleSaveCountry = async () => {
+        // Amounts on historical orders are plain numbers — changing the currency does
+        // NOT convert them, it only relabels them (₹57 would print as AED 57). When the
+        // shop already has orders, make the owner confirm that explicitly.
+        const country = getCountry(selectedCountryCode);
+        const fromCurrency = shop?.settings?.currency || "INR";
+        if (shop?.id && country.currencyCode !== fromCurrency) {
+            let hasOrders = true; // if the check fails, still warn — never relabel silently
+            try {
+                const snap = await getDocs(query(collection(db, "shops", shop.id, "orders"), limit(1)));
+                hasOrders = !snap.empty;
+            } catch { /* keep hasOrders = true */ }
+            if (hasOrders) {
+                setCurrencyWarn({ from: fromCurrency, to: country.currencyCode });
+                return;
+            }
+        }
+        return doSaveCountry();
     };
 
     const getCurrentLocation = async () => {
@@ -818,6 +843,26 @@ export function SettingsPageMasterDetail() {
                     )}
                 </div>
             </div>
+
+            {/* Currency-change guard: historical amounts are NOT converted — get explicit
+                confirmation before relabelling existing orders under a new currency. */}
+            <LConfirmDialog
+                open={!!currencyWarn}
+                onClose={() => setCurrencyWarn(null)}
+                onConfirm={() => {
+                    setCurrencyWarn(null);
+                    void doSaveCountry();
+                }}
+                variant="destructive"
+                title={t("settings.currencyChangeTitle", "Change currency?")}
+                description={t("settings.currencyChangeWarn", {
+                    from: currencyWarn?.from,
+                    to: currencyWarn?.to,
+                    defaultValue: `This shop already has orders recorded in ${currencyWarn?.from}. Amounts will NOT be converted — every past order and lifetime total will simply be shown in ${currencyWarn?.to}, which misstates your revenue history. Only continue if this shop really operates in ${currencyWarn?.to}.`,
+                })}
+                confirmText={t("settings.currencyChangeConfirm", "Change anyway")}
+                cancelText={t("common.cancel", "Cancel")}
+            />
         </div>
     );
 }
