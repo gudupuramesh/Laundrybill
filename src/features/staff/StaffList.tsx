@@ -13,7 +13,6 @@ import { useTeamMembers } from "@/hooks/use-team-members";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useCurrency } from "@/hooks/use-currency";
 import { StaffFormSheet } from "./StaffFormSheet";
-import { TeamMemberFormSheet } from "./TeamMemberFormSheet";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
 import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -56,7 +55,6 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
     const [searchQuery, setSearchQuery] = useState("");
     const [showInactive, setShowInactive] = useState(false);
     const [formSheetOpen, setFormSheetOpen] = useState(false);
-    const [teamMemberSheetOpen, setTeamMemberSheetOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"roster" | "appLogins">("roster");
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [editingAreasFor, setEditingAreasFor] = useState<TeamMember | null>(null);
@@ -108,7 +106,7 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("staff.searchStaff", "Search staff…")}
                         style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
-                {canTeamLogins && <button onClick={() => setTeamMemberSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px" }}><Smartphone size={15} />{t("staff.addAppLogin", "Add App Login")}</button>}
+                {/* Standalone "Add App Login" removed — logins are created via Add Staff (toggle) or a staff profile. */}
                 <button onClick={() => { if (isRosterAddAllowed) setFormSheetOpen(true); }} disabled={!isRosterAddAllowed} style={{ cursor: isRosterAddAllowed ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)", opacity: isRosterAddAllowed ? 1 : 0.55 }}><Plus size={15} />{t("staff.addStaff", "Add Staff")}</button>
             </header>
 
@@ -192,7 +190,7 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                     teamMembersLoading ? (
                         <LSkeletonList count={4} />
                     ) : teamMembers.length === 0 ? (
-                        <LEmptyState icon={<Smartphone className="h-8 w-8" />} title={t("staff.noAppLogins", "No App Logins")} description={canTeamLogins ? t("staff.noAppLoginsDesc", "Create app logins for Staff App, Agents, or Plant operators.") : t("staff.appLoginsUpgrade", "App logins (Staff, Agent, Plant) are available on the Pro+ and Business plans. Upgrade to add them.")} action={canTeamLogins ? { label: t("staff.addAppLogin", "Add App Login"), onClick: () => setTeamMemberSheetOpen(true) } : undefined} />
+                        <LEmptyState icon={<Smartphone className="h-8 w-8" />} title={t("staff.noAppLogins", "No App Logins")} description={canTeamLogins ? t("staff.noAppLoginsDescAddStaff", "Add a staff member and turn on “Create app login”, or open an existing staff profile to create their login.") : t("staff.appLoginsUpgrade", "App logins (Staff, Agent, Plant) are available on the Pro+ and Business plans. Upgrade to add them.")} action={canTeamLogins ? { label: t("staff.addStaff", "Add Staff"), onClick: () => setFormSheetOpen(true) } : undefined} />
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                             {filteredTeamMembers.map((tm, i) => {
@@ -230,7 +228,6 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
             </div>
 
             <StaffFormSheet open={formSheetOpen} onClose={() => setFormSheetOpen(false)} />
-            <TeamMemberFormSheet open={teamMemberSheetOpen} onClose={() => setTeamMemberSheetOpen(false)} />
             <TeamMemberAreasSheet open={!!editingAreasFor} onClose={() => setEditingAreasFor(null)} teamMember={editingAreasFor} />
         </div>
     );

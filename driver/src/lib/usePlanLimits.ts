@@ -114,3 +114,46 @@ export function usePlanLimits(subscriptionData: any): PlanLimits {
   }
   return limits;
 }
+
+// ─── Plan FEATURE flags (same Firestore plans/{id} docs; super-admin authoritative) ───
+const planFeaturesCache = new Map<string, Record<string, boolean>>();
+
+/** Feature flags (e.g. damagePhotos, itemTracking) for the current plan, read
+ *  from Firestore `plans/{planId}.features`. Empty object until loaded / when
+ *  the plan doc is missing — treat missing flags as feature OFF. */
+export function usePlanFeatures(subscriptionData: any): Record<string, boolean> {
+  const canonicalId = canonicalTier(subscriptionData);
+  const [features, setFeatures] = useState<Record<string, boolean>>(
+    () => planFeaturesCache.get(canonicalId) ?? {}
+  );
+
+  useEffect(() => {
+    const cached = planFeaturesCache.get(canonicalId);
+    if (cached) setFeatures(cached);
+
+    const planId = subscriptionData?.planId || subscriptionData?.planName || canonicalId;
+    const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
+    const candidates = [planId, normalized, canonicalId].filter((v, i, a) => a.indexOf(v) === i);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        for (const id of candidates) {
+          const snap = await firestore().collection('plans').doc(id).get();
+          if (snap.exists) {
+            const f = (snap.data()?.features || {}) as Record<string, boolean>;
+            planFeaturesCache.set(canonicalId, f);
+            if (!cancelled) setFeatures(f);
+            return;
+          }
+        }
+        if (!cancelled && !planFeaturesCache.has(canonicalId)) setFeatures({});
+      } catch {
+        if (!cancelled && !planFeaturesCache.has(canonicalId)) setFeatures({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [canonicalId]);
+
+  return features;
+}

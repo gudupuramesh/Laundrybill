@@ -35,12 +35,14 @@ import { LButton, LCard } from "@/components/laundry";
 import { Mail, Lock, Loader2, Eye, EyeOff, Download, ArrowLeft } from "lucide-react";
 import { t, getCurrentLanguage, changeLanguage } from "@/lib/i18n";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
-import { consumeEvictionFlag } from "@/lib/session-guard";
+import { consumeEvictionFlag, claimWebSession } from "@/lib/session-guard";
 
-/** Portal home for a given member type. Staff + manager share the staff portal. */
-function routeForMember(memberType?: string): string {
+/** Portal home for a member. Managers get the owner-style web dashboard (with
+ *  owner-only pages gated); plain staff use the staff portal. */
+function routeForMember(memberType?: string, role?: string): string {
     if (memberType === "agent") return "/agent";
     if (memberType === "plant") return "/plant";
+    if (role === "manager") return "/";
     return "/staff";
 }
 
@@ -83,11 +85,12 @@ async function resolveTeamHome(uid: string): Promise<{ home: string | null; bloc
     if (!memberDoc) return { home: null, blocked: false };
 
     const memberType = memberDoc.data().memberType as string | undefined;
+    const memberRole = memberDoc.data().role as string | undefined;
     const shopId = memberDoc.ref.parent.parent?.id;
     if (shopId && !(await shopAllowsLogin(shopId, memberType))) {
         return { home: null, blocked: true };
     }
-    return { home: routeForMember(memberType), blocked: false };
+    return { home: routeForMember(memberType, memberRole), blocked: false };
 }
 
 const TEAM_PLAN_BLOCKED_MSG =
@@ -158,7 +161,9 @@ export function TeamLoginPage() {
         resolveTeamHome(current.uid)
             .then((res) => {
                 if (!active) return;
-                if (res.home) { navigate(res.home, { replace: true }); return; }
+                // A confirmed team member landing here (e.g. reload) claims their web slot;
+                // an owner who merely opened this page resolves to no home and is left alone.
+                if (res.home) { claimWebSession(current.uid); navigate(res.home, { replace: true }); return; }
                 if (res.blocked) { firebaseSignOut(auth).catch(() => {}); setError(TEAM_PLAN_BLOCKED_MSG); }
                 setBooting(false);
             })
@@ -204,6 +209,11 @@ export function TeamLoginPage() {
                 setLoading(false);
                 return;
             }
+
+            // Single-web-session: the owner AuthContext no longer auto-claims on team
+            // routes (so an owner opening this page can't evict their own dashboard), so
+            // an actual team login must claim its own web slot here.
+            claimWebSession(cred.user.uid);
 
             const requested = (location.state as { from?: { pathname: string } })?.from?.pathname;
             // Only honour the saved destination if it belongs to this member's portal.

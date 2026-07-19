@@ -112,6 +112,16 @@ Thank you for choosing ${shopName}! We hope to serve you again.
 Rate us: ⭐⭐⭐⭐⭐
     `.trim(),
 
+    partially_delivered: (order, shopName) => `
+📦 *Items Partially Collected*
+
+Hi ${order.customerName},
+
+Some items from your order #${order.publicId} have been handed over. The remaining items are still with us at ${shopName} — we'll let you know as soon as they're ready.
+
+Track: ${getTrackingUrl(order.trackingId || order.id)}
+    `.trim(),
+
     cancelled: (order, _shopName) => `
 ❌ *Order Cancelled*
 

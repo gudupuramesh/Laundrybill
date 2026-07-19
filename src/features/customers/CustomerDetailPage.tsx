@@ -30,7 +30,7 @@ const TD: CSSProperties = { padding: "9px 14px", borderBottom: "1px solid var(--
 const STATUS_TINT: Record<OrderStatus, string> = {
     pending: "c-slate", processing: "c-info", ready: "c-primary", ready_for_pickup: "c-primary",
     out_for_delivery: "c-cyan", picked_up: "c-success", delivered: "c-success",
-    pickup_scheduled: "c-warning", pickup_completed: "c-violet", cancelled: "c-error",
+    pickup_scheduled: "c-warning", pickup_completed: "c-violet", partially_delivered: "c-warning", cancelled: "c-error",
 };
 
 function timeAgo(d?: Date): string {
@@ -80,6 +80,10 @@ export function CustomerDetailPage() {
         { label: t("customers.totalOrders", "Total orders"), value: String(customer.totalOrders) },
         { label: t("customers.avgOrder", "Avg order value"), value: formatAmount(avgOrder) },
         { label: t("customers.lastOrder", "Last order"), value: timeAgo(customer.lastOrderAt?.toDate?.()) },
+        // Loyalty balance — shown whenever the customer has (ever had) points.
+        ...((customer.loyaltyPoints || 0) > 0 || (customer.loyaltyEarned || 0) > 0
+            ? [{ label: t("customers.loyaltyPoints", "Loyalty points"), value: String(Math.round(customer.loyaltyPoints || 0)) }]
+            : []),
     ];
 
     const handleUpdate = async (data: Parameters<typeof updateCustomer>[1]) => { await updateCustomer(customer.id, data); setEditOpen(false); };

@@ -63,30 +63,46 @@ export function generateOrderWhatsAppMessage(order: Order, shop?: Shop, currency
 
     const shopName = shop?.name || "LaundryBill";
 
+    // Owner customization (Settings → Operations). Undefined = default behaviour.
+    const ws = shop?.settings?.waShare || {};
+    const showTracking = shop?.settings?.trackingEnabled !== false;
+    const header = ws.headerText?.trim() || `${shopName} - Order Confirmed!`;
+    const footer = ws.footerText?.trim() || `Any questions? Reply to this message!`;
+
     const lines: string[] = [
-        `🧺 *${shopName} - Order Confirmed!*`,
+        `🧺 *${header}*`,
         ``,
         `*Order ID:* #${order.publicId}`,
         `*Date:* ${format(order.createdAt.toDate(), "dd MMM yyyy, hh:mm a")}`,
         `*Type:* ${deliveryLabel}`,
-        ``,
-        `📋 *Items:*`,
-        ...order.items.map(i => {
-            const category = i.categoryName ? `(${i.categoryName})` : "";
-            return `• ${i.serviceName} ${category} × ${i.quantity}`;
-        }),
-        ``,
-        `💰 *Payment Details:*`,
-        ...((order.financials.taxAmount || 0) > 0
-            ? [`${order.financials.taxName || "Tax"}${order.financials.taxRate ? ` (${order.financials.taxRate}%)` : ""}: ${currencySymbol}${order.financials.taxAmount}`]
-            : []),
-        `Total: ${currencySymbol}${order.financials.total}`,
-        `Paid: ${currencySymbol}${order.financials.amountPaid}`,
-        order.financials.balance > 0
-            ? `Balance Due: ${currencySymbol}${order.financials.balance}`
-            : `✅ Paid in Full`,
-        `Payment Method: ${order.paymentMethod?.toUpperCase() || "N/A"}`,
     ];
+
+    if (ws.showItems !== false) {
+        lines.push(
+            ``,
+            `📋 *Items:*`,
+            ...order.items.map(i => {
+                const category = i.categoryName ? `(${i.categoryName})` : "";
+                return `• ${i.serviceName} ${category} × ${i.quantity}`;
+            }),
+        );
+    }
+
+    if (ws.showPayment !== false) {
+        lines.push(
+            ``,
+            `💰 *Payment Details:*`,
+            ...((order.financials.taxAmount || 0) > 0
+                ? [`${order.financials.taxName || "Tax"}${order.financials.taxRate ? ` (${order.financials.taxRate}%)` : ""}: ${currencySymbol}${order.financials.taxAmount}`]
+                : []),
+            `Total: ${currencySymbol}${order.financials.total}`,
+            `Paid: ${currencySymbol}${order.financials.amountPaid}`,
+            order.financials.balance > 0
+                ? `Balance Due: ${currencySymbol}${order.financials.balance}`
+                : `✅ Paid in Full`,
+            `Payment Method: ${order.paymentMethod?.toUpperCase() || "N/A"}`,
+        );
+    }
 
     // Add address for delivery/pickup from home
     if ((deliveryType === "delivery_home" || deliveryType === "pickup_home") && order.deliveryAddress) {
@@ -94,7 +110,7 @@ export function generateOrderWhatsAppMessage(order: Order, shop?: Shop, currency
     }
 
     // Add expected delivery date
-    if (order.expectedDelivery) {
+    if (ws.showExpectedDate !== false && order.expectedDelivery) {
         const dateLabel = deliveryType === "pickup_store"
             ? "Ready for Pickup"
             : "Expected Delivery";
@@ -111,18 +127,16 @@ export function generateOrderWhatsAppMessage(order: Order, shop?: Shop, currency
         `📊 *Status:* ${STATUS_LABELS[order.status] || order.status}`,
     );
 
-    // Add tracking and receipt links
-    lines.push(
-        ``,
-        `━━━━━━━━━━━━━━━━━━━━`,
-        `📱 *Track Your Order:*`,
-        trackingUrl,
-        ``,
-        `🧾 *View Receipt:*`,
-        receiptUrl,
-        ``,
-        `Any questions? Reply to this message!`,
-    );
+    // Add tracking and receipt links (each owner-toggleable)
+    const showReceiptLink = ws.showReceiptLink !== false;
+    if (showTracking || showReceiptLink) {
+        lines.push(``, `━━━━━━━━━━━━━━━━━━━━`);
+        if (showTracking) lines.push(`📱 *Track Your Order:*`, trackingUrl, ``);
+        if (showReceiptLink) lines.push(`🧾 *View Receipt:*`, receiptUrl, ``);
+        lines.push(footer);
+    } else {
+        lines.push(``, footer);
+    }
 
     return lines.join("\n");
 }

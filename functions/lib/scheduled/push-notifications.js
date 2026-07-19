@@ -6,7 +6,7 @@
  * 2. sendAdminNotification — Callable, admin sends custom push to user segments
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendAdminNotification = exports.sendUpgradeReminders = void 0;
+exports.sendAdminNotification = exports.sendUpgradeReminders = exports.collectShopTargets = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const push_sender_1 = require("../services/push-sender");
@@ -26,12 +26,15 @@ async function collectShopTargets(shopId) {
     });
     return { targets, refByToken };
 }
+exports.collectShopTargets = collectShopTargets;
 // ────────────────────────────────────────────────────────────────────────
 // 1. SCHEDULED: Upgrade Reminders
 //    Runs every day at 10:00 AM IST (04:30 UTC)
 // ────────────────────────────────────────────────────────────────────────
 exports.sendUpgradeReminders = functions.pubsub
-    .schedule("30 4 * * *") // 10:00 AM IST daily
+    // Cloud Scheduler evaluates the cron IN the timeZone below — this is 10:00 AM IST
+    // ("30 4" was the UTC time double-converted, which actually fired at 4:30 AM IST).
+    .schedule("0 10 * * *")
     .timeZone("Asia/Kolkata")
     .onRun(async () => {
     var _a, _b;

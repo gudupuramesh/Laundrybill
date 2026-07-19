@@ -53,6 +53,7 @@ const statusConfig: Record<string, { label: string; icon: any; color: string; bg
     cancelled: { label: "Cancelled", icon: XCircle, color: "text-destructive", bgColor: "bg-destructive" },
     pickup_scheduled: { label: "Pickup Scheduled", icon: Clock, color: "text-warning", bgColor: "bg-warning" },
     pickup_completed: { label: "Clothes Collected", icon: Package, color: "text-primary", bgColor: "bg-primary" },
+    partially_delivered: { label: "Partially Delivered", icon: Package, color: "text-warning", bgColor: "bg-warning" },
 };
 
 const progressSteps = [
@@ -109,7 +110,7 @@ export function PublicTrackingPage() {
     const getStepIndex = (status: string): number => {
         if (status === "cancelled") return -1;
         if (status === "delivered" || status === "picked_up") return 3; // picked_up = customer collected = done
-        if (status === "ready" || status === "ready_for_pickup" || status === "ready_for_delivery" || status === "out_for_delivery") return 2;
+        if (status === "ready" || status === "ready_for_pickup" || status === "ready_for_delivery" || status === "out_for_delivery" || status === "partially_delivered") return 2;
         if (status === "processing" || status === "in_progress") return 1;
         return 0; // pending, order_placed
     };
@@ -516,63 +517,66 @@ export function PublicTrackingPage() {
                                 {t('tracking.orderPhotos')}
                             </h3>
                             <div className="space-y-3">
-                                {data.damagePhotoUrls && data.damagePhotoUrls.length > 0 && (
-                                    <div>
-                                        <p className="text-xs text-muted-foreground mb-2">{t('tracking.damageStainPhotos')}</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {data.damagePhotoUrls.map((url, i) => (
-                                                <a
-                                                    key={i}
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90"
-                                                >
-                                                    <img src={url} alt={`Damage ${i + 1}`} className="h-24 w-24 object-cover" />
-                                                </a>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {data.pickupPhoto && (
-                                    <div>
-                                        <p className="text-xs text-muted-foreground mb-2">{t('tracking.pickupProof')}</p>
-                                        <a
-                                            href={data.pickupPhoto}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90"
-                                        >
-                                            <img src={data.pickupPhoto} alt="Pickup proof" className="h-24 w-24 object-cover" />
-                                        </a>
-                                    </div>
-                                )}
-                                {data.deliveryPhoto && (
-                                    <div>
-                                        <p className="text-xs text-muted-foreground mb-2">{t('tracking.deliveryProof')}</p>
-                                        <a
-                                            href={data.deliveryPhoto}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90"
-                                        >
-                                            <img src={data.deliveryPhoto} alt="Delivery proof" className="h-24 w-24 object-cover" />
-                                        </a>
-                                    </div>
-                                )}
-                                {data.plantPhoto && (
-                                    <div>
-                                        <p className="text-xs text-muted-foreground mb-2">{t('tracking.plantProof', 'Plant / processing proof')}</p>
-                                        <a
-                                            href={data.plantPhoto}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90"
-                                        >
-                                            <img src={data.plantPhoto} alt="Plant proof" className="h-24 w-24 object-cover" />
-                                        </a>
-                                    </div>
-                                )}
+                                {(() => {
+                                    const metaFor = (url?: string | null) => (url && data.photoMeta?.find((m) => m.url === url)) || null;
+                                    const roleLabel = (r: string) => ({ owner: t('tracking.roleOwner', 'Shop'), manager: t('tracking.roleManager', 'Manager'), staff: t('tracking.roleStaff', 'Staff'), agent: t('tracking.roleAgent', 'Delivery agent'), plant: t('tracking.rolePlant', 'Processing team') } as Record<string, string>)[r] || r;
+                                    const addedBy = (url?: string | null) => {
+                                        const m = metaFor(url);
+                                        if (!m) return null;
+                                        const when = m.atMs ? new Date(m.atMs).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : null;
+                                        return (
+                                            <p className="text-[11px] text-muted-foreground mt-1">
+                                                {t('tracking.photoAddedBy', 'Added by {{name}} ({{role}})', { name: m.byName, role: roleLabel(m.byRole) })}{when ? ` · ${when}` : ''}
+                                            </p>
+                                        );
+                                    };
+                                    return (
+                                        <>
+                                            {data.damagePhotoUrls && data.damagePhotoUrls.length > 0 && (
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground mb-2">{t('tracking.damageStainPhotos')}</p>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {data.damagePhotoUrls.map((url, i) => (
+                                                            <div key={i}>
+                                                                <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
+                                                                    <img src={url} alt={`Damage ${i + 1}`} className="h-24 w-24 object-cover" />
+                                                                </a>
+                                                                {addedBy(url)}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {data.pickupPhoto && (
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground mb-2">{t('tracking.pickupProof')}</p>
+                                                    <a href={data.pickupPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
+                                                        <img src={data.pickupPhoto} alt="Pickup proof" className="h-24 w-24 object-cover" />
+                                                    </a>
+                                                    {addedBy(data.pickupPhoto)}
+                                                </div>
+                                            )}
+                                            {data.deliveryPhoto && (
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground mb-2">{t('tracking.deliveryProof')}</p>
+                                                    <a href={data.deliveryPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
+                                                        <img src={data.deliveryPhoto} alt="Delivery proof" className="h-24 w-24 object-cover" />
+                                                    </a>
+                                                    {addedBy(data.deliveryPhoto)}
+                                                </div>
+                                            )}
+                                            {data.plantPhoto && (
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground mb-2">{t('tracking.plantProof', 'Plant / processing proof')}</p>
+                                                    <a href={data.plantPhoto} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg overflow-hidden border border-border hover:opacity-90">
+                                                        <img src={data.plantPhoto} alt="Plant proof" className="h-24 w-24 object-cover" />
+                                                    </a>
+                                                    {addedBy(data.plantPhoto)}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </LCard>
                     )}

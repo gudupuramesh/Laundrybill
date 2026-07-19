@@ -34,6 +34,8 @@ import StaffDetailScreen from './src/screens/StaffDetailScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import FeedbackScreen from './src/screens/FeedbackScreen';
 import ServiceAreasScreen from './src/screens/ServiceAreasScreen';
+import BusinessSettingsScreen from './src/screens/BusinessSettingsScreen';
+import ReportsScreen from './src/screens/ReportsScreen';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -483,6 +485,18 @@ function MainLayout() {
     // Navigate to order details if notification contains orderId
     if (data?.orderId) {
       setActiveScreen(`ORDER_DETAILS_${data.orderId}`);
+      return;
+    }
+    // Reminder pushes carry a type — open the orders list pre-filtered to the matching set
+    const reminderFilter =
+      data?.type === 'orders_due' ? 'due'
+      : data?.type === 'orders_uncollected' ? 'ready'
+      : data?.type === 'orders_delayed' ? 'pending'
+      : null;
+    if (reminderFilter) {
+      setOrdersInitialFilter(reminderFilter);
+      setActiveScreen(null);
+      setActiveTab('ORDERS');
     }
   } : undefined);
 
@@ -595,9 +609,10 @@ function MainLayout() {
                  onOpenSubscription={() => setActiveScreen('SUBSCRIPTION')}
                  onStaffList={() => setActiveScreen('STAFF_LIST')}
                  onAttendance={() => setActiveScreen('ATTENDANCE')}
-                 onCreateStaffLogin={SHOW_STAFF_LOGINS && canCreateLogins ? () => { setStaffLoginPrefill(null); setActiveScreen('CREATE_STAFF_LOGIN'); } : undefined}
                  onExpenseList={() => setActiveScreen('EXPENSE_LIST')}
+                 onReports={() => setActiveScreen('REPORTS')}
                  onServiceAreas={() => setActiveScreen('SERVICE_AREAS')}
+                 onBusinessSettings={() => setActiveScreen('BUSINESS_SETTINGS')}
                  onFeedback={() => setActiveScreen('FEEDBACK')}
                />;
       default:
@@ -788,6 +803,15 @@ function MainLayout() {
     );
   }
 
+  if (activeScreen === 'REPORTS') {
+    return (
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <ReportsScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
   if (activeScreen === 'FEEDBACK') {
     return (
       <View style={styles.safeArea}>
@@ -802,6 +826,15 @@ function MainLayout() {
       <View style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
         <ServiceAreasScreen onBack={() => setActiveScreen(null)} />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'BUSINESS_SETTINGS') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <BusinessSettingsScreen onBack={() => setActiveScreen(null)} />
       </View>
     );
   }

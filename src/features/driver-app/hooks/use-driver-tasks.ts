@@ -291,6 +291,9 @@ export function useCompletePickup() {
                 itemsCollected: data.itemsCollected,
                 timeline: arrayUnion(timelineEvent),
                 updatedAt: serverTimestamp(),
+                ...(data.photoUrl ? {
+                    photoMeta: arrayUnion({ url: data.photoUrl, byName: agent?.name || "Pickup Agent", byRole: "agent", at: Timestamp.now() }),
+                } : {}),
             });
             setLoading(false);
             return true;
@@ -365,6 +368,9 @@ export function useCompleteDelivery() {
                 "financials.balance": newBalance,
                 timeline: arrayUnion(timelineEvent),
                 updatedAt: serverTimestamp(),
+                ...(data.photoUrl ? {
+                    photoMeta: arrayUnion({ url: data.photoUrl, byName: agent?.name || "Delivery Agent", byRole: "agent", at: Timestamp.now() }),
+                } : {}),
             });
             setLoading(false);
             return true;

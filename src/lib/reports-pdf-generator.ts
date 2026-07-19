@@ -39,7 +39,21 @@ export interface ReportData {
         totalCustomers: number;
         newCustomers: number;
     };
+    attendanceSummary?: {
+        presentDays: number;
+        absentDays: number;
+        halfDays: number;
+        leaveDays: number;
+        staffTracked: number;
+    };
+    /** Raw status keys (incl. partially_delivered) -> count */
+    ordersByStatus?: Record<string, number>;
+    ordersBySource?: { online: number; pos: number };
+    /** Payment method -> amount collected */
+    paymentsByMethod?: Record<string, number>;
 }
+
+const humanize = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
 export const generateReportsPDF = async (data: ReportData) => {
     const doc = new jsPDF({
@@ -83,7 +97,7 @@ export const generateReportsPDF = async (data: ReportData) => {
     doc.setFillColor(245, 247, 250); // Light background for header
     doc.rect(0, 0, pageWidth, 40, "F");
 
-    text("Finanical Report", margin, 25, { size: 24, font: "bold", color: [13, 148, 136] }); // Primary Color
+    text("Financial Report", margin, 25, { size: 24, font: "bold", color: [13, 148, 136] }); // Primary Color
     text(`Generated on ${format(new Date(), "MMM d, yyyy")}`, margin, 32, { size: 10, color: [100, 116, 139] });
 
     text(data.periodLabel, pageWidth - margin, 25, { size: 14, font: "bold", align: "right" });
@@ -142,12 +156,68 @@ export const generateReportsPDF = async (data: ReportData) => {
     y += rowHeight;
 
     metricRow("Completed", data.orderStats.delivered.toString(), leftCol);
+    if (data.ordersBySource) {
+        text(`${data.ordersBySource.online}`, rightCol + 60, y, { align: "right", font: "bold" });
+        text("Online Booking", rightCol, y, { color: [100, 116, 139] });
+    }
     y += rowHeight;
 
     metricRow("Cancelled", data.orderStats.cancelled.toString(), leftCol);
+    if (data.ordersBySource) {
+        text(`${data.ordersBySource.pos}`, rightCol + 60, y, { align: "right", font: "bold" });
+        text("In-store (POS)", rightCol, y, { color: [100, 116, 139] });
+    }
     y += rowHeight + 5;
 
     y = divider(y);
+
+    // --- ORDERS BY STATUS & PAYMENTS BY METHOD ---
+    const statusEntries = Object.entries(data.ordersByStatus || {}).sort((a, b) => b[1] - a[1]);
+    const payEntries = Object.entries(data.paymentsByMethod || {}).sort((a, b) => b[1] - a[1]);
+
+    if (statusEntries.length > 0 || payEntries.length > 0) {
+        checkOverflow(20 + Math.max(statusEntries.length, payEntries.length + 2) * 5);
+        text("Orders by Status", leftCol, y, { size: 12, font: "bold" });
+        text("Payments by Method", rightCol, y, { size: 12, font: "bold" });
+        y += 8;
+
+        const sectionStartY = y;
+
+        if (statusEntries.length > 0) {
+            statusEntries.forEach(([status, count]) => {
+                text(humanize(status), leftCol, y, { size: 9, color: [100, 116, 139] });
+                text(count.toString(), leftCol + 65, y, { size: 9, align: "right", font: "bold" });
+                y += 5;
+            });
+        } else {
+            text("No orders in this period.", leftCol, y, { size: 9, font: "italic", color: [100, 116, 139] });
+            y += 5;
+        }
+        const statusEndY = y;
+
+        // Payments column
+        y = sectionStartY;
+        if (payEntries.length > 0) {
+            const payTotal = payEntries.reduce((s, [, v]) => s + v, 0);
+            payEntries.forEach(([method, amount]) => {
+                const pct = payTotal > 0 ? (amount / payTotal) * 100 : 0;
+                text(method === "upi" ? "UPI" : humanize(method), rightCol, y, { size: 9, color: [100, 116, 139] });
+                text(`${pct.toFixed(0)}%`, rightCol + 50, y, { size: 8, color: [100, 116, 139], align: "right" });
+                text(`Rs. ${amount.toLocaleString()}`, rightCol + 75, y, { size: 9, align: "right", font: "bold" });
+                y += 5;
+            });
+            y += 1;
+            text("Total Collected", rightCol, y, { size: 9, font: "bold" });
+            text(`Rs. ${payTotal.toLocaleString()}`, rightCol + 75, y, { size: 9, align: "right", font: "bold", color: [22, 163, 74] });
+            y += 5;
+        } else {
+            text("No payments recorded.", rightCol, y, { size: 9, font: "italic", color: [100, 116, 139] });
+            y += 5;
+        }
+
+        y = Math.max(y, statusEndY) + 3;
+        y = divider(y);
+    }
 
     // --- STAFF & CUSTOMER ---
     checkOverflow(60);
@@ -173,6 +243,18 @@ export const generateReportsPDF = async (data: ReportData) => {
     } else {
         text("No staff data available.", leftCol, y + 5, { size: 9, color: [100, 116, 139], font: "italic" });
         y += 10;
+    }
+
+    // Attendance summary (period totals across all staff)
+    if (data.attendanceSummary) {
+        const a = data.attendanceSummary;
+        y += 3;
+        text("Attendance Summary", leftCol, y, { size: 9, font: "bold", color: [100, 116, 139] });
+        y += 5;
+        text(`Present: ${a.presentDays}  |  Half-day: ${a.halfDays}  |  Leave: ${a.leaveDays}  |  Absent: ${a.absentDays}`, leftCol, y, { size: 9 });
+        y += 5;
+        text(`${a.staffTracked} staff tracked this period.`, leftCol, y, { size: 8, color: [100, 116, 139] });
+        y += 5;
     }
 
     // Customer Stats (Right side)

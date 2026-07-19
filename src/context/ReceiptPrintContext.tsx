@@ -17,6 +17,10 @@ export interface ReceiptShopInfo {
     gstNumber?: string;
     /** ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
     countryCode?: string;
+    /** Owner-configured Terms & Conditions printed at the bottom of the receipt. */
+    receiptTerms?: string;
+    /** false hides the tracking QR + link (shop settings.trackingEnabled). */
+    showTracking?: boolean;
 }
 
 interface ReceiptPrintState {
@@ -79,6 +83,8 @@ export function ReceiptPrintProvider({ children }: { children: React.ReactNode }
                         shopPhone={state.shopInfo.phone ?? ""}
                         gstNumber={state.shopInfo.gstNumber}
                         countryCode={state.shopInfo.countryCode}
+                        receiptTerms={state.shopInfo.receiptTerms}
+                        showTracking={state.shopInfo.showTracking}
                     />
                 )}
             </div>,

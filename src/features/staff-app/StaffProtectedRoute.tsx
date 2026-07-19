@@ -37,5 +37,10 @@ export function StaffProtectedRoute({ children }: StaffProtectedRouteProps) {
         return <Navigate to="/agent/today" replace />;
     }
 
+    // Managers use the full owner-style dashboard, not this limited staff portal.
+    if (staff.role === 'manager') {
+        return <Navigate to="/" replace />;
+    }
+
     return <>{children}</>;
 }

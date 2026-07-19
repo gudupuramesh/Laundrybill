@@ -16,6 +16,8 @@ import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { StatusUpdateSheet } from "./StatusUpdateSheet";
 import { PaymentCollectionSheet } from "./PaymentCollectionSheet";
 import { CancelOrderSheet } from "./CancelOrderSheet";
+import { DeleteOrderSheet } from "./DeleteOrderSheet";
+import { useAuth } from "@/features/auth";
 import { TagGeneratorModal } from "@/features/plant-app/components/TagGeneratorModal";
 import {
     MoreVertical,
@@ -51,8 +53,8 @@ import { getCountryByCurrency } from "@/config/countries";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { OrderStatus, DeliveryType } from "@/types/order";
-import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
+import type { OrderStatus, DeliveryType, OrderItem } from "@/types/order";
+import { mapLegacyDeliveryType, STATUS_LABELS, getItemProgress } from "@/types/order";
 
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -64,7 +66,7 @@ const hdrBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", align
 const STATUS_TINT: Record<OrderStatus, string> = {
     pending: "c-slate", processing: "c-info", ready: "c-primary", ready_for_pickup: "c-primary",
     out_for_delivery: "c-cyan", picked_up: "c-success", delivered: "c-success",
-    pickup_scheduled: "c-warning", pickup_completed: "c-violet", cancelled: "c-error",
+    pickup_scheduled: "c-warning", pickup_completed: "c-violet", partially_delivered: "c-warning", cancelled: "c-error",
 };
 const TYPE_TINT: Record<DeliveryType, string> = { delivery_home: "c-success", pickup_store: "c-info", pickup_home: "c-violet" };
 
@@ -79,6 +81,7 @@ const statusIcons: Record<OrderStatus, typeof Clock> = {
     picked_up: Package,
     pickup_scheduled: Clock,
     pickup_completed: Package,
+    partially_delivered: Package,
 };
 
 interface OrderDetailViewProps {
@@ -98,7 +101,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const { order, loading } = useOrder(orderId);
     const { shop } = useShop();
     const { currencySymbol, formatAmount } = useCurrency();
-    const { reassignAgent } = useOrderMutations();
+    const { reassignAgent, updateItemProgress } = useOrderMutations();
     const { agents } = useAvailableAgents();
     const { hasFeature } = useShopLimits();
     const { triggerReceiptPrint } = useReceiptPrint();
@@ -111,12 +114,23 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         }
     }, [order?.id, order?.orderSource, markSeen]);
 
+    // Per-item status (partial delivery / mark processed)
+    const [deliverMode, setDeliverMode] = useState(false);
+    const [deliverDraft, setDeliverDraft] = useState<Record<number, number>>({}); // line index → pieces to deliver now
+    const [procOpen, setProcOpen] = useState<number | null>(null);                // line with an open process-qty stepper
+    const [procQty, setProcQty] = useState(1);                                    // pieces to process in the open stepper
+    const [itemBusy, setItemBusy] = useState(false);
+
     // Sheet states
     const [statusSheetOpen, setStatusSheetOpen] = useState(false);
     const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
     const [actionSheetOpen, setActionSheetOpen] = useState(false);
     const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
+    const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
     const [tagModalOpen, setTagModalOpen] = useState(false);
+    // Permanent delete is OWNER-ONLY (not manager/staff/agent portals).
+    const { role } = useAuth();
+    const isOwner = role === "admin" && !location.pathname.startsWith("/staff") && !location.pathname.startsWith("/agent");
     const [reassigning, setReassigning] = useState(false);
 
     if (loading) {
@@ -164,6 +178,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 countryCode: shop.settings?.countryCode,
                 currencySymbol,
                 currencyCode: shop.settings?.currency,
+                receiptTerms: shop.settings?.receiptTerms,
+                showTracking: shop.settings?.trackingEnabled !== false,
             });
         }
     };
@@ -180,6 +196,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             countryCode: shop.settings?.countryCode,
             currencySymbol,
             currencyCode: shop.settings?.currency,
+            receiptTerms: shop.settings?.receiptTerms,
+            showTracking: shop.settings?.trackingEnabled !== false,
         };
         if (isAndroidPrintEnv()) {
             triggerReceiptPrint(order, shopInfo);
@@ -222,6 +240,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 delivered: steps.length,
                 pickup_scheduled: 0,
                 pickup_completed: 1,
+                partially_delivered: 2, // some collected, rest still at the shop
                 cancelled: -1,
             };
             return map[order.status] ?? 0;
@@ -238,6 +257,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             out_for_delivery: 3,
             delivered: steps.length, // all done – only then show Delivered as completed
             picked_up: steps.length,
+            partially_delivered: 3, // some delivered, the rest not yet
             cancelled: -1,
         };
         return map[order.status] ?? 0;
@@ -294,6 +314,68 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const f = order.financials;
     const taxLabel = f.taxName || shop?.settings?.tax?.name || getCountryByCurrency(shop?.settings?.currency || "INR").taxName;
     const hasPhotos = (order.damagePhotoUrls && order.damagePhotoUrls.length > 0) || !!order.pickupPhoto || !!order.deliveryPhoto || !!order.plantPhoto || !!order.items?.some((i) => i.damages?.length);
+
+    // ── Per-piece progress (partial delivery / per-item processing) ──
+    // Pro+/Business feature: Pro stays on the standard order-level status update
+    // (which cascades to items), with no per-item controls.
+    const itemTracking = hasFeature("itemTracking");
+    const itemsEditable = itemTracking && order.status !== "cancelled";
+    const orderDone = order.status === "delivered" || order.status === "picked_up";
+    // Progress per line, with legacy fallback: a completed order with no counters = fully delivered.
+    const progressOf = (it: OrderItem) => {
+        const p = getItemProgress(it);
+        if (it.processedQty === undefined && it.deliveredQty === undefined && orderDone) return { qty: p.qty, processed: p.qty, delivered: p.qty };
+        return p;
+    };
+    const lineProg = order.items.map(progressOf);
+    const anyProcessable = itemsEditable && lineProg.some((p) => p.processed < p.qty);
+    // Only PROCESSED pieces can be handed over — deliverable = processed − delivered.
+    const anyDeliverable = itemsEditable && lineProg.some((p) => p.delivered < p.processed);
+    const totalPieces = lineProg.reduce((a, p) => a + p.qty, 0);
+    const deliveredPieces = lineProg.reduce((a, p) => a + p.delivered, 0);
+    const draftPieces = Object.values(deliverDraft).reduce((a: number, n) => a + (n || 0), 0);
+
+    const runProgress = async (updates: { index: number; processed?: number; delivered?: number }[]) => {
+        if (!updates.length || itemBusy) return;
+        setItemBusy(true);
+        try {
+            await updateItemProgress(order.id, updates);
+            setDeliverMode(false); setDeliverDraft({}); setProcOpen(null);
+        } catch (e) {
+            console.error("Failed to update item progress:", e);
+        } finally {
+            setItemBusy(false);
+        }
+    };
+    // Process n MORE pieces of a line (absolute processed = current + n).
+    const processMore = (i: number, n: number) => runProgress([{ index: i, processed: Math.min(lineProg[i].qty, lineProg[i].processed + n) }]);
+    const processAll = () => runProgress(order.items.map((_, i) => ({ index: i, processed: lineProg[i].qty })).filter((_, i) => lineProg[i].processed < lineProg[i].qty));
+    // Enter deliver mode: prefill each line with the pieces that are PROCESSED but not
+    // yet delivered (processed − delivered). Unprocessed pieces can't be handed over.
+    const enterDeliver = () => {
+        const draft: Record<number, number> = {};
+        lineProg.forEach((p, i) => { const rem = p.processed - p.delivered; if (rem > 0) draft[i] = rem; });
+        setDeliverDraft(draft); setDeliverMode(true); setProcOpen(null);
+    };
+    const confirmDeliver = () => runProgress(
+        Object.entries(deliverDraft).filter(([, n]) => (n || 0) > 0)
+            .map(([i, n]) => ({ index: Number(i), delivered: Math.min(lineProg[Number(i)].processed, lineProg[Number(i)].delivered + (n || 0)) }))
+    );
+    const setDraft = (i: number, n: number) => setDeliverDraft((d) => ({ ...d, [i]: Math.max(0, Math.min(lineProg[i].processed - lineProg[i].delivered, n)) }));
+
+    // Per-line pill (shows piece counts for multi-piece lines).
+    const pillFor = (p: { qty: number; processed: number; delivered: number }): { label: string; fg: string; bg: string } => {
+        const PEND = { fg: "var(--c-text-3)", bg: "var(--c-surface-2)" };
+        const PROC = { fg: "var(--c-info)", bg: "var(--c-info-soft)" };
+        const DELIV = { fg: "var(--c-success)", bg: "var(--c-success-soft)" };
+        const PART = { fg: "var(--c-warning)", bg: "var(--c-warning-soft)" };
+        if (p.delivered >= p.qty && p.qty > 0) return { label: t("orders.itemDelivered", "Delivered"), ...DELIV };
+        if (p.delivered > 0) return { label: `${p.delivered}/${p.qty} ${t("orders.itemDelivered", "Delivered")}`, ...PART };
+        if (p.processed >= p.qty && p.qty > 0) return { label: t("orders.itemProcessed", "Processed"), ...PROC };
+        if (p.processed > 0) return { label: `${p.processed}/${p.qty} ${t("orders.itemProcessed", "Processed")}`, ...PART };
+        return { label: t("orders.itemPending", "Pending"), ...PEND };
+    };
+    const miniBtn: CSSProperties = { cursor: "pointer", width: 24, height: 24, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: "var(--c-text-2)", background: "var(--c-surface-2)", border: "1px solid var(--c-border-strong)", borderRadius: 6, lineHeight: 1 };
     const stepTime = (id: string) => { const ev = order.timeline?.find((e) => e.status === id); return ev ? format(ev.timestamp.toDate(), 'h:mm a') : '—'; };
     const photoThumb: CSSProperties = { display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--c-border)' };
 
@@ -362,22 +444,92 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                         <div style={{ flex: 1.7, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
                             {/* items */}
                             <div style={{ ...card, overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 20px', borderBottom: '1px solid var(--c-border)', flexWrap: 'wrap' }}>
                                     <div style={{ fontSize: 14, fontWeight: 600 }}>{t('orders.items', 'Items')}</div>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-primary)', background: 'var(--c-primary-soft)', padding: '2px 8px', borderRadius: 20 }}>{order.items.reduce((a, it) => a + it.quantity, 0)}</span>
+                                    {deliveredPieces > 0 && deliveredPieces < totalPieces && (
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 8px', borderRadius: 20 }}>{t('orders.piecesDelivered', '{{done}}/{{total}} pieces delivered', { done: deliveredPieces, total: totalPieces })}</span>
+                                    )}
+                                    <div style={{ flex: 1 }} />
+                                    {anyProcessable && !deliverMode && (
+                                        <button disabled={itemBusy} onClick={processAll} style={{ cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--c-info)', background: 'var(--c-info-soft)', border: '1px solid var(--c-info)', borderRadius: 8, padding: '5px 10px', opacity: itemBusy ? 0.6 : 1 }}>
+                                            <Check size={13} />{t('orders.markAllProcessed', 'All processed')}
+                                        </button>
+                                    )}
+                                    {anyDeliverable && (
+                                        <button disabled={itemBusy} onClick={() => (deliverMode ? (setDeliverMode(false), setDeliverDraft({})) : enterDeliver())} style={{ cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: deliverMode ? 'var(--c-text-2)' : '#fff', background: deliverMode ? 'var(--c-surface)' : 'var(--c-primary)', border: deliverMode ? '1px solid var(--c-border-strong)' : '1px solid var(--c-primary)', borderRadius: 8, padding: '5px 10px', opacity: itemBusy ? 0.6 : 1 }}>
+                                            {deliverMode ? t('common.cancel', 'Cancel') : <><Package size={13} />{t('orders.deliverItems', 'Deliver items')}</>}
+                                        </button>
+                                    )}
                                 </div>
+                                {deliverMode && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: 'var(--c-primary-soft)', borderBottom: '1px solid var(--c-border)', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--c-primary)' }}>{t('orders.setDeliverQty', 'Set how many pieces of each line the customer is taking')}</span>
+                                        <div style={{ flex: 1 }} />
+                                        <button disabled={draftPieces === 0 || itemBusy} onClick={confirmDeliver} style={{ cursor: draftPieces ? 'pointer' : 'default', font: 'inherit', fontSize: 12.5, fontWeight: 600, color: '#fff', background: draftPieces ? 'var(--c-primary)' : 'var(--c-border-strong)', border: 0, borderRadius: 8, padding: '6px 13px', opacity: itemBusy ? 0.6 : 1 }}>
+                                            {t('orders.deliverSelected', 'Deliver selected')}{draftPieces ? ` (${draftPieces})` : ''}
+                                        </button>
+                                    </div>
+                                )}
                                 {groupOrderItemsByCategory(order.items, (it) => it.categoryName || 'Other').map((group) => (
                                     <div key={group.categoryName}>
                                         <div style={{ padding: '8px 20px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--c-text-3)', background: 'var(--c-surface-2)', borderBottom: '1px solid var(--c-border)' }}>{group.categoryName}</div>
                                         {group.items.map((it) => {
                                             const ir = tintFor(it.categoryId || it.serviceName);
+                                            const gi = order.items.indexOf(it);
+                                            const p = lineProg[gi];
+                                            const pill = pillFor(p);
+                                            const deliverRem = p.processed - p.delivered;   // only PROCESSED pieces can be handed over
+                                            const procRem = p.qty - p.processed;            // pieces still to process
+                                            const awaitingProcess = deliverMode && deliverRem === 0 && p.delivered < p.qty; // nothing to deliver yet
+                                            const draft = deliverDraft[gi] ?? 0;
+                                            const stepOpen = procOpen === gi;
                                             return (
-                                                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                                                <div key={`${it.id}-${gi}`} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderBottom: '1px solid var(--c-border)', background: deliverMode && draft > 0 ? 'var(--c-primary-soft)' : undefined }}>
                                                     <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 9, background: `var(--${ir}-soft)`, color: `var(--${ir})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shirt size={20} strokeWidth={1.6} /></span>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>{it.serviceName}{it.express && <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 5px', borderRadius: 4 }}>⚡ EXP</span>}</div>
+                                                        <div style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                            {it.serviceName}
+                                                            {it.express && <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 5px', borderRadius: 4 }}>⚡ EXP</span>}
+                                                            {(itemTracking || p.processed > 0 || p.delivered > 0) && <span style={{ fontSize: 9.5, fontWeight: 700, color: pill.fg, background: pill.bg, padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: '.03em' }}>{pill.label}</span>}
+                                                        </div>
                                                         <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}</div>
                                                     </div>
+
+                                                    {/* Deliver mode, but this line has no processed-yet-undelivered pieces */}
+                                                    {awaitingProcess && (
+                                                        <span style={{ flex: 'none', fontSize: 11, color: 'var(--c-text-3)', fontStyle: 'italic' }}>{t('orders.processFirst', 'Not processed yet')}</span>
+                                                    )}
+
+                                                    {/* Deliver mode: per-line qty stepper for how many the customer takes */}
+                                                    {deliverMode && deliverRem > 0 && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+                                                            {p.qty > 1 ? <>
+                                                                <button onClick={() => setDraft(gi, draft - 1)} style={miniBtn}>−</button>
+                                                                <span style={{ minWidth: 34, textAlign: 'center', fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{draft}<span style={{ color: 'var(--c-text-3)', fontWeight: 400 }}>/{deliverRem}</span></span>
+                                                                <button onClick={() => setDraft(gi, draft + 1)} style={miniBtn}>＋</button>
+                                                            </> : (
+                                                                <input type="checkbox" checked={draft > 0} onChange={(e) => setDraft(gi, e.target.checked ? 1 : 0)} style={{ width: 18, height: 18, accentColor: 'var(--c-primary)', cursor: 'pointer' }} />
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Process controls (not in deliver mode) */}
+                                                    {!deliverMode && itemsEditable && procRem > 0 && (
+                                                        p.qty > 1 && stepOpen ? (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+                                                                <button onClick={() => setProcQty(Math.max(1, procQty - 1))} style={miniBtn}>−</button>
+                                                                <span style={{ minWidth: 34, textAlign: 'center', fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{Math.min(procQty, procRem)}<span style={{ color: 'var(--c-text-3)', fontWeight: 400 }}>/{procRem}</span></span>
+                                                                <button onClick={() => setProcQty(Math.min(procRem, procQty + 1))} style={miniBtn}>＋</button>
+                                                                <button disabled={itemBusy} onClick={() => processMore(gi, Math.min(procQty, procRem))} style={{ ...miniBtn, width: 'auto', padding: '0 8px', color: 'var(--c-info)', background: 'var(--c-info-soft)', borderColor: 'var(--c-info)', fontSize: 12 }}>{t('orders.process', 'Process')}</button>
+                                                            </div>
+                                                        ) : (
+                                                            <button disabled={itemBusy} onClick={() => { if (p.qty > 1) { setProcOpen(gi); setProcQty(procRem); } else { processMore(gi, procRem); } }} title={t('orders.markProcessed', 'Mark processed')} style={{ cursor: 'pointer', flex: 'none', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-info)', background: 'var(--c-info-soft)', border: '1px solid var(--c-info)', borderRadius: 7, opacity: itemBusy ? 0.6 : 1 }}>
+                                                                <Check size={14} />
+                                                            </button>
+                                                        )
+                                                    )}
+
                                                     <span style={{ fontFamily: MONO, fontSize: 12.5, color: 'var(--c-text-2)', whiteSpace: 'nowrap' }}>{it.quantity} × {formatAmount(it.unitPrice)}</span>
                                                     <span style={{ width: 72, textAlign: 'right', fontFamily: MONO, fontWeight: 600 }}>{formatAmount(it.total)}</span>
                                                 </div>
@@ -387,26 +539,69 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                 ))}
                                 <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.subtotal', 'Subtotal')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.subtotal)}</span></div>
-                                    {f.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{t('checkout.discount', 'Discount')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.discountAmount)}</span></div>}
+                                    {f.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{f.couponCode ? `${t('checkout.coupon', 'Coupon')} ${f.couponCode}` : t('checkout.discount', 'Discount')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.discountAmount)}</span></div>}
+                                    {(f.pointsRedeemed || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{t('orders.pointsRedeemedLabel', 'Points redeemed')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.pointsRedeemed || 0)}</span></div>}
+                                    {(order.loyalty?.earnedPoints || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-warning)' }}><span>{t('orders.pointsEarnedLabel', 'Cashback earned')}</span><span style={{ fontFamily: MONO }}>+{order.loyalty!.earnedPoints} {t('orders.pts', 'pts')}</span></div>}
                                     {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{taxLabel} ({f.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(f.taxAmount || 0)}</span></div>}
                                     {(f.deliveryCharge || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.deliveryCharge', 'Delivery')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.deliveryCharge)}</span></div>}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, fontSize: 15 }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(f.total)}</span></div>
                                 </div>
                             </div>
 
-                            {/* photos */}
-                            {hasPhotos && (
-                                <div style={{ ...card, padding: '18px 20px' }}>
-                                    <div style={{ ...secLbl, display: 'flex', alignItems: 'center', gap: 7 }}><ImageIcon size={14} />{t('orders.photos', 'ORDER PHOTOS')}</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                                        {order.damagePhotoUrls?.map((url, i) => <a key={`d${i}`} href={url} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={url} alt={`Damage ${i + 1}`} style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>)}
-                                        {order.pickupPhoto && <a href={order.pickupPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.pickupPhoto} alt="Pickup proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
-                                        {order.deliveryPhoto && <a href={order.deliveryPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.deliveryPhoto} alt="Delivery proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
-                                        {order.plantPhoto && <a href={order.plantPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={order.plantPhoto} alt="Plant proof" style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>}
-                                        {order.items?.flatMap((it, idx) => (it.damages || []).filter((d) => d.photoUrl).map((d, i) => <a key={`i${idx}-${i}`} href={d.photoUrl!} target="_blank" rel="noopener noreferrer" style={photoThumb}><img src={d.photoUrl!} alt={d.description || 'Damage'} style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} /></a>))}
+                            {/* photos — each captioned with type + who added it and when */}
+                            {hasPhotos && (() => {
+                                const metaFor = (url?: string | null) => (url && order.photoMeta?.find((m) => m.url === url)) || null;
+                                const roleLabel = (r: string) => ({ owner: t('orders.roleOwner', 'Owner'), manager: t('orders.roleManager', 'Manager'), staff: t('orders.roleStaff', 'Staff'), agent: t('orders.roleAgent', 'Delivery agent'), plant: t('orders.rolePlant', 'Plant') } as Record<string, string>)[r] || r;
+                                const caption = (url: string | null | undefined, typeLabel: string) => {
+                                    const m = metaFor(url);
+                                    return (
+                                        <div style={{ width: 84, marginTop: 4 }}>
+                                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--c-text-2)', lineHeight: 1.3 }}>{typeLabel}</div>
+                                            {m && <div style={{ fontSize: 9.5, color: 'var(--c-text-3)', lineHeight: 1.35 }}>{m.byName} ({roleLabel(m.byRole)})<br />{m.at?.toDate ? format(m.at.toDate(), 'MMM d, h:mm a') : ''}</div>}
+                                        </div>
+                                    );
+                                };
+                                const thumb = (url: string, alt: string) => (
+                                    <img src={url} alt={alt} style={{ height: 84, width: 84, objectFit: 'cover', display: 'block' }} />
+                                );
+                                return (
+                                    <div style={{ ...card, padding: '18px 20px' }}>
+                                        <div style={{ ...secLbl, display: 'flex', alignItems: 'center', gap: 7 }}><ImageIcon size={14} />{t('orders.photos', 'ORDER PHOTOS')}</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                                            {order.damagePhotoUrls?.map((url, i) => (
+                                                <div key={`d${i}`}>
+                                                    <a href={url} target="_blank" rel="noopener noreferrer" style={photoThumb}>{thumb(url, `Damage ${i + 1}`)}</a>
+                                                    {caption(url, t('orders.photoDamage', 'Damage / stain'))}
+                                                </div>
+                                            ))}
+                                            {order.pickupPhoto && (
+                                                <div>
+                                                    <a href={order.pickupPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}>{thumb(order.pickupPhoto, 'Pickup proof')}</a>
+                                                    {caption(order.pickupPhoto, t('orders.photoPickup', 'Pickup proof'))}
+                                                </div>
+                                            )}
+                                            {order.deliveryPhoto && (
+                                                <div>
+                                                    <a href={order.deliveryPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}>{thumb(order.deliveryPhoto, 'Delivery proof')}</a>
+                                                    {caption(order.deliveryPhoto, t('orders.photoDelivery', 'Delivery proof'))}
+                                                </div>
+                                            )}
+                                            {order.plantPhoto && (
+                                                <div>
+                                                    <a href={order.plantPhoto} target="_blank" rel="noopener noreferrer" style={photoThumb}>{thumb(order.plantPhoto, 'Plant photo')}</a>
+                                                    {caption(order.plantPhoto, t('orders.photoPlant', 'Plant processing'))}
+                                                </div>
+                                            )}
+                                            {order.items?.flatMap((it, idx) => (it.damages || []).filter((d) => d.photoUrl).map((d, i) => (
+                                                <div key={`i${idx}-${i}`}>
+                                                    <a href={d.photoUrl!} target="_blank" rel="noopener noreferrer" style={photoThumb}>{thumb(d.photoUrl!, d.description || 'Damage')}</a>
+                                                    {caption(d.photoUrl, d.description || t('orders.photoDamage', 'Damage / stain'))}
+                                                </div>
+                                            )))}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* timeline */}
                             <div style={{ ...card, padding: '18px 20px' }}>
@@ -451,6 +646,9 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                     {isHome && order.deliveryAddress && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}><span style={{ color: 'var(--c-text-3)', flex: 'none', marginTop: 1 }}><MapPin size={16} /></span><span style={{ fontSize: 13, color: 'var(--c-text-2)' }}>{order.deliveryAddress}</span></div>}
                                     {order.deliveryArea && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 12, paddingTop: 12, borderTop: isHome && order.deliveryAddress ? '1px solid var(--c-border)' : undefined }}><span style={{ color: 'var(--c-text-2)' }}>{t('checkout.serviceArea', 'Area')}</span><span style={{ fontWeight: 600 }}>{order.deliveryArea}</span></div>}
                                     {order.expectedDelivery && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{dtype === 'delivery_home' ? t('orders.expectedDelivery', 'Expected') : t('orders.expectedReady', 'Ready by')}</span><span style={{ fontWeight: 600 }}>{format(order.expectedDelivery.toDate(), 'MMM d, yyyy')}</span></div>}
+                                    {dtype === 'pickup_home' && order.scheduledPickupDate && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupDate', 'Pickup date')}</span><span style={{ fontWeight: 600 }}>{format(order.scheduledPickupDate.toDate(), 'MMM d, yyyy')}</span></div>}
+                                    {order.scheduledPickupTime && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupSlot', 'Pickup slot')}</span><span style={{ fontWeight: 600 }}>{order.scheduledPickupTime}</span></div>}
+                                    {order.deliverySlot && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.deliverySlot', 'Delivery slot')}</span><span style={{ fontWeight: 600 }}>{order.deliverySlot}</span></div>}
                                     {isHome && (
                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
                                             <div style={{ fontSize: 13, color: 'var(--c-text-2)', marginBottom: 8 }}>{t('orders.assignedAgent', 'Driver')}</div>
@@ -506,9 +704,18 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     ...(hasFeature("qrScans") ? [{ id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } }] : []),
                     ...(canEdit ? [{ id: "edit", label: t('orders.editOrder'), icon: <Edit className="h-5 w-5" />, onClick: handleEdit }] : []),
                     ...(canCancel ? [{ id: "cancel", label: t('orders.cancelOrder'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setCancelSheetOpen(true); } }] : []),
+                    ...(isOwner ? [{ id: "delete", label: t('orders.deleteOrder', 'Delete Order Permanently'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setDeleteSheetOpen(true); } }] : []),
                 ]}
             />
             <CancelOrderSheet open={cancelSheetOpen} onClose={() => setCancelSheetOpen(false)} order={order} />
+            {isOwner && (
+                <DeleteOrderSheet
+                    open={deleteSheetOpen}
+                    onClose={() => setDeleteSheetOpen(false)}
+                    order={order}
+                    onDeleted={() => { setDeleteSheetOpen(false); navigate('/orders'); }}
+                />
+            )}
             <TagGeneratorModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} order={order} />
         </div>
     );

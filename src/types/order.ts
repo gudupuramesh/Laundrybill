@@ -42,7 +42,9 @@ export type OrderStatus =
     | "delivered"
     // Pickup from Home specific
     | "pickup_scheduled"
-    | "pickup_completed";
+    | "pickup_completed"
+    // Some items handed over to the customer, the rest still in the shop
+    | "partially_delivered";
 
 // Status flow per delivery type
 export const STATUS_FLOW: Record<DeliveryType, OrderStatus[]> = {
@@ -62,6 +64,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
     delivered: "Delivered",
     pickup_scheduled: "Pickup Scheduled",
     pickup_completed: "Picked Up from Customer",
+    partially_delivered: "Partially Delivered",
     cancelled: "Cancelled",
 };
 
@@ -76,6 +79,7 @@ export const STATUS_COLORS: Record<OrderStatus, "warning" | "primary" | "success
     delivered: "success",
     pickup_scheduled: "warning",
     pickup_completed: "primary",
+    partially_delivered: "warning",
     cancelled: "destructive",
 };
 
@@ -108,6 +112,77 @@ export interface OrderItem {
     expressCharge?: number;
     notes?: string;
     damages?: { description: string; photoUrl: string }[];
+    /**
+     * Per-item lifecycle. Absent on legacy orders (treat as "pending").
+     * "processed" = washed/ironed and ready to hand over; "delivered" = taken by the customer.
+     * Derived from the piece counters below; kept for backward compatibility.
+     */
+    itemStatus?: "pending" | "processed" | "delivered";
+    /** Pieces of this line that finished processing (0..quantity). Absent = legacy. */
+    processedQty?: number;
+    /** Pieces of this line handed to the customer (0..processedQty). Absent = legacy. */
+    deliveredQty?: number;
+}
+
+/** Item-status helpers shared by detail views + status derivation. */
+export type ItemStatus = NonNullable<OrderItem["itemStatus"]>;
+export function getItemStatus(item: OrderItem): ItemStatus {
+    return item.itemStatus || "pending";
+}
+
+/**
+ * A line tracks whole pieces only when the quantity is a positive integer > 1.
+ * Weight/area units (kg, sqft…) and single-piece lines are all-or-nothing — no "2.5 of 3".
+ */
+export function isCountableLine(item: Pick<OrderItem, "quantity" | "pricingType" | "unit">): boolean {
+    const q = item.quantity;
+    if (!Number.isInteger(q) || q <= 1) return false;
+    const u = (item.pricingType || item.unit || "").toLowerCase();
+    return !["kg", "lb", "sqft", "sqm", "load", "bag"].includes(u);
+}
+
+/**
+ * Normalised progress for a line, with legacy fallback: an item without counters
+ * derives them from its itemStatus (delivered → all, processed → all, else 0).
+ * Non-countable lines report qty=1 so the UI shows whole-line semantics.
+ */
+export function getItemProgress(item: OrderItem): { qty: number; processed: number; delivered: number } {
+    const countable = isCountableLine(item);
+    const qty = countable ? item.quantity : 1;
+    if (item.processedQty === undefined && item.deliveredQty === undefined) {
+        const st = getItemStatus(item);
+        const all = st === "delivered" ? qty : 0;
+        const proc = st === "delivered" || st === "processed" ? qty : 0;
+        return { qty, processed: proc, delivered: all };
+    }
+    const delivered = Math.max(0, Math.min(qty, item.deliveredQty ?? 0));
+    // Delivered pieces are always at least processed.
+    const processed = Math.max(delivered, Math.min(qty, item.processedQty ?? 0));
+    return { qty, processed, delivered };
+}
+
+/** Line-level display status derived from the piece counters. */
+export function itemStatusFromProgress(p: { qty: number; processed: number; delivered: number }): ItemStatus {
+    if (p.delivered >= p.qty && p.qty > 0) return "delivered";
+    if (p.processed >= p.qty && p.qty > 0) return "processed";
+    return "pending"; // partials still map to "pending" for legacy readers; UIs show the count
+}
+
+/**
+ * Derive the order-level status from its items after a progress change.
+ * Returns null when the items alone shouldn't move the order (e.g. nothing delivered
+ * yet and not everything processed) — caller keeps the current status.
+ */
+export function deriveStatusFromItems(items: OrderItem[], deliveryType: DeliveryType): OrderStatus | null {
+    if (!items.length) return null;
+    const prog = items.map(getItemProgress);
+    const allDelivered = prog.every((p) => p.delivered >= p.qty);
+    if (allDelivered) return deliveryType === "pickup_store" ? "picked_up" : "delivered";
+    const anyDelivered = prog.some((p) => p.delivered > 0);
+    if (anyDelivered) return "partially_delivered";
+    const allProcessed = prog.every((p) => p.processed >= p.qty);
+    if (allProcessed) return deliveryType === "pickup_store" ? "ready_for_pickup" : "ready";
+    return null;
 }
 
 // ============================================
@@ -119,6 +194,10 @@ export interface OrderFinancials {
     discountType?: "percent" | "flat";
     discountValue?: number;
     discountAmount: number;
+    /** Coupon code that produced the discount (offers feature). */
+    couponCode?: string | null;
+    /** Loyalty points redeemed on this order (1 point = 1 currency unit; reduces total). */
+    pointsRedeemed?: number;
     taxAmount?: number;
     taxRate?: number;
     taxName?: string;
@@ -184,6 +263,15 @@ export interface ItemWiseDeliveryDate {
 // ============================================
 // ORDER
 // ============================================
+
+/** Who added a photo to the order, their role, and when — shown under every
+ *  photo on order detail screens and the customer's tracking page. */
+export interface OrderPhotoMeta {
+    url: string;
+    byName: string;
+    byRole: "owner" | "manager" | "staff" | "agent" | "plant" | string;
+    at: Timestamp;
+}
 
 export interface Order {
     id: string;
@@ -253,6 +341,9 @@ export interface Order {
 
     /** Order-level damage/stain photo URLs (R2) from checkout */
     damagePhotoUrls?: string[];
+    /** Caption metadata for order photos: who added each photo, their role, and when.
+     *  Covers damage photos AND pickup/delivery/plant proof photos (matched by url). */
+    photoMeta?: OrderPhotoMeta[];
 
     /** Pickup proof photo URL (driver app) */
     pickupPhoto?: string;
@@ -266,6 +357,9 @@ export interface Order {
     payments?: OrderPayment[];
     /** Refund audit trail (amount + who + when), e.g. auto-refund on cancel. */
     refunds?: OrderRefund[];
+
+    /** Loyalty audit: points credited when this order became fully paid (idempotency guard). */
+    loyalty?: { earnedPoints: number; earnedAt: Timestamp };
 
     // Timestamps
     createdAt: Timestamp;

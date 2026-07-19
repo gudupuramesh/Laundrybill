@@ -21,9 +21,13 @@ interface OrderReceiptProps {
     gstNumber?: string;
     /** ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
     countryCode?: string;
+    /** Owner-configured Terms & Conditions printed at the bottom of the receipt. */
+    receiptTerms?: string;
+    /** false hides the tracking QR + "Track online" line (shop settings.trackingEnabled). */
+    showTracking?: boolean;
 }
 
-export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumber, countryCode }: OrderReceiptProps) {
+export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumber, countryCode, receiptTerms, showTracking = true }: OrderReceiptProps) {
     const { formatAmount } = useCurrency();
     const qrUrl = getQRCodeUrl(order.trackingId || order.id, 150);
 
@@ -157,20 +161,35 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumbe
                 </p>
             </div>
 
-            {/* QR Code */}
-            <div className="text-center mb-3">
-                <img src={qrUrl} alt="Track Order QR" className="mx-auto" />
-                <p className="text-xs text-gray-600 mt-1">Scan to track your order</p>
-            </div>
+            {/* QR Code (hidden when the shop disables customer tracking) */}
+            {showTracking && (
+                <div className="text-center mb-3">
+                    <img src={qrUrl} alt="Track Order QR" className="mx-auto" />
+                    <p className="text-xs text-gray-600 mt-1">Scan to track your order</p>
+                </div>
+            )}
 
             <div className="border-t border-dashed border-gray-400 my-3" />
+
+            {/* Terms & Conditions (owner-configured) */}
+            {receiptTerms && receiptTerms.trim() && (
+                <>
+                    <div className="mb-3">
+                        <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wide mb-1">Terms &amp; Conditions</p>
+                        <p className="text-[10px] text-gray-600 whitespace-pre-line leading-snug">{receiptTerms.trim()}</p>
+                    </div>
+                    <div className="border-t border-dashed border-gray-400 my-3" />
+                </>
+            )}
 
             {/* Footer */}
             <div className="text-center text-xs text-gray-600">
                 <p>Thank you for choosing {shopName}!</p>
-                <p className="mt-1">
-                    Track online: {getTrackingUrl(order.trackingId || order.id).replace("https://", "")}
-                </p>
+                {showTracking && (
+                    <p className="mt-1">
+                        Track online: {getTrackingUrl(order.trackingId || order.id).replace("https://", "")}
+                    </p>
+                )}
             </div>
         </div>
     );

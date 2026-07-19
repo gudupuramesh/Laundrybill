@@ -46,6 +46,14 @@ export function PublicCheckoutCoupon({
       setError("Invalid coupon code");
       return;
     }
+    if (coupon.active === false) {
+      setError("This coupon is not active");
+      return;
+    }
+    if (coupon.expiresAt && new Date(coupon.expiresAt + "T23:59:59") < new Date()) {
+      setError("This coupon has expired");
+      return;
+    }
     if (coupon.minOrder != null && coupon.minOrder > 0 && subtotal < coupon.minOrder) {
       setError(`Minimum order ${fmt(coupon.minOrder)} required for this coupon`);
       return;

@@ -408,6 +408,12 @@ export default function CustomerDetailScreen({
                 {formatCurrency(stats.unpaid, countrySettings)}
               </Text>
             </View>
+            {(customer?.loyaltyPoints || 0) > 0 || (customer?.loyaltyEarned || 0) > 0 ? (
+              <View style={styles.finRow}>
+                <Text style={styles.finLabel}>{t('mobile.loyaltyPointsLabel', 'Loyalty points')}</Text>
+                <Text style={styles.finValueGreen}>{Math.max(0, Math.round(customer?.loyaltyPoints || 0))}</Text>
+              </View>
+            ) : null}
           </View>
         )}
 

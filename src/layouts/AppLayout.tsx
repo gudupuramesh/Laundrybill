@@ -40,6 +40,7 @@ import {
     QrCode,
     Crown,
     Globe,
+    BadgePercent,
     HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -68,7 +69,10 @@ interface SidebarNavItem {
     labelKey: string;
     icon: LucideIcon;
     href: string;
+    /** Hidden from plain staff; visible to owner AND manager. */
     adminOnly?: boolean;
+    /** Owner (shop account) only — hidden from managers too: billing, public page. */
+    ownerOnly?: boolean;
     feature?: keyof PlanFeatures;
 }
 
@@ -86,8 +90,9 @@ const sidebarItemsConfig: SidebarNavItem[] = [
     { id: "reports", labelKey: "nav.reports", icon: FileText, href: "/reports", adminOnly: true, feature: "reports" },
     { id: "apps", labelKey: "nav.apps", icon: Smartphone, href: "/apps", adminOnly: true }, // Keep generic or feature flag specific apps?
     { id: "scan", labelKey: "common.scan", icon: QrCode, href: "/scan", feature: "qrScans" },
-    { id: "publicPage", labelKey: "publicPage.title", icon: Globe, href: "/settings/public-page", feature: "publicOrderingPage" },
-    { id: "subscription", labelKey: "nav.subscription", icon: Crown, href: "/settings/subscription", adminOnly: true },
+    { id: "offers", labelKey: "nav.offers", icon: BadgePercent, href: "/settings/offers", adminOnly: true, feature: "offers" },
+    { id: "publicPage", labelKey: "publicPage.title", icon: Globe, href: "/settings/public-page", ownerOnly: true, feature: "publicOrderingPage" },
+    { id: "subscription", labelKey: "nav.subscription", icon: Crown, href: "/settings/subscription", ownerOnly: true },
     { id: "settings", labelKey: "nav.settings", icon: Settings, href: "/settings" },
 ];
 
@@ -101,8 +106,9 @@ const moreMenuItemsConfig: SidebarNavItem[] = [
     { id: "reports", labelKey: "nav.reports", icon: FileText, href: "/reports", adminOnly: true, feature: "reports" },
     { id: "apps", labelKey: "nav.apps", icon: Smartphone, href: "/apps", adminOnly: true },
     { id: "scan", labelKey: "common.scan", icon: QrCode, href: "/scan", feature: "qrScans" },
-    { id: "publicPage", labelKey: "publicPage.title", icon: Globe, href: "/settings/public-page", feature: "publicOrderingPage" },
-    { id: "subscription", labelKey: "nav.subscription", icon: Crown, href: "/settings/subscription", adminOnly: true },
+    { id: "offers", labelKey: "nav.offers", icon: BadgePercent, href: "/settings/offers", adminOnly: true, feature: "offers" },
+    { id: "publicPage", labelKey: "publicPage.title", icon: Globe, href: "/settings/public-page", ownerOnly: true, feature: "publicOrderingPage" },
+    { id: "subscription", labelKey: "nav.subscription", icon: Crown, href: "/settings/subscription", ownerOnly: true },
     { id: "help", labelKey: "nav.help", icon: HelpCircle, href: "/help" },
     { id: "settings", labelKey: "nav.settings", icon: Settings, href: "/settings" },
 ];
@@ -205,14 +211,18 @@ export function AppLayout() {
 
     const { hasFeature } = useShopLimits();
 
-    // Filter items based on role AND feature access
+    // Filter items based on role AND feature access. Managers see everything the
+    // owner sees EXCEPT ownerOnly entries (billing, public booking page).
+    const canManage = role === "admin" || role === "manager";
     const filteredSidebarItems = sidebarItems.filter(
-        (item) => (!item.adminOnly || role === "admin") &&
+        (item) => (!item.adminOnly || canManage) &&
+            (!item.ownerOnly || role === "admin") &&
             (!item.feature || hasFeature(item.feature))
     );
 
     const filteredMoreItems = moreMenuItems.filter(
-        (item) => (!item.adminOnly || role === "admin") &&
+        (item) => (!item.adminOnly || canManage) &&
+            (!item.ownerOnly || role === "admin") &&
             (!item.feature || hasFeature(item.feature))
     );
 

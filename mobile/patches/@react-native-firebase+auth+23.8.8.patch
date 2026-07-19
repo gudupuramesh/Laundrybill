@@ -1,0 +1,28 @@
+diff --git a/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.h b/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.h
+index dd7b077..ee6e3c4 100644
+--- a/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.h
++++ b/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.h
+@@ -15,7 +15,8 @@
+  *
+  */
+ 
+-#import <Firebase/Firebase.h>
++#import <FirebaseCore/FirebaseCore.h>
++@import FirebaseAuth;
+ #import <Foundation/Foundation.h>
+ #import <React/RCTBridgeModule.h>
+ 
+diff --git a/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.m b/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.m
+index 40ee9aa..509f37b 100644
+--- a/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.m
++++ b/node_modules/@react-native-firebase/auth/ios/RNFBAuth/RNFBAuthModule.m
+@@ -15,7 +15,8 @@
+  *
+  */
+ 
+-#import <Firebase/Firebase.h>
++#import <FirebaseCore/FirebaseCore.h>
++@import FirebaseAuth;
+ #import <React/RCTUtils.h>
+ 
+ #import "RNFBApp/RCTConvert+FIRApp.h"

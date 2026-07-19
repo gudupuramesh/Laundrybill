@@ -34,6 +34,10 @@ interface CartState {
     isGuest: boolean;
     discountType?: "percent" | "flat";
     discountValue?: number;
+    /** Coupon code that produced the discount (locks the manual discount input). */
+    couponCode?: string;
+    /** Loyalty points redeemed (1 point = 1 currency unit; reduces the payable total). */
+    pointsRedeemed?: number;
     deliveryType: DeliveryType;
     deliveryAddress?: string;
     deliveryNotes?: string;
@@ -249,7 +253,23 @@ export function useCart(persistKey?: string) {
             ...prev,
             discountType: type,
             discountValue: value,
+            // Manual discount entry clears any applied coupon (they share the discount line).
+            couponCode: undefined,
         }));
+    }, []);
+
+    /** Apply a coupon: sets the discount from the coupon and remembers the code. */
+    const applyCoupon = useCallback((code: string, type: "percent" | "flat", value: number) => {
+        setState((prev) => ({ ...prev, couponCode: code, discountType: type, discountValue: value }));
+    }, []);
+
+    const removeCoupon = useCallback(() => {
+        setState((prev) => ({ ...prev, couponCode: undefined, discountType: undefined, discountValue: undefined }));
+    }, []);
+
+    /** Redeem loyalty points (validated/capped by the caller against the customer's balance). */
+    const setPointsRedeemed = useCallback((points?: number) => {
+        setState((prev) => ({ ...prev, pointsRedeemed: points && points > 0 ? Math.round(points) : undefined }));
     }, []);
 
     const setDelivery = useCallback((
@@ -398,7 +418,10 @@ export function useCart(persistKey?: string) {
             taxAmount = (taxableAmount * state.taxSettings.rate) / 100;
         }
 
-        const total = subtotal - discountAmount + taxAmount + state.deliveryCharge;
+        // Redeemed points act like a payment credit: applied AFTER tax, capped at the payable amount.
+        const beforePoints = subtotal - discountAmount + taxAmount + state.deliveryCharge;
+        const pointsRedeemed = Math.min(Math.max(0, Math.round(state.pointsRedeemed || 0)), Math.max(0, Math.floor(beforePoints)));
+        const total = beforePoints - pointsRedeemed;
 
         // Calculate expected delivery
         const maxTurnaround = Math.max(
@@ -412,6 +435,7 @@ export function useCart(persistKey?: string) {
             subtotal,
             expressCharge,
             discountAmount,
+            pointsRedeemed,
             deliveryCharge: state.deliveryCharge,
             taxAmount,
             taxRate: state.taxSettings?.rate,
@@ -420,7 +444,7 @@ export function useCart(persistKey?: string) {
             itemCount: state.items.reduce((sum, item) => sum + item.quantity, 0),
             expectedDays: maxTurnaround,
         };
-    }, [state.items, state.discountType, state.discountValue, state.deliveryCharge, state.taxSettings, state.taxEnabled]);
+    }, [state.items, state.discountType, state.discountValue, state.pointsRedeemed, state.deliveryCharge, state.taxSettings, state.taxEnabled]);
 
     return {
         ...state,
@@ -431,6 +455,9 @@ export function useCart(persistKey?: string) {
         toggleItemExpress,
         setCustomer,
         setDiscount,
+        applyCoupon,
+        removeCoupon,
+        setPointsRedeemed,
         setDelivery,
         setDeliveryBand,
         setTaxSettings,

@@ -471,10 +471,24 @@ function StaffShell() {
   }, [creating, createSub, createStep, goBack, closeCreate]);
 
   // Open an order from a push-notification tap → Orders + the order detail.
+  // Reminder pushes (no orderId, just a type) open the orders list pre-filtered.
+  const [ordersInitialFilter, setOrdersInitialFilter] = useState<string | undefined>(undefined);
   const openStaffOrder = useCallback((data: any) => {
-    if (!data?.orderId) return;
-    setTabState('staffOrders');
-    setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+    if (data?.orderId) {
+      setTabState('staffOrders');
+      setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+      return;
+    }
+    const reminderFilter =
+      data?.type === 'orders_due' ? 'due'
+      : data?.type === 'orders_uncollected' ? 'ready'
+      : data?.type === 'orders_delayed' ? 'pending'
+      : null;
+    if (reminderFilter) {
+      setOrdersInitialFilter(reminderFilter);
+      setTabState('staffOrders');
+      setStack([]);
+    }
   }, []);
   usePushNotifications(openStaffOrder, { save: saveTeamMemberToken });
 
@@ -510,6 +524,7 @@ function StaffShell() {
         return (
           <OrdersScreen
             onViewOrder={(id: string) => navigate({ name: 'orderDetail', orderId: id })}
+            initialFilter={ordersInitialFilter}
           />
         );
     }
@@ -687,10 +702,24 @@ function ManagerShell() {
   }, [creating, createSub, createStep, goBack, closeCreate]);
 
   // Open an order from a push-notification tap → Orders + the order detail.
+  // Reminder pushes (no orderId, just a type) open the orders list pre-filtered.
+  const [ordersInitialFilter, setOrdersInitialFilter] = useState<string | undefined>(undefined);
   const openManagerOrder = useCallback((data: any) => {
-    if (!data?.orderId) return;
-    setTabState('manOrders');
-    setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+    if (data?.orderId) {
+      setTabState('manOrders');
+      setStack([{ name: 'orderDetail', orderId: data.orderId }]);
+      return;
+    }
+    const reminderFilter =
+      data?.type === 'orders_due' ? 'due'
+      : data?.type === 'orders_uncollected' ? 'ready'
+      : data?.type === 'orders_delayed' ? 'pending'
+      : null;
+    if (reminderFilter) {
+      setOrdersInitialFilter(reminderFilter);
+      setTabState('manOrders');
+      setStack([]);
+    }
   }, []);
   usePushNotifications(openManagerOrder, { save: saveTeamMemberToken });
 
@@ -746,6 +775,7 @@ function ManagerShell() {
           <OrdersScreen
             onViewOrder={(id: string) => navigate({ name: 'orderDetail', orderId: id })}
             onNewOrder={() => openCreate()}
+            initialFilter={ordersInitialFilter}
           />
         );
     }

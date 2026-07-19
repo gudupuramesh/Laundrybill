@@ -29,15 +29,22 @@ messaging.onBackgroundMessage(function (payload) {
   const body = notification.body || "";
   const icon = "/icons/icon-192x192.png";
 
+  // Reminder pushes carry a type instead of an orderId — clicking opens the pre-filtered list.
+  const REMINDER_URLS = {
+    orders_delayed: "/orders?attention=overdue",
+    orders_uncollected: "/orders?attention=overdue",
+    orders_due: "/orders?attention=due",
+  };
+
   const options = {
     body,
     icon,
     badge: "/icons/icon-72x72.png",
-    tag: data.orderId ? `order-${data.orderId}` : "fcm-notification",
+    tag: data.orderId ? `order-${data.orderId}` : data.type ? `reminder-${data.type}` : "fcm-notification",
     data: {
       url: data.orderId && data.shopId
         ? `/orders/${data.orderId}`
-        : "/orders",
+        : REMINDER_URLS[data.type] || "/orders",
       orderId: data.orderId,
       shopId: data.shopId,
     },

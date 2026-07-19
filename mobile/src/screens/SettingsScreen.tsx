@@ -29,7 +29,9 @@ export default function SettingsScreen({
   onAttendance,
   onCreateStaffLogin,
   onExpenseList,
+  onReports,
   onServiceAreas,
+  onBusinessSettings,
   onFeedback,
 }: {
   onManageServices: () => void,
@@ -40,7 +42,9 @@ export default function SettingsScreen({
   onAttendance?: () => void,
   onCreateStaffLogin?: () => void,
   onExpenseList?: () => void,
+  onReports?: () => void,
   onServiceAreas?: () => void,
+  onBusinessSettings: () => void,
   onFeedback?: () => void,
 }) {
   const { t } = useTranslation();
@@ -699,22 +703,8 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
-            {/* Staff App / Agent / Plant logins are a Business-tier feature.
-                Hidden until the Business plan + its IAP products go live. */}
-            {onCreateStaffLogin && (
-              <TouchableOpacity style={styles.listItemNoBorder} onPress={onCreateStaffLogin}>
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.listItemIcon, { backgroundColor: colors.warningBg }]}>
-                    <MaterialIcons name="vpn-key" size={18} color={colors.warning} />
-                  </View>
-                  <View>
-                    <Text style={styles.listItemText}>{t('mobile.createStaffLogin', { defaultValue: 'Create Staff Login' })}</Text>
-                    <Text style={styles.listItemSubtext}>{t('mobile.createStaffLoginDesc', { defaultValue: 'Staff App, Agent & Plant logins' })}</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
+            {/* Standalone "Create Staff Login" entry removed — logins are created from
+                Add Staff (toggle) or a staff member's profile, which prefill correctly. */}
           </View>
         </View>
 
@@ -722,7 +712,7 @@ export default function SettingsScreen({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('mobile.financeSection', { defaultValue: 'Finance' })}</Text>
           <View style={styles.sectionCard}>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={onExpenseList}>
+            <TouchableOpacity style={onReports ? styles.listItem : styles.listItemNoBorder} onPress={onExpenseList}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.errorBg }]}>
                   <MaterialIcons name="receipt-long" size={18} color={colors.error} />
@@ -734,6 +724,20 @@ export default function SettingsScreen({
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
+            {onReports && (
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={onReports}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                    <MaterialIcons name="insert-chart" size={18} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>{t('mobile.reportsTitle', { defaultValue: 'Reports' })}</Text>
+                    <Text style={styles.listItemSubtext}>{t('mobile.reportsDesc', { defaultValue: 'Revenue, expenses & business metrics' })}</Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -759,7 +763,7 @@ export default function SettingsScreen({
                 style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
               />
             </View>
-            <TouchableOpacity style={styles.listItemNoBorder} onPress={openTaxEditor}>
+            <TouchableOpacity style={styles.listItem} onPress={openTaxEditor}>
               <View style={styles.listItemLeft}>
                 <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
                   <MaterialIcons name="receipt" size={18} color={colors.success} />
@@ -767,6 +771,18 @@ export default function SettingsScreen({
                 <View>
                   <Text style={styles.listItemText}>{t('mobile.taxDetails')}</Text>
                   <Text style={styles.listItemSubtext}>{taxEnabled ? `${taxName} · ${taxRate}%` : 'Tax disabled'}</Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.listItemNoBorder} onPress={onBusinessSettings}>
+              <View style={styles.listItemLeft}>
+                <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="tune" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={styles.listItemText}>{t('mobile.businessSettingsRow', 'Delivery, coupons, receipt & WhatsApp')}</Text>
+                  <Text style={styles.listItemSubtext}>{t('mobile.businessSettingsSub', 'Delivery fee, distance, coupons, receipt terms, WhatsApp message')}</Text>
                 </View>
               </View>
               <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />

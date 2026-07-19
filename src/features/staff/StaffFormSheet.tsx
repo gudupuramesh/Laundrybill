@@ -15,6 +15,7 @@ import { Timestamp } from "firebase/firestore";
 import { useTranslation } from "react-i18next";
 import { Check, Copy } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/features/auth";
 
 const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
 const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
@@ -52,6 +53,9 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const { currencySymbol } = useCurrency();
+    // Creating app logins is OWNER-only; managers can add roster staff but not logins.
+    const { role: authRole } = useAuth();
+    const isOwner = authRole === "admin";
     const isEdit = !!staff;
     const { checkLimit } = useShopLimits();
     const { activeStaff } = useStaff();
@@ -101,9 +105,12 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
         const newErrors: Record<string, string> = {};
         if (!form.name.trim()) newErrors.name = t("common.required", "Required");
         if (!form.phone.trim() || form.phone.length !== 10) newErrors.phone = t("common.invalidPhone", "Enter a valid phone number");
-        const wantsLogin = !isEdit && createLogin;
+        // Email is required and must be valid — it identifies the person and is the
+        // app-login identity, so a wrong/throwaway address breaks the invite later.
+        if (!form.email.trim()) newErrors.email = t("staff.emailRequired", "Email is required — use the staff member's real, working email");
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) newErrors.email = t("common.invalidEmail", "Invalid email");
+        const wantsLogin = !isEdit && createLogin && isOwner;
         if (wantsLogin) {
-            if (!form.email.trim()) newErrors.email = t("staff.emailRequiredForLogin", "Email is required to create an app login");
             if (!loginLimitFor(loginType).allowed) newErrors.loginType = t("validation.planLimitReached", "Plan limit reached for this login type. Upgrade to add more.");
         }
         if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
@@ -111,6 +118,21 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
 
         setLoading(true); setErrors({});
         try {
+            // Creating a login? The invite is accepted by SIGNING UP with this email —
+            // an email that already has an app account can never accept it. Fail fast.
+            if (wantsLogin) {
+                try {
+                    const { httpsCallable } = await import("firebase/functions");
+                    const { functions } = await import("@/lib/firebase");
+                    const check = httpsCallable<{ email: string }, { existsInAuth: boolean }>(functions, "checkLoginEmail");
+                    const res = await check({ email: form.email.trim().toLowerCase() });
+                    if (res.data.existsInAuth) {
+                        setErrors({ email: t("staff.emailHasAccount", "This email already has an app account. Use the staff member's own new email.") });
+                        setLoading(false);
+                        return;
+                    }
+                } catch { /* lookup unavailable — proceed; creation still dedupes within the shop */ }
+            }
             const data: Record<string, unknown> = { name: form.name, phone: form.phone, role: wantsLogin ? roleForLogin(loginType) : form.role, payType: form.payType, baseSalary: form.baseSalary, joiningDate: staff?.joiningDate || Timestamp.now(), isActive: staff?.isActive ?? true };
             if (form.email) data.email = form.email.trim().toLowerCase();
             if (form.overtimeRate > 0) data.overtimeRate = form.overtimeRate;
@@ -134,6 +156,11 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
             }
         } catch (error) {
             console.error("Error saving staff:", error);
+            const msg = error instanceof Error ? error.message : "";
+            if (msg === "STAFF_DUPLICATE_PHONE") setErrors({ phone: t("staff.duplicatePhone", "A staff member with this phone number already exists.") });
+            else if (msg === "STAFF_DUPLICATE_EMAIL") setErrors({ email: t("staff.duplicateEmail", "A staff member with this email already exists.") });
+            else if (msg === "STAFF_DUPLICATE_NAME") setErrors({ name: t("staff.duplicateName", "A staff member with this name already exists.") });
+            else setErrors({ name: t("staff.saveFailed", "Could not save. Please try again.") });
         } finally {
             setLoading(false);
         }
@@ -175,13 +202,13 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
                     {errors.phone && <div style={errTxt}>{errors.phone}</div>}
                 </div>
                 <div>
-                    <label style={lbl}>{createLogin ? t("staff.email", "Email") : t("staff.emailOptional", "Email (optional)")}</label>
+                    <label style={lbl}>{t("staff.emailRequiredLabel", "Email (required — must be a working email)")}</label>
                     <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@example.com" style={{ ...fld, borderColor: errors.email ? "var(--c-error)" : "var(--c-border-strong)" }} />
                     {errors.email && <div style={errTxt}>{errors.email}</div>}
                 </div>
 
-                {/* Optional app login — new staff only */}
-                {!isEdit && (
+                {/* Optional app login — new staff only, and only the OWNER may create logins */}
+                {!isEdit && isOwner && (
                     <div style={{ border: "1px solid var(--c-border)", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
                         <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}>
                             <div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{t("staff.createLoginQuestion", "Create app login for this person?")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)", marginTop: 2 }}>{t("staff.createLoginHint", "Give them access to the Staff, Agent, or Plant app via an invite code.")}</div></div>

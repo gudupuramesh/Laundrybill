@@ -11,6 +11,8 @@ export interface TeamMember {
     email: string;
     inviteCode: string;
     memberType: MemberType;
+    /** Distinguishes a manager from plain staff — both are memberType "staff". */
+    role?: StaffRole;
     /** Optional link to roster staff (when same person) */
     staffId?: string;
     inviteStatus: "pending" | "accepted";

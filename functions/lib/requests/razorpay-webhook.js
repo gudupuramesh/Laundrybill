@@ -19,12 +19,13 @@ const admin = require("firebase-admin");
 const secrets_1 = require("../lib/secrets");
 const razorpay_1 = require("../services/razorpay");
 const plan_normalize_1 = require("../lib/plan-normalize");
+const subscription_events_1 = require("../lib/subscription-events");
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
 const db = admin.firestore();
 exports.razorpayWebhook = (0, https_1.onRequest)({ secrets: [secrets_1.RAZORPAY_WEBHOOK_SECRET] }, async (req, res) => {
-    var _a, _b;
+    var _a, _b, _c, _d, _e;
     if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");
         return;
@@ -87,6 +88,75 @@ exports.razorpayWebhook = (0, https_1.onRequest)({ secrets: [secrets_1.RAZORPAY_
                 console.log("[RZP webhook] unhandled event:", eventType);
         }
         console.log(`[RZP webhook] ${eventType} → ${shopId}`);
+        // ── Audit trail + payment ledger (best-effort; never throws) ──
+        const paymentEntity = (_d = (_c = body === null || body === void 0 ? void 0 : body.payload) === null || _c === void 0 ? void 0 : _c.payment) === null || _d === void 0 ? void 0 : _d.entity;
+        const amountRupees = (paymentEntity === null || paymentEntity === void 0 ? void 0 : paymentEntity.amount) ? Number(paymentEntity.amount) / 100 : 0;
+        const planName = (0, plan_normalize_1.planDisplayName)(planId);
+        const paidCount = Number(subEntity.paid_count) || 0;
+        switch (eventType) {
+            case "subscription.activated":
+            case "subscription.charged":
+            case "subscription.resumed": {
+                // Razorpay fires BOTH subscription.activated and subscription.charged on the
+                // FIRST payment. Log activation on "activated"; log a renewal on "charged" only
+                // for the 2nd+ charge (paid_count > 1), or on "resumed" — so a new subscription
+                // never shows a spurious "renewed" entry alongside its "activated" one.
+                const isFirstCharge = eventType === "subscription.charged" && paidCount <= 1;
+                if (!isFirstCharge) {
+                    await (0, subscription_events_1.logSubscriptionEvent)({
+                        type: eventType === "subscription.activated" ? "subscription_upgraded" : "subscription_renewed",
+                        shopId,
+                        provider: "razorpay",
+                        description: eventType === "subscription.activated"
+                            ? `Razorpay subscription activated — ${planName}`
+                            : eventType === "subscription.resumed"
+                                ? `Razorpay subscription resumed — ${planName}`
+                                : `Razorpay renewal charged — ${planName}`,
+                        metadata: { toPlan: planId, toStatus: "active", providerRef: subEntity.id, amount: amountRupees || null },
+                    });
+                }
+                // Only "charged" writes a payment record (recordPayment is idempotent on the
+                // gateway payment id, so redelivery / the activated+charged dual-fire is safe).
+                if (amountRupees > 0 && eventType === "subscription.charged") {
+                    await (0, subscription_events_1.recordPayment)({
+                        shopId,
+                        amount: amountRupees,
+                        planId,
+                        method: "razorpay",
+                        gatewayPaymentId: (_e = paymentEntity === null || paymentEntity === void 0 ? void 0 : paymentEntity.id) !== null && _e !== void 0 ? _e : null,
+                        periodEnd: currentEnd,
+                    });
+                }
+                break;
+            }
+            case "subscription.halted":
+                await (0, subscription_events_1.logSubscriptionEvent)({
+                    type: "payment_failed",
+                    shopId,
+                    provider: "razorpay",
+                    description: `Razorpay payment failed after retries — grace period (${planName})`,
+                    metadata: { toStatus: "grace_period", providerRef: subEntity.id },
+                });
+                break;
+            case "subscription.cancelled":
+                await (0, subscription_events_1.logSubscriptionEvent)({
+                    type: "subscription_cancelled",
+                    shopId,
+                    provider: "razorpay",
+                    description: `Razorpay subscription cancelled${currentEnd ? ` — access until ${currentEnd.toDate().toLocaleDateString()}` : ""}`,
+                    metadata: { toStatus: "cancelled", providerRef: subEntity.id },
+                });
+                break;
+            case "subscription.completed":
+                await (0, subscription_events_1.logSubscriptionEvent)({
+                    type: "subscription_expired",
+                    shopId,
+                    provider: "razorpay",
+                    description: "Razorpay subscription completed — reverted to Free",
+                    metadata: { fromPlan: planId, toPlan: "free", toStatus: "expired", providerRef: subEntity.id },
+                });
+                break;
+        }
     }
     catch (e) {
         console.error(`[RZP webhook] failed to process ${eventType} for ${shopId}:`, e);

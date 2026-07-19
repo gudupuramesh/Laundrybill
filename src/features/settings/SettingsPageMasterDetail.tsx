@@ -36,6 +36,7 @@ import {
     Phone,
     MapPin,
     FileText,
+    Hash,
     Globe,
     CreditCard,
     Truck,
@@ -47,7 +48,9 @@ import {
     Plus,
     Trash2,
     Route,
+    MessageCircle,
 } from "lucide-react";
+import { formatOrderId } from "@/lib/generateShopCode";
 import {
     toTitleCase,
     isValidEmail,
@@ -105,7 +108,7 @@ export function SettingsPageMasterDetail() {
     const { currencySymbol } = useCurrency();
     const { user, role, shopName, signOut } = useAuth();
     const { shop, loading } = useShop();
-    const { updateShop, updateLocation, updateBankDetails, updateGST, updateTaxSettings, updateDeliverySettings, updateCountrySettings } = useShopMutations();
+    const { updateShop, updateLocation, updateBankDetails, updateGST, updateTaxSettings, updateDeliverySettings, updateCountrySettings, updateReceiptTerms, updateNextOrderNumber, updateWaShare } = useShopMutations();
 
     const isPhoneLocked = !!(shop?.phone || user?.phone);
     const isEmailLocked = !!(shop?.email || user?.email);
@@ -145,6 +148,17 @@ export function SettingsPageMasterDetail() {
     // Distance-band delivery fee
     const [distanceFeeEnabled, setDistanceFeeEnabled] = useState(false);
     const [distanceBands, setDistanceBands] = useState<{ id: string; label: string; fee: number }[]>([]);
+    const [receiptTerms, setReceiptTerms] = useState("");
+    // Order-number counter — lets a shop continue numbering from previous software.
+    const [nextOrderNum, setNextOrderNum] = useState<number>(1);
+    // WhatsApp share message customization + shop-wide customer-tracking switch.
+    const [waHeader, setWaHeader] = useState("");
+    const [waFooter, setWaFooter] = useState("");
+    const [waShowItems, setWaShowItems] = useState(true);
+    const [waShowPayment, setWaShowPayment] = useState(true);
+    const [waShowExpectedDate, setWaShowExpectedDate] = useState(true);
+    const [waShowReceiptLink, setWaShowReceiptLink] = useState(true);
+    const [trackingOn, setTrackingOn] = useState(true);
 
     const [notifications, setNotifications] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -210,6 +224,16 @@ export function SettingsPageMasterDetail() {
                 setDistanceFeeEnabled(d.distanceFeeEnabled ?? false);
                 setDistanceBands(Array.isArray(d.distanceBands) ? d.distanceBands : []);
             }
+            setReceiptTerms(shop.settings?.receiptTerms || "");
+            setNextOrderNum(shop.settings?.nextOrderNumber || 1);
+            const ws = shop.settings?.waShare;
+            setWaHeader(ws?.headerText || "");
+            setWaFooter(ws?.footerText || "");
+            setWaShowItems(ws?.showItems !== false);
+            setWaShowPayment(ws?.showPayment !== false);
+            setWaShowExpectedDate(ws?.showExpectedDate !== false);
+            setWaShowReceiptLink(ws?.showReceiptLink !== false);
+            setTrackingOn(shop.settings?.trackingEnabled !== false);
             setSelectedCountryCode(shop.settings?.countryCode || "IN");
             setInitialized(true);
         }
@@ -374,6 +398,30 @@ export function SettingsPageMasterDetail() {
                 upiId: upiId ? normalizeUPI(upiId) : "",
             });
             await updateTaxSettings(taxEnabled, taxName, taxRate);
+            addToast({ type: "success", title: t("shop.settingsSaved") });
+        } catch {
+            addToast({ type: "error", title: t("shop.saveError") });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Operations = delivery rules + receipt terms + order numbering. Kept OFF the
+    // tax/bank financials write so a stale GST/bank value can never block saving these.
+    const handleSaveOperations = async () => {
+        // Order counter may only move FORWARD — lowering it would mint duplicate
+        // orderNumber/publicIds and break tracking links & barcode scans.
+        const storedNext = shop?.settings?.nextOrderNumber || 1;
+        const wantedNext = Math.round(Number(nextOrderNum) || 0);
+        if (wantedNext !== storedNext && (!Number.isFinite(wantedNext) || wantedNext < storedNext)) {
+            addToast({
+                type: "error",
+                title: t("settings.nextOrderTooLow", "Next order number can only be increased (currently {{n}})", { n: storedNext }),
+            });
+            return;
+        }
+        setSaving(true);
+        try {
             await updateDeliverySettings({
                 deliveryFeeEnabled,
                 deliveryFeeMinOrder,
@@ -384,6 +432,16 @@ export function SettingsPageMasterDetail() {
                     .filter((b) => b.label.trim())
                     .map((b) => ({ id: b.id, label: b.label.trim(), fee: Number(b.fee) || 0 })),
             });
+            await updateReceiptTerms(receiptTerms.trim());
+            if (wantedNext !== storedNext) await updateNextOrderNumber(wantedNext);
+            await updateWaShare({
+                headerText: waHeader.trim(),
+                footerText: waFooter.trim(),
+                showItems: waShowItems,
+                showPayment: waShowPayment,
+                showExpectedDate: waShowExpectedDate,
+                showReceiptLink: waShowReceiptLink,
+            }, trackingOn);
             addToast({ type: "success", title: t("shop.settingsSaved") });
         } catch {
             addToast({ type: "error", title: t("shop.saveError") });
@@ -432,10 +490,11 @@ export function SettingsPageMasterDetail() {
         // The "tax" section hosts the Country & currency picker, so a country change must be
         // persisted from the header Save too — otherwise it falls through to the financials
         // write below and is silently dropped. Save it first, then the tax/bank/delivery write.
+        if (selectedSection === "operations") return handleSaveOperations();
         if (selectedSection === "tax" && countryChanged) {
             await handleSaveCountry();
         }
-        return handleSaveFinancials(); // tax, bank, operations share the financials write
+        return handleSaveFinancials(); // tax + bank share the GST/bank write
     };
 
     // ---- shared styles ----
@@ -562,11 +621,16 @@ export function SettingsPageMasterDetail() {
 
                     <div style={{ height: 1, background: "var(--c-border)", margin: "10px 4px", display: isMobile ? "none" : "block" }} />
 
-                    {/* secondary links — hidden in the mobile horizontal strip; reachable from elsewhere */}
+                    {/* secondary links — hidden in the mobile horizontal strip; reachable from elsewhere.
+                        Billing is owner-only: managers share the dashboard but never see subscription pages. */}
                     {!isMobile && (
                         <>
-                            <NavLinkRow icon={<CreditCard size={17} />} label="Subscription & billing" onClick={() => navigate("/settings/subscription")} />
-                            <NavLinkRow icon={<Receipt size={17} />} label="Payment history" onClick={() => navigate("/settings/payment-history")} />
+                            {role === "admin" && (
+                                <>
+                                    <NavLinkRow icon={<CreditCard size={17} />} label="Subscription & billing" onClick={() => navigate("/settings/subscription")} />
+                                    <NavLinkRow icon={<Receipt size={17} />} label="Payment history" onClick={() => navigate("/settings/payment-history")} />
+                                </>
+                            )}
                             <NavLinkRow icon={<HelpCircle size={17} />} label="Help & support" onClick={() => navigate("/help")} />
                         </>
                     )}
@@ -824,6 +888,87 @@ export function SettingsPageMasterDetail() {
                                             <button type="button" onClick={() => setDistanceBands([...distanceBands, { id: `b-${distanceBands.length}-${Date.now() % 100000}`, label: "", fee: 0 }])} style={{ alignSelf: "flex-start", cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 8, padding: "7px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}><Plus size={13} />{t("settings.addBand", "Add band")}</button>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Receipt Terms & Conditions — printed at the bottom of the customer's receipt */}
+                                <div style={card}>
+                                    <div style={cardTitle}><FileText size={16} style={{ color: "var(--c-cyan)" }} />{t("settings.receiptTerms", "Receipt terms & conditions")}</div>
+                                    <p style={{ fontSize: 12.5, color: "var(--c-text-2)", margin: "0 0 12px", lineHeight: 1.5 }}>{t("settings.receiptTermsHelp", "Shown at the bottom of every receipt the customer receives (PDF, print and app). Leave blank to hide.")}</p>
+                                    <textarea
+                                        value={receiptTerms}
+                                        onChange={(e) => setReceiptTerms(e.target.value.slice(0, 1000))}
+                                        rows={5}
+                                        maxLength={1000}
+                                        placeholder={t("settings.receiptTermsPlaceholder", "e.g. Goods once delivered will not be taken back. Please collect within 30 days. Shop is not responsible for colour bleeding or shrinkage.")}
+                                        style={{ ...fld, resize: "vertical", minHeight: 96, lineHeight: 1.5 }}
+                                    />
+                                    <div style={{ textAlign: "right", fontSize: 11, color: "var(--c-text-3)", marginTop: 6, fontFamily: MONO }}>{receiptTerms.length}/1000</div>
+                                </div>
+
+                                {/* Order numbering — continue billing from previous software */}
+                                <div style={card}>
+                                    <div style={cardTitle}><Hash size={16} style={{ color: "var(--c-violet)" }} />{t("settings.orderNumbering", "Order numbering")}</div>
+                                    <p style={{ fontSize: 12.5, color: "var(--c-text-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
+                                        {t("settings.orderNumberingHelp", "Coming from another billing software? Set the next bill number to continue where it left off. The number can only be increased — lowering it would create duplicate order numbers.")}
+                                    </p>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                                        <div>
+                                            <label style={FIELD_LBL}>{t("settings.nextOrderNumber", "Next order number")}</label>
+                                            <input
+                                                type="number"
+                                                min={shop?.settings?.nextOrderNumber || 1}
+                                                value={nextOrderNum}
+                                                onChange={(e) => setNextOrderNum(Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                                                style={{ ...fld, width: 160, fontFamily: MONO }}
+                                            />
+                                        </div>
+                                        <div style={{ paddingTop: 18 }}>
+                                            <span style={{ fontSize: 12.5, color: "var(--c-text-2)" }}>{t("settings.nextOrderPreview", "Next order will be")} </span>
+                                            <span style={{ fontFamily: MONO, fontWeight: 700, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "3px 9px", borderRadius: 6 }}>
+                                                {formatOrderId(shop?.shopCode || "SHOP", Math.max(1, nextOrderNum || 1))}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* WhatsApp message & customer tracking — owner-customizable share message */}
+                                <div style={card}>
+                                    <div style={cardTitle}><MessageCircle size={16} style={{ color: "var(--c-success)" }} />{t("settings.waShareTitle", "WhatsApp message & tracking")}</div>
+                                    <p style={{ fontSize: 12.5, color: "var(--c-text-2)", margin: "0 0 14px", lineHeight: 1.5 }}>
+                                        {t("settings.waShareHelp", "Customize the WhatsApp message sent to customers when you share an order. Applies on web and in the apps.")}
+                                    </p>
+                                    <div style={{ display: "grid", gap: 12, marginBottom: 14 }}>
+                                        <div>
+                                            <label style={FIELD_LBL}>{t("settings.waHeader", "Greeting (first line)")}</label>
+                                            <input
+                                                value={waHeader}
+                                                onChange={(e) => setWaHeader(e.target.value.slice(0, 120))}
+                                                placeholder={`${shop?.name || "Your Shop"} - Order Confirmed!`}
+                                                style={fld}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={FIELD_LBL}>{t("settings.waFooter", "Closing line")}</label>
+                                            <input
+                                                value={waFooter}
+                                                onChange={(e) => setWaFooter(e.target.value.slice(0, 160))}
+                                                placeholder={t("settings.waFooterPlaceholder", "Any questions? Reply to this message!")}
+                                                style={fld}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "grid", gap: 4 }}>
+                                        <ToggleRow label={t("settings.waShowItems", "Items list")} desc={t("settings.waShowItemsDesc", "Each service with quantity")} on={waShowItems} onChange={setWaShowItems} />
+                                        <ToggleRow label={t("settings.waShowPayment", "Payment details")} desc={t("settings.waShowPaymentDesc", "Total, paid and balance due")} on={waShowPayment} onChange={setWaShowPayment} />
+                                        <ToggleRow label={t("settings.waShowExpectedDate", "Expected date")} desc={t("settings.waShowExpectedDateDesc", "Ready / delivery date line")} on={waShowExpectedDate} onChange={setWaShowExpectedDate} />
+                                        <ToggleRow label={t("settings.waShowReceiptLink", "Receipt link")} desc={t("settings.waShowReceiptLinkDesc", "Online receipt the customer can open")} on={waShowReceiptLink} onChange={setWaShowReceiptLink} />
+                                        <ToggleRow
+                                            label={t("settings.trackingEnabled", "Customer order tracking")}
+                                            desc={t("settings.trackingEnabledDesc", "Off = no tracking links or QR codes anywhere — WhatsApp messages, printed receipts and PDF receipts")}
+                                            on={trackingOn}
+                                            onChange={setTrackingOn}
+                                        />
+                                    </div>
                                 </div>
                                 </>
                             )}

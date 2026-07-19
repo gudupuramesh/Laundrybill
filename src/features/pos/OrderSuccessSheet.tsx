@@ -81,6 +81,8 @@ export function OrderSuccessSheet({
             countryCode: shop.settings?.countryCode,
             currencySymbol,
             currencyCode: shop.settings?.currency,
+            receiptTerms: shop.settings?.receiptTerms,
+            showTracking: shop.settings?.trackingEnabled !== false,
         };
     };
 
@@ -96,6 +98,8 @@ export function OrderSuccessSheet({
                 phone: shopInfo.phone,
                 gstNumber: shopInfo.gstNumber,
                 countryCode: shopInfo.countryCode,
+                receiptTerms: shopInfo.receiptTerms,
+                showTracking: shopInfo.showTracking,
             });
             return;
         }
@@ -191,7 +195,9 @@ export function OrderSuccessSheet({
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
                         <button onClick={handleWhatsAppShare} disabled={sharing} style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)", opacity: sharing ? 0.6 : 1 }}><MessageCircle size={16} />{t("checkout.shareWhatsApp", "WhatsApp")}</button>
-                        <button onClick={handleOpenTracking} style={ghostBtn}><ExternalLink size={16} />{t("checkout.track", "Track")}</button>
+                        {shop?.settings?.trackingEnabled !== false && (
+                            <button onClick={handleOpenTracking} style={ghostBtn}><ExternalLink size={16} />{t("checkout.track", "Track")}</button>
+                        )}
                     </div>
                 </div>
             </div>

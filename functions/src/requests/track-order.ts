@@ -77,7 +77,8 @@ export const trackOrder = onCall(async (request) => {
 
     // Shop details
     let shopName = "", shopPhone = "", shopAddress = "", shopEmail = "";
-    let shopGstNumber = "", shopCountryCode = "";
+    let shopGstNumber = "", shopCountryCode = "", shopReceiptTerms = "";
+    let shopTrackingEnabled = true;
     try {
         const shopDoc = await db.collection("shops").doc(shopId).get();
         if (shopDoc.exists) {
@@ -90,6 +91,9 @@ export const trackOrder = onCall(async (request) => {
             // Tax-invoice fields for the public receipt PDF (TRN/GSTIN line + UAE "TAX INVOICE" title)
             shopGstNumber = s.gstNumber || "";
             shopCountryCode = s.settings?.countryCode || "";
+            // Owner-configured Terms & Conditions shown on the customer's receipt.
+            shopReceiptTerms = s.settings?.receiptTerms || "";
+            shopTrackingEnabled = s.settings?.trackingEnabled !== false;
         }
     } catch { /* ignore */ }
 
@@ -146,6 +150,8 @@ export const trackOrder = onCall(async (request) => {
         shopEmail,
         gstNumber: shopGstNumber || null,
         countryCode: shopCountryCode || null,
+        receiptTerms: shopReceiptTerms || null,
+        trackingEnabled: shopTrackingEnabled,
         assignedAgentId: o.assignedAgentId || null,
         assignedAgentName: o.assignedAgentName || null,
         assignedAgentPhone: agentPhone || o.assignedAgentPhone || null,
@@ -158,6 +164,15 @@ export const trackOrder = onCall(async (request) => {
         pickupPhoto: o.pickupPhoto || null,
         deliveryPhoto: o.deliveryPhoto || null,
         plantPhoto: o.plantPhoto || null,
+        // Photo captions (who added each photo + when) for the customer's view.
+        photoMeta: Array.isArray(o.photoMeta)
+            ? o.photoMeta.map((m: { url?: string; byName?: string; byRole?: string; at?: { toMillis?: () => number } }) => ({
+                url: m.url || "",
+                byName: m.byName || "",
+                byRole: m.byRole || "",
+                atMs: m.at?.toMillis ? m.at.toMillis() : null,
+            }))
+            : null,
         orderSource: o.orderSource || null,
     };
 });

@@ -168,7 +168,9 @@ export function SubscriptionPage() {
                 ? "Cancelled"
                 : status === "expired"
                   ? "Expired"
-                  : "Free";
+                  : status === "trial"
+                    ? "Free trial"
+                    : "Free";
     const statusDot =
         status === "active"
             ? "var(--c-success)"
@@ -176,7 +178,9 @@ export function SubscriptionPage() {
               ? "var(--c-error)"
               : status === "cancelled" || status === "grace_period"
                 ? "var(--c-warning)"
-                : "var(--c-text-3)";
+                : status === "trial"
+                  ? "var(--c-info)"
+                  : "var(--c-text-3)";
 
     const th: CSSProperties = {
         textAlign: "left",

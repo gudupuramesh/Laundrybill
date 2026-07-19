@@ -10,12 +10,13 @@ const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const secrets_1 = require("../lib/secrets");
 const razorpay_1 = require("../services/razorpay");
+const subscription_events_1 = require("../lib/subscription-events");
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
 const db = admin.firestore();
 exports.cancelSubscriptionAtPeriodEnd = (0, https_1.onCall)({ secrets: [secrets_1.RAZORPAY_KEY_ID, secrets_1.RAZORPAY_KEY_SECRET] }, async (request) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in to cancel.");
     }
@@ -54,6 +55,14 @@ exports.cancelSubscriptionAtPeriodEnd = (0, https_1.onCall)({ secrets: [secrets_
             activeUntil,
             updatedAt: now,
         });
+        await (0, subscription_events_1.logSubscriptionEvent)({
+            type: "subscription_cancelled",
+            shopId,
+            shopName: (_d = shopData === null || shopData === void 0 ? void 0 : shopData.name) !== null && _d !== void 0 ? _d : null,
+            provider: (_e = subData === null || subData === void 0 ? void 0 : subData.provider) !== null && _e !== void 0 ? _e : null,
+            description: `Subscription cancelled by owner${((_f = activeUntil === null || activeUntil === void 0 ? void 0 : activeUntil.toDate) === null || _f === void 0 ? void 0 : _f.call(activeUntil)) ? ` — access until ${activeUntil.toDate().toLocaleDateString()}` : ""}.`,
+            metadata: { fromPlan: (_g = subData === null || subData === void 0 ? void 0 : subData.planId) !== null && _g !== void 0 ? _g : null, toStatus: "cancelled", actor: "user", uid },
+        });
         // For Razorpay subscriptions, also cancel the recurring mandate at cycle end so
         // no further monthly charge is taken. (Store subs are managed in the store.)
         if ((subData === null || subData === void 0 ? void 0 : subData.provider) === "razorpay" && (subData === null || subData === void 0 ? void 0 : subData.providerRef)) {
@@ -65,7 +74,7 @@ exports.cancelSubscriptionAtPeriodEnd = (0, https_1.onCall)({ secrets: [secrets_
                 console.error("Razorpay cancel failed (Firestore already marked cancelled):", e);
             }
         }
-        const activeUntilDate = (_d = activeUntil === null || activeUntil === void 0 ? void 0 : activeUntil.toDate) === null || _d === void 0 ? void 0 : _d.call(activeUntil);
+        const activeUntilDate = (_h = activeUntil === null || activeUntil === void 0 ? void 0 : activeUntil.toDate) === null || _h === void 0 ? void 0 : _h.call(activeUntil);
         return {
             success: true,
             activeUntil: activeUntilDate ? activeUntilDate.toISOString() : null,

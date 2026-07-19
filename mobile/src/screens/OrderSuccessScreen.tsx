@@ -44,14 +44,21 @@ export default function OrderSuccessScreen({
   const countrySettings = useShopCountrySettings();
   const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
 
-  // Fetch shop name from Firestore if not passed as prop
+  // Fetch shop name + share-message settings from Firestore
   const [resolvedShopName, setResolvedShopName] = useState(shopName || '');
+  const [waShare, setWaShare] = useState<any>(null);
+  const [trackingOn, setTrackingOn] = useState(true);
   useEffect(() => {
-    if (shopName) return;
     const sid = getShopId();
     if (!sid) return;
     firestore().collection('shops').doc(sid).get()
-      .then((snap) => { if (snap.exists) setResolvedShopName(snap.data()?.name || 'LaundryBill'); })
+      .then((snap) => {
+        if (!snap.exists) return;
+        const d = snap.data() || {};
+        if (!shopName) setResolvedShopName(d.name || 'LaundryBill');
+        setWaShare(d.settings?.waShare || null);
+        setTrackingOn(d.settings?.trackingEnabled !== false);
+      })
       .catch(() => {});
   }, [shopName]);
 
@@ -83,31 +90,34 @@ export default function OrderSuccessScreen({
     const trackingUrl = `${WEB_APP_URL}/track/${order.publicId}`;
     const receiptUrl = `${WEB_APP_URL}/receipt/${order.publicId}`;
 
+    // Owner customization (web Settings → WhatsApp message & tracking); shared with web.
+    const ws = waShare || {};
     const lines = [
-      t('mobile.waOrderConfirmed', { shop: resolvedShopName || 'LaundryBill' }),
+      ws.headerText?.trim()
+        ? `🧺 *${ws.headerText.trim()}*`
+        : t('mobile.waOrderConfirmed', { shop: resolvedShopName || 'LaundryBill' }),
       ``,
       t('mobile.waOrderId', { id: order.publicId }),
       t('mobile.waDate', { date: formatDateTime(order.createdAt) }),
       t('mobile.waType', { type: deliveryLabel }),
-      ``,
-      t('mobile.waItems'),
-      ...order.items.map(i => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`),
-      ``,
-      t('mobile.waPayment'),
-      withCurrencySymbol(t('mobile.waTotal', { amount: order.financials.total }) as string),
-      order.paymentStatus === 'paid' ? t('mobile.waPaidFull') : withCurrencySymbol(t('mobile.waBalanceDue', { amount: order.financials.balance }) as string),
-      ``,
-      `*${readyLabel}:*`,
-      formatDate(order.expectedDelivery),
-      ``,
-      `📱 *Track Your Order:*`,
-      trackingUrl,
-      ``,
-      `🧾 *View Receipt:*`,
-      receiptUrl,
-      ``,
-      t('mobile.waQuestions'),
     ];
+    if (ws.showItems !== false) {
+      lines.push(``, t('mobile.waItems'), ...order.items.map(i => `- ${i.serviceName} (${i.categoryName}) x${i.quantity}`));
+    }
+    if (ws.showPayment !== false) {
+      lines.push(
+        ``,
+        t('mobile.waPayment'),
+        withCurrencySymbol(t('mobile.waTotal', { amount: order.financials.total }) as string),
+        order.paymentStatus === 'paid' ? t('mobile.waPaidFull') : withCurrencySymbol(t('mobile.waBalanceDue', { amount: order.financials.balance }) as string),
+      );
+    }
+    if (ws.showExpectedDate !== false) {
+      lines.push(``, `*${readyLabel}:*`, formatDate(order.expectedDelivery));
+    }
+    if (trackingOn) lines.push(``, `📱 *Track Your Order:*`, trackingUrl);
+    if (ws.showReceiptLink !== false) lines.push(``, `🧾 *View Receipt:*`, receiptUrl);
+    lines.push(``, ws.footerText?.trim() || t('mobile.waQuestions'));
 
     const message = lines.join('\n');
     const url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;

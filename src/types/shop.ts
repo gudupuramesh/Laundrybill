@@ -89,12 +89,29 @@ export interface PublicSocialLinks {
     whatsapp?: string;
 }
 
-/** Coupon for public ordering – shop owner creates; customer enters code at checkout */
+/** Coupon / offer — shop owner creates; applied by code on the public page AND at the POS. */
 export interface PublicCoupon {
     code: string;           // e.g. "SAVE10"
     type: "percent" | "flat";
     value: number;          // percent (1–100) or flat amount in currency
     minOrder?: number;      // optional minimum order amount to apply
+    /** false = paused; missing = active (back-compat with existing coupons). */
+    active?: boolean;
+    /** Optional expiry date, ISO "YYYY-MM-DD" — invalid after this day. */
+    expiresAt?: string;
+}
+
+/** Cashback / loyalty points config (Pro+ & Business). 1 point = 1 unit of currency. */
+export interface LoyaltySettings {
+    enabled: boolean;
+    /** How points are earned: percentage of order total, or fixed points per order. */
+    mode: "percent" | "fixed";
+    /** e.g. 5 → a 500 order earns 25 points (mode "percent"). */
+    earnPercent?: number;
+    /** e.g. 10 → every order earns 10 points (mode "fixed"). */
+    earnFixed?: number;
+    /** Max share of an order payable with points, 1–100 (default 100). */
+    maxRedeemPercent?: number;
 }
 
 export interface ShopSettings {
@@ -119,8 +136,37 @@ export interface ShopSettings {
     // Tax Settings
     tax?: ShopTaxSettings;
 
-    // Public ordering coupons (customer enters code; no manual discount entry)
+    // Coupons / offers — applied by code on the public page and at the POS.
     publicCoupons?: PublicCoupon[];
+
+    // Cashback / loyalty points (earned when an order is fully paid; redeemed at checkout).
+    loyalty?: LoyaltySettings;
+
+    // Terms & Conditions printed at the bottom of the customer's receipt (owner-configured).
+    receiptTerms?: string;
+
+    // WhatsApp share message customization (owner-configured; all fields optional —
+    // undefined means the default text/blocks). Used by web + both apps.
+    waShare?: WaShareSettings;
+
+    // Customer order tracking. false hides tracking links/QRs everywhere the shop
+    // emits them (WhatsApp messages, printed receipts, PDF receipts). Default true.
+    trackingEnabled?: boolean;
+}
+
+export interface WaShareSettings {
+    /** First line of the WhatsApp message (bolded). Default: "<Shop name> - Order Confirmed!" */
+    headerText?: string;
+    /** Last line of the message. Default: "Any questions? Reply to this message!" */
+    footerText?: string;
+    /** Include the itemised list. Default true. */
+    showItems?: boolean;
+    /** Include the payment breakdown (total/paid/balance). Default true. */
+    showPayment?: boolean;
+    /** Include the expected delivery / ready date. Default true. */
+    showExpectedDate?: boolean;
+    /** Include the online receipt link. Default true. */
+    showReceiptLink?: boolean;
 }
 
 export interface Shop {

@@ -49,9 +49,9 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
         return <Navigate to="/login" replace />;
     }
 
-    // If we are here, role must be 'admin' (or we fall through to requiredRole check)
-    // Double check to be safe - if role is not admin, kick them out
-    if (role !== 'admin' && role !== 'plant_operator' && role !== 'agent') {
+    // If we are here, role must be 'admin' or 'manager' — managers share the owner
+    // dashboard; owner-only pages are gated separately via OwnerRoute + nav flags.
+    if (role !== 'admin' && role !== 'manager' && role !== 'plant_operator' && role !== 'agent') {
         return <Navigate to="/login" replace />;
     }
 
@@ -61,5 +61,18 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
         return <Navigate to="/" replace />;
     }
 
+    return <>{children}</>;
+}
+
+/**
+ * Owner-only route inside the owner dashboard: managers share the dashboard but
+ * NOT these pages — subscription/billing, payment history, public booking page.
+ */
+export function OwnerRoute({ children }: { children: React.ReactNode }) {
+    const { role, loading } = useAuth();
+    if (loading) return null;
+    if (role !== "admin") {
+        return <Navigate to="/" replace />;
+    }
     return <>{children}</>;
 }

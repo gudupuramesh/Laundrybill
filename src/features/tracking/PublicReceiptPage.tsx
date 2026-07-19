@@ -121,6 +121,8 @@ export function PublicReceiptPage() {
                 address: data?.shopAddress,
                 gstNumber: data?.gstNumber,
                 countryCode: data?.countryCode,
+                receiptTerms: data?.receiptTerms,
+                showTracking: data?.trackingEnabled !== false,
                 currencySymbol,
                 currencyCode,
             };
@@ -158,6 +160,8 @@ export function PublicReceiptPage() {
                 address: data?.shopAddress,
                 gstNumber: data?.gstNumber,
                 countryCode: data?.countryCode,
+                receiptTerms: data?.receiptTerms,
+                showTracking: data?.trackingEnabled !== false,
                 currencySymbol,
                 currencyCode,
             };
@@ -289,14 +293,16 @@ export function PublicReceiptPage() {
 
                     <LSpacer size="md" />
 
-                    {/* Track Order Link */}
-                    <button
-                        onClick={() => navigate(`/track/${data.publicId}`)}
-                        className="flex items-center justify-center gap-2 w-full py-2 text-sm text-primary hover:underline"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Track Order Status
-                    </button>
+                    {/* Track Order Link (hidden when the shop turned tracking off) */}
+                    {data.trackingEnabled !== false && (
+                        <button
+                            onClick={() => navigate(`/track/${data.publicId}`)}
+                            className="flex items-center justify-center gap-2 w-full py-2 text-sm text-primary hover:underline"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                            Track Order Status
+                        </button>
+                    )}
                 </LCard>
             </main>
 

@@ -34,6 +34,13 @@ export function PlantPhotosCard({ order }: { order: Order }) {
       await firestore().doc(`shops/${shopId}/orders/${order.id}`).update({
         damagePhotoUrls: firestore.FieldValue.arrayUnion(publicUrl),
         plantPhoto: publicUrl,
+        // Caption metadata: who added the photo + when (shown on detail screens & tracking).
+        photoMeta: firestore.FieldValue.arrayUnion({
+          url: publicUrl,
+          byName: agent?.name || 'Plant',
+          byRole: 'plant',
+          at: firestore.Timestamp.now(),
+        }),
         timeline: firestore.FieldValue.arrayUnion(timelineEvent),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });

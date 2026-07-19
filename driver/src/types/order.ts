@@ -239,6 +239,9 @@ export interface Order {
     /** Order-level damage/stain photo URLs (R2) from checkout */
     damagePhotoUrls?: string[];
 
+    /** Caption metadata for order photos: who added each photo, their role, and when. */
+    photoMeta?: { url: string; byName: string; byRole: string; at: any }[];
+
     /** Pickup proof photo URL (driver app) */
     pickupPhoto?: string;
     /** Delivery proof photo URL (driver app) */

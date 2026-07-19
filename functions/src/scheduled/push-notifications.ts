@@ -12,7 +12,7 @@ import { sendPush, PushTarget } from "../services/push-sender";
 const db = admin.firestore();
 
 /** Collect push targets (token + tokenType) from a shop's notificationTokens. */
-async function collectShopTargets(
+export async function collectShopTargets(
   shopId: string,
 ): Promise<{ targets: PushTarget[]; refByToken: Map<string, FirebaseFirestore.DocumentReference> }> {
   const snap = await db.collection(`shops/${shopId}/notificationTokens`).get();
@@ -35,7 +35,9 @@ async function collectShopTargets(
 // ────────────────────────────────────────────────────────────────────────
 
 export const sendUpgradeReminders = functions.pubsub
-  .schedule("30 4 * * *") // 10:00 AM IST daily
+  // Cloud Scheduler evaluates the cron IN the timeZone below — this is 10:00 AM IST
+  // ("30 4" was the UTC time double-converted, which actually fired at 4:30 AM IST).
+  .schedule("0 10 * * *")
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     try {

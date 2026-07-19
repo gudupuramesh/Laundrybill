@@ -233,7 +233,7 @@ const btnOutline: CSSProperties = { cursor: "pointer", display: "inline-flex", a
 const STATUS_TINT: Record<OrderStatus, string> = {
     pending: "c-text-3", processing: "c-info", ready: "c-success", ready_for_pickup: "c-success",
     out_for_delivery: "c-cyan", picked_up: "c-success", delivered: "c-success",
-    pickup_scheduled: "c-warning", pickup_completed: "c-violet", cancelled: "c-error",
+    pickup_scheduled: "c-warning", pickup_completed: "c-violet", partially_delivered: "c-warning", cancelled: "c-error",
 };
 
 function ChipIcon({ children, soft, refColor }: { children: ReactNode; soft: string; refColor: string }) {

@@ -43,6 +43,16 @@ export interface PlanFeatures {
     expenses: boolean;
     reports: boolean;
 
+    // Team-scale features (Pro+ / Business)
+    /** Per-item piece tracking (partial delivery / per-item processing). */
+    itemTracking: boolean;
+    /** Scheduled order reminder pushes (delayed / uncollected / dues). */
+    orderReminders: boolean;
+    /** Coupon codes / offers (fixed & % with min order) at POS + public page manager. */
+    offers: boolean;
+    /** Cashback / loyalty points per customer (earn on paid orders, redeem at checkout). */
+    loyalty: boolean;
+
     // Advanced (Business only)
     damagePhotos: boolean;
     staffApp: boolean;

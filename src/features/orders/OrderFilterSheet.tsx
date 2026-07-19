@@ -15,7 +15,8 @@ import {
 import { STATUS_FLOW } from "@/types/order";
 import type { DeliveryType, OrderStatus } from "@/types/order";
 import type { OrderSourceFilter } from "@/hooks/use-orders-paginated";
-import { Filter, Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag } from "lucide-react";
+import { useInventory } from "@/hooks/use-inventory";
+import { Filter, Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag, Shirt } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface OrderFilterSheetProps {
@@ -25,11 +26,14 @@ interface OrderFilterSheetProps {
     selectedStatus: OrderStatus | "all";
     selectedOrderSource?: OrderSourceFilter;
     selectedSpecialFilter?: 'pending_overdue' | 'payment_due' | null;
+    /** Service (inventory item) filter — orders containing this service. "all" = no filter. */
+    selectedServiceId?: string;
     onApply: (
         deliveryType: DeliveryType | "all",
         status: OrderStatus | "all",
         specialFilter: 'pending_overdue' | 'payment_due' | null,
-        orderSource?: OrderSourceFilter
+        orderSource?: OrderSourceFilter,
+        serviceId?: string
     ) => void;
 }
 
@@ -65,12 +69,16 @@ export function OrderFilterSheet({
     selectedStatus,
     selectedOrderSource = "all",
     selectedSpecialFilter,
+    selectedServiceId = "all",
     onApply,
 }: OrderFilterSheetProps) {
     const { t } = useTranslation();
+    // Filter by SERVICE TYPE (category: Wash & Fold, Iron, Dry Clean…), not individual items.
+    const { categories: services } = useInventory();
     const [tempDeliveryType, setTempDeliveryType] = useState<DeliveryType | "all">(selectedDeliveryType);
     const [tempStatus, setTempStatus] = useState<OrderStatus | "all">(selectedStatus);
     const [tempOrderSource, setTempOrderSource] = useState<OrderSourceFilter>(selectedOrderSource);
+    const [tempServiceId, setTempServiceId] = useState<string>(selectedServiceId);
     const [tempSpecialFilter, setTempSpecialFilter] = useState<'pending_overdue' | 'payment_due' | null>(selectedSpecialFilter || null);
 
     // Helper for status labels
@@ -85,6 +93,7 @@ export function OrderFilterSheet({
             case 'cancelled': return t('orders.cancelled');
             case 'pickup_scheduled': return t('orders.scheduledPickup');
             case 'pickup_completed': return t('orders.steps.pickedUp');
+            case 'partially_delivered': return t('orders.partiallyDelivered', 'Partially Delivered');
             case 'out_for_delivery': return t('dashboard.outForDelivery');
             default: return (status as string).replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
         }
@@ -96,9 +105,10 @@ export function OrderFilterSheet({
             setTempDeliveryType(selectedDeliveryType);
             setTempStatus(selectedStatus);
             setTempOrderSource(selectedOrderSource || "all");
+            setTempServiceId(selectedServiceId || "all");
             setTempSpecialFilter(selectedSpecialFilter || null);
         }
-    }, [open, selectedDeliveryType, selectedStatus, selectedOrderSource, selectedSpecialFilter]);
+    }, [open, selectedDeliveryType, selectedStatus, selectedOrderSource, selectedServiceId, selectedSpecialFilter]);
 
     // When delivery type changes, reset status to "all" if current status isn't in new flow
     // AND clear special filter
@@ -124,6 +134,7 @@ export function OrderFilterSheet({
             setTempDeliveryType("all");
             setTempStatus("all");
             setTempOrderSource("all");
+            setTempServiceId("all");
         }
     };
 
@@ -146,7 +157,7 @@ export function OrderFilterSheet({
 
         if (tempDeliveryType === "all") {
             // Show common statuses when "All Types" is selected
-            const commonStatuses: OrderStatus[] = ["pending", "processing", "ready", "delivered", "cancelled"];
+            const commonStatuses: OrderStatus[] = ["pending", "processing", "ready", "partially_delivered", "delivered", "cancelled"];
             return [
                 ...baseOptions,
                 ...commonStatuses.map(status => ({
@@ -169,7 +180,7 @@ export function OrderFilterSheet({
     };
 
     const handleApply = () => {
-        onApply(tempDeliveryType, tempStatus, tempSpecialFilter, tempOrderSource);
+        onApply(tempDeliveryType, tempStatus, tempSpecialFilter, tempOrderSource, tempServiceId);
         onClose();
     };
 
@@ -177,10 +188,11 @@ export function OrderFilterSheet({
         setTempDeliveryType("all");
         setTempStatus("all");
         setTempOrderSource("all");
+        setTempServiceId("all");
         setTempSpecialFilter(null);
     };
 
-    const hasActiveFilters = tempDeliveryType !== "all" || tempStatus !== "all" || tempOrderSource !== "all" || tempSpecialFilter !== null;
+    const hasActiveFilters = tempDeliveryType !== "all" || tempStatus !== "all" || tempOrderSource !== "all" || tempServiceId !== "all" || tempSpecialFilter !== null;
 
     return (
         <LResponsiveDialog
@@ -214,6 +226,9 @@ export function OrderFilterSheet({
                                     {t('orders.filters.overdueOrders')}
                                 </span>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                                {t('orders.filters.overdueDesc', 'Past expected delivery')}
+                            </p>
                         </button>
                         <button
                             type="button"
@@ -232,6 +247,9 @@ export function OrderFilterSheet({
                                     {t('orders.filters.unpaidDues')}
                                 </span>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                                {t('orders.filters.unpaidDuesDesc', 'Balance not collected')}
+                            </p>
                         </button>
                     </div>
                 </div>
@@ -312,6 +330,26 @@ export function OrderFilterSheet({
                             );
                         })}
                     </div>
+                </div>
+
+                <LDivider />
+
+                {/* Service filter — orders containing a specific service */}
+                <div className={`space-y-3 ${tempSpecialFilter ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <Shirt className="h-4 w-4 text-primary" />
+                        {t('orders.serviceFilter', 'Service type')}
+                    </h3>
+                    <select
+                        value={tempServiceId}
+                        onChange={(e) => { setTempServiceId(e.target.value); if (e.target.value !== 'all') setTempSpecialFilter(null); }}
+                        className="w-full rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary"
+                    >
+                        <option value="all">{t('orders.allServices', 'All service types')}</option>
+                        {services.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <LDivider />

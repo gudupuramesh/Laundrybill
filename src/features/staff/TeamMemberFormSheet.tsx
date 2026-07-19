@@ -63,13 +63,22 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
     const agentLimit = checkLimit("maxDeliveryAgents", teamMembers.filter((m) => m.memberType === "agent").length);
     const plantLimit = checkLimit("maxPlantStaff", teamMembers.filter((m) => m.memberType === "plant").length);
 
+    // Manager is a Staff-app login with the manager role (memberType 'staff' + role 'manager').
+    // It shares the staff plan slot, so it lives alongside "Staff App" here.
     const memberTypeOptions = [
         { value: "staff", label: t("staff.memberTypeStaff", "Staff App"), description: !staffLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeStaffDesc", "Order management & basic access"), disabled: !staffLimit.allowed },
+        { value: "manager", label: t("staff.memberTypeManager", "Manager"), description: !staffLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeManagerDesc", "Staff App access with manager role"), disabled: !staffLimit.allowed },
         { value: "agent", label: t("staff.memberTypeAgent", "Delivery Agent"), description: !agentLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeAgentDesc", "Pickup & delivery tracking"), disabled: !agentLimit.allowed },
         { value: "plant", label: t("staff.memberTypePlant", "Plant Operator"), description: !plantLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypePlantDesc", "Processing & plant management"), disabled: !plantLimit.allowed },
     ].filter((opt) => (opt.value === "agent" ? agentLimit.limit !== 0 : opt.value === "plant" ? plantLimit.limit !== 0 : true));
 
-    const [form, setForm] = useState({ email: "", memberType: "staff" as MemberType, name: "", staffId: "", vehicleType: "bike" as VehicleType, vehicleNumber: "", serviceAreas: [] as string[] });
+    // Selector value is a login-type ("staff" | "manager" | "agent" | "plant"); manager maps
+    // to memberType 'staff' + role 'manager' at creation.
+    type LoginType = "staff" | "manager" | "agent" | "plant";
+    const resolvedMemberType = (lt: LoginType): MemberType => (lt === "agent" ? "agent" : lt === "plant" ? "plant" : "staff");
+    const resolvedRole = (lt: LoginType): string => (lt === "manager" ? "manager" : lt === "plant" ? "plant_operator" : lt === "agent" ? "agent" : "staff");
+
+    const [form, setForm] = useState({ email: "", memberType: "staff" as LoginType, name: "", staffId: "", vehicleType: "bike" as VehicleType, vehicleNumber: "", serviceAreas: [] as string[] });
     const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -90,7 +99,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
         if (!emailTrim) newErrors.email = t("common.required", "Required");
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) newErrors.email = t("common.invalidEmail", "Invalid email");
         else if (teamMembers.some((tm) => tm.email.toLowerCase() === emailTrim.toLowerCase())) newErrors.email = t("staff.emailAlreadyUsed", "This email is already registered for an app login.");
-        else if (staff.some((s) => s.email?.toLowerCase() === emailTrim.toLowerCase())) newErrors.email = t("staff.emailAlreadyUsed", "This email is already registered for an app login.");
+        else if (staff.some((s) => s.id !== form.staffId && s.email?.toLowerCase() === emailTrim.toLowerCase())) newErrors.email = t("staff.emailAlreadyUsed", "This email is already registered for an app login.");
 
         const limit = form.memberType === "agent" ? agentLimit : form.memberType === "plant" ? plantLimit : staffLimit;
         if (!limit.allowed) newErrors.memberType = t("validation.planLimitReached", "Plan limit reached.");
@@ -100,9 +109,24 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
 
         setLoading(true); setErrors({});
         try {
+            // Invite acceptance signs UP with this email — an email that already has an
+            // app account can never accept the invite, so block it here with a clear message.
+            try {
+                const { httpsCallable } = await import("firebase/functions");
+                const { functions } = await import("@/lib/firebase");
+                const check = httpsCallable<{ email: string }, { existsInAuth: boolean }>(functions, "checkLoginEmail");
+                const res = await check({ email: emailTrim.toLowerCase() });
+                if (res.data.existsInAuth) {
+                    setErrors({ email: t("staff.emailHasAccount", "This email already has an app account. Use the staff member's own new email.") });
+                    setLoading(false);
+                    return;
+                }
+            } catch { /* lookup unavailable — proceed; creation still dedupes within the shop */ }
+
             const result = await createTeamMember({
                 email: emailTrim.toLowerCase(),
-                memberType: form.memberType,
+                memberType: resolvedMemberType(form.memberType),
+                role: resolvedRole(form.memberType),
                 name: form.name || undefined,
                 staffId: form.staffId || undefined,
                 vehicle: form.memberType === "agent" && form.vehicleNumber ? { type: form.vehicleType, number: form.vehicleNumber } : undefined,
@@ -156,7 +180,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
                     </div>
 
                     <Divider label={t("staff.memberTypeLabel", "Login type")} />
-                    <RadioCards value={form.memberType} onChange={(v) => setForm({ ...form, memberType: v as MemberType })} options={memberTypeOptions} />
+                    <RadioCards value={form.memberType} onChange={(v) => setForm({ ...form, memberType: v as LoginType })} options={memberTypeOptions} />
                     {errors.memberType && <div style={errTxt}>{errors.memberType}</div>}
 
                     {form.memberType === "agent" && (

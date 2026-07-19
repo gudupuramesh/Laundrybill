@@ -10,13 +10,20 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { colors, fonts, radii, shadows } from '../theme';
 
-type MemberType = 'staff' | 'agent' | 'plant';
+// Login type. Manager is a Staff-app login with the manager role (memberType
+// 'staff' + role 'manager') — it shares the staff plan slot.
+type MemberType = 'staff' | 'manager' | 'agent' | 'plant';
 
 const MEMBER_TYPES: { key: MemberType; label: string; desc: string; icon: string; color: string; bg: string }[] = [
   { key: 'staff', label: 'Staff App', desc: 'Order management & basic access', icon: 'badge', color: colors.primary, bg: colors.primaryTint },
+  { key: 'manager', label: 'Manager', desc: 'Staff App access with manager role', icon: 'manage-accounts', color: colors.primary, bg: colors.primaryTint },
   { key: 'agent', label: 'Delivery Agent', desc: 'Pickup & delivery tracking', icon: 'delivery-dining', color: colors.success, bg: colors.successBg },
   { key: 'plant', label: 'Plant Operator', desc: 'Processing & plant management', icon: 'precision-manufacturing', color: colors.warning, bg: colors.warningBg },
 ];
+
+/** Firestore memberType (manager collapses into 'staff'). */
+const resolvedMemberType = (mt: MemberType): 'staff' | 'agent' | 'plant' =>
+  mt === 'agent' ? 'agent' : mt === 'plant' ? 'plant' : 'staff';
 
 function generateRandomInviteCode(shopCode: string): string {
   const code = (shopCode || 'SHOP').toUpperCase().slice(0, 4);
@@ -52,7 +59,7 @@ export default function CreateStaffLoginScreen({
 
   const limitForType = (mt: MemberType): number => {
     if (!planLimits) return -1; // no info → fail-open (prior behavior)
-    if (mt === 'staff') return planLimits.maxStaff ?? 0;
+    if (mt === 'staff' || mt === 'manager') return planLimits.maxStaff ?? 0; // manager uses the staff slot
     if (mt === 'agent') return planLimits.maxAgents ?? 0;
     return planLimits.maxPlantStaff ?? 0;
   };
@@ -124,7 +131,8 @@ export default function CreateStaffLoginScreen({
       await firestore().collection(`shops/${shopId}/teamMembers`).add({
         email: trimEmail,
         inviteCode,
-        memberType,
+        memberType: resolvedMemberType(memberType),
+        role: memberType === 'manager' ? 'manager' : memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff',
         name: trimName,
         phone: phone.trim() || null,
         vehicle: null,
@@ -141,7 +149,7 @@ export default function CreateStaffLoginScreen({
       // staff member, link that row (store the login email) instead of adding a
       // duplicate.
       const roleForType =
-        memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff';
+        memberType === 'manager' ? 'manager' : memberType === 'plant' ? 'plant_operator' : memberType === 'agent' ? 'agent' : 'staff';
       if (prefill?.linkedStaffId) {
         await firestore().collection(`shops/${shopId}/staff`).doc(prefill.linkedStaffId).update({
           email: trimEmail,

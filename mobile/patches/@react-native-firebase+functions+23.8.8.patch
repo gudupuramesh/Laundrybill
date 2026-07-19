@@ -1,0 +1,14 @@
+diff --git a/node_modules/@react-native-firebase/functions/ios/RNFBFunctions/RNFBFunctionsModule.m b/node_modules/@react-native-firebase/functions/ios/RNFBFunctions/RNFBFunctionsModule.m
+index 1f4be2b..079816b 100644
+--- a/node_modules/@react-native-firebase/functions/ios/RNFBFunctions/RNFBFunctionsModule.m
++++ b/node_modules/@react-native-firebase/functions/ios/RNFBFunctions/RNFBFunctionsModule.m
+@@ -15,7 +15,8 @@
+  *
+  */
+ 
+-#import <Firebase/Firebase.h>
++#import <FirebaseCore/FirebaseCore.h>
++@import FirebaseFunctions;
+ #import <React/RCTUtils.h>
+ 
+ #import "RNFBApp/RNFBSharedUtils.h"

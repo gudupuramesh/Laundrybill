@@ -28,7 +28,7 @@ function tsToMillis(v) {
     return isNaN(d.getTime()) ? null : d.getTime();
 }
 exports.trackOrder = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const { code, phone } = (request.data || {});
     if (!code || !code.trim()) {
         throw new https_1.HttpsError("invalid-argument", "Order number is required.");
@@ -54,7 +54,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         try {
             snap = await db.collectionGroup("orders").where(field, "==", value).limit(10).get();
         }
-        catch (_f) {
+        catch (_j) {
             continue; // missing index for a field — try the next
         }
         if (!snap.empty) {
@@ -74,6 +74,8 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
     const shopId = orderDoc.ref.path.split("/")[1];
     // Shop details
     let shopName = "", shopPhone = "", shopAddress = "", shopEmail = "";
+    let shopGstNumber = "", shopCountryCode = "", shopReceiptTerms = "";
+    let shopTrackingEnabled = true;
     try {
         const shopDoc = await db.collection("shops").doc(shopId).get();
         if (shopDoc.exists) {
@@ -83,9 +85,15 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
             const loc = s.location;
             shopAddress = (loc === null || loc === void 0 ? void 0 : loc.address) ? [loc.address, loc.city, loc.pincode].filter(Boolean).join(", ") : (s.address || "");
             shopEmail = s.email || "";
+            // Tax-invoice fields for the public receipt PDF (TRN/GSTIN line + UAE "TAX INVOICE" title)
+            shopGstNumber = s.gstNumber || "";
+            shopCountryCode = ((_a = s.settings) === null || _a === void 0 ? void 0 : _a.countryCode) || "";
+            // Owner-configured Terms & Conditions shown on the customer's receipt.
+            shopReceiptTerms = ((_b = s.settings) === null || _b === void 0 ? void 0 : _b.receiptTerms) || "";
+            shopTrackingEnabled = ((_c = s.settings) === null || _c === void 0 ? void 0 : _c.trackingEnabled) !== false;
         }
     }
-    catch ( /* ignore */_g) { /* ignore */ }
+    catch ( /* ignore */_k) { /* ignore */ }
     // Assigned agent phone (for customer to contact the driver)
     let agentPhone = "";
     if (o.assignedAgentId) {
@@ -99,7 +107,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
                     agentPhone = tmDoc.data().phone || "";
             }
         }
-        catch ( /* ignore */_h) { /* ignore */ }
+        catch ( /* ignore */_l) { /* ignore */ }
     }
     const timeline = Array.isArray(o.timeline)
         ? o.timeline.map((e) => ({ status: e.status, timestamp: tsToMillis(e.timestamp), note: e.note || e.notes || null }))
@@ -126,9 +134,9 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         customerPhone: o.customerPhone || "",
         deliveryAddress: o.deliveryAddress || o.pickupAddress || null,
         items,
-        total: (_b = (_a = f.total) !== null && _a !== void 0 ? _a : o.totalAmount) !== null && _b !== void 0 ? _b : 0,
-        amountPaid: (_d = (_c = f.amountPaid) !== null && _c !== void 0 ? _c : o.paidAmount) !== null && _d !== void 0 ? _d : 0,
-        balance: (_e = f.balance) !== null && _e !== void 0 ? _e : ((f.total || 0) - (f.amountPaid || 0)),
+        total: (_e = (_d = f.total) !== null && _d !== void 0 ? _d : o.totalAmount) !== null && _e !== void 0 ? _e : 0,
+        amountPaid: (_g = (_f = f.amountPaid) !== null && _f !== void 0 ? _f : o.paidAmount) !== null && _g !== void 0 ? _g : 0,
+        balance: (_h = f.balance) !== null && _h !== void 0 ? _h : ((f.total || 0) - (f.amountPaid || 0)),
         expectedDelivery: tsToMillis(o.expectedDelivery),
         deliveredAt: tsToMillis(o.deliveredAt),
         deliveryType: o.deliveryType || "pickup_store",
@@ -139,6 +147,10 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         shopPhone,
         shopAddress,
         shopEmail,
+        gstNumber: shopGstNumber || null,
+        countryCode: shopCountryCode || null,
+        receiptTerms: shopReceiptTerms || null,
+        trackingEnabled: shopTrackingEnabled,
         assignedAgentId: o.assignedAgentId || null,
         assignedAgentName: o.assignedAgentName || null,
         assignedAgentPhone: agentPhone || o.assignedAgentPhone || null,
@@ -151,6 +163,18 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         pickupPhoto: o.pickupPhoto || null,
         deliveryPhoto: o.deliveryPhoto || null,
         plantPhoto: o.plantPhoto || null,
+        // Photo captions (who added each photo + when) for the customer's view.
+        photoMeta: Array.isArray(o.photoMeta)
+            ? o.photoMeta.map((m) => {
+                var _a;
+                return ({
+                    url: m.url || "",
+                    byName: m.byName || "",
+                    byRole: m.byRole || "",
+                    atMs: ((_a = m.at) === null || _a === void 0 ? void 0 : _a.toMillis) ? m.at.toMillis() : null,
+                });
+            })
+            : null,
         orderSource: o.orderSource || null,
     };
 });

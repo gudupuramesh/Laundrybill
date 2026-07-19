@@ -29,6 +29,12 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
     expenses: "Expenses",
     reports: "Reports & Analytics",
 
+    // Team-scale (Pro+ / Business)
+    itemTracking: "Per-item Delivery Tracking",
+    orderReminders: "Order Reminder Alerts",
+    offers: "Coupon Codes & Offers",
+    loyalty: "Cashback / Loyalty Points",
+
     // Advanced
     damagePhotos: "Damage Photos",
     staffApp: "Staff Usage",

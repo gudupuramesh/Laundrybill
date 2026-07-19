@@ -1,4 +1,15 @@
 {
+  "export": {
+    "button": "Export",
+    "title": "Export data",
+    "downloadAll": "Download all",
+    "excel": "Excel (.xlsx)",
+    "csv": "CSV (.csv)",
+    "done": "Download ready",
+    "doneDesc": "Exported {{count}} {{kind}}.",
+    "failed": "Export failed",
+    "failedDesc": "Please try again."
+  },
   "common": {
     "appName": "LaundryBill",
     "loading": "Loading...",
@@ -60,7 +71,9 @@
     "copy": "Copy",
     "copied": "Copied",
     "upgradePlan": "Upgrade Plan",
-    "gotIt": "Got it"
+    "gotIt": "Got it",
+    "all": "All",
+    "reset": "Reset"
   },
   "help": {
     "welcomeTitle": "Thank you for registering with LaundryBill",
@@ -257,7 +270,15 @@
     "deliveryFee": "Delivery Fee",
     "deliveryFeeHelp": "Applies to Home Delivery and Pickup & Delivery when order is below minimum. Not applied to Shop Pickup.",
     "deliveryFeeMinOrder": "Min order for free delivery",
-    "deliveryFeeAmount": "Delivery fee when below min"
+    "deliveryFeeAmount": "Delivery fee when below min",
+    "receiptTerms": "Receipt terms & conditions",
+    "receiptTermsHelp": "Shown at the bottom of every receipt the customer receives (PDF, print and app). Leave blank to hide.",
+    "receiptTermsPlaceholder": "e.g. Goods once delivered will not be taken back. Please collect within 30 days.",
+    "orderNumbering": "Order numbering",
+    "orderNumberingHelp": "Coming from another billing software? Set the next bill number to continue where it left off. The number can only be increased — lowering it would create duplicate order numbers.",
+    "nextOrderNumber": "Next order number",
+    "nextOrderPreview": "Next order will be",
+    "nextOrderTooLow": "Next order number can only be increased (currently {{n}})"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -332,7 +353,16 @@
     "total": "Total",
     "proceedToCheckout": "Proceed to Checkout",
     "items": "items",
-    "readyIn": "Ready in {{days}} days"
+    "readyIn": "Ready in {{days}} days",
+    "couponCode": "Coupon code",
+    "applyCoupon": "Apply",
+    "couponNotFound": "Coupon not found",
+    "couponInactive": "This coupon is paused",
+    "couponExpired": "This coupon has expired",
+    "couponMinOrder": "Minimum order {{amt}} required",
+    "redeemPoints": "Redeem points",
+    "pointsBalance": "{{n}} available",
+    "pointsApplied": "Points applied"
   },
   "customer": {
     "title": "Customer",
@@ -387,7 +417,8 @@
     "addressPlaceholder": "Full address for deliveries",
     "notesOptional": "Notes (optional)",
     "notesPlaceholder": "Any special preferences or notes",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "loyaltyPoints": "Loyalty points"
   },
   "inventory": {
     "services": "Items",
@@ -636,7 +667,9 @@
       "overdueOrders": "Overdue Orders",
       "unpaidDues": "Unpaid Dues",
       "reset": "Reset",
-      "filterOrders": "Filter Orders"
+      "filterOrders": "Filter Orders",
+      "overdueDesc": "Past expected delivery",
+      "unpaidDuesDesc": "Balance not collected"
     },
     "assignedAgent": "Assigned Agent",
     "agent": "Agent",
@@ -648,7 +681,22 @@
     "damageStainPhotos": "Damage / stain photos",
     "pickupProof": "Pickup proof",
     "deliveryProof": "Delivery proof",
-    "plantProof": "Plant / processing proof"
+    "plantProof": "Plant / processing proof",
+    "piecesDelivered": "{{done}}/{{total}} pieces delivered",
+    "setDeliverQty": "Set how many pieces of each line the customer is taking",
+    "process": "Process",
+    "confirmDeliverAllTitle": "Deliver all items?",
+    "confirmDeliverAllDesc": "{{count}} piece(s) are not marked delivered yet. Marking the order as delivered will mark every item as delivered.",
+    "confirmDeliverAllButton": "Yes, deliver all",
+    "processFirst": "Not processed yet",
+    "deleteOrder": "Delete Order Permanently",
+    "deleteWarningTitle": "This cannot be undone",
+    "deleteWarningDesc": "Order #{{id}} will be deleted COMPLETELY from the database — it will disappear from orders, reports and the customer's history, and its tracking link will stop working. Use this only for test or mistake orders. To keep a record instead, cancel the order.",
+    "deleteTypeToConfirm": "Type the order number {{id}} to confirm",
+    "deleteConfirmBtn": "Delete Forever",
+    "deleteDone": "Order deleted",
+    "deleteDoneDesc": "#{{id}} was permanently removed from the database.",
+    "deleteFailed": "Failed to delete order"
   },
   "staff": {
     "title": "Staff",
@@ -1014,7 +1062,8 @@
     "subscription": "Subscription",
     "publicPage": "Public Page",
     "help": "Help",
-    "settings": "Settings"
+    "settings": "Settings",
+    "offers": "Offers"
   },
   "reports": {
     "title": "Financial Reports",
@@ -1944,5 +1993,37 @@
     "expGroupOther": "Other",
     "msg91SecureLoading": "Secure connection loading...",
     "msg91InvalidWebViewMessage": "Invalid message from WebView"
+  },
+  "offers": {
+    "title": "Offers & loyalty",
+    "couponsTitle": "Coupon codes",
+    "couponsHelp": "Create discount codes your customers can use at the counter and on your public booking page. Fixed amount or percentage, with an optional minimum order and expiry date.",
+    "noCoupons": "No coupons yet. Add your first offer below.",
+    "code": "Code",
+    "type": "Type",
+    "percentOff": "% off",
+    "flatOff": "{{sym}} off",
+    "percentValue": "Percent",
+    "amountValue": "Amount",
+    "minOrder": "Min order",
+    "expiry": "Expires (optional)",
+    "paused": "Paused",
+    "active": "Active",
+    "addCoupon": "Add coupon",
+    "valueRequired": "Coupon {{code}} needs a value",
+    "percentTooHigh": "Coupon {{code}}: percent can't exceed 100",
+    "duplicateCode": "Duplicate coupon code {{code}}",
+    "loyaltyTitle": "Cashback / loyalty points",
+    "loyaltyHelp": "Customers earn points when an order is fully paid (1 point = {{sym}}1) and can redeem them on their next order at the counter.",
+    "earnMode": "Earn model",
+    "earnModePercent": "% of order total",
+    "earnModeFixed": "Fixed points per order",
+    "earnPercent": "Cashback %",
+    "earnFixed": "Points per order",
+    "maxRedeem": "Max redeem per order (%)",
+    "earnPreviewFixed": "Every paid order earns {{n}} points ({{amt}})",
+    "earnPreviewPercent": "A {{amt}} paid order earns {{n}} points",
+    "earnPercentRequired": "Set a cashback % greater than 0",
+    "earnFixedRequired": "Set points-per-order greater than 0"
   }
 }

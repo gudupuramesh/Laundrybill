@@ -100,11 +100,15 @@ export function useTeamMemberMutations() {
             throw new Error("EMAIL_ALREADY_USED");
         }
 
-        // Check legacy staff collection for same email
+        // Check the staff roster for the same email — but EXCLUDE the roster row this
+        // login is being created FOR (the combined Add-Staff flow creates that row with
+        // the same email moments earlier; without the exclusion every new email
+        // self-collides and login creation always fails).
         const staffRef = collection(db, "shops", shopId, "staff");
         const staffQuery = query(staffRef, where("email", "==", emailLower));
         const staffSnapshot = await getDocs(staffQuery);
-        if (!staffSnapshot.empty) {
+        const conflictingStaff = staffSnapshot.docs.filter((d) => d.id !== data.staffId);
+        if (conflictingStaff.length > 0) {
             throw new Error("EMAIL_ALREADY_USED");
         }
 

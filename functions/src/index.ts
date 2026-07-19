@@ -689,6 +689,7 @@ export { cleanupOrderImagesDaily } from "./scheduled/cleanup-order-images";
 
 export * from "./requests/create-public-order";
 export * from "./requests/track-order";
+export * from "./requests/check-login-email";
 export * from "./requests/get-public-order-slot-availability";
 export * from "./triggers/on-public-order-created";
 export * from "./triggers/on-order-updated";
@@ -711,4 +712,7 @@ export * from "./requests/razorpay-webhook";
 
 // Push notifications (scheduled + admin callable)
 export * from "./scheduled/push-notifications";
+
+// Order reminders: delayed / uncollected / due-amount, 3× daily (scheduled + manual trigger)
+export { sendOrderReminders, runOrderRemindersNow } from "./scheduled/order-reminders";
 

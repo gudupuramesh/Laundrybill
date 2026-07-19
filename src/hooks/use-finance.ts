@@ -195,6 +195,14 @@ function getMonthsInRange(start: Date, end: Date): string[] {
     return [...new Set(months)]; // Dedupe
 }
 
+interface AttendanceSummary {
+    presentDays: number;
+    absentDays: number;
+    halfDays: number;
+    leaveDays: number;
+    staffTracked: number;
+}
+
 interface StaffMetric {
     staffId: string;
     staffName: string;
@@ -240,6 +248,17 @@ interface FinancialReportsData {
         newCustomers: number;
         totalCustomers: number;
     };
+
+    // Attendance aggregated over the period (all statuses)
+    attendanceSummary: AttendanceSummary;
+
+    // Order breakdowns (raw status keys, incl. partially_delivered)
+    ordersByStatus: Record<string, number>;
+    ordersByType: Record<string, number>; // delivery_home / pickup_store / pickup_home
+    ordersBySource: { online: number; pos: number };
+
+    // Collected amounts by payment method (from payments arrays of period orders)
+    paymentsByMethod: Record<string, number>;
 
     // Loading state
     loading: boolean;
@@ -289,6 +308,11 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
             newCustomers: 0,
             totalCustomers: 0,
         },
+        attendanceSummary: { presentDays: 0, absentDays: 0, halfDays: 0, leaveDays: 0, staffTracked: 0 },
+        ordersByStatus: {},
+        ordersByType: {},
+        ordersBySource: { online: 0, pos: 0 },
+        paymentsByMethod: {},
     });
 
     useEffect(() => {
@@ -319,6 +343,10 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 const dailyMap = new Map<string, { amount: number; count: number }>();
                 const serviceMap = new Map<string, { orders: number; revenue: number }>();
                 const hourMap = new Map<number, number>();
+                const statusMap: Record<string, number> = {};
+                const typeMap: Record<string, number> = {};
+                const sourceMap = { online: 0, pos: 0 };
+                const payMethodMap: Record<string, number> = {};
                 const stats = {
                     total: ordersSnapshot.size,
                     orderPlaced: 0, pickupScheduled: 0, pickedUp: 0, inProgress: 0,
@@ -337,6 +365,21 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     const paymentStatus = order.paymentStatus || "unpaid";
 
                     const isCancelled = status === "cancelled";
+
+                    // Raw breakdowns (statuses kept verbatim, incl. partially_delivered)
+                    statusMap[status] = (statusMap[status] || 0) + 1;
+                    typeMap[deliveryType] = (typeMap[deliveryType] || 0) + 1;
+                    if (order.orderSource === "online") sourceMap.online++;
+                    else sourceMap.pos++;
+
+                    // Collected amounts by method from the payments array
+                    if (!isCancelled) {
+                        (order.payments || []).forEach((p: { amount?: number; method?: string }) => {
+                            const method = p.method || "cash";
+                            payMethodMap[method] = (payMethodMap[method] || 0) + (p.amount || 0);
+                        });
+                    }
+
                     if (!isCancelled) {
                         revenue += total;
                         collections += paid;
@@ -478,9 +521,19 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 );
                 const attSnapshot = await getDocs(attQuery);
 
+                const attendanceSummary = { presentDays: 0, absentDays: 0, halfDays: 0, leaveDays: 0, staffTracked: 0 };
+                const attStaffIds = new Set<string>();
+
                 attSnapshot.forEach(doc => {
                     const att = doc.data();
                     const sid = att.staffId;
+                    if (sid) attStaffIds.add(sid);
+                    switch (att.status) {
+                        case "present": attendanceSummary.presentDays++; break;
+                        case "absent": attendanceSummary.absentDays++; break;
+                        case "half": attendanceSummary.halfDays++; break;
+                        case "leave": attendanceSummary.leaveDays++; break;
+                    }
                     if (att.status === "present" || att.status === "half") {
                         // Assuming Half day counts as 0.5 or 1? Let's count days present (regardless of half)
                         // Or simplistic: Present = 1, Half = 0.5? Let's do simplistic count of "Attendance Days"
@@ -609,7 +662,12 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     customerStats: {
                         newCustomers,
                         totalCustomers: allCustSnap.size
-                    }
+                    },
+                    attendanceSummary: { ...attendanceSummary, staffTracked: attStaffIds.size },
+                    ordersByStatus: statusMap,
+                    ordersByType: typeMap,
+                    ordersBySource: sourceMap,
+                    paymentsByMethod: payMethodMap,
                 });
 
                 setLoading(false);

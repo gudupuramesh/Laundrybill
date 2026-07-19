@@ -13,7 +13,7 @@ import { uploadImageToR2 } from '../lib/uploadR2';
 import { DamagePhotos } from '../components/DamagePhotos';
 import { Dropdown } from '../components/Dropdown';
 import { formatCurrency } from '../lib/currency-format';
-import { usePlanLimits } from '../lib/usePlanLimits';
+import { usePlanLimits, usePlanFeatures } from '../lib/usePlanLimits';
 import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 
@@ -73,6 +73,20 @@ export default function OrderReviewScreen({
   const [shopPhone, setShopPhone] = useState('');
   const [deliverySettings, setDeliverySettings] = useState<DeliveryChargeSettings | undefined>(undefined);
 
+  // Offers & loyalty (Pro+/Business): coupons + points config come from the shop doc.
+  const [publicCoupons, setPublicCoupons] = useState<any[]>([]);
+  const [loyaltyCfg, setLoyaltyCfg] = useState<any>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; type: 'percent' | 'flat'; value: number } | null>(null);
+  const [pointsText, setPointsText] = useState('');
+  const [pointsBalance, setPointsBalance] = useState(0);
+
+  // Pickup/delivery scheduling — date + time slots for home orders (required).
+  const [pickupDate, setPickupDate] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [pickupSlot, setPickupSlot] = useState('');
+  const [deliverySlot, setDeliverySlot] = useState('');
+
   // User inputs
   const [discountText, setDiscountText] = useState('');
   const [notes, setNotes] = useState('');
@@ -91,6 +105,12 @@ export default function OrderReviewScreen({
   // Master switch (shop owner's Service Areas toggle). When OFF, the area picker
   // and agent assignment are hidden — store orders never need them either.
   const serviceAreasEnabled = !!(deliverySettings as any)?.enableServiceAreas;
+
+  // Active pickup/delivery time slots (shop-configured; ids match the web's).
+  const pickupSlotOptions: { id: string; value: string }[] =
+    ((deliverySettings as any)?.pickupTimeSlots || []).filter((sl: any) => sl?.isActive !== false && sl?.value);
+  const deliverySlotOptions: { id: string; value: string }[] =
+    ((deliverySettings as any)?.deliveryTimeSlots || []).filter((sl: any) => sl?.isActive !== false && sl?.value);
 
   // Agents serving the selected area (agents with no areas serve everywhere).
   const areaAgents = useMemo(() => {
@@ -149,6 +169,8 @@ export default function OrderReviewScreen({
           setShopName(data?.name || '');
           setShopPhone(data?.phone || '');
           setDeliverySettings(data?.settings?.delivery);
+          setPublicCoupons(data?.settings?.publicCoupons || []);
+          setLoyaltyCfg(data?.settings?.loyalty || null);
           const areas = (data?.settings?.delivery?.serviceAreas || [])
             .filter((a: any) => a && a.isActive !== false && a.value)
             .map((a: any) => a.value as string);
@@ -170,27 +192,45 @@ export default function OrderReviewScreen({
     return Object.values(map);
   }, [draftOrder, t]);
 
+  // Customer's redeemable points balance (registered customers only).
+  const draftCustomerId = draftOrder?.customer?.id || null;
+  useEffect(() => {
+    if (!shopId || !draftCustomerId) { setPointsBalance(0); return; }
+    firestore().collection(`shops/${shopId}/customers`).doc(draftCustomerId).get()
+      .then((snap: any) => setPointsBalance(Math.max(0, Math.round(snap.data()?.loyaltyPoints || 0))))
+      .catch(() => {});
+  }, [shopId, draftCustomerId]);
+
   // Calculate financials with discount and tax
   const computed = useMemo(() => {
-    if (!draftOrder) return { subtotal: 0, discountAmount: 0, taxAmount: 0, deliveryCharge: 0, total: 0, expressCharge: 0 };
+    if (!draftOrder) return { subtotal: 0, discountAmount: 0, taxAmount: 0, deliveryCharge: 0, total: 0, expressCharge: 0, pointsRedeemed: 0, redeemCap: 0 };
     const subtotal = draftOrder.financials.subtotal;
     const expressCharge = draftOrder.financials.expressCharge;
 
-    // Parse discount
+    // Coupon overrides the manual discount; otherwise parse text ("%" suffix = percent)
     const discountVal = parseFloat(discountText) || 0;
-    // If ends with %, treat as percentage, otherwise flat
     const isPercent = discountText.trim().endsWith('%');
-    const discountAmount = isPercent
-      ? Math.round(subtotal * (discountVal / 100))
-      : Math.round(discountVal);
+    let discountAmount = appliedCoupon
+      ? (appliedCoupon.type === 'percent'
+          ? Math.round(subtotal * (appliedCoupon.value / 100))
+          : Math.round(appliedCoupon.value))
+      : (isPercent ? Math.round(subtotal * (discountVal / 100)) : Math.round(discountVal));
+    discountAmount = Math.max(0, Math.min(discountAmount, subtotal));
 
     const afterDiscount = Math.max(0, subtotal - discountAmount);
     const taxAmount = taxEnabled ? Math.round(afterDiscount * (taxRate / 100)) : 0;
     const deliveryCharge = getDeliveryCharge(deliverySettings, afterDiscount, deliveryType, deliveryBandId);
-    const total = afterDiscount + taxAmount + deliveryCharge;
+    const prePointsTotal = afterDiscount + taxAmount + deliveryCharge;
 
-    return { subtotal, discountAmount, taxAmount, deliveryCharge, total, expressCharge };
-  }, [draftOrder, discountText, taxEnabled, taxRate, deliverySettings, deliveryType, deliveryBandId]);
+    // Redeem cap: customer balance, limited to maxRedeemPercent of the payable amount (1 point = 1 currency unit)
+    const maxRedeemPct = Math.min(100, Math.max(1, loyaltyCfg?.maxRedeemPercent || 100));
+    const redeemCap = Math.min(pointsBalance, Math.floor((prePointsTotal * maxRedeemPct) / 100));
+    const pointsEntered = Math.max(0, Math.floor(parseFloat(pointsText) || 0));
+    const pointsRedeemed = Math.min(redeemCap, pointsEntered);
+    const total = prePointsTotal - pointsRedeemed;
+
+    return { subtotal, discountAmount, taxAmount, deliveryCharge, total, expressCharge, pointsRedeemed, redeemCap };
+  }, [draftOrder, discountText, appliedCoupon, pointsText, pointsBalance, loyaltyCfg, taxEnabled, taxRate, deliverySettings, deliveryType, deliveryBandId]);
 
   const distanceBands = getDistanceBands(deliverySettings);
 
@@ -219,13 +259,20 @@ export default function OrderReviewScreen({
   useEffect(() => {
     if (!editOrder) return;
     const fin = editOrder.financials || {};
-    if (fin.discountAmount > 0) {
+    if (fin.couponCode) {
+      setAppliedCoupon({
+        code: fin.couponCode,
+        type: fin.discountType === 'percent' ? 'percent' : 'flat',
+        value: fin.discountValue || fin.discountAmount || 0,
+      });
+    } else if (fin.discountAmount > 0) {
       if (fin.discountType === 'percent' && fin.discountValue) {
         setDiscountText(`${fin.discountValue}%`);
       } else {
         setDiscountText(String(fin.discountAmount));
       }
     }
+    if (fin.pointsRedeemed > 0) setPointsText(String(fin.pointsRedeemed));
     if (editOrder.deliveryNotes) setNotes(editOrder.deliveryNotes);
     if (
       editOrder.deliveryType === 'delivery_home' ||
@@ -236,6 +283,13 @@ export default function OrderReviewScreen({
     }
     if (editOrder.assignedAgentId) setAssignedAgentId(editOrder.assignedAgentId);
     if (Array.isArray(editOrder.damagePhotoUrls)) setDamagePhotos(editOrder.damagePhotoUrls);
+    const spd = editOrder.scheduledPickupDate;
+    if (spd) {
+      const d = spd?.toDate ? spd.toDate() : spd?.seconds ? new Date(spd.seconds * 1000) : new Date(spd);
+      if (d && !isNaN(d.getTime())) setPickupDate(d);
+    }
+    if (editOrder.scheduledPickupTime) setPickupSlot(editOrder.scheduledPickupTime);
+    if (editOrder.deliverySlot) setDeliverySlot(editOrder.deliverySlot);
     if (editOrder.paymentStatus === 'paid' || (fin.amountPaid > 0 && fin.balance <= 0)) {
       setPaymentStatus('paid');
     }
@@ -256,6 +310,33 @@ export default function OrderReviewScreen({
   const planKey = (subData?.planId || subData?.planName || 'free').toString().toLowerCase();
   const isPaidPlan = subData?.status === 'active' && !['free', 'trial'].includes(planKey);
   const orderLimitReached = !editOrderId && !isPaidPlan && planLimits.maxOrders > 0 && ordersUsed >= planLimits.maxOrders;
+  // Offers & loyalty are Pro+/Business features (same normalization as item tracking).
+  const planNorm = planKey.replace(/[_\s-]/g, '');
+  const offersPlan = ['proplus', 'pro+', 'business', 'enterprise', 'premium'].includes(planNorm);
+  // Damage/stain photos are a BUSINESS-only feature (Firestore plans doc authoritative).
+  const planFeatures = usePlanFeatures(subData);
+  const canDamagePhotos = !!planFeatures.damagePhotos;
+
+  const handleApplyCoupon = () => {
+    setCouponError(null);
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    const c = (publicCoupons || []).find((x: any) => (x.code || '').trim().toUpperCase() === code);
+    if (!c) { setCouponError(t('mobile.couponInvalid', 'Invalid coupon code')); return; }
+    if (c.active === false) { setCouponError(t('mobile.couponInactive', 'This coupon is not active')); return; }
+    if (c.expiresAt && new Date(c.expiresAt + 'T23:59:59') < new Date()) {
+      setCouponError(t('mobile.couponExpired', 'This coupon has expired'));
+      return;
+    }
+    const subtotal = draftOrder?.financials.subtotal || 0;
+    if (c.minOrder != null && c.minOrder > 0 && subtotal < c.minOrder) {
+      setCouponError(t('mobile.couponMinOrder', 'Minimum order {{amount}} required', { amount: formatCurrency(c.minOrder, countrySettings) }));
+      return;
+    }
+    setAppliedCoupon({ code, type: c.type === 'percent' ? 'percent' : 'flat', value: c.value || 0 });
+    setDiscountText('');
+    setCouponInput('');
+  };
 
   const handlePlaceOrder = async () => {
     if (!draftOrder || !shopId) {
@@ -265,6 +346,15 @@ export default function OrderReviewScreen({
     // Hard block: prevent placing order if limit reached (new orders only)
     if (orderLimitReached) {
       Alert.alert(t('mobile.orderLimitTitle'), t('mobile.orderLimitMessage', { limit: planLimits.maxOrders }));
+      return;
+    }
+    // Home orders must carry their scheduling info (same rule as web POS).
+    if (deliveryType === 'pickup_home' && pickupSlotOptions.length > 0 && !pickupSlot) {
+      Alert.alert(t('mobile.slotRequiredTitle', 'Time slot required'), t('mobile.pickupSlotRequired', 'Please select a pickup time slot'));
+      return;
+    }
+    if (isHomeType && deliverySlotOptions.length > 0 && !deliverySlot) {
+      Alert.alert(t('mobile.slotRequiredTitle', 'Time slot required'), t('mobile.deliverySlotRequired', 'Please select a delivery time slot'));
       return;
     }
     setPlacing(true);
@@ -312,9 +402,11 @@ export default function OrderReviewScreen({
       const isPercent = discountText.trim().endsWith('%');
       const financials = {
         subtotal: computed.subtotal,
-        discountType: (isPercent ? 'percent' : 'flat') as 'flat' | 'percent',
-        discountValue: discountVal,
+        discountType: (appliedCoupon ? appliedCoupon.type : isPercent ? 'percent' : 'flat') as 'flat' | 'percent',
+        discountValue: appliedCoupon ? appliedCoupon.value : discountVal,
         discountAmount: computed.discountAmount,
+        couponCode: appliedCoupon?.code || null,
+        pointsRedeemed: computed.pointsRedeemed || 0,
         expressCharge: computed.expressCharge,
         deliveryCharge: computed.deliveryCharge,
         taxAmount: computed.taxAmount,
@@ -359,11 +451,18 @@ export default function OrderReviewScreen({
         deliveryAddress: deliveryType === 'pickup_store' ? null : draftOrder.customer.address || null,
         deliveryNotes: notes.trim() || null,
         expectedDelivery: deliveryDate,
+        scheduledPickupDate: deliveryType === 'pickup_home' ? pickupDate : null,
+        scheduledPickupTime: deliveryType === 'pickup_home' ? (pickupSlot || null) : null,
+        deliverySlot: isHomeType ? (deliverySlot || null) : null,
         assignedAgentId: isHomeType ? assignedAgentId : null,
         assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
         assignedAt: isHomeType && assignedAgentId ? new Date() : null,
         deliveryArea: isHomeType ? (selectedArea || null) : null,
         damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
+        // Caption metadata: who added each photo + when (shown on detail screens & tracking).
+        photoMeta: damagePhotoUrls.length
+          ? damagePhotoUrls.map((url) => ({ url, byName: shopName || 'Shop Owner', byRole: 'owner', at: new Date() }))
+          : null,
         staffId: 'mobile',
         staffName: 'Mobile App',
         orderSource: 'pos',
@@ -392,6 +491,9 @@ export default function OrderReviewScreen({
           deliveryType,
           deliveryNotes: notes.trim() || null,
           expectedDelivery: deliveryDate,
+          scheduledPickupDate: deliveryType === 'pickup_home' ? pickupDate : null,
+          scheduledPickupTime: deliveryType === 'pickup_home' ? (pickupSlot || null) : null,
+          deliverySlot: isHomeType ? (deliverySlot || null) : null,
           paymentStatus,
           assignedAgentId: isHomeType ? assignedAgentId : null,
           assignedAgentName: isHomeType ? agents.find((a) => a.id === assignedAgentId)?.name || null : null,
@@ -405,6 +507,16 @@ export default function OrderReviewScreen({
             : null,
           deliveryArea: isHomeType ? (selectedArea || null) : null,
           damagePhotoUrls: damagePhotoUrls.length ? damagePhotoUrls : null,
+          // Merge captions: keep meta for photos that remain, stamp new ones as ours.
+          photoMeta: (() => {
+            const prev: any[] = Array.isArray(existingData.photoMeta) ? existingData.photoMeta : [];
+            const kept = prev.filter((m) => m?.url && (damagePhotoUrls.includes(m.url) || m.url === existingData.pickupPhoto || m.url === existingData.deliveryPhoto || m.url === existingData.plantPhoto));
+            const known = new Set(kept.map((m) => m.url));
+            const added = damagePhotoUrls.filter((u) => !known.has(u))
+              .map((url) => ({ url, byName: shopName || 'Shop Owner', byRole: 'owner', at: new Date() }));
+            const merged = [...kept, ...added];
+            return merged.length ? merged : null;
+          })(),
           updatedAt: new Date(),
           timeline: [...(existingData.timeline || []), {
             id: `t-${Date.now()}`,
@@ -436,6 +548,16 @@ export default function OrderReviewScreen({
         }
       } else {
         // CREATE new order
+        // Loyalty earn (fully paid at creation, registered customers only) —
+        // stamped on the order so it can never be credited twice.
+        const canEarn = !!(loyaltyCfg?.enabled && draftOrder.customer.id && !draftOrder.customer.isGuest && paymentStatus === 'paid');
+        const earn = canEarn
+          ? (loyaltyCfg.mode === 'fixed'
+              ? Math.max(0, Math.round(loyaltyCfg.earnFixed || 0))
+              : Math.max(0, Math.round((computed.total * (loyaltyCfg.earnPercent || 0)) / 100)))
+          : 0;
+        if (earn > 0) orderData.loyalty = { earnedPoints: earn, earnedAt: new Date() };
+
         const created = await firestore().collection(`shops/${shopId}/orders`).add(orderData);
 
         // Update customer stats
@@ -445,12 +567,18 @@ export default function OrderReviewScreen({
             const custDoc = await custRef.get();
             if (custDoc.exists) {
               const custData = custDoc.data() || {};
-              await custRef.update({
+              const redeemed = computed.pointsRedeemed || 0;
+              const custUpdate: Record<string, any> = {
                 totalOrders: (custData.totalOrders || 0) + 1,
                 totalSpent: (custData.totalSpent || 0) + computed.total,
                 lastOrderAt: new Date(),
                 updatedAt: new Date(),
-              });
+              };
+              if (redeemed > 0 || earn > 0) {
+                custUpdate.loyaltyPoints = Math.max(0, (custData.loyaltyPoints || 0) - redeemed + earn);
+                if (earn > 0) custUpdate.loyaltyEarned = (custData.loyaltyEarned || 0) + earn;
+              }
+              await custRef.update(custUpdate);
             }
           } catch (custErr) {
             console.error('Customer stats update error (non-fatal):', custErr);
@@ -589,23 +717,62 @@ export default function OrderReviewScreen({
             <Text style={styles.summaryValue}>{formatCurrency(computed.subtotal, countrySettings)}</Text>
           </View>
 
-          {/* Discount */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryRowLabel}>
-              <MaterialIcons name="local-offer" size={18} color={colors.success} />
-              <Text style={styles.discountLabel}>{t('mobile.discountLabel')}</Text>
+          {/* Discount (hidden while a coupon is applied — coupon sets the discount) */}
+          {!appliedCoupon ? (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryRowLabel}>
+                <MaterialIcons name="local-offer" size={18} color={colors.success} />
+                <Text style={styles.discountLabel}>{t('mobile.discountLabel')}</Text>
+              </View>
+              <TextInput
+                style={styles.discountInput}
+                placeholder={t('mobile.discountPlaceholder')}
+                placeholderTextColor="#c3c6d6"
+                textAlign="right"
+                value={discountText}
+                onChangeText={setDiscountText}
+                keyboardType="default"
+              />
             </View>
-            <TextInput
-              style={styles.discountInput}
-              placeholder={t('mobile.discountPlaceholder')}
-              placeholderTextColor="#c3c6d6"
-              textAlign="right"
-              value={discountText}
-              onChangeText={setDiscountText}
-              keyboardType="default"
-            />
-          </View>
-          {computed.discountAmount > 0 ? (
+          ) : null}
+
+          {/* Coupon (Pro+/Business) */}
+          {appliedCoupon ? (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryRowLabel}>
+                <MaterialIcons name="confirmation-number" size={18} color={colors.success} />
+                <Text style={styles.couponCodeText}>{appliedCoupon.code}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Text style={styles.discountApplied}>-{formatCurrency(computed.discountAmount, countrySettings)}</Text>
+                <TouchableOpacity onPress={() => setAppliedCoupon(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialIcons name="close" size={16} color={colors.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : offersPlan && publicCoupons.length > 0 ? (
+            <>
+              <View style={styles.summaryRow}>
+                <View style={[styles.summaryRowLabel, { flex: 1 }]}>
+                  <MaterialIcons name="confirmation-number" size={18} color={colors.textSecondary} />
+                  <TextInput
+                    style={styles.couponInput}
+                    placeholder={t('mobile.couponPlaceholder', 'Coupon code')}
+                    placeholderTextColor="#c3c6d6"
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    value={couponInput}
+                    onChangeText={(v) => { setCouponInput(v.toUpperCase()); setCouponError(null); }}
+                  />
+                </View>
+                <TouchableOpacity onPress={handleApplyCoupon} disabled={!couponInput.trim()}>
+                  <Text style={[styles.couponApplyText, !couponInput.trim() && { opacity: 0.4 }]}>{t('mobile.couponApply', 'Apply')}</Text>
+                </TouchableOpacity>
+              </View>
+              {couponError ? <Text style={styles.couponError}>{couponError}</Text> : null}
+            </>
+          ) : null}
+          {!appliedCoupon && computed.discountAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabelSmall}>{t('mobile.discountApplied')}</Text>
               <Text style={styles.discountApplied}>-{formatCurrency(computed.discountAmount, countrySettings)}</Text>
@@ -634,6 +801,49 @@ export default function OrderReviewScreen({
             </View>
           ) : null}
 
+          {/* Cashback visibility: what this order will EARN (even before any balance exists) */}
+          {offersPlan && loyaltyCfg?.enabled && !editOrderId && draftOrder.customer.id && !draftOrder.customer.isGuest ? (() => {
+            const willEarn = loyaltyCfg.mode === 'fixed'
+              ? Math.max(0, Math.round(loyaltyCfg.earnFixed || 0))
+              : Math.max(0, Math.round((computed.total * (loyaltyCfg.earnPercent || 0)) / 100));
+            if (willEarn <= 0) return null;
+            return (
+              <View style={styles.summaryRow}>
+                <Text style={styles.willEarnText}>🪙 {t('mobile.willEarnPoints', 'Earns {{n}} points when fully paid', { n: willEarn })}</Text>
+              </View>
+            );
+          })() : null}
+
+          {/* Redeem loyalty points (Pro+/Business, registered customers with a balance) */}
+          {offersPlan && loyaltyCfg?.enabled && !editOrderId && draftOrder.customer.id && !draftOrder.customer.isGuest && pointsBalance > 0 ? (
+            <>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryRowLabel}>
+                  <MaterialIcons name="stars" size={18} color="#b8860b" />
+                  <View>
+                    <Text style={styles.discountLabel}>{t('mobile.redeemPoints', 'Redeem points')}</Text>
+                    <Text style={styles.pointsHint}>{t('mobile.pointsAvailable', '{{n}} available', { n: pointsBalance })}</Text>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.discountInput}
+                  placeholder="0"
+                  placeholderTextColor="#c3c6d6"
+                  textAlign="right"
+                  keyboardType="number-pad"
+                  value={pointsText}
+                  onChangeText={setPointsText}
+                />
+              </View>
+              {computed.pointsRedeemed > 0 ? (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabelSmall}>{t('mobile.pointsApplied', 'Points applied')}</Text>
+                  <Text style={styles.discountApplied}>-{formatCurrency(computed.pointsRedeemed, countrySettings)}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : null}
+
           {/* Divider before Grand Total */}
           <View style={styles.summaryDivider} />
 
@@ -656,11 +866,13 @@ export default function OrderReviewScreen({
           />
         </View>
 
-        {/* Damage / stain photos — optional */}
-        <View style={styles.damageCard}>
-          <Text style={styles.damageLabel}>{t('mobile.damagePhotosLabel', 'Damage / stain photos (optional)')}</Text>
-          <DamagePhotos value={damagePhotos} onChange={setDamagePhotos} />
-        </View>
+        {/* Damage / stain photos — optional (Business plan only) */}
+        {canDamagePhotos ? (
+          <View style={styles.damageCard}>
+            <Text style={styles.damageLabel}>{t('mobile.damagePhotosLabel', 'Damage / stain photos (optional)')}</Text>
+            <DamagePhotos value={damagePhotos} onChange={setDamagePhotos} />
+          </View>
+        ) : null}
 
         {/* Expected Delivery — editable */}
         <View style={styles.deliveryDateCard}>
@@ -719,6 +931,61 @@ export default function OrderReviewScreen({
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Pickup date (Pickup & Delivery orders) */}
+          {deliveryType === 'pickup_home' && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.pickupDateLabel', 'Pickup date')}</Text>
+              <View style={styles.slotDateRow}>
+                <MaterialIcons name="event" size={18} color={colors.primary} />
+                <Text style={styles.slotDateValue}>{formatDate(pickupDate)}</Text>
+                <TouchableOpacity
+                  style={styles.slotDateBtn}
+                  onPress={() => {
+                    const d = new Date(pickupDate);
+                    d.setDate(d.getDate() - 1);
+                    if (d >= new Date(new Date().toDateString())) setPickupDate(d);
+                  }}
+                >
+                  <MaterialIcons name="remove" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.slotDateBtn}
+                  onPress={() => { const d = new Date(pickupDate); d.setDate(d.getDate() + 1); setPickupDate(d); }}
+                >
+                  <MaterialIcons name="add" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Pickup slot (required for Pickup & Delivery) */}
+          {deliveryType === 'pickup_home' && pickupSlotOptions.length > 0 && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.pickupSlotLabel', 'Pickup slot')} *</Text>
+              <Dropdown
+                title={t('mobile.pickupSlotLabel', 'Pickup slot')}
+                value={pickupSlot}
+                placeholder={t('mobile.selectSlot', 'Select time slot')}
+                options={pickupSlotOptions.map((sl) => ({ key: sl.value, label: sl.value }))}
+                onSelect={setPickupSlot}
+              />
+            </View>
+          )}
+
+          {/* Delivery slot (required for all home orders) */}
+          {isHomeType && deliverySlotOptions.length > 0 && (
+            <View style={styles.toggleGroup}>
+              <Text style={styles.toggleLabel}>{t('mobile.deliverySlotLabel', 'Delivery slot')} *</Text>
+              <Dropdown
+                title={t('mobile.deliverySlotLabel', 'Delivery slot')}
+                value={deliverySlot}
+                placeholder={t('mobile.selectSlot', 'Select time slot')}
+                options={deliverySlotOptions.map((sl) => ({ key: sl.value, label: sl.value }))}
+                onSelect={setDeliverySlot}
+              />
+            </View>
+          )}
 
           {isHomeType && distanceBands.length > 0 && (
             <View style={styles.toggleGroup}>
@@ -875,6 +1142,21 @@ const styles = StyleSheet.create({
   discountLabel: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text },
   discountInput: { fontSize: 14, fontFamily: fonts.bold, color: colors.success, padding: 0, minWidth: 100 },
   discountApplied: { fontSize: 13, fontFamily: fonts.bold, color: colors.success },
+  couponCodeText: { fontSize: 14, fontFamily: fonts.bold, color: colors.success, letterSpacing: 0.5 },
+  couponInput: { flex: 1, fontSize: 14, fontFamily: fonts.semibold, color: colors.text, padding: 0 },
+  couponApplyText: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary, paddingHorizontal: 8, paddingVertical: 4 },
+  couponError: { fontSize: 12, fontFamily: fonts.medium, color: colors.error, marginLeft: 26, marginTop: -8 },
+  pointsHint: { fontSize: 11, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 1 },
+  willEarnText: { fontSize: 12, fontFamily: fonts.semibold, color: '#b8860b' },
+  slotDateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.primaryTint, borderRadius: radii.input, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  slotDateValue: { flex: 1, fontSize: 14, fontFamily: fonts.bold, color: colors.primary },
+  slotDateBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   summaryDivider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
   grandTotalLabel: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
   grandTotalValue: { fontSize: 18, fontFamily: fonts.bold, color: colors.primary },

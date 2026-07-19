@@ -1,0 +1,19 @@
+# iCloud Drive sync-conflict copies (this repo lives in ~/Documents).
+# These "xxx 2" / "xxx 3" / "xxx 4" dirs are junk; the originals exist. Reading them
+# hangs the eas local-build archive step at the kernel, so never include them.
+* 2
+* 3
+* 4
+* 5
+* 2.*
+* 3.*
+* 4.*
+* 5.*
+
+# Native build outputs / caches — not needed in the build archive (eas reinstalls them).
+ios/Pods
+ios/build
+android/.gradle
+android/build
+android/app/build
+android/.kotlin

@@ -33,6 +33,9 @@ interface UseOrdersOptions {
     orderSource?: OrderSourceFilter;
     searchTerm?: string;
     specialFilter?: 'pending_overdue' | 'payment_due' | null;
+    /** Filter by order creation date. Reuses the createdAt ordering, so no new index needed. */
+    dateStart?: Date | null;
+    dateEnd?: Date | null;
 }
 
 interface UseOrdersReturn {
@@ -48,7 +51,9 @@ interface UseOrdersReturn {
 
 export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersReturn {
     const { shopId } = useAuth();
-    const { status = 'all', deliveryType = 'all', orderSource = 'all', searchTerm, specialFilter } = options;
+    const { status = 'all', deliveryType = 'all', orderSource = 'all', searchTerm, specialFilter, dateStart, dateEnd } = options;
+    const dateStartMs = dateStart ? dateStart.getTime() : null;
+    const dateEndMs = dateEnd ? dateEnd.getTime() : null;
 
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -78,8 +83,13 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
             constraints.unshift(where('orderSource', '==', 'online'));
         }
 
+        // Creation-date range — same field as the orderBy above, so it reuses the
+        // existing (status/deliveryType/orderSource + createdAt) indexes.
+        if (dateStartMs) constraints.push(where('createdAt', '>=', Timestamp.fromDate(new Date(dateStartMs))));
+        if (dateEndMs) constraints.push(where('createdAt', '<=', Timestamp.fromDate(new Date(dateEndMs))));
+
         return constraints;
-    }, [status, deliveryType, orderSource]);
+    }, [status, deliveryType, orderSource, dateStartMs, dateEndMs]);
 
     // Initial load with real-time updates
     useEffect(() => {
@@ -108,7 +118,8 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
 
                     const activeStatuses = [
                         "pending", "processing", "ready", "ready_for_pickup",
-                        "out_for_delivery", "pickup_scheduled", "pickup_completed"
+                        "out_for_delivery", "pickup_scheduled", "pickup_completed",
+                        "partially_delivered"
                     ];
 
                     const deliveryQuery = query(
@@ -162,10 +173,10 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
         }
 
         if (specialFilter === 'payment_due') {
-            // "Due" = Delivered AND Unpaid
+            // "Due" = handed over (fully or partially) AND unpaid
             const q = query(
                 collection(db, 'shops', shopId, 'orders'),
-                where("status", "==", "delivered"),
+                where("status", "in", ["delivered", "picked_up", "partially_delivered"]),
                 where("financials.balance", ">", 0),
                 orderBy('createdAt', 'desc'),
                 limit(PAGINATION.ORDERS_PER_PAGE)
@@ -254,7 +265,7 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
             if (specialFilter === 'payment_due') {
                 q = query(
                     collection(db, 'shops', shopId, 'orders'),
-                    where("status", "==", "delivered"),
+                    where("status", "in", ["delivered", "picked_up", "partially_delivered"]),
                     where("financials.balance", ">", 0),
                     orderBy('createdAt', 'desc'),
                     startAfter(lastDocRef.current),

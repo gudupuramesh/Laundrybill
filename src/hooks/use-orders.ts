@@ -21,10 +21,12 @@ import {
     Timestamp,
     runTransaction,
     increment,
+    deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
-import type { Order, OrderItem, OrderStatus, PaymentMethod, DeliveryType, OrderFinancials, OrderTimelineEvent } from "@/types/order";
+import type { Order, OrderItem, OrderStatus, PaymentMethod, DeliveryType, OrderFinancials, OrderTimelineEvent, ItemStatus } from "@/types/order";
+import { deriveStatusFromItems, mapLegacyDeliveryType, getItemProgress, itemStatusFromProgress } from "@/types/order";
 import { formatOrderId } from "@/lib/generateShopCode";
 
 const PAGE_SIZE = 50;
@@ -52,6 +54,8 @@ interface CreateOrderInput {
     assignedAgentName?: string;
     /** Order-level damage/stain photo URLs (R2) */
     damagePhotoUrls?: string[];
+    /** Who added the photos (caption shown on detail screens + customer tracking). */
+    photoMeta?: { url: string; byName: string; byRole: string; at: Timestamp }[];
 }
 
 interface UseOrdersOptions {
@@ -166,6 +170,44 @@ export function useOrder(orderId: string, options?: { shopIdOverride?: string | 
     return { order, loading };
 }
 
+/**
+ * Credit loyalty points for a fully-paid order — exactly once. Reads the shop's
+ * loyalty config (settings.loyalty); no-op when disabled. Idempotent via the
+ * order.loyalty stamp, written in the same transaction as the customer credit.
+ */
+async function creditLoyaltyIfDue(
+    shopId: string,
+    orderId: string,
+    info: { customerId: string; total: number },
+): Promise<void> {
+    try {
+        const shopSnap = await getDoc(doc(db, "shops", shopId));
+        const loyalty = shopSnap.data()?.settings?.loyalty as
+            | { enabled?: boolean; mode?: string; earnPercent?: number; earnFixed?: number }
+            | undefined;
+        if (!loyalty?.enabled) return;
+        const earn = loyalty.mode === "fixed"
+            ? Math.max(0, Math.round(loyalty.earnFixed || 0))
+            : Math.max(0, Math.round(((info.total || 0) * (loyalty.earnPercent || 0)) / 100));
+        if (earn <= 0) return;
+        const orderRef = doc(db, `shops/${shopId}/orders/${orderId}`);
+        const customerRef = doc(db, `shops/${shopId}/customers/${info.customerId}`);
+        await runTransaction(db, async (tx) => {
+            const o = await tx.get(orderRef);
+            if (!o.exists() || o.data()?.loyalty?.earnedPoints) return; // already credited
+            tx.update(orderRef, { loyalty: { earnedPoints: earn, earnedAt: Timestamp.now() } });
+            tx.update(customerRef, {
+                loyaltyPoints: increment(earn),
+                loyaltyEarned: increment(earn),
+                updatedAt: serverTimestamp(),
+            });
+        });
+    } catch (e) {
+        // Non-fatal: the payment itself succeeded; points can be granted on a later pass.
+        console.error("Loyalty credit failed:", e);
+    }
+}
+
 // Order mutations hook. Pass shopIdOverride when outside main auth (e.g. driver app).
 export function useOrderMutations(options?: { shopIdOverride?: string | null }) {
     const { shopId: authShopId, user } = useAuth();
@@ -202,9 +244,24 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
             timeline: [...(currentOrder.timeline || []), timelineEvent],
         };
 
-        // Set deliveredAt when delivered
-        if (newStatus === "delivered") {
+        // Top-level status is the coarse control: cascade it down to the item piece
+        // counters so the item list can never contradict the order status. The item
+        // list stays the fine-grained path (it derives the order status upward).
+        if (newStatus === "delivered" || newStatus === "picked_up") {
             updateData.deliveredAt = serverTimestamp();
+            if (currentOrder.items?.length) {
+                updateData.items = currentOrder.items.map((it) => {
+                    const p = getItemProgress(it);
+                    return { ...it, processedQty: p.qty, deliveredQty: p.qty, itemStatus: "delivered" as const };
+                });
+            }
+        } else if (newStatus === "ready" || newStatus === "ready_for_pickup") {
+            if (currentOrder.items?.length) {
+                updateData.items = currentOrder.items.map((it) => {
+                    const p = getItemProgress(it);
+                    return { ...it, processedQty: p.qty, deliveredQty: p.delivered, itemStatus: p.delivered >= p.qty ? ("delivered" as const) : ("processed" as const) };
+                });
+            }
         }
 
         // Cancel → auto-refund: any cash already collected is refunded (audit-logged)
@@ -230,11 +287,17 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
             if (currentOrder.customerId && !currentOrder.isGuest) {
                 try {
                     const customerRef = doc(db, `shops/${shopId}/customers/${currentOrder.customerId}`);
-                    await updateDoc(customerRef, {
+                    const reversal: Record<string, unknown> = {
                         totalOrders: increment(-1),
                         totalSpent: increment(-(fin.total || 0)),
                         updatedAt: serverTimestamp(),
-                    });
+                    };
+                    // Loyalty: give redeemed points back, take earned points away.
+                    const redeemedBack = fin.pointsRedeemed || 0;
+                    const earnedRevoke = currentOrder.loyalty?.earnedPoints || 0;
+                    if (redeemedBack - earnedRevoke !== 0) reversal.loyaltyPoints = increment(redeemedBack - earnedRevoke);
+                    if (earnedRevoke > 0) reversal.loyaltyEarned = increment(-earnedRevoke);
+                    await updateDoc(customerRef, reversal);
                 } catch {
                     // Non-fatal: customer doc may be missing; order cancel still proceeds.
                 }
@@ -245,6 +308,141 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
 
         return { ...currentOrder, ...updateData, id: orderId };
     }, [shopId, user]);
+
+    /**
+     * PERMANENTLY delete an order from the database (owner-only in the UI; rules
+     * also restrict deletes to the shop owner/admin). For test/mistake orders.
+     * Non-cancelled orders first reverse their contribution to the customer's
+     * lifetime stats + loyalty (a cancelled order already reversed on cancel).
+     */
+    const deleteOrder = useCallback(async (orderId: string) => {
+        if (!shopId) throw new Error("No shop ID");
+
+        const orderRef = doc(db, `shops/${shopId}/orders/${orderId}`);
+        const orderDoc = await getDoc(orderRef);
+        if (!orderDoc.exists()) throw new Error("Order not found");
+        const order = orderDoc.data() as Order;
+
+        if (order.status !== "cancelled" && order.customerId && !order.isGuest) {
+            try {
+                const fin = order.financials || ({} as Order["financials"]);
+                const customerRef = doc(db, `shops/${shopId}/customers/${order.customerId}`);
+                const reversal: Record<string, unknown> = {
+                    totalOrders: increment(-1),
+                    totalSpent: increment(-(fin.total || 0)),
+                    updatedAt: serverTimestamp(),
+                };
+                const redeemedBack = fin.pointsRedeemed || 0;
+                const earnedRevoke = order.loyalty?.earnedPoints || 0;
+                if (redeemedBack - earnedRevoke !== 0) reversal.loyaltyPoints = increment(redeemedBack - earnedRevoke);
+                if (earnedRevoke > 0) reversal.loyaltyEarned = increment(-earnedRevoke);
+                await updateDoc(customerRef, reversal);
+            } catch {
+                // Non-fatal: customer doc may be missing; deletion still proceeds.
+            }
+        }
+
+        await deleteDoc(orderRef);
+    }, [shopId]);
+
+    /**
+     * Per-piece progress updates (partial delivery / per-item processing).
+     * Each update sets absolute processed/delivered piece counts for a line
+     * (clamped 0 ≤ delivered ≤ processed ≤ quantity — delivering implies processed),
+     * writes a derived itemStatus for legacy readers, then derives the order status:
+     * every piece delivered → delivered/picked_up · any delivered → partially_delivered ·
+     * every piece processed → ready/ready_for_pickup · otherwise status is left alone.
+     */
+    const updateItemProgress = useCallback(async (
+        orderId: string,
+        updates: { index: number; processed?: number; delivered?: number }[],
+    ) => {
+        if (!shopId) throw new Error("No shop ID");
+        if (!updates.length) return;
+
+        const orderRef = doc(db, `shops/${shopId}/orders/${orderId}`);
+        const orderDoc = await getDoc(orderRef);
+        if (!orderDoc.exists()) throw new Error("Order not found");
+
+        const currentOrder = orderDoc.data() as Order;
+        if (currentOrder.status === "cancelled") throw new Error("Order is cancelled");
+
+        const byIndex = new Map(updates.map((u) => [u.index, u]));
+        // Track what actually changed, for the timeline note.
+        const touched: { name: string; verb: string; n: number; qty: number }[] = [];
+
+        const items = (currentOrder.items || []).map((it, i) => {
+            const u = byIndex.get(i);
+            if (!u) return it;
+            const cur = getItemProgress(it);
+            let processed = u.processed !== undefined ? u.processed : cur.processed;
+            let delivered = u.delivered !== undefined ? u.delivered : cur.delivered;
+            // Clamp: 0 ≤ delivered ≤ processed ≤ qty; delivered pieces are implicitly processed.
+            delivered = Math.max(0, Math.min(cur.qty, Math.round(delivered)));
+            processed = Math.max(delivered, Math.min(cur.qty, Math.round(processed)));
+            const next = { ...it, processedQty: processed, deliveredQty: delivered };
+            next.itemStatus = itemStatusFromProgress({ qty: cur.qty, processed, delivered });
+            if (u.delivered !== undefined && delivered !== cur.delivered) touched.push({ name: it.serviceName, verb: "Delivered", n: delivered, qty: cur.qty });
+            else if (u.processed !== undefined && processed !== cur.processed) touched.push({ name: it.serviceName, verb: "Processed", n: processed, qty: cur.qty });
+            return next;
+        });
+
+        const deliveryType = mapLegacyDeliveryType(currentOrder.deliveryType);
+        const derived = deriveStatusFromItems(items, deliveryType);
+        const statusChanged = derived !== null && derived !== currentOrder.status;
+
+        const summary = touched.length
+            ? touched.slice(0, 4).map((t) => `${t.verb} ${t.n}${t.qty > 1 ? `/${t.qty}` : ""} × ${t.name}`).join(", ") + (touched.length > 4 ? "…" : "")
+            : "Updated items";
+
+        const timelineEvent: OrderTimelineEvent = {
+            id: `t-${Date.now()}`,
+            status: statusChanged ? (derived as OrderStatus) : currentOrder.status,
+            timestamp: Timestamp.now(),
+            staffId: user?.uid || "unknown",
+            staffName: user?.displayName || "Unknown",
+            notes: summary,
+            notifiedCustomer: false,
+        };
+
+        const updateData: Record<string, unknown> = {
+            items,
+            updatedAt: serverTimestamp(),
+            timeline: [...(currentOrder.timeline || []), timelineEvent],
+        };
+        if (statusChanged) {
+            updateData.status = derived;
+            if (derived === "delivered" || derived === "picked_up") {
+                updateData.deliveredAt = serverTimestamp();
+            }
+        }
+
+        await updateDoc(orderRef, updateData);
+        return { ...currentOrder, ...updateData, id: orderId } as Order;
+    }, [shopId, user]);
+
+    /**
+     * Compat wrapper: whole-line status change (all pieces). Kept so existing call
+     * sites keep working; routes through updateItemProgress.
+     */
+    const updateItemStatuses = useCallback(async (
+        orderId: string,
+        itemIndexes: number[],
+        newItemStatus: ItemStatus,
+    ) => {
+        if (!itemIndexes.length) return;
+        const orderRef = doc(db, `shops/${shopId}/orders/${orderId}`);
+        const orderDoc = await getDoc(orderRef);
+        if (!orderDoc.exists()) throw new Error("Order not found");
+        const items = (orderDoc.data() as Order).items || [];
+        const updates = itemIndexes.map((index) => {
+            const qty = getItemProgress(items[index]).qty;
+            if (newItemStatus === "delivered") return { index, processed: qty, delivered: qty };
+            if (newItemStatus === "processed") return { index, processed: qty, delivered: 0 };
+            return { index, processed: 0, delivered: 0 };
+        });
+        return updateItemProgress(orderId, updates);
+    }, [shopId, updateItemProgress]);
 
     const collectPayment = useCallback(async (
         orderId: string,
@@ -280,6 +478,14 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
             payments: [...(order.payments || []), payment],
             updatedAt: serverTimestamp(),
         });
+
+        // Loyalty: the order just became fully paid → credit points (once).
+        if (newBalance <= 0 && order.customerId && !order.isGuest && !order.loyalty?.earnedPoints) {
+            await creditLoyaltyIfDue(shopId, orderId, {
+                customerId: order.customerId,
+                total: order.financials.total || 0,
+            });
+        }
 
         return { ...order, id: orderId };
     }, [shopId, user]);
@@ -425,7 +631,7 @@ export function useOrderMutations(options?: { shopIdOverride?: string | null }) 
         return { ...currentOrder, ...updateData, id: orderId };
     }, [shopId, user]);
 
-    return { updateStatus, collectPayment, updateOrder, reassignAgent };
+    return { updateStatus, updateItemStatuses, updateItemProgress, collectPayment, updateOrder, reassignAgent, deleteOrder };
 }
 
 // Create order hook with order number generation
@@ -502,11 +708,14 @@ export function useCreateOrder() {
                         damages: item.damages || null,
                     })),
                     damagePhotoUrls: input.damagePhotoUrls && input.damagePhotoUrls.length > 0 ? input.damagePhotoUrls : null,
+                    photoMeta: input.photoMeta && input.photoMeta.length > 0 ? input.photoMeta : null,
                     financials: {
                         subtotal: input.financials.subtotal || 0,
                         discountType: input.financials.discountType || null,
                         discountValue: input.financials.discountValue || 0,
                         discountAmount: input.financials.discountAmount || 0,
+                        couponCode: input.financials.couponCode || null,
+                        pointsRedeemed: input.financials.pointsRedeemed || 0,
                         expressCharge: input.financials.expressCharge || 0,
                         deliveryCharge: input.financials.deliveryCharge || 0,
                         taxAmount: input.financials.taxAmount || 0,
@@ -570,12 +779,25 @@ export function useCreateOrder() {
             // Update customer stats if not guest
             if (input.customerId) {
                 const customerRef = doc(db, `shops/${shopId}/customers/${input.customerId}`);
-                await updateDoc(customerRef, {
+                const customerUpdate: Record<string, unknown> = {
                     totalOrders: increment(1),
                     totalSpent: increment(input.financials.total),
                     lastOrderAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
-                });
+                };
+                // Loyalty: redeemed points leave the balance the moment the order is placed.
+                const redeemed = input.financials.pointsRedeemed || 0;
+                if (redeemed > 0) customerUpdate.loyaltyPoints = increment(-redeemed);
+                await updateDoc(customerRef, customerUpdate);
+
+                // Loyalty earn: an order that is FULLY PAID at creation credits points now
+                // (same rule as collectPayment; guarded by order.loyalty for idempotency).
+                if ((input.financials.amountPaid || 0) >= (input.financials.total || 0) && (input.financials.total || 0) > 0) {
+                    await creditLoyaltyIfDue(shopId, docRef.id, {
+                        customerId: input.customerId,
+                        total: input.financials.total || 0,
+                    });
+                }
             }
 
             const order: Order = {

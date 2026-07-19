@@ -8,6 +8,7 @@ exports.scheduleDowngrade = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const plan_normalize_1 = require("../lib/plan-normalize");
+const subscription_events_1 = require("../lib/subscription-events");
 const PLAN_ORDER = {
     free: 0,
     pro: 1,
@@ -18,7 +19,7 @@ if (admin.apps.length === 0) {
 }
 const db = admin.firestore();
 exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in to schedule a downgrade.");
     }
@@ -73,6 +74,14 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
             updatedAt: now,
         });
         const effectiveDateObj = (_g = effectiveDate === null || effectiveDate === void 0 ? void 0 : effectiveDate.toDate) === null || _g === void 0 ? void 0 : _g.call(effectiveDate);
+        await (0, subscription_events_1.logSubscriptionEvent)({
+            type: "subscription_downgraded",
+            shopId,
+            shopName: (_h = shopData === null || shopData === void 0 ? void 0 : shopData.name) !== null && _h !== void 0 ? _h : null,
+            provider: (_j = subData === null || subData === void 0 ? void 0 : subData.provider) !== null && _j !== void 0 ? _j : null,
+            description: `Downgrade to ${(0, plan_normalize_1.planDisplayName)(toPlanNorm)} scheduled for period end (by owner)${effectiveDateObj ? ` — ${effectiveDateObj.toLocaleDateString()}` : ""}.`,
+            metadata: { fromPlan: currentPlanNorm, toPlan: toPlanNorm, action: "downgrade_scheduled", actor: "user", uid },
+        });
         return {
             success: true,
             toPlan: toPlanNorm,

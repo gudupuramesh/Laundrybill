@@ -15,6 +15,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerFormSheet } from "./CustomerFormSheet";
 import { Users, Search, Plus, ChevronRight, UserCheck, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ExportDataButton } from "@/components/ExportDataButton";
+import { exportCustomers } from "@/lib/data-export";
 
 const MONO = "'IBM Plex Mono'";
 const AV = ["c-primary", "c-info", "c-violet", "c-cyan", "c-success", "c-warning"];
@@ -104,6 +106,7 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("customers.searchPlaceholder", "Search name or phone…")}
                         style={{ width: 240, maxWidth: "60vw", font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
+                <ExportDataButton onExport={exportCustomers} kind={t("customers.title", "Customers").toLowerCase()} label={t("export.button", "Export")} />
                 <button onClick={handleAddCustomer} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
                     <Plus size={15} />{t("customers.add", "Add Customer")}
                 </button>

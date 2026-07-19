@@ -139,13 +139,16 @@ export default function SubscriptionScreen({
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [sub, setSub] = useState<any>(null);
   // Pro+ & Business are contact-only (no in-app price/purchase) — sales-assisted via WhatsApp.
-  const [waNumber, setWaNumber] = useState('919876543210');
+  const [waNumber, setWaNumber] = useState('919666211137');
   useEffect(() => {
     firestore().collection('platformSettings').doc('emailBranding').get()
       .then((d: any) => { const n = d?.data()?.whatsappNumber; if (n) setWaNumber(String(n)); })
       .catch(() => { /* keep default */ });
   }, []);
   const [uiState, setUiState] = useState<PurchaseUIState>('loading');
+  // Inline re-fetch of Play prices from the Subscribe button (kept separate from
+  // uiState: 'loading' there swaps the whole screen for the boot spinner).
+  const [priceLoading, setPriceLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
@@ -159,6 +162,7 @@ export default function SubscriptionScreen({
   useEffect(() => {
     let unsubFirestore: (() => void) | undefined;
 
+    let cancelled = false;
     const load = async () => {
       try {
         if (isRevenueCatConfigured()) {
@@ -166,13 +170,28 @@ export default function SubscriptionScreen({
             getCurrentOffering(),
             getCustomerInfo(),
           ]);
+          if (cancelled) return;
           setOffering(off);
           setIsPro(hasProEntitlement(info));
+          // Google Play sometimes fails the FIRST products fetch (fresh install /
+          // slow Play session). Retry quietly so the Subscribe button self-heals
+          // instead of staying disabled — a dead buy button loses the customer.
+          if (!(off?.availablePackages?.length)) {
+            for (const delayMs of [4000, 10000]) {
+              await new Promise((r) => setTimeout(r, delayMs));
+              if (cancelled) return;
+              try {
+                const again = await getCurrentOffering();
+                if (cancelled) return;
+                if (again?.availablePackages?.length) { setOffering(again); break; }
+              } catch {}
+            }
+          }
         }
       } catch (e: any) {
         console.warn('[SubscriptionScreen] load error', e);
       } finally {
-        setUiState('idle');
+        if (!cancelled) setUiState('idle');
       }
     };
     load();
@@ -193,6 +212,7 @@ export default function SubscriptionScreen({
     });
 
     return () => {
+      cancelled = true;
       unsubFirestore?.();
       removeRcListener();
     };
@@ -228,7 +248,12 @@ export default function SubscriptionScreen({
   const expiryDate = formatSubDate(sub?.endDate || sub?.expiresAt);
   const trialEndDate = formatSubDate(sub?.trialEndDate);
 
-  const isPaidPlan = currentPlanId === 'pro' || currentPlanId === 'pro_plus' || currentPlanId === 'business';
+  // A trial shop carries planId 'pro'/'pro_plus' but has PAID for nothing yet — it
+  // must see the purchase cards (not just "Manage"), otherwise upgrading is
+  // impossible until the trial runs out. A real store entitlement (isPro) still
+  // counts as genuinely paid.
+  const isTrial = String(sub?.status || '').toLowerCase().startsWith('trial');
+  const isPaidPlan = isPro || (!isTrial && (currentPlanId === 'pro' || currentPlanId === 'pro_plus' || currentPlanId === 'business'));
 
   // ── Purchase ─────────────────────────────────────────────────────────
   const handlePurchase = async (pkg: PurchasesPackage) => {
@@ -435,7 +460,7 @@ export default function SubscriptionScreen({
               <View style={s.planBadgeRow}>
                 <View style={s.planStatusBadge}>
                   <Text style={s.planStatusBadgeText}>
-                    {isPaidPlan ? 'ACTIVE PLAN' : 'FREE PLAN'}
+                    {isPaidPlan ? 'ACTIVE PLAN' : isTrial ? 'FREE TRIAL' : 'FREE PLAN'}
                   </Text>
                 </View>
               </View>
@@ -447,6 +472,11 @@ export default function SubscriptionScreen({
               )}
               {trialEndDate && !expiryDate && (
                 <Text style={s.planGradientExpiry}>Trial ends {trialEndDate}</Text>
+              )}
+              {isTrial && !trialEndDate && (sub?.trialOrderLimit || 0) > 0 && (
+                <Text style={s.planGradientExpiry}>
+                  Trial · {Math.min(sub?.trialOrdersUsed || 0, sub?.trialOrderLimit)}/{sub?.trialOrderLimit} orders used
+                </Text>
               )}
             </View>
             {isPaidPlan ? (
@@ -558,12 +588,39 @@ export default function SubscriptionScreen({
             </View>
 
             <TouchableOpacity
-              style={[s.subscribeBtn, (uiState === 'purchasing' || !proSelectedPkg) && s.subscribeBtnDisabled]}
-              disabled={uiState === 'purchasing' || uiState === 'syncing' || !proSelectedPkg}
-              onPress={() => proSelectedPkg && handlePurchase(proSelectedPkg)}
+              style={[s.subscribeBtn, uiState === 'purchasing' && s.subscribeBtnDisabled]}
+              disabled={uiState === 'purchasing' || uiState === 'syncing' || priceLoading}
+              onPress={async () => {
+                if (proSelectedPkg) { handlePurchase(proSelectedPkg); return; }
+                // Prices didn't load (Play session hiccup) — fetch them NOW and go
+                // straight into the purchase, instead of leaving a dead button.
+                setPriceLoading(true);
+                try {
+                  const off = await getCurrentOffering();
+                  setOffering(off);
+                  const pkgs = off?.availablePackages ?? [];
+                  const pros = pkgs.filter((p) => classifyPkg(p) === 'pro');
+                  const list = pkgs.some((p) => classifyPkg(p) === 'business') ? pros : pkgs;
+                  const monthly = list.find(isMonthly);
+                  const annual = list.find(isAnnual);
+                  const pick = billingCycle === 'yearly' ? (annual || monthly) : (monthly || annual);
+                  setPriceLoading(false);
+                  if (pick) { handlePurchase(pick); return; }
+                  Alert.alert(
+                    'Google Play unavailable',
+                    'We could not load subscription prices from Google Play. Make sure the Play Store app is signed in to a Google account and your connection is working, then tap Subscribe again.'
+                  );
+                } catch {
+                  setPriceLoading(false);
+                  Alert.alert(
+                    'Google Play unavailable',
+                    'We could not reach Google Play. Please check your internet connection and tap Subscribe again.'
+                  );
+                }
+              }}
               activeOpacity={0.85}
             >
-              {uiState === 'purchasing' ? (
+              {uiState === 'purchasing' || priceLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
@@ -658,23 +715,103 @@ export default function SubscriptionScreen({
           </View>
         )}
 
-        {/* ── Pro+ / Business: contact-only (no in-app price/purchase) ── */}
+        {/* ── Pro+ & Business: quotation-only (on-site setup, training, POS hardware) ──
+            Enterprise service packages for growing laundries and multi-branch chains,
+            priced by written quotation (keeps app-store review happy: no dead
+            purchase button, a clear sales-assisted path instead). */}
         {currentPlanId !== 'business' && currentPlanId !== 'pro_plus' && (
-          <View style={s.contactCard}>
-            <Text style={s.contactTitle}>Need a team? Pro+ &amp; Business</Text>
-            <Text style={s.contactDesc}>
-              Unlock staff, delivery-agent &amp; plant logins plus public booking. Includes POS setup, staff training &amp; guided onboarding.
-            </Text>
-            <TouchableOpacity
-              style={s.contactBtn}
-              activeOpacity={0.85}
-              onPress={() => Linking.openURL(
-                `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent("Hi, I'd like to upgrade to Pro+ / Business (includes POS setup, training & onboarding).")}`
-              ).catch(() => {})}
-            >
-              <MaterialIcons name="chat" size={18} color="#fff" />
-              <Text style={s.contactBtnText}>Contact us on WhatsApp</Text>
-            </TouchableOpacity>
+          <View style={{ marginTop: 8 }}>
+            <Text style={s.sectionTitle}>TEAM & MULTI-BRANCH PLANS</Text>
+
+            {/* Sets expectations up front: enterprise plans, sales-assisted pricing. */}
+            <View style={s.quoteNotice}>
+              <MaterialIcons name="handshake" size={20} color={colors.primary} />
+              <Text style={s.quoteNoticeText}>
+                Pro+ and Business are designed for growing laundries and multi-branch
+                chains. Every deployment includes professional POS hardware installation,
+                staff training and guided onboarding at your premises. Pricing is tailored
+                to your business — request a quotation and our team will reach out on
+                WhatsApp (+91 96662 11137).
+              </Text>
+            </View>
+
+            {/* Pro+ — a single shop that needs a team */}
+            <View style={s.planCard}>
+              <View style={s.planCardHeader}>
+                <View style={[s.planIcon, { backgroundColor: colors.primaryTint }]}>
+                  <MaterialIcons name="groups" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={s.planCardName}>Pro+</Text>
+                    <View style={[s.planBadgePill, { backgroundColor: colors.primaryTint }]}>
+                      <Text style={[s.planBadgePillText, { color: colors.primary }]}>For teams</Text>
+                    </View>
+                  </View>
+                  <Text style={s.planCardDesc}>One shop that needs staff logins</Text>
+                </View>
+              </View>
+              <View style={s.quotePriceRow}>
+                <Text style={s.quotePrice}>By quotation</Text>
+                <Text style={s.quotePriceSub}>incl. setup &amp; training</Text>
+              </View>
+              <View style={s.featureHighlights}>
+                <HighlightItem icon="check-circle" text="Everything in Pro, plus:" color={colors.success} />
+                <HighlightItem icon="badge" text="Staff, delivery-agent & plant logins" />
+                <HighlightItem icon="inventory-2" text="Per-item delivery tracking" />
+                <HighlightItem icon="notifications-active" text="Order reminder alerts" />
+                <HighlightItem icon="public" text="Public booking page" />
+              </View>
+              <TouchableOpacity
+                style={s.quoteBtn}
+                activeOpacity={0.85}
+                onPress={() => Linking.openURL(
+                  `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent("Hi, I'd like a quotation for the Pro+ plan (single shop + staff logins, includes on-site POS hardware setup, staff training & onboarding).")}`
+                ).catch(() => {})}
+              >
+                <MaterialIcons name="chat" size={18} color="#fff" />
+                <Text style={s.contactBtnText}>Request a Pro+ quote</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Business — multi-branch / high volume */}
+            <View style={[s.planCard, s.businessCard]}>
+              <View style={s.planCardHeader}>
+                <View style={[s.planIcon, { backgroundColor: '#E3F2FD' }]}>
+                  <MaterialIcons name="storefront" size={22} color="#0D47A1" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={s.planCardName}>Business</Text>
+                    <View style={[s.planBadgePill, { backgroundColor: '#E3F2FD' }]}>
+                      <Text style={[s.planBadgePillText, { color: '#0D47A1' }]}>Multi-branch</Text>
+                    </View>
+                  </View>
+                  <Text style={s.planCardDesc}>High volume, plants &amp; bigger teams</Text>
+                </View>
+              </View>
+              <View style={s.quotePriceRow}>
+                <Text style={[s.quotePrice, { color: '#0D47A1' }]}>By quotation</Text>
+                <Text style={s.quotePriceSub}>incl. setup &amp; training</Text>
+              </View>
+              <View style={s.featureHighlights}>
+                <HighlightItem icon="check-circle" text="Everything in Pro+, plus:" color={colors.success} />
+                <HighlightItem icon="groups" text="Up to 15 staff, agents & plant logins each" />
+                <HighlightItem icon="photo-camera" text="Damage & proof photos" />
+                <HighlightItem icon="local-laundry-service" text="Full plant processing dashboard" />
+                <HighlightItem icon="support-agent" text="Priority support & onboarding" />
+              </View>
+              <TouchableOpacity
+                style={[s.quoteBtn, { backgroundColor: '#0D47A1' }]}
+                activeOpacity={0.85}
+                onPress={() => Linking.openURL(
+                  `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent("Hi, I'd like a quotation for the Business plan (multi-branch, plant & large team, includes on-site POS hardware setup, staff training & onboarding).")}`
+                ).catch(() => {})}
+              >
+                <MaterialIcons name="chat" size={18} color="#fff" />
+                <Text style={s.contactBtnText}>Request a Business quote</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -859,6 +996,13 @@ const s = StyleSheet.create({
   contactDesc: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 6, lineHeight: 19 },
   contactBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#25D366', borderRadius: radii.button, paddingVertical: 14, marginTop: 14 },
   contactBtnText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
+  // Quotation-only Pro+/Business
+  quoteNotice: { flexDirection: 'row', gap: 11, alignItems: 'flex-start', backgroundColor: colors.primaryTint, borderRadius: radii.card, padding: 14, marginTop: 10, marginBottom: 12 },
+  quoteNoticeText: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: colors.text, lineHeight: 18.5 },
+  quotePriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4, marginBottom: 2 },
+  quotePrice: { fontSize: 19, fontFamily: fonts.extrabold, color: colors.primary },
+  quotePriceSub: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary },
+  quoteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: radii.button, paddingVertical: 14, marginTop: 14 },
   gradientCircle: { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
   planGradientHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   planBadgeRow: { flexDirection: 'row', marginBottom: 6 },

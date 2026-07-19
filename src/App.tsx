@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, ProtectedRoute } from "@/features/auth";
+import { AuthProvider, ProtectedRoute, OwnerRoute } from "@/features/auth";
 import { ReceiptPrintProvider } from "@/context/ReceiptPrintContext";
 import { LToastProvider, LSpinner } from "@/components/laundry";
 import { AppManifestUpdater } from "@/components/AppManifestUpdater";
@@ -50,6 +50,7 @@ const DeliverySettingsPage = lazy(() => named(import("@/features/settings"), "De
 const SubscriptionPage = lazy(() => named(import("@/features/settings/pages/SubscriptionPage"), "SubscriptionPage"));
 const PaymentHistoryPage = lazy(() => named(import("@/features/settings/pages/PaymentHistoryPage"), "PaymentHistoryPage"));
 const PublicPageSettingsPage = lazy(() => named(import("@/features/settings/pages/PublicPageSettingsPage"), "PublicPageSettingsPage"));
+const OffersPage = lazy(() => named(import("@/features/settings/pages/OffersPage"), "OffersPage"));
 
 // Super Admin
 const SuperAdminAuthProvider = lazy(() => named(import("@/features/super-admin"), "SuperAdminAuthProvider"));
@@ -281,9 +282,10 @@ function App() {
               <Route path="settings" element={<SettingsPageMasterDetail />} />
               <Route path="shop-settings" element={<ShopSettingsPage />} />
               <Route path="delivery-settings" element={<DeliverySettingsPage />} />
-              <Route path="settings/subscription" element={<SubscriptionPage />} />
-              <Route path="settings/payment-history" element={<PaymentHistoryPage />} />
-              <Route path="settings/public-page" element={<FeatureGuard feature="publicOrderingPage"><PublicPageSettingsPage /></FeatureGuard>} />
+              <Route path="settings/subscription" element={<OwnerRoute><SubscriptionPage /></OwnerRoute>} />
+              <Route path="settings/payment-history" element={<OwnerRoute><PaymentHistoryPage /></OwnerRoute>} />
+              <Route path="settings/public-page" element={<OwnerRoute><FeatureGuard feature="publicOrderingPage"><PublicPageSettingsPage /></FeatureGuard></OwnerRoute>} />
+              <Route path="settings/offers" element={<FeatureGuard feature="offers"><OffersPage /></FeatureGuard>} />
               <Route path="help" element={<HelpPage />} />
             </Route>
 

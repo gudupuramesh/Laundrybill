@@ -10,12 +10,13 @@ import { useStaff, useStaffMutations, useAttendance, usePayroll } from "@/hooks/
 import { useTeamMembers, useTeamMemberMutations } from "@/hooks/use-team-members";
 import { StaffFormSheet } from "./StaffFormSheet";
 import { TeamMemberFormSheet } from "./TeamMemberFormSheet";
-import { ChevronLeft, Phone, MessageCircle, Edit, Power, Calendar, Wallet, Mail, Truck, Copy, KeyRound, Ban, Plus } from "lucide-react";
+import { ChevronLeft, Phone, MessageCircle, Edit, Power, Calendar, Wallet, Mail, Truck, Copy, KeyRound, Ban, Plus, Trash2 } from "lucide-react";
 import type { MemberType } from "@/types/staff";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/features/auth";
 
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -33,8 +34,13 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
     const { formatAmount } = useCurrency();
+    // Login management (create/revoke) + permanent delete are OWNER-only —
+    // managers share the dashboard but must not manage logins.
+    const { role } = useAuth();
+    const isOwner = role === "admin";
     const { staff: staffList, loading } = useStaff();
-    const { updateStaff, deactivateStaff } = useStaffMutations();
+    const { updateStaff, deactivateStaff, deleteStaffCompletely } = useStaffMutations();
+    const [deleting, setDeleting] = useState(false);
     const { getStaffSummary } = useAttendance(new Date());
     const { payroll } = usePayroll(format(new Date(), "yyyy-MM"));
     const { teamMembers } = useTeamMembers();
@@ -60,16 +66,37 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
 
     const handleUpdateStaff = async (data: Parameters<typeof updateStaff>[1]) => { await updateStaff(staff.id, data); setEditSheetOpen(false); };
     const handleDeactivate = async () => { await deactivateStaff(staff.id); };
+    const handleDeleteCompletely = async () => {
+        const warning = t("staff.deleteConfirm", `Permanently delete ${staff.name}? This also removes their app login. Attendance and payroll history stays. This cannot be undone.`);
+        if (!window.confirm(warning)) return;
+        setDeleting(true);
+        try {
+            await deleteStaffCompletely(staff.id);
+            addToast({ type: "success", title: t("staff.deleted", "Staff member deleted") });
+            onClose?.();
+        } catch (e) {
+            console.error(e);
+            addToast({ type: "error", title: t("staff.deleteFailed", "Could not delete. Please try again.") });
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     const ref = tintFor(staff.id);
     const initials = staff.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
     const roleMeta = staff.role === "admin" ? { label: t("staff.roleAdmin", "Admin"), tint: "c-primary" } : staff.memberType === "plant" ? { label: t("staff.rolePlant", "Plant"), tint: "c-cyan" } : staff.memberType === "agent" ? { label: t("staff.roleAgent", "Agent"), tint: "c-success" } : { label: t("staff.roleStaff", "Staff"), tint: "c-info" };
     const joined = staff.joiningDate?.toDate ? staff.joiningDate.toDate() : null;
 
-    // Linked app login (owner-app pattern: match by staffId or email)
-    const linkedLogin = teamMembers.find((tm) => tm.staffId === staff.id || (!!staff.email && tm.email?.toLowerCase() === staff.email.toLowerCase()));
+    // Linked app login: match by staffId first; fall back to email ONLY for unlinked
+    // logins. (An email match on a login linked to a DIFFERENT staff member must not
+    // show here — that made duplicate-email profiles display the same invite code.)
+    const linkedLogin = teamMembers.find((tm) => tm.staffId === staff.id)
+        || teamMembers.find((tm) => !tm.staffId && !!staff.email && tm.email?.toLowerCase() === staff.email.toLowerCase());
     const loginMemberType: MemberType = staff.memberType === "plant" ? "plant" : staff.memberType === "agent" ? "agent" : "staff";
-    const loginTypeLabel = linkedLogin?.memberType === "agent" ? t("staff.memberTypeAgent", "Delivery Agent") : linkedLogin?.memberType === "plant" ? t("staff.memberTypePlant", "Plant Operator") : t("staff.memberTypeStaff", "Staff App");
+    const loginTypeLabel = linkedLogin?.memberType === "agent" ? t("staff.memberTypeAgent", "Delivery Agent")
+        : linkedLogin?.memberType === "plant" ? t("staff.memberTypePlant", "Plant Operator")
+        : linkedLogin?.role === "manager" ? t("staff.memberTypeManager", "Manager")
+        : t("staff.memberTypeStaff", "Staff Member");
     const handleRevoke = async () => {
         if (!linkedLogin) return;
         if (!window.confirm(t("staff.revokeConfirm", `Remove app login access for ${staff.name}?`))) return;
@@ -103,6 +130,7 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setEditSheetOpen(true)} style={hdrBtn}><Edit size={15} />{t("common.edit", "Edit")}</button>
                 <button onClick={handleDeactivate} style={{ ...hdrBtn, color: staff.isActive ? "var(--c-error)" : "var(--c-success)", borderColor: staff.isActive ? "var(--c-error)" : "var(--c-success)" }}><Power size={15} />{staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")}</button>
+                {isOwner && <button onClick={handleDeleteCompletely} disabled={deleting} style={{ ...hdrBtn, color: "#fff", background: "var(--c-error)", borderColor: "var(--c-error)", opacity: deleting ? 0.6 : 1 }}><Trash2 size={15} />{deleting ? t("common.loading", "Deleting…") : t("staff.delete", "Delete")}</button>}
             </header>
 
             <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
@@ -205,14 +233,16 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("staff.inviteCode", "Invite code")}</span><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ fontFamily: MONO, fontWeight: 700, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "3px 9px", borderRadius: 6 }}>{linkedLogin.inviteCode}</span><button onClick={() => navigator.clipboard.writeText(linkedLogin.inviteCode)} style={{ cursor: "pointer", color: "var(--c-primary)", background: "transparent", border: 0, display: "inline-flex" }}><Copy size={14} /></button></span></div>
                                     <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("staff.type", "Type")}</span><span style={{ fontWeight: 600 }}>{loginTypeLabel}</span></div>
                                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("staff.status", "Status")}</span>{(() => { const ok = linkedLogin.inviteStatus === "accepted"; return <span style={{ fontSize: 11, fontWeight: 600, color: ok ? "var(--c-success)" : "var(--c-warning)", background: ok ? "var(--c-success-soft)" : "var(--c-warning-soft)", padding: "3px 9px", borderRadius: 20 }}>{ok ? t("staff.inviteAccepted", "Accepted") : t("staff.invitePending", "Pending")}</span>; })()}</div>
-                                    <button onClick={handleRevoke} style={{ marginTop: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-error)", background: "var(--c-error-soft)", border: "1px solid var(--c-error-soft)", borderRadius: 10, padding: 11 }}><Ban size={15} />{t("staff.revokeLogin", "Revoke login access")}</button>
+                                    {isOwner && <button onClick={handleRevoke} style={{ marginTop: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-error)", background: "var(--c-error-soft)", border: "1px solid var(--c-error-soft)", borderRadius: 10, padding: 11 }}><Ban size={15} />{t("staff.revokeLogin", "Revoke login access")}</button>}
                                 </div>
-                            ) : (
+                            ) : isOwner ? (
                                 <button onClick={() => setCreateLoginOpen(true)} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, font: "inherit", textAlign: "left", padding: 13, borderRadius: 11, border: "1px dashed var(--c-primary)", background: "var(--c-primary-soft)" }}>
                                     <span style={{ width: 36, height: 36, flex: "none", borderRadius: 9, background: "var(--c-surface)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}><KeyRound size={17} /></span>
                                     <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--c-primary)" }}>{t("staff.createLogin", "Create Login")}</span><span style={{ display: "block", fontSize: 11.5, color: "var(--c-text-2)", marginTop: 1 }}>{t("staff.createLoginSub", "Give {{name}} app access — details pre-filled", { name: staff.name.split(" ")[0] || "this member" })}</span></span>
                                     <Plus size={18} style={{ color: "var(--c-primary)", flex: "none" }} />
                                 </button>
+                            ) : (
+                                <div style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>{t("staff.loginOwnerOnly", "No app login. Only the shop owner can create logins.")}</div>
                             )}
                         </div>
 

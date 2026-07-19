@@ -6,17 +6,19 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useContext, type CSSProperties } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import { LEmptyState, LSpinner } from "@/components/laundry";
 import { useOrdersPaginated, type OrderSourceFilter } from "@/hooks/use-orders-paginated";
 import { useCurrency } from "@/hooks/use-currency";
 import type { OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
-import { ClipboardList, Search, SlidersHorizontal, Plus, Globe } from "lucide-react";
+import { ClipboardList, Search, SlidersHorizontal, Plus, Globe, AlertTriangle, Wallet } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderFilterSheet } from "./OrderFilterSheet";
+import { ExportDataButton } from "@/components/ExportDataButton";
+import { exportOrders } from "@/lib/data-export";
 
 const MONO = "'IBM Plex Mono'";
 const AV = ["c-primary", "c-info", "c-violet", "c-cyan", "c-success", "c-warning"];
@@ -32,6 +34,7 @@ const STATUS_TINT: Record<OrderStatus, string> = {
     delivered: "c-success",
     pickup_scheduled: "c-warning",
     pickup_completed: "c-violet",
+    partially_delivered: "c-warning",
     cancelled: "c-error",
 };
 const TYPE_TINT: Record<DeliveryType, string> = { delivery_home: "c-success", pickup_store: "c-info", pickup_home: "c-violet" };
@@ -43,6 +46,7 @@ const TABS: { key: OrderStatus | "all"; label: string; dot: string }[] = [
     { key: "processing", label: "Processing", dot: "c-info" },
     { key: "ready", label: "Ready", dot: "c-primary" },
     { key: "out_for_delivery", label: "Out for delivery", dot: "c-cyan" },
+    { key: "partially_delivered", label: "Partial", dot: "c-warning" },
     { key: "delivered", label: "Delivered", dot: "c-success" },
     { key: "cancelled", label: "Cancelled", dot: "c-error" },
 ];
@@ -81,9 +85,31 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const [selectedDeliveryType, setSelectedDeliveryType] = useState<DeliveryType | "all">("all");
     const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "all">("all");
     const [selectedOrderSource, setSelectedOrderSource] = useState<OrderSourceFilter>("all");
+    const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | null>(null);
+    const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "lastMonth">("all");
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // Creation-date range for the period selector (Today / This Week / This Month / Last Month).
+    const { dateStart, dateEnd } = useMemo(() => {
+        const now = new Date();
+        if (period === "today") { const s = new Date(now); s.setHours(0, 0, 0, 0); return { dateStart: s, dateEnd: null as Date | null }; }
+        if (period === "week") { const s = new Date(now); s.setDate(s.getDate() - s.getDay()); s.setHours(0, 0, 0, 0); return { dateStart: s, dateEnd: null as Date | null }; }
+        if (period === "month") return { dateStart: new Date(now.getFullYear(), now.getMonth(), 1), dateEnd: null as Date | null };
+        if (period === "lastMonth") return { dateStart: new Date(now.getFullYear(), now.getMonth() - 1, 1), dateEnd: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, -1) };
+        return { dateStart: null as Date | null, dateEnd: null as Date | null };
+    }, [period]);
+
+    // Deep-link filters (?attention=overdue|due — used by reminder push notifications)
+    useEffect(() => {
+        const attention = searchParams.get("attention");
+        if (attention === "overdue") setSpecialFilter("pending_overdue");
+        else if (attention === "due") setSpecialFilter("payment_due");
+        if (attention) setSearchParams({}, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     const { orders, loading, loadingMore, hasMore, loadMore } = useOrdersPaginated({
         status: specialFilter ? "all" : selectedStatus,
@@ -91,23 +117,29 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         orderSource: specialFilter ? "all" : selectedOrderSource,
         searchTerm: searchQuery,
         specialFilter,
+        // Special filters (overdue / dues) are their own views — don't also date-bound them.
+        dateStart: specialFilter ? null : dateStart,
+        dateEnd: specialFilter ? null : dateEnd,
     });
 
     const handleFilterApply = (
         type: DeliveryType | "all",
         status: OrderStatus | "all",
         newSpecialFilter: "pending_overdue" | "payment_due" | null = null,
-        orderSource: OrderSourceFilter = "all"
+        orderSource: OrderSourceFilter = "all",
+        serviceId: string = "all"
     ) => {
         if (newSpecialFilter) {
             setSpecialFilter(newSpecialFilter);
             setSelectedDeliveryType("all");
             setSelectedStatus("all");
             setSelectedOrderSource("all");
+            setSelectedServiceId("all");
         } else {
             setSelectedDeliveryType(type);
             setSelectedStatus(status);
             setSelectedOrderSource(orderSource);
+            setSelectedServiceId(serviceId);
             setSpecialFilter(null);
         }
     };
@@ -119,7 +151,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (sel?.orderSource === "online") markSeen(selectedId);
     }, [selectedId, orders, markSeen]);
 
-    const activeFiltersCount = (selectedDeliveryType !== "all" ? 1 : 0) + (selectedOrderSource !== "all" ? 1 : 0) + (specialFilter ? 1 : 0);
+    const activeFiltersCount = (selectedDeliveryType !== "all" ? 1 : 0) + (selectedOrderSource !== "all" ? 1 : 0) + (selectedServiceId !== "all" ? 1 : 0) + (specialFilter ? 1 : 0);
 
     // infinite scroll
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -133,7 +165,13 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         return () => observerRef.current?.disconnect();
     }, [loading, hasMore, loadingMore, loadMore]);
 
-    const rows = useMemo(() => orders.map((order, i) => {
+    // Service-type filter (category) is client-side (order items are an array — not queryable server-side).
+    const visibleOrders = useMemo(() => {
+        if (selectedServiceId === "all") return orders;
+        return orders.filter((o) => (o.items || []).some((i) => i.categoryId === selectedServiceId));
+    }, [orders, selectedServiceId]);
+
+    const rows = useMemo(() => visibleOrders.map((order, i) => {
         const dtype = mapLegacyDeliveryType(order.deliveryType);
         const total = order.financials?.total || 0;
         const paid = order.financials?.amountPaid || 0;
@@ -142,7 +180,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         const payRef = pay === "Paid" ? "c-success" : pay === "Partial" ? "c-warning" : "c-error";
         const av = AV[i % AV.length];
         return { order, dtype, total, pay, payRef, av };
-    }), [orders]);
+    }), [visibleOrders]);
 
     const handleOpen = (id: string) => { if (onSelect) onSelect(id); else navigate(`${basePath}/${id}`); };
 
@@ -152,9 +190,17 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
             <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("orders.title", "Orders")}</span>
-                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{orders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
+                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{visibleOrders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
                 </div>
                 <div style={{ flex: 1 }} />
+                <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}
+                    style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: period !== "all" ? "var(--c-primary)" : "var(--c-text-2)", background: period !== "all" ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${period !== "all" ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 11px", outline: "none" }}>
+                    <option value="all">{t("reports.periodAllTime", "All time")}</option>
+                    <option value="today">{t("reports.periodToday", "Today")}</option>
+                    <option value="week">{t("reports.periodThisWeek", "This Week")}</option>
+                    <option value="month">{t("reports.periodThisMonth", "This Month")}</option>
+                    <option value="lastMonth">{t("reports.periodLastMonth", "Last Month")}</option>
+                </select>
                 <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "none" }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("orders.searchOrders", "Search order, customer, phone…")}
@@ -163,6 +209,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                 <button onClick={() => setFilterSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: activeFiltersCount ? "var(--c-primary)" : "var(--c-text-2)", background: activeFiltersCount ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${activeFiltersCount ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 13px" }}>
                     <SlidersHorizontal size={15} />{t("orders.filters.title", "Filters")}{activeFiltersCount ? ` · ${activeFiltersCount}` : ""}
                 </button>
+                <ExportDataButton onExport={exportOrders} kind={t("orders.title", "Orders").toLowerCase()} label={t("export.button", "Export")} />
                 <button onClick={() => navigate(`${basePath}/new`)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
                     <Plus size={15} />{t("orders.newOrder", "New Order")}
                 </button>
@@ -179,6 +226,16 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                         </button>
                     );
                 })}
+                {/* attention chips — overdue + unpaid dues (same filters the reminder pushes point at) */}
+                <span style={{ flex: "none", width: 1, alignSelf: "stretch", background: "var(--c-border)", margin: "0 3px" }} />
+                <button onClick={() => { setSpecialFilter(specialFilter === "pending_overdue" ? null : "pending_overdue"); }}
+                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "pending_overdue" ? "var(--c-error)" : "var(--c-border)"}`, background: specialFilter === "pending_overdue" ? "var(--c-error-soft)" : "var(--c-surface)", color: specialFilter === "pending_overdue" ? "var(--c-error)" : "var(--c-text-2)" }}>
+                    <AlertTriangle size={13} />{t("orders.filters.overdueOrders", "Overdue")}
+                </button>
+                <button onClick={() => { setSpecialFilter(specialFilter === "payment_due" ? null : "payment_due"); }}
+                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-border)"}`, background: specialFilter === "payment_due" ? "var(--c-warning-soft)" : "var(--c-surface)", color: specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-text-2)" }}>
+                    <Wallet size={13} />{t("orders.filters.unpaidDues", "Unpaid dues")}
+                </button>
             </div>
 
             {/* table */}
@@ -186,7 +243,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                 <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
                     {loading ? (
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
-                    ) : orders.length === 0 ? (
+                    ) : visibleOrders.length === 0 ? (
                         <LEmptyState icon={<ClipboardList className="h-8 w-8" />} title={t("orders.empty", "No orders found")} description={t("orders.tryDifferentFilter", "Try another tab, filter, or search.")} />
                     ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
@@ -246,15 +303,15 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                             </table>
                         </div>
                     )}
-                    {!loading && orders.length > 0 && (
+                    {!loading && visibleOrders.length > 0 && (
                         <div ref={loadMoreRef} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-3)" }}>
-                            <span>{t("orders.showing", "Showing")} {orders.length}</span>
+                            <span>{t("orders.showing", "Showing")} {visibleOrders.length}</span>
                             <span style={{ marginLeft: "auto" }}>{loadingMore ? <LSpinner size="sm" /> : !hasMore ? t("orders.noMore", "End of list") : ""}</span>
                         </div>
                     )}
                 </div>
                 {/* keep observer target alive even while empty list footer hidden */}
-                {(!orders.length || loading) && <div ref={loadMoreRef} style={{ height: 1 }} />}
+                {(!visibleOrders.length || loading) && <div ref={loadMoreRef} style={{ height: 1 }} />}
             </div>
 
             <OrderFilterSheet
@@ -265,6 +322,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                 selectedStatus={selectedStatus}
                 selectedOrderSource={selectedOrderSource}
                 selectedSpecialFilter={specialFilter}
+                selectedServiceId={selectedServiceId}
                 onApply={handleFilterApply}
             />
         </div>

@@ -40,6 +40,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   ready_for_pickup: { bg: '#F1FBE7', text: '#84CC16' },
   out_for_delivery: { bg: colors.primaryTint, text: colors.primary },
   delivered: { bg: colors.successBg, text: colors.success },
+  partially_delivered: { bg: colors.warningBg, text: colors.warning },
   cancelled: { bg: colors.errorBg, text: colors.error },
 };
 
@@ -146,6 +147,7 @@ function findStatusIndex(currentStatus: string, flow: string[]): number {
     confirmed: ['pending'],
     ready_for_pickup: ['ready'],
     picked_up: ['picked_up'], // terminal
+    partially_delivered: ['ready'], // some pieces handed over — sits at the "ready" step
   };
   for (const eq of (aliases[currentStatus] || [])) {
     const i = flow.indexOf(eq);
@@ -279,6 +281,14 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   <div class="qr-section"><img src="${qrUrl}" alt="QR"/></div>
   <div class="track-link">${getTrackingUrl(publicId)}</div>
 
+  ${(shopData?.settings?.receiptTerms || '').trim() ? `
+    <hr class="divider"/>
+    <div style="margin-top:4px;">
+      <div style="font-size:10px;font-weight:700;color:#444;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px;">${escHtml(t('mobile.receiptHtmlTermsTitle', { defaultValue: 'Terms & Conditions' }))}</div>
+      <div style="font-size:10px;color:#666;line-height:1.4;white-space:pre-line;">${escHtml(String(shopData.settings.receiptTerms).trim())}</div>
+    </div>
+  ` : ''}
+
   <hr class="divider"/>
   <div class="footer">${escHtml(t('mobile.receiptHtmlFooterThanks'))}<br/>${escHtml(t('mobile.receiptHtmlFooterPowered'))}</div>
 </body></html>`;
@@ -332,6 +342,8 @@ export default function OrderDetailsScreen({
   const [qrTab, setQrTab] = useState<'order' | 'items'>('order');
   // Tag code style — QR (default) or Code128 barcode. Remembered per shop in settings.tagStyle.
   const [tagStyleOverride, setTagStyleOverride] = useState<'qr' | 'barcode' | null>(null);
+  // Timeline starts collapsed to the latest few events.
+  const [showAllTimeline, setShowAllTimeline] = useState(false);
 
   // ─── Data fetching ────────────────────────────────────────────────
 
@@ -451,6 +463,10 @@ export default function OrderDetailsScreen({
   const deliveryType = order?.deliveryType || 'pickup_store';
   const flow = STATUS_FLOW[deliveryType] || STATUS_FLOW.pickup_store;
   const currentFlowIndex = findStatusIndex(status, flow);
+  const nextStatus = !isTerminal && status !== 'cancelled' && currentFlowIndex >= 0 && currentFlowIndex < flow.length - 1 ? flow[currentFlowIndex + 1] : null;
+  const isOverdue = !!expectedDelivery && !isTerminal && expectedDelivery.getTime() < Date.now();
+  const payments = order?.payments || [];
+  const shownTimeline = showAllTimeline ? timeline.slice().reverse() : timeline.slice().reverse().slice(0, 3);
 
   // ─── Actions ──────────────────────────────────────────────────────
 
@@ -458,14 +474,141 @@ export default function OrderDetailsScreen({
     return firestore().collection(`shops/${shopId}/orders`).doc(orderId);
   }, [shopId, orderId]);
 
-  const handleUpdateStatus = async () => {
-    if (!selectedStatus || saving) return;
+  // ─── Per-item status (partial delivery / mark processed) ─────────
+  const [deliverMode, setDeliverMode] = useState(false);
+  const [deliverDraft, setDeliverDraft] = useState<Record<number, number>>({}); // line → pieces to deliver now
+  const [procOpen, setProcOpen] = useState<number | null>(null);                // line with an open process stepper
+  const [procQty, setProcQty] = useState(1);
+  const [itemBusy, setItemBusy] = useState(false);
+  const orderItems: any[] = order?.items || [];
+  const orderDone = status === 'delivered' || status === 'picked_up';
+  // A line tracks whole pieces only when qty is an integer > 1 and not a weight/area unit.
+  const isCountable = (it: any): boolean => {
+    const q = it.quantity;
+    if (!Number.isInteger(q) || q <= 1) return false;
+    const u = String(it.pricingType || it.unit || '').toLowerCase();
+    return !['kg', 'lb', 'sqft', 'sqm', 'load', 'bag'].includes(u);
+  };
+  // Normalised progress with legacy fallbacks.
+  const progressOf = (it: any): { qty: number; processed: number; delivered: number } => {
+    const qty = isCountable(it) ? it.quantity : 1;
+    if (it.processedQty === undefined && it.deliveredQty === undefined) {
+      const st = it.itemStatus || (orderDone ? 'delivered' : 'pending');
+      const all = st === 'delivered' ? qty : 0;
+      const proc = st === 'delivered' || st === 'processed' ? qty : 0;
+      return { qty, processed: proc, delivered: all };
+    }
+    const delivered = Math.max(0, Math.min(qty, it.deliveredQty ?? 0));
+    const processed = Math.max(delivered, Math.min(qty, it.processedQty ?? 0));
+    return { qty, processed, delivered };
+  };
+  const lineProg = orderItems.map(progressOf);
+  // Per-item piece tracking is a Pro+/Business feature. Pro/free shops use the
+  // standard order-level status update (which cascades to items) instead.
+  const [itemTracking, setItemTracking] = useState(false);
+  useEffect(() => {
+    if (!shopId) return;
+    firestore().collection('subscriptions').doc(shopId).get()
+      .then((snap: any) => {
+        const d = snap.data() || {};
+        const n = String(d.planId || d.planName || '').toLowerCase().replace(/[_\s-]/g, '');
+        setItemTracking(n === 'proplus' || n === 'pro+' || n === 'business' || n === 'enterprise' || n === 'premium');
+      })
+      .catch(() => {});
+  }, [shopId]);
+  // Items stay editable on delivered orders (matches web) so leftover pieces can
+  // always be reconciled; only a cancelled order locks the item list.
+  const itemsEditable = itemTracking && status !== 'cancelled';
+  const anyProcessable = itemsEditable && lineProg.some((p) => p.processed < p.qty);
+  // Only PROCESSED pieces can be handed over — deliverable = processed − delivered.
+  const anyDeliverable = itemsEditable && lineProg.some((p) => p.delivered < p.processed);
+  const totalPieces = lineProg.reduce((a, p) => a + p.qty, 0);
+  const deliveredPieces = lineProg.reduce((a, p) => a + p.delivered, 0);
+  const draftPieces = Object.values(deliverDraft).reduce((a: number, n) => a + (n || 0), 0);
+  const setDraft = (i: number, n: number) =>
+    setDeliverDraft((d) => ({ ...d, [i]: Math.max(0, Math.min(lineProg[i].processed - lineProg[i].delivered, n)) }));
+
+  const runProgress = async (updates: { index: number; processed?: number; delivered?: number }[]) => {
+    if (!updates.length || itemBusy) return;
+    setItemBusy(true);
+    try {
+      const byIndex = new Map(updates.map((u) => [u.index, u]));
+      const touched: { name: string; verb: string; n: number; qty: number }[] = [];
+      const items = orderItems.map((it, i) => {
+        const u = byIndex.get(i);
+        if (!u) return it;
+        const cur = progressOf(it);
+        let delivered = u.delivered !== undefined ? u.delivered : cur.delivered;
+        let processed = u.processed !== undefined ? u.processed : cur.processed;
+        delivered = Math.max(0, Math.min(cur.qty, Math.round(delivered)));
+        processed = Math.max(delivered, Math.min(cur.qty, Math.round(processed)));
+        const st = delivered >= cur.qty ? 'delivered' : processed >= cur.qty ? 'processed' : 'pending';
+        if (u.delivered !== undefined && delivered !== cur.delivered) touched.push({ name: it.serviceName, verb: 'Delivered', n: delivered, qty: cur.qty });
+        else if (u.processed !== undefined && processed !== cur.processed) touched.push({ name: it.serviceName, verb: 'Processed', n: processed, qty: cur.qty });
+        return { ...it, processedQty: processed, deliveredQty: delivered, itemStatus: st };
+      });
+      const prog = items.map(progressOf);
+      const allDelivered = prog.every((p) => p.delivered >= p.qty);
+      const anyDeliveredNow = prog.some((p) => p.delivered > 0);
+      const allProcessed = prog.every((p) => p.processed >= p.qty);
+      let derived: string | null = null;
+      if (allDelivered) derived = deliveryType === 'pickup_store' ? 'picked_up' : 'delivered';
+      else if (anyDeliveredNow) derived = 'partially_delivered';
+      else if (allProcessed) derived = deliveryType === 'pickup_store' ? 'ready_for_pickup' : 'ready';
+      const notes = touched.length
+        ? touched.slice(0, 4).map((tt) => `${tt.verb} ${tt.n}${tt.qty > 1 ? `/${tt.qty}` : ''} × ${tt.name}`).join(', ') + (touched.length > 4 ? '…' : '')
+        : 'Updated items';
+      const newEvent = {
+        id: `t-${Date.now()}`,
+        status: derived && derived !== status ? derived : status,
+        timestamp: new Date(),
+        staffId: 'mobile',
+        staffName: 'Shop Owner',
+        notes,
+        notifiedCustomer: false,
+      };
+      const updateData: any = { items, updatedAt: new Date(), timeline: [...(order?.timeline || []), newEvent] };
+      if (derived && derived !== status) {
+        updateData.status = derived;
+        if (derived === 'delivered' || derived === 'picked_up') updateData.deliveredAt = new Date();
+      }
+      await orderDocRef().update(updateData);
+      setDeliverMode(false); setDeliverDraft({}); setProcOpen(null);
+    } catch (e: any) {
+      Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateStatus'));
+    }
+    setItemBusy(false);
+  };
+  const processMore = (i: number, n: number) => runProgress([{ index: i, processed: Math.min(lineProg[i].qty, lineProg[i].processed + n) }]);
+  const processAll = () => runProgress(orderItems.map((_, i) => ({ index: i, processed: lineProg[i].qty })).filter((_, i) => lineProg[i].processed < lineProg[i].qty));
+  const enterDeliver = () => {
+    const draft: Record<number, number> = {};
+    // Prefill each line with PROCESSED-but-undelivered pieces; unprocessed can't be handed over.
+    lineProg.forEach((p, i) => { const rem = p.processed - p.delivered; if (rem > 0) draft[i] = rem; });
+    setDeliverDraft(draft); setDeliverMode(true); setProcOpen(null);
+  };
+  const confirmDeliver = () => runProgress(
+    Object.entries(deliverDraft).filter(([, n]) => (n || 0) > 0)
+      .map(([i, n]) => ({ index: Number(i), delivered: Math.min(lineProg[Number(i)].processed, lineProg[Number(i)].delivered + (n || 0)) }))
+  );
+  const pillFor = (p: { qty: number; processed: number; delivered: number }): { label: string; fg: string; bg: string } => {
+    if (p.delivered >= p.qty && p.qty > 0) return { label: t('mobile.itemDelivered', 'DELIVERED'), fg: '#0E9F6E', bg: '#E8F8EE' };
+    if (p.delivered > 0) return { label: `${p.delivered}/${p.qty} ${t('mobile.itemDelivered', 'DELIVERED')}`, fg: '#B45309', bg: '#FFF4E5' };
+    if (p.processed >= p.qty && p.qty > 0) return { label: t('mobile.itemProcessed', 'PROCESSED'), fg: '#00408f', bg: '#E6F0FF' };
+    if (p.processed > 0) return { label: `${p.processed}/${p.qty} ${t('mobile.itemProcessed', 'PROCESSED')}`, fg: '#B45309', bg: '#FFF4E5' };
+    return { label: t('mobile.itemPending', 'PENDING'), fg: '#6B7280', bg: '#F1F3F5' };
+  };
+  const stepBtnStyle = { width: 26, height: 26, alignItems: 'center' as const, justifyContent: 'center' as const, borderRadius: 6, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#F8FAFC' };
+  const stepTxtStyle = { fontSize: 16, fontWeight: '700' as const, color: '#374151', lineHeight: 20 };
+
+  const applyStatusUpdate = async (target: string) => {
+    if (!target || saving) return;
     setSaving(true);
     try {
       const currentTimeline = order?.timeline || [];
       const newEvent = {
         id: `t-${Date.now()}`,
-        status: selectedStatus,
+        status: target,
         timestamp: new Date(),
         staffId: 'mobile',
         staffName: 'Shop Owner',
@@ -473,12 +616,28 @@ export default function OrderDetailsScreen({
         notifiedCustomer: false,
       };
       const updateData: any = {
-        status: selectedStatus,
+        status: target,
         updatedAt: new Date(),
         timeline: [...currentTimeline, newEvent],
       };
-      if (selectedStatus === 'delivered' || selectedStatus === 'picked_up') {
+      // Top-level status is the coarse control: cascade it down to the item piece
+      // counters so the item list can never contradict the order status. The item
+      // list stays the fine-grained path (it derives the order status upward).
+      if (target === 'delivered' || target === 'picked_up') {
         updateData.deliveredAt = new Date();
+        if (orderItems.length) {
+          updateData.items = orderItems.map((it) => {
+            const p = progressOf(it);
+            return { ...it, processedQty: p.qty, deliveredQty: p.qty, itemStatus: 'delivered' };
+          });
+        }
+      } else if (target === 'ready' || target === 'ready_for_pickup') {
+        if (orderItems.length) {
+          updateData.items = orderItems.map((it) => {
+            const p = progressOf(it);
+            return { ...it, processedQty: p.qty, deliveredQty: p.delivered, itemStatus: p.delivered >= p.qty ? 'delivered' : 'processed' };
+          });
+        }
       }
       await orderDocRef().update(updateData);
       setStatusModal(false);
@@ -488,6 +647,24 @@ export default function OrderDetailsScreen({
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedUpdateStatus'));
     }
     setSaving(false);
+  };
+
+  const handleUpdateStatus = () => {
+    if (!selectedStatus || saving) return;
+    // Confirm only when partial delivery has actually started (some pieces delivered,
+    // some not) — a fresh order marked Delivered cascades silently, as expected.
+    if ((selectedStatus === 'delivered' || selectedStatus === 'picked_up') && deliveredPieces > 0 && deliveredPieces < totalPieces) {
+      Alert.alert(
+        t('mobile.confirmDeliverAllTitle', 'Deliver all items?'),
+        t('mobile.confirmDeliverAllMsg', '{{left}} of {{total}} pieces are not marked delivered yet. This will mark every item as delivered.', { left: totalPieces - deliveredPieces, total: totalPieces }) as string,
+        [
+          { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+          { text: t('mobile.confirmDeliverAllBtn', 'Deliver all'), onPress: () => applyStatusUpdate(selectedStatus) },
+        ]
+      );
+      return;
+    }
+    applyStatusUpdate(selectedStatus);
   };
 
   const handleCollectPayment = async () => {
@@ -515,6 +692,33 @@ export default function OrderDetailsScreen({
         payments: [...currentPayments, newPayment],
         updatedAt: new Date(),
       });
+      // Loyalty earn: credit points once the order becomes fully paid (same rule
+      // as web) — guarded by the order.loyalty stamp so it can't credit twice.
+      if (newBalance <= 0 && order?.customerId && !order?.isGuest && !order?.loyalty?.earnedPoints) {
+        try {
+          const loyalty = shopData?.settings?.loyalty;
+          if (loyalty?.enabled) {
+            const earn = loyalty.mode === 'fixed'
+              ? Math.max(0, Math.round(loyalty.earnFixed || 0))
+              : Math.max(0, Math.round(((fin.total || 0) * (loyalty.earnPercent || 0)) / 100));
+            if (earn > 0) {
+              await orderDocRef().update({ loyalty: { earnedPoints: earn, earnedAt: new Date() } });
+              const custRef = firestore().collection(`shops/${shopId}/customers`).doc(order.customerId);
+              const custDoc = await custRef.get();
+              if (custDoc.exists) {
+                const cd = custDoc.data() || {};
+                await custRef.update({
+                  loyaltyPoints: (cd.loyaltyPoints || 0) + earn,
+                  loyaltyEarned: (cd.loyaltyEarned || 0) + earn,
+                  updatedAt: new Date(),
+                });
+              }
+            }
+          }
+        } catch (loyErr) {
+          console.error('Loyalty credit error (non-fatal):', loyErr);
+        }
+      }
       setPaymentModal(false);
       setPayAmount('');
       setPayMethod('cash');
@@ -560,6 +764,27 @@ export default function OrderDetailsScreen({
         }];
       }
       await orderDocRef().update(cancelUpdate);
+      // Loyalty reversal: return redeemed points to the customer and revoke any
+      // points this order earned (mirrors the web cancel path).
+      try {
+        const redeemedBack = fin.pointsRedeemed || 0;
+        const earnedRevoke = order?.loyalty?.earnedPoints || 0;
+        if (order?.customerId && (redeemedBack > 0 || earnedRevoke > 0)) {
+          const custRef = firestore().collection(`shops/${shopId}/customers`).doc(order.customerId);
+          const custDoc = await custRef.get();
+          if (custDoc.exists) {
+            const cd = custDoc.data() || {};
+            const custUpdate: any = {
+              loyaltyPoints: Math.max(0, (cd.loyaltyPoints || 0) + redeemedBack - earnedRevoke),
+              updatedAt: new Date(),
+            };
+            if (earnedRevoke > 0) custUpdate.loyaltyEarned = Math.max(0, (cd.loyaltyEarned || 0) - earnedRevoke);
+            await custRef.update(custUpdate);
+          }
+        }
+      } catch (loyErr) {
+        console.error('Loyalty reversal error (non-fatal):', loyErr);
+      }
       setCancelModal(false);
       setCancelReason('');
     } catch (e: any) {
@@ -609,27 +834,40 @@ export default function OrderDetailsScreen({
   const handleShare = async () => {
     const shopName = shopData?.name || 'LaundryBill';
     const dateLabel = deliveryType === 'pickup_store' ? t('mobile.readyForPickupLabel') : t('mobile.expectedDeliveryLabel');
+    // Owner customization (web Settings → WhatsApp message & tracking); shared with web.
+    const ws = shopData?.settings?.waShare || {};
+    const trackingOn = shopData?.settings?.trackingEnabled !== false;
+    const headerLine = ws.headerText?.trim()
+      ? `${ws.headerText.trim()} — #${publicId}`
+      : `${shopName} — Order #${publicId}`;
 
     const lines = [
-      `${shopName} — Order #${publicId}`,
+      headerLine,
       ``,
       `${t('mobile.waOrderStatusLine', { status: odStatusLabel(status, t) })}`,
-      ``,
-      t('mobile.waItems'),
-      ...(order?.items || []).map((i: any) => `- ${i.serviceName} x${i.quantity} — ${formatCurrency(Math.round(i.total || (i.unitPrice * i.quantity)), countrySettings)}`),
-      ``,
-      `${t('mobile.subtotalLabel')}: ${formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}`,
     ];
-    if (fin.discountAmount > 0) lines.push(`${t('mobile.discountLabel')}: -${formatCurrency(Math.round(fin.discountAmount), countrySettings)}`);
-    if (fin.taxAmount > 0) lines.push(`${fin.taxName || t('mobile.taxFallback')}${fin.taxRate ? ` (${fin.taxRate}%)` : ''}: +${formatCurrency(Math.round(fin.taxAmount), countrySettings)}`);
-    lines.push(`${t('mobile.totalLabel')}: ${formatCurrency(Math.round(fin.total || 0), countrySettings)}`);
-    if (fin.balance > 0) {
-      lines.push(withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string));
-    } else {
-      lines.push(t('mobile.waPaidFull'));
+    if (ws.showItems !== false) {
+      lines.push(
+        ``,
+        t('mobile.waItems'),
+        ...(order?.items || []).map((i: any) => `- ${i.serviceName} x${i.quantity} — ${formatCurrency(Math.round(i.total || (i.unitPrice * i.quantity)), countrySettings)}`),
+      );
     }
-    if (expectedDelivery) lines.push(``, `${dateLabel}: ${formatDateShortLocalized(expectedDelivery, i18n.language)}`);
-    lines.push(``, `${t('mobile.waTrackOrder')}:`, trackingUrl, ``, `${t('mobile.waViewReceipt')}:`, getReceiptUrl(publicId));
+    if (ws.showPayment !== false) {
+      lines.push(``, `${t('mobile.subtotalLabel')}: ${formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}`);
+      if (fin.discountAmount > 0) lines.push(`${t('mobile.discountLabel')}: -${formatCurrency(Math.round(fin.discountAmount), countrySettings)}`);
+      if (fin.taxAmount > 0) lines.push(`${fin.taxName || t('mobile.taxFallback')}${fin.taxRate ? ` (${fin.taxRate}%)` : ''}: +${formatCurrency(Math.round(fin.taxAmount), countrySettings)}`);
+      lines.push(`${t('mobile.totalLabel')}: ${formatCurrency(Math.round(fin.total || 0), countrySettings)}`);
+      if (fin.balance > 0) {
+        lines.push(withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string));
+      } else {
+        lines.push(t('mobile.waPaidFull'));
+      }
+    }
+    if (ws.showExpectedDate !== false && expectedDelivery) lines.push(``, `${dateLabel}: ${formatDateShortLocalized(expectedDelivery, i18n.language)}`);
+    if (trackingOn) lines.push(``, `${t('mobile.waTrackOrder')}:`, trackingUrl);
+    if (ws.showReceiptLink !== false) lines.push(``, `${t('mobile.waViewReceipt')}:`, getReceiptUrl(publicId));
+    if (ws.footerText?.trim()) lines.push(``, ws.footerText.trim());
 
     try {
       await Share.share({ message: lines.join('\n') });
@@ -766,52 +1004,112 @@ export default function OrderDetailsScreen({
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 30 + insets.bottom }]} showsVerticalScrollIndicator={false}>
-        {/* Date */}
-        <Text style={[styles.dateText, { marginBottom: 4 }]}>{formatDateLocalized(createdAt, i18n.language)}</Text>
+        {/* ─── Status hero: where the order is + what to do next ──── */}
+        <View style={styles.heroCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroLabel}>{t('mobile.orderPlacedLabel', 'Order placed')}</Text>
+              <Text style={styles.heroValue}>{formatDateLocalized(createdAt, i18n.language)}</Text>
+            </View>
+            <View style={styles.deliveryTypeBadge}>
+              <Text style={styles.deliveryTypeText}>{t(deliveryLabelKey(deliveryType))}</Text>
+            </View>
+          </View>
 
-        {/* ─── Action Buttons ─────────────────────────────────────── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsScroll} contentContainerStyle={styles.actionsContent}>
-          {!isTerminal && (
-            <TouchableOpacity style={styles.actionChip} onPress={() => { setSelectedStatus(''); setStatusModal(true); }}>
-              <MaterialIcons name="sync" size={18} color="#00408f" />
-              <Text style={styles.actionChipText}>{t('mobile.updateStatusChip')}</Text>
-            </TouchableOpacity>
+          {status === 'cancelled' ? (
+            <View style={[styles.expectStrip, { backgroundColor: colors.errorBg }]}>
+              <MaterialIcons name="cancel" size={17} color={colors.error} />
+              <Text style={[styles.expectValue, { color: colors.error, marginLeft: 8 }]}>{odStatusLabel('cancelled', t)}</Text>
+            </View>
+          ) : (
+            <>
+              {currentFlowIndex >= 0 ? (
+                <View>
+                  <View style={styles.trackRow}>
+                    {flow.map((s, i) => (
+                      <React.Fragment key={s}>
+                        {i > 0 ? <View style={[styles.trackSeg, i <= currentFlowIndex && styles.trackSegDone]} /> : null}
+                        <View style={[styles.trackDot, i < currentFlowIndex ? styles.trackDotDone : null, i === currentFlowIndex ? { borderColor: statusColor.text } : null]}>
+                          {i < currentFlowIndex ? (
+                            <MaterialIcons name="check" size={10} color="#fff" />
+                          ) : i === currentFlowIndex ? (
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor.text }} />
+                          ) : null}
+                        </View>
+                      </React.Fragment>
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Text style={[styles.trackNow, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
+                    <Text style={styles.trackStep}>  ·  {t('mobile.stepOf', 'Step {{current}} of {{total}}', { current: currentFlowIndex + 1, total: flow.length })}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {deliveredPieces > 0 && deliveredPieces < totalPieces ? (
+                <View>
+                  <View style={styles.piecesBarTrack}>
+                    <View style={[styles.piecesBarFill, { width: `${Math.min(100, Math.round((deliveredPieces / Math.max(1, totalPieces)) * 100))}%` }]} />
+                  </View>
+                  <Text style={styles.piecesBarText}>{t('mobile.piecesDelivered', '{{done}}/{{total}} pieces delivered', { done: deliveredPieces, total: totalPieces })}</Text>
+                </View>
+              ) : null}
+
+              {isTerminal ? (
+                <View style={[styles.expectStrip, { backgroundColor: colors.successBg }]}>
+                  <MaterialIcons name="check-circle" size={17} color={colors.success} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={[styles.expectLabel, { color: colors.success }]}>{odStatusLabel(status, t)}</Text>
+                    <Text style={[styles.expectValue, { color: colors.success }]}>{formatDateLocalized(toDate(order.deliveredAt) || expectedDelivery, i18n.language)}</Text>
+                  </View>
+                </View>
+              ) : expectedDelivery ? (
+                <View style={[styles.expectStrip, isOverdue && { backgroundColor: colors.errorBg }]}>
+                  <MaterialIcons name={isOverdue ? 'warning-amber' : 'event'} size={17} color={isOverdue ? colors.error : colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={[styles.expectLabel, isOverdue && { color: colors.error }]}>{deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}</Text>
+                    <Text style={[styles.expectValue, isOverdue && { color: colors.error }]}>{formatDateShortLocalized(expectedDelivery, i18n.language)}</Text>
+                  </View>
+                  {isOverdue ? (
+                    <View style={styles.overdueTag}><Text style={styles.overdueTagText}>{t('orders.overdue', 'Overdue')}</Text></View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {nextStatus ? (
+                <TouchableOpacity style={styles.heroCta} onPress={() => { setSelectedStatus(nextStatus); setStatusModal(true); }}>
+                  <Text style={styles.heroCtaText}>{t('mobile.markAsBtn', 'Mark as {{status}}', { status: odStatusLabel(nextStatus, t) })}</Text>
+                  <MaterialIcons name="arrow-forward" size={18} color="#fff" />
+                </TouchableOpacity>
+              ) : null}
+              {!isTerminal ? (
+                <TouchableOpacity style={styles.heroLink} onPress={() => { setSelectedStatus(''); setStatusModal(true); }}>
+                  <Text style={styles.heroLinkText}>{t('mobile.allStatusesLink', 'View all statuses')}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
           )}
-          {fin.balance > 0 && (
-            <TouchableOpacity style={styles.actionChip} onPress={() => { setPayAmount(String(Math.round(fin.balance))); setPaymentModal(true); }}>
-              <MaterialIcons name="payments" size={18} color="#006b5f" />
-              <Text style={[styles.actionChipText, { color: '#006b5f' }]}>{withCurrencySymbol(t('mobile.collectAmount', { amount: Math.round(fin.balance) }) as string)}</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.actionChip} onPress={handleShare}>
-            <MaterialIcons name="share" size={18} color="#00408f" />
-            <Text style={styles.actionChipText}>{t('mobile.shareChip')}</Text>
+        </View>
+
+        {/* ─── Quick actions: receipt / pdf / tags / share ────────── */}
+        <View style={styles.qaRow}>
+          <TouchableOpacity style={styles.qaTile} onPress={handlePrintReceipt}>
+            <View style={styles.qaIconWrap}><MaterialIcons name="print" size={18} color="#5e3c00" /></View>
+            <Text style={styles.qaLabel}>{t('mobile.printChip')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={() => { setQrTab('order'); setQrModal(true); }}>
-            <MaterialIcons name="qr-code-2" size={18} color="#00408f" />
-            <Text style={styles.actionChipText}>{t('mobile.qrCodeChip')}</Text>
+          <TouchableOpacity style={styles.qaTile} onPress={handleShareReceiptPdf}>
+            <View style={[styles.qaIconWrap, { backgroundColor: '#fde8e8' }]}><MaterialIcons name="picture-as-pdf" size={18} color="#c62828" /></View>
+            <Text style={styles.qaLabel}>{t('mobile.pdfChip')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={handlePrintReceipt}>
-            <MaterialIcons name="print" size={18} color="#5e3c00" />
-            <Text style={[styles.actionChipText, { color: '#5e3c00' }]}>{t('mobile.printChip')}</Text>
+          <TouchableOpacity style={styles.qaTile} onPress={() => { setQrTab('order'); setQrModal(true); }}>
+            <View style={[styles.qaIconWrap, { backgroundColor: colors.primaryTint }]}><MaterialIcons name="qr-code-2" size={18} color={colors.primary} /></View>
+            <Text style={styles.qaLabel}>{t('mobile.qrCodeChip')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={handleShareReceiptPdf}>
-            <MaterialIcons name="picture-as-pdf" size={18} color="#c62828" />
-            <Text style={[styles.actionChipText, { color: '#c62828' }]}>{t('mobile.pdfChip')}</Text>
+          <TouchableOpacity style={styles.qaTile} onPress={handleShare}>
+            <View style={[styles.qaIconWrap, { backgroundColor: '#e6f7f2' }]}><MaterialIcons name="share" size={18} color="#006b5f" /></View>
+            <Text style={styles.qaLabel}>{t('mobile.shareChip')}</Text>
           </TouchableOpacity>
-          {!isTerminal && (
-            <TouchableOpacity style={[styles.actionChip, { borderColor: '#bbdefb' }]} onPress={() => onEditOrder ? onEditOrder(order) : (() => { setEditNotes(order.deliveryNotes || ''); setEditDeliveryType(deliveryType); setEditModal(true); })()}>
-              <MaterialIcons name="edit" size={18} color="#00408f" />
-              <Text style={[styles.actionChipText, { color: '#00408f' }]}>{t('mobile.editChip')}</Text>
-            </TouchableOpacity>
-          )}
-          {!isTerminal && ['pending', 'processing', 'confirmed', 'pickup_scheduled'].includes(status) && (
-            <TouchableOpacity style={[styles.actionChip, { borderColor: '#fce4ec' }]} onPress={() => setCancelModal(true)}>
-              <MaterialIcons name="cancel" size={18} color="#c62828" />
-              <Text style={[styles.actionChipText, { color: '#c62828' }]}>{t('mobile.cancelOrderChip')}</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
+        </View>
 
         {/* ─── Online booking estimate (public page) ──────────────── */}
         {order.orderSource === 'online' ? (
@@ -862,44 +1160,154 @@ export default function OrderDetailsScreen({
               </View>
             ) : null}
           </View>
+          {(order.deliveryAddress || order.pickupAddress) ? (
+            <TouchableOpacity style={styles.addressRow} onPress={() => {
+              const q = order.deliveryLat && order.deliveryLng
+                ? `${order.deliveryLat},${order.deliveryLng}`
+                : encodeURIComponent(order.deliveryAddress || order.pickupAddress || '');
+              Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`).catch(() => {});
+            }}>
+              <MaterialIcons name="location-on" size={15} color={colors.textSecondary} />
+              <Text style={styles.addressText} numberOfLines={2}>{order.deliveryAddress || order.pickupAddress}</Text>
+              <MaterialIcons name="directions" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* ─── Expected Delivery ──────────────────────────────────── */}
-        {expectedDelivery ? (
-          <View style={styles.deliveryCard}>
-            <MaterialIcons name="event" size={20} color="#00408f" />
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.deliveryLabel}>{deliveryType === 'pickup_store' ? t('mobile.expectedReadyUpper') : t('mobile.expectedDeliveryUpper')}</Text>
-              <Text style={styles.deliveryDate}>{formatDateShortLocalized(expectedDelivery, i18n.language)}</Text>
-            </View>
-            <View style={styles.deliveryTypeBadge}>
-              <Text style={styles.deliveryTypeText}>{t(deliveryLabelKey(deliveryType))}</Text>
-            </View>
+        {/* ─── Delivery details: schedule / area / agent / notes ──── */}
+        {(order.deliveryArea || order.assignedAgentName || order.deliveryNotes || order.scheduledPickupDate || order.scheduledPickupTime || order.deliverySlot) ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('mobile.deliverySectionTitle', 'Delivery details')}</Text>
+            {order.scheduledPickupDate || order.scheduledPickupTime ? (
+              <View style={styles.dRow}>
+                <MaterialIcons name="event" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dLabel}>{t('mobile.pickupDateLabel', 'Pickup date')}</Text>
+                  <Text style={styles.dValue}>
+                    {[
+                      order.scheduledPickupDate ? formatDateShortLocalized(toDate(order.scheduledPickupDate), i18n.language) : null,
+                      order.scheduledPickupTime || null,
+                    ].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {order.deliverySlot ? (
+              <View style={styles.dRow}>
+                <MaterialIcons name="schedule" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dLabel}>{t('mobile.deliverySlotLabel', 'Delivery slot')}</Text>
+                  <Text style={styles.dValue}>{order.deliverySlot}</Text>
+                </View>
+              </View>
+            ) : null}
+            {order.deliveryArea ? (
+              <View style={styles.dRow}>
+                <MaterialIcons name="map" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dLabel}>{t('mobile.serviceAreaLabel', 'Service area')}</Text>
+                  <Text style={styles.dValue}>{order.deliveryArea}</Text>
+                </View>
+              </View>
+            ) : null}
+            {order.assignedAgentName ? (
+              <View style={styles.dRow}>
+                <MaterialIcons name="local-shipping" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dLabel}>{t('mobile.deliveryAgentLabel', 'Delivery agent')}</Text>
+                  <Text style={styles.dValue}>{order.assignedAgentName}</Text>
+                </View>
+              </View>
+            ) : null}
+            {order.deliveryNotes ? (
+              <View style={styles.dRow}>
+                <MaterialIcons name="sticky-note-2" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dLabel}>{t('mobile.fieldNotes')}</Text>
+                  <Text style={styles.dValue}>{order.deliveryNotes}</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {/* ─── Service area & assigned delivery agent ─────────────── */}
-        {(order.deliveryArea || order.assignedAgentName) ? (
-          <View style={styles.deliveryCard}>
-            <MaterialIcons name="local-shipping" size={20} color="#00408f" />
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              {order.deliveryArea ? (
-                <View>
-                  <Text style={styles.deliveryLabel}>{t('mobile.serviceAreaLabel', 'Service area')}</Text>
-                  <Text style={styles.deliveryDate}>{order.deliveryArea}</Text>
+        {/* ─── Order photos: damage/pickup/delivery/plant, captioned who + when ── */}
+        {(() => {
+          const photos: { url: string; label: string }[] = [
+            ...((order.damagePhotoUrls || []) as string[]).map((url: string, i: number) => ({ url, label: t('mobile.photoDamage', 'Damage / stain') })),
+            ...(order.pickupPhoto ? [{ url: order.pickupPhoto, label: t('mobile.photoPickup', 'Pickup proof') }] : []),
+            ...(order.deliveryPhoto ? [{ url: order.deliveryPhoto, label: t('mobile.photoDelivery', 'Delivery proof') }] : []),
+            ...(order.plantPhoto && order.plantPhoto !== (order.damagePhotoUrls || []).slice(-1)[0] ? [{ url: order.plantPhoto, label: t('mobile.photoPlant', 'Plant processing') }] : []),
+          ];
+          if (!photos.length) return null;
+          const roleLabel = (r: string) => ({ owner: t('mobile.roleOwner', 'Owner'), manager: t('mobile.roleManager', 'Manager'), staff: t('mobile.roleStaff', 'Staff'), agent: t('mobile.roleAgent', 'Agent'), plant: t('mobile.rolePlant', 'Plant') } as Record<string, string>)[r] || r;
+          const metaFor = (url: string) => (order.photoMeta || []).find((m: any) => m?.url === url) || null;
+          return (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('mobile.orderPhotosTitle', 'Order photos')} · {photos.length}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {photos.map((p, i) => {
+                    const m: any = metaFor(p.url);
+                    const when = m?.at ? formatDateShortLocalized(toDate(m.at), i18n.language) : null;
+                    return (
+                      <TouchableOpacity key={p.url + i} activeOpacity={0.8} onPress={() => Linking.openURL(p.url).catch(() => {})} style={{ width: 96 }}>
+                        <Image source={{ uri: p.url }} style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: colors.surfaceMuted }} />
+                        <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, color: colors.textSecondary, marginTop: 5 }} numberOfLines={1}>{p.label}</Text>
+                        {m ? (
+                          <Text style={{ fontSize: 10, fontFamily: fonts.medium, color: colors.textMuted, lineHeight: 13 }} numberOfLines={2}>
+                            {m.byName} ({roleLabel(m.byRole)}){when ? `\n${when}` : ''}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              ) : null}
-              {order.assignedAgentName ? (
-                <View style={order.deliveryArea ? { marginTop: 10 } : undefined}>
-                  <Text style={styles.deliveryLabel}>{t('mobile.deliveryAgentLabel', 'Delivery agent')}</Text>
-                  <Text style={styles.deliveryDate}>{order.assignedAgentName}</Text>
-                </View>
-              ) : null}
+              </ScrollView>
             </View>
-          </View>
-        ) : null}
+          );
+        })()}
 
         {/* ─── Items ──────────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Text style={[styles.cardTitle, { marginBottom: 0, flex: 1 }]}>{t('mobile.itemsSectionTitle', 'Items')} · {totalPieces}</Text>
+            {deliveredPieces > 0 && deliveredPieces < totalPieces ? (
+              <View style={styles.piecesChip}>
+                <Text style={styles.piecesChipText}>{t('mobile.piecesDelivered', '{{done}}/{{total}} pieces delivered', { done: deliveredPieces, total: totalPieces })}</Text>
+              </View>
+            ) : null}
+          </View>
+          {orderItems.length > 0 && (anyProcessable || anyDeliverable) ? (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {anyProcessable && !deliverMode ? (
+                <TouchableOpacity disabled={itemBusy} onPress={processAll} style={[styles.itemActionBtn, { opacity: itemBusy ? 0.6 : 1 }]}>
+                  <MaterialIcons name="done-all" size={15} color="#00408f" />
+                  <Text style={styles.itemActionText}>{t('mobile.markAllProcessed', 'All processed')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {anyDeliverable ? (
+                <TouchableOpacity disabled={itemBusy} onPress={() => (deliverMode ? (setDeliverMode(false), setDeliverDraft({})) : enterDeliver())}
+                  style={[styles.itemActionBtn, !deliverMode && styles.itemActionBtnPrimary, { opacity: itemBusy ? 0.6 : 1 }]}>
+                  {!deliverMode ? <MaterialIcons name="shopping-bag" size={15} color="#fff" /> : null}
+                  <Text style={[styles.itemActionText, !deliverMode && { color: '#fff' }]}>
+                    {deliverMode ? t('mobile.cancelBtn', 'Cancel') : t('mobile.deliverItems', 'Deliver items')}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+          {deliverMode ? (
+            <View style={styles.deliverBar}>
+              <Text style={styles.deliverBarText}>{t('mobile.setDeliverQty', 'Set how many pieces the customer is taking')}</Text>
+              <TouchableOpacity disabled={!draftPieces || itemBusy} onPress={confirmDeliver}
+                style={[styles.deliverBarBtn, { backgroundColor: draftPieces ? '#00408f' : '#C9D4E4', opacity: itemBusy ? 0.6 : 1 }]}>
+                <Text style={styles.deliverBarBtnText}>
+                  {t('mobile.deliverSelected', 'Deliver selected')}{draftPieces ? ` (${draftPieces})` : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         {categoryGroups.map((group, gi) => (
           <View key={`${group.name}-${gi}`} style={styles.serviceSection}>
             <View style={styles.serviceHeader}>
@@ -910,52 +1318,131 @@ export default function OrderDetailsScreen({
               <Text style={styles.serviceSub}>{formatCurrency(Math.round(group.subtotal), countrySettings)}</Text>
             </View>
             <View style={styles.serviceItems}>
-              {group.items.map((item: any, idx: number) => (
+              {group.items.map((item: any, idx: number) => {
+                const fi = orderItems.indexOf(item);
+                const p = lineProg[fi];
+                const pill = pillFor(p);
+                const deliverRem = p.processed - p.delivered;   // only PROCESSED pieces can be handed over
+                const procRem = p.qty - p.processed;
+                const awaitingProcess = deliverMode && deliverRem === 0 && p.delivered < p.qty;
+                const draft = deliverDraft[fi] ?? 0;
+                const stepOpen = procOpen === fi;
+                return (
                 <View key={item.id || idx}>
-                  <View style={styles.serviceItem}>
+                  <View style={[styles.serviceItem, deliverMode && draft > 0 ? { backgroundColor: '#EBF2FF', borderRadius: 8 } : null]}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemName}>{item.serviceName}</Text>
                       <Text style={styles.itemMeta}>x{item.quantity} · {formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.{item.express ? t('mobile.expressSuffixShort') : ''}</Text>
+                      {(itemTracking || p.processed > 0 || p.delivered > 0) ? (
+                        <View style={{ flexDirection: 'row', marginTop: 3 }}>
+                          <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: pill.bg }}>
+                            <Text style={{ fontSize: 9.5, fontWeight: '700', color: pill.fg }}>{pill.label}</Text>
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
+
+                    {/* Deliver mode, but nothing processed-yet-undelivered on this line */}
+                    {awaitingProcess ? (
+                      <Text style={{ fontSize: 11, fontStyle: 'italic', color: '#9CA3AF', marginRight: 8 }}>{t('mobile.processFirst', 'Not processed yet')}</Text>
+                    ) : null}
+
+                    {/* Deliver-mode qty stepper */}
+                    {deliverMode && deliverRem > 0 ? (
+                      p.qty > 1 ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 }}>
+                          <TouchableOpacity onPress={() => setDraft(fi, draft - 1)} style={stepBtnStyle}><Text style={stepTxtStyle}>−</Text></TouchableOpacity>
+                          <Text style={{ minWidth: 32, textAlign: 'center', fontWeight: '700', fontSize: 12.5 }}>{draft}<Text style={{ color: '#9CA3AF', fontWeight: '400' }}>/{deliverRem}</Text></Text>
+                          <TouchableOpacity onPress={() => setDraft(fi, draft + 1)} style={stepBtnStyle}><Text style={stepTxtStyle}>＋</Text></TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity onPress={() => setDraft(fi, draft > 0 ? 0 : 1)} style={{ marginRight: 8 }}>
+                          <MaterialIcons name={draft > 0 ? 'check-box' : 'check-box-outline-blank'} size={22} color="#00408f" />
+                        </TouchableOpacity>
+                      )
+                    ) : null}
+
+                    {/* Process controls */}
+                    {!deliverMode && itemsEditable && procRem > 0 ? (
+                      p.qty > 1 && stepOpen ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 }}>
+                          <TouchableOpacity onPress={() => setProcQty(Math.max(1, procQty - 1))} style={stepBtnStyle}><Text style={stepTxtStyle}>−</Text></TouchableOpacity>
+                          <Text style={{ minWidth: 32, textAlign: 'center', fontWeight: '700', fontSize: 12.5 }}>{Math.min(procQty, procRem)}<Text style={{ color: '#9CA3AF', fontWeight: '400' }}>/{procRem}</Text></Text>
+                          <TouchableOpacity onPress={() => setProcQty(Math.min(procRem, procQty + 1))} style={stepBtnStyle}><Text style={stepTxtStyle}>＋</Text></TouchableOpacity>
+                          <TouchableOpacity disabled={itemBusy} onPress={() => processMore(fi, Math.min(procQty, procRem))} style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: '#E6F0FF', opacity: itemBusy ? 0.6 : 1 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#00408f' }}>{t('mobile.process', 'Process')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity disabled={itemBusy} onPress={() => { if (p.qty > 1) { setProcOpen(fi); setProcQty(procRem); } else { processMore(fi, procRem); } }}
+                          style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: '#E6F0FF', marginRight: 8, opacity: itemBusy ? 0.6 : 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#00408f' }}>{t('mobile.itemMarkProcessed', '✓ Done')}</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : null}
                     <Text style={styles.itemTotal}>{formatCurrency(Math.round(item.total), countrySettings)}</Text>
                   </View>
                   {idx < group.items.length - 1 ? <View style={styles.separator} /> : null}
                 </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         ))}
+        </View>
 
-        {/* ─── Financials ─────────────────────────────────────────── */}
+        {/* ─── Payment ────────────────────────────────────────────── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('mobile.paymentSummaryTitle')}</Text>
+          <View style={[styles.payBanner, fin.balance > 0 ? styles.unpaidBg : styles.paidBg]}>
+            <MaterialIcons name={fin.balance > 0 ? 'schedule' : 'check-circle'} size={16} color={fin.balance > 0 ? '#93000a' : '#006b5f'} />
+            <Text style={[styles.payBannerText, { color: fin.balance > 0 ? '#93000a' : '#006b5f' }]} numberOfLines={1}>
+              {fin.balance > 0 ? withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string) : t('mobile.paidInFull')}
+            </Text>
+            {fin.balance > 0 && status !== 'cancelled' ? (
+              <TouchableOpacity style={styles.collectBtn} onPress={() => { setPayAmount(String(Math.round(fin.balance))); setPaymentModal(true); }}>
+                <Text style={styles.collectBtnText}>{t('mobile.collectBtnShort', 'Collect')}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
           <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.subtotalLabel')}</Text><Text style={styles.finValue}>{formatCurrency(Math.round(fin.subtotal || 0), countrySettings)}</Text></View>
-          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(Math.round(fin.discountAmount), countrySettings)}</Text></View>}
+          {fin.discountAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.couponCode ? `${t('mobile.couponRowLabel', 'Coupon')} ${fin.couponCode}` : t('mobile.discountLabel')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(Math.round(fin.discountAmount), countrySettings)}</Text></View>}
+          {(fin.pointsRedeemed || 0) > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.pointsRedeemedLabel', 'Points redeemed')}</Text><Text style={[styles.finValue, { color: '#006b5f' }]}>-{formatCurrency(Math.round(fin.pointsRedeemed), countrySettings)}</Text></View>}
+          {(order?.loyalty?.earnedPoints || 0) > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.pointsEarnedLabel', 'Cashback earned')}</Text><Text style={[styles.finValue, { color: '#b8860b' }]}>+{order.loyalty.earnedPoints} {t('mobile.ptsSuffix', 'pts')}</Text></View>}
           {fin.expressCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.expressChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.expressCharge), countrySettings)}</Text></View>}
           {fin.taxAmount > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{fin.taxName || t('mobile.taxFallback')}{fin.taxRate ? ` (${fin.taxRate}%)` : ''}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.taxAmount), countrySettings)}</Text></View>}
           {fin.deliveryCharge > 0 && <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.deliveryChargeLabel')}</Text><Text style={styles.finValue}>+{formatCurrency(Math.round(fin.deliveryCharge), countrySettings)}</Text></View>}
           <View style={styles.divider} />
           <View style={styles.finRow}><Text style={styles.totalLabel}>{t('mobile.totalLabel')}</Text><Text style={styles.totalValue}>{formatCurrency(Math.round(fin.total || 0), countrySettings)}</Text></View>
           <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.paidLabelFin')}</Text><Text style={styles.finValue}>{formatCurrency(Math.round(fin.amountPaid || 0), countrySettings)}</Text></View>
-          <View style={[styles.paymentBadge, fin.balance > 0 ? styles.unpaidBg : styles.paidBg]}>
-            <MaterialIcons name={fin.balance > 0 ? 'schedule' : 'check-circle'} size={14} color={fin.balance > 0 ? '#93000a' : '#006b5f'} />
-            <Text style={fin.balance > 0 ? styles.unpaidText : styles.paidText}>
-              {fin.balance > 0 ? withCurrencySymbol(t('mobile.waBalanceDue', { amount: Math.round(fin.balance) }) as string) : t('mobile.paidInFull')}
-            </Text>
-          </View>
+          {(fin.refundedAmount || 0) > 0 ? (
+            <View style={styles.finRow}><Text style={styles.finLabel}>{t('mobile.refundedLabel', 'Refunded')}</Text><Text style={[styles.finValue, { color: '#93000a' }]}>{formatCurrency(Math.round(fin.refundedAmount), countrySettings)}</Text></View>
+          ) : null}
+          {payments.length > 0 ? (
+            <View style={{ marginTop: 2 }}>
+              <Text style={styles.payHistTitle}>{t('mobile.paymentsHistoryTitle', 'Payments')}</Text>
+              {payments.map((p: any, i: number) => (
+                <View key={p.id || i} style={styles.payHistRow}>
+                  <MaterialIcons name={p.method === 'upi' ? 'phone-android' : p.method === 'card' ? 'credit-card' : 'payments'} size={14} color={colors.textSecondary} />
+                  <Text style={styles.payHistAmt}>{formatCurrency(Math.round(p.amount || 0), countrySettings)}</Text>
+                  <Text style={styles.payHistMeta} numberOfLines={1}>{formatDateLocalized(toDate(p.collectedAt), i18n.language)}{p.collectedBy ? ` · ${p.collectedBy}` : ''}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
-        {/* ─── Timeline ───────────────────────────────────────────── */}
+        {/* ─── Activity (collapsed to the latest 3) ───────────────── */}
         {timeline.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('mobile.timelineTitle')}</Text>
-            {timeline.slice().reverse().map((entry: any, i: number) => {
+            {shownTimeline.map((entry: any, i: number) => {
               const entryDate = toDate(entry.timestamp);
               const ec = STATUS_COLORS[entry.status] || STATUS_COLORS.pending;
               return (
                 <View key={entry.id || i} style={styles.timelineEntry}>
                   <View style={[styles.timelineDot, { backgroundColor: i === 0 ? ec.text : '#c3c6d6' }]} />
-                  {i < timeline.length - 1 && <View style={styles.timelineLine} />}
+                  {i < shownTimeline.length - 1 && <View style={styles.timelineLine} />}
                   <View style={styles.timelineContent}>
                     <Text style={[styles.timelineStatus, i === 0 && { color: ec.text, fontWeight: '700' }]}>{odStatusLabel(entry.status, t)}</Text>
                     <Text style={styles.timelineTime}>{formatDateLocalized(entryDate, i18n.language)}</Text>
@@ -965,17 +1452,23 @@ export default function OrderDetailsScreen({
                 </View>
               );
             })}
+            {timeline.length > 3 ? (
+              <TouchableOpacity style={styles.timelineToggle} onPress={() => setShowAllTimeline(!showAllTimeline)}>
+                <Text style={styles.heroLinkText}>
+                  {showAllTimeline ? t('mobile.showLessTimeline', 'Show less') : t('mobile.viewAllTimeline', 'View all ({{count}})', { count: timeline.length })}
+                </Text>
+                <MaterialIcons name={showAllTimeline ? 'expand-less' : 'expand-more'} size={16} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
 
-        {/* Notes */}
-        {order.deliveryNotes ? (
-          <View style={styles.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MaterialIcons name="sticky-note-2" size={16} color="#434654" />
-              <Text style={{ fontSize: 13, color: '#434654', flex: 1 }}>{order.deliveryNotes}</Text>
-            </View>
-          </View>
+        {/* ─── Cancel order (kept out of the way, still reachable) ── */}
+        {!isTerminal && ['pending', 'processing', 'confirmed', 'pickup_scheduled'].includes(status) ? (
+          <TouchableOpacity style={styles.cancelOrderBtn} onPress={() => setCancelModal(true)}>
+            <MaterialIcons name="cancel" size={16} color="#c62828" />
+            <Text style={styles.cancelOrderText}>{t('mobile.cancelOrderChip')}</Text>
+          </TouchableOpacity>
         ) : null}
       </ScrollView>
 
@@ -1338,15 +1831,68 @@ const styles = StyleSheet.create({
   estChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#bae6fd', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   estChipText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#0c4a6e' },
 
-  // Actions
-  actionsScroll: { marginHorizontal: -16, marginBottom: 4 },
-  actionsContent: { paddingHorizontal: 16, gap: 8 },
-  actionChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.surface, borderRadius: radii.button, paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  actionChipText: { fontSize: 12, fontFamily: fonts.semibold, color: colors.primary },
+  // Status hero
+  heroCard: { backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, gap: 12, ...shadows.card, ...shadows.cardBorder },
+  heroLabel: { fontSize: 9.5, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' },
+  heroValue: { fontSize: 13.5, fontFamily: fonts.bold, color: colors.text, marginTop: 2 },
+  trackRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  trackDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  trackDotDone: { backgroundColor: colors.success, borderColor: colors.success },
+  trackSeg: { flex: 1, height: 2.5, backgroundColor: colors.border, marginHorizontal: 2, borderRadius: 2 },
+  trackSegDone: { backgroundColor: colors.success },
+  trackNow: { fontSize: 15, fontFamily: fonts.bold },
+  trackStep: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.textMuted },
+  piecesBarTrack: { height: 6, borderRadius: 3, backgroundColor: '#F1F3F5', overflow: 'hidden' },
+  piecesBarFill: { height: 6, borderRadius: 3, backgroundColor: '#F59E0B' },
+  piecesBarText: { fontSize: 11, fontFamily: fonts.bold, color: '#B45309', marginTop: 4 },
+  expectStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF4FB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  expectLabel: { fontSize: 9, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  expectValue: { fontSize: 13.5, fontFamily: fonts.bold, color: colors.text, marginTop: 1 },
+  overdueTag: { backgroundColor: colors.error, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  overdueTagText: { fontSize: 9.5, fontFamily: fonts.bold, color: '#fff', letterSpacing: 0.5, textTransform: 'uppercase' },
+  heroCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: radii.button, backgroundColor: colors.primary },
+  heroCtaText: { fontSize: 14.5, fontFamily: fonts.bold, color: '#fff' },
+  heroLink: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 8, marginTop: -4 },
+  heroLinkText: { fontSize: 12, fontFamily: fonts.semibold, color: colors.primary },
+
+  // Quick actions
+  qaRow: { flexDirection: 'row', gap: 8 },
+  qaTile: { flex: 1, alignItems: 'center', gap: 5, backgroundColor: colors.surface, borderRadius: radii.card, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
+  qaIconWrap: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
+  qaLabel: { fontSize: 10.5, fontFamily: fonts.semibold, color: colors.textSecondary },
+
+  // Customer address + delivery rows
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surfaceMuted, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  addressText: { flex: 1, fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary },
+  dRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 3 },
+  dLabel: { fontSize: 9, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  dValue: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text, marginTop: 1 },
+
+  // Items card
+  piecesChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10, backgroundColor: '#FFF4E5' },
+  piecesChipText: { fontSize: 11, fontFamily: fonts.bold, color: '#B45309' },
+  itemActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: radii.button, backgroundColor: '#E6F0FF' },
+  itemActionBtnPrimary: { backgroundColor: colors.primary },
+  itemActionText: { fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary },
+  deliverBar: { backgroundColor: '#EFF4FB', borderRadius: 10, padding: 10, gap: 8 },
+  deliverBarText: { fontSize: 12, fontFamily: fonts.semibold, color: colors.primary },
+  deliverBarBtn: { borderRadius: radii.button, alignItems: 'center', paddingVertical: 10 },
+  deliverBarBtnText: { fontSize: 13, fontFamily: fonts.bold, color: '#fff' },
+
+  // Payment
+  payBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 4 },
+  payBannerText: { flex: 1, fontSize: 13.5, fontFamily: fonts.bold },
+  collectBtn: { backgroundColor: '#006b5f', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  collectBtnText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#fff' },
+  payHistTitle: { fontSize: 10, fontFamily: fonts.bold, color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4, marginTop: 4 },
+  payHistRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  payHistAmt: { fontSize: 12.5, fontFamily: fonts.bold, color: colors.text },
+  payHistMeta: { flex: 1, fontSize: 11, fontFamily: fonts.medium, color: colors.textSecondary },
+
+  // Timeline toggle + cancel
+  timelineToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 4 },
+  cancelOrderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: radii.button, borderWidth: 1, borderColor: '#f5c6cb', backgroundColor: colors.surface },
+  cancelOrderText: { fontSize: 13, fontFamily: fonts.bold, color: '#c62828' },
 
   // Card
   card: {
@@ -1365,14 +1911,14 @@ const styles = StyleSheet.create({
   deliveryTypeBadge: { backgroundColor: colors.primaryTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   deliveryTypeText: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary },
 
-  // Items
-  serviceSection: { backgroundColor: colors.surfaceMuted, borderRadius: radii.input, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
-  serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.primaryTint, borderBottomWidth: 1, borderBottomColor: colors.border },
+  // Items (grouped inside the items card — kept light so the card reads as one block)
+  serviceSection: { backgroundColor: colors.surface, borderRadius: radii.input, overflow: 'hidden', borderWidth: 1, borderColor: '#EEF1F5' },
+  serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
   serviceHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  serviceTitle: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 1, textTransform: 'uppercase' },
-  serviceSub: { fontSize: 10, fontFamily: fonts.bold, color: colors.primary },
+  serviceTitle: { fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 1, textTransform: 'uppercase' },
+  serviceSub: { fontSize: 10.5, fontFamily: fonts.bold, color: colors.textSecondary },
   serviceItems: { backgroundColor: colors.surface },
-  serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
+  serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 },
   separator: { height: 1, backgroundColor: colors.border },
   itemName: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text },
   itemMeta: { fontSize: 11, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 1 },

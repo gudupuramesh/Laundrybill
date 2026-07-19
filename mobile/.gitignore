@@ -47,3 +47,11 @@ yarn-error.*
 /android/app/build/
 /android/build/
 /android/.idea/
+
+# iCloud Drive sync-conflict copies — never track/scan (reading them hangs builds)
+* 2
+* 3
+* 4
+* 2.*
+* 3.*
+* 4.*

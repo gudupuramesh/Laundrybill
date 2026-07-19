@@ -9,6 +9,7 @@ import {
     doc,
     addDoc,
     updateDoc,
+    deleteDoc,
     onSnapshot,
     serverTimestamp,
     Timestamp,
@@ -78,6 +79,22 @@ export function useStaffMutations() {
         if (!shopId) throw new Error("No shop ID");
 
         const staffRef = collection(db, "shops", shopId, "staff");
+
+        // Duplicate guard: the same person must not exist twice on the roster —
+        // duplicates make login lookups and attendance ambiguous. Compare against
+        // ACTIVE staff only (a deleted/deactivated person may be re-added).
+        const existingSnap = await getDocs(staffRef);
+        const nameLower = (data.name || "").trim().toLowerCase();
+        const phoneDigits = (data.phone || "").replace(/\D/g, "");
+        const emailLower = (data.email || "").trim().toLowerCase();
+        for (const d of existingSnap.docs) {
+            const s = d.data() as Staff;
+            if (s.isActive === false) continue;
+            if (phoneDigits && (s.phone || "").replace(/\D/g, "") === phoneDigits) throw new Error("STAFF_DUPLICATE_PHONE");
+            if (emailLower && (s.email || "").trim().toLowerCase() === emailLower) throw new Error("STAFF_DUPLICATE_EMAIL");
+            if (nameLower && (s.name || "").trim().toLowerCase() === nameLower) throw new Error("STAFF_DUPLICATE_NAME");
+        }
+
         const docRef = await addDoc(staffRef, {
             ...data,
             joiningDate: data.joiningDate || Timestamp.now(),
@@ -107,10 +124,38 @@ export function useStaffMutations() {
         });
     };
 
+    /**
+     * Permanently delete a roster member AND their app login (teamMembers doc).
+     * Attendance/payroll history is left untouched (financial records).
+     */
+    const deleteStaffCompletely = async (staffId: string) => {
+        if (!shopId) throw new Error("No shop ID");
+
+        const staffDocRef = doc(db, "shops", shopId, "staff", staffId);
+        const staffSnap = await getDoc(staffDocRef);
+        const staffEmail = ((staffSnap.data() as Staff | undefined)?.email || "").trim().toLowerCase();
+
+        // Remove the linked login(s): linked by staffId, or an unlinked login left
+        // behind with the same email. Deleting the teamMember revokes app access.
+        const tmRef = collection(db, "shops", shopId, "teamMembers");
+        const tmSnap = await getDocs(tmRef);
+        for (const d of tmSnap.docs) {
+            const tm = d.data() as { staffId?: string | null; email?: string };
+            const sameStaff = tm.staffId === staffId;
+            const unlinkedSameEmail = !tm.staffId && !!staffEmail && (tm.email || "").trim().toLowerCase() === staffEmail;
+            if (sameStaff || unlinkedSameEmail) {
+                await deleteDoc(d.ref);
+            }
+        }
+
+        await deleteDoc(staffDocRef);
+    };
+
     return {
         createStaff,
         updateStaff,
         deactivateStaff,
+        deleteStaffCompletely,
     };
 }
 

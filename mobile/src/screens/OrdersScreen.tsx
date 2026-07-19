@@ -41,6 +41,7 @@ const STATUS_COLORS: Record<string, { color: string; bg: string; accent: string 
   out_for_delivery: { color: colors.primary, bg: colors.primaryTint, accent: colors.primary },
   delivered: { color: colors.success, bg: colors.successBg, accent: colors.success },
   picked_up: { color: colors.success, bg: colors.successBg, accent: colors.success },
+  partially_delivered: { color: colors.warning, bg: colors.warningBg, accent: colors.warning },
   cancelled: { color: colors.error, bg: colors.errorBg, accent: colors.error },
 };
 
@@ -75,6 +76,7 @@ export default function OrdersScreen({
     out_for_delivery: t('mobile.orderStatusOutForDelivery'),
     delivered: t('mobile.orderStatusCompleted'),
     picked_up: t('mobile.orderStatusCompleted'),
+    partially_delivered: t('mobile.orderStatusPartial', 'Partially Delivered'),
     cancelled: t('mobile.orderStatusCancelled'),
   }), [t]);
 
@@ -83,6 +85,7 @@ export default function OrdersScreen({
     { key: 'pending', label: t('mobile.ordersFilterPending') },
     { key: 'processing', label: t('mobile.ordersFilterProcessing') },
     { key: 'ready', label: t('mobile.ordersFilterReady') },
+    { key: 'overdue', label: t('mobile.ordersFilterOverdue', { defaultValue: 'Overdue' }) },
     { key: 'completed', label: t('mobile.ordersFilterCompleted') },
     { key: 'due', label: t('mobile.ordersFilterDue') },
   ], [t]);
@@ -102,9 +105,24 @@ export default function OrdersScreen({
     return date.toLocaleDateString(i18n.language || 'en-IN', { day: 'numeric', month: 'short' });
   };
 
+  // Order type (delivery type) options for the filter dropdown.
+  const ORDER_TYPES = useMemo(() => [
+    { key: 'all', label: t('mobile.ordersTypeAll', { defaultValue: 'All Types' }) },
+    { key: 'pickup_store', label: t('mobile.delivery_pickup_store', { defaultValue: 'Shop Pickup' }) },
+    { key: 'delivery_home', label: t('mobile.delivery_delivery_home', { defaultValue: 'Home Delivery' }) },
+    { key: 'pickup_home', label: t('mobile.delivery_pickup_home', { defaultValue: 'Pickup & Delivery' }) },
+  ], [t]);
+  const orderTypeLabel = (dt?: string) => ORDER_TYPES.find((o) => o.key === dt)?.label || dt || '';
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(initialFilter || 'all');
+  const [orderType, setOrderType] = useState<'all' | 'pickup_store' | 'delivery_home' | 'pickup_home'>('all');
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  // Service filter — orders containing a specific service (inventory item).
+  const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+  const [serviceFilter, setServiceFilter] = useState<string>('all');
+  const [showServicePicker, setShowServicePicker] = useState(false);
   const [timePeriod, setTimePeriod] = useState('all_time');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [customStart, setCustomStart] = useState<Date | null>(null);
@@ -123,6 +141,20 @@ export default function OrdersScreen({
       onSearchConsumed?.();
     }
   }, [initialSearchOpen]);
+
+  // Service TYPES for the filter (categories: Wash & Fold, Iron, Dry Clean…; ids match order items' categoryId).
+  useEffect(() => {
+    if (!shopId) return;
+    firestore().collection(`shops/${shopId}/categories`).get()
+      .then((snap: any) => {
+        const list = snap.docs
+          .map((d: any) => ({ id: d.id, name: d.data()?.name || '', order: d.data()?.order ?? 0, isActive: d.data()?.isActive }))
+          .filter((s: any) => s.name && s.isActive !== false)
+          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        setServices(list);
+      })
+      .catch(() => {});
+  }, [shopId]);
 
   useEffect(() => {
     if (!shopId) { setLoading(false); return; }
@@ -169,9 +201,26 @@ export default function OrdersScreen({
       if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
     }
 
+    if (orderType !== 'all') list = list.filter((o) => (o.deliveryType || 'pickup_store') === orderType);
+    if (serviceFilter !== 'all') list = list.filter((o) => (o.items || []).some((i: any) => i.categoryId === serviceFilter));
+
     if (filter === 'pending') list = list.filter((o) => o.status === 'pending');
     else if (filter === 'processing') list = list.filter((o) => ['confirmed', 'picked_up_from_customer', 'processing'].includes(o.status));
-    else if (filter === 'ready') list = list.filter((o) => ['ready', 'ready_for_pickup', 'ready_for_delivery', 'out_for_delivery'].includes(o.status));
+    else if (filter === 'ready') list = list.filter((o) => ['ready', 'ready_for_pickup', 'ready_for_delivery', 'out_for_delivery', 'partially_delivered'].includes(o.status));
+    else if (filter === 'overdue') {
+      // Missed delivery OR missed home-pickup — mirrors the web "Overdue" filter.
+      const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+      list = list.filter((o) => {
+        if (['delivered', 'picked_up', 'cancelled'].includes(o.status)) return false;
+        const exp = toDate(o.expectedDelivery);
+        if (exp && exp < startToday) return true;
+        if (o.deliveryType === 'pickup_home' && ['pending', 'pickup_scheduled'].includes(o.status)) {
+          const sp = toDate(o.scheduledPickupDate);
+          if (sp && sp < startToday) return true;
+        }
+        return false;
+      });
+    }
     else if (filter === 'completed') list = list.filter((o) => ['delivered', 'picked_up'].includes(o.status));
     else if (filter === 'due') list = list.filter((o) => {
       if (o.status === 'cancelled') return false;
@@ -185,7 +234,7 @@ export default function OrdersScreen({
     });
 
     return list;
-  }, [orders, filter, timePeriod, customStart, customEnd, search]);
+  }, [orders, filter, orderType, serviceFilter, timePeriod, customStart, customEnd, search]);
 
   // Label for the date filter chip
   const dateChipLabel = useMemo(() => {
@@ -410,6 +459,34 @@ export default function OrdersScreen({
             <MaterialIcons name="expand-more" size={16} color={dateFilterActive ? colors.primary : colors.textMuted} />
           </TouchableOpacity>
 
+          {/* Order type (delivery type) filter chip */}
+          <TouchableOpacity
+            style={[s.dateChip, orderType !== 'all' && s.dateChipActive]}
+            onPress={() => setShowTypePicker(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="local-shipping" size={15} color={orderType !== 'all' ? colors.primary : colors.textSecondary} />
+            <Text style={[s.dateChipText, orderType !== 'all' && s.dateChipTextActive]} numberOfLines={1}>
+              {orderType === 'all' ? t('mobile.ordersType', { defaultValue: 'Order Type' }) : orderTypeLabel(orderType)}
+            </Text>
+            <MaterialIcons name="expand-more" size={16} color={orderType !== 'all' ? colors.primary : colors.textMuted} />
+          </TouchableOpacity>
+
+          {/* Service filter chip */}
+          {services.length > 0 ? (
+            <TouchableOpacity
+              style={[s.dateChip, serviceFilter !== 'all' && s.dateChipActive]}
+              onPress={() => setShowServicePicker(true)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="local-laundry-service" size={15} color={serviceFilter !== 'all' ? colors.primary : colors.textSecondary} />
+              <Text style={[s.dateChipText, serviceFilter !== 'all' && s.dateChipTextActive]} numberOfLines={1}>
+                {serviceFilter === 'all' ? t('mobile.serviceFilter', 'Service') : (services.find((sv) => sv.id === serviceFilter)?.name || t('mobile.serviceFilter', 'Service'))}
+              </Text>
+              <MaterialIcons name="expand-more" size={16} color={serviceFilter !== 'all' ? colors.primary : colors.textMuted} />
+            </TouchableOpacity>
+          ) : null}
+
           {STATUS_FILTERS.map((f) => (
             <TouchableOpacity
               key={f.key}
@@ -491,7 +568,7 @@ export default function OrdersScreen({
                       </View>
                       {order.deliveryType ? (
                         <View style={s.ocBadgeDelivery}>
-                          <Text style={s.ocBadgeDeliveryText}>{order.deliveryType}</Text>
+                          <Text style={s.ocBadgeDeliveryText}>{orderTypeLabel(order.deliveryType)}</Text>
                         </View>
                       ) : null}
                     </View>
@@ -671,6 +748,68 @@ export default function OrdersScreen({
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Order Type picker */}
+      <Modal visible={showTypePicker} transparent animationType="slide" onRequestClose={() => setShowTypePicker(false)}>
+        <Pressable style={s.sheetOverlay} onPress={() => setShowTypePicker(false)} />
+        <View style={[s.filterSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={s.sheetHandle} />
+          <View style={s.sheetHeaderRow}>
+            <Text style={s.sheetTitle}>{t('mobile.ordersType', { defaultValue: 'Order Type' })}</Text>
+            <TouchableOpacity onPress={() => setShowTypePicker(false)} hitSlop={8}>
+              <MaterialIcons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ gap: 8 }}>
+            {ORDER_TYPES.map((opt) => {
+              const active = orderType === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[s.typeRow, active && s.typeRowActive]}
+                  onPress={() => { setOrderType(opt.key as any); setShowTypePicker(false); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.typeRowText, active && s.typeRowTextActive]}>{opt.label}</Text>
+                  {active ? <MaterialIcons name="check" size={20} color={colors.primary} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Service picker */}
+      <Modal visible={showServicePicker} transparent animationType="slide" onRequestClose={() => setShowServicePicker(false)}>
+        <Pressable style={s.sheetOverlay} onPress={() => setShowServicePicker(false)} />
+        <View style={[s.filterSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={s.sheetHandle} />
+          <View style={s.sheetHeaderRow}>
+            <Text style={s.sheetTitle}>{t('mobile.serviceFilterTitle', 'Filter by Service')}</Text>
+            <TouchableOpacity onPress={() => setShowServicePicker(false)} hitSlop={8}>
+              <MaterialIcons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+            <View style={{ gap: 8, paddingBottom: 8 }}>
+              {[{ id: 'all', name: t('mobile.allServices', 'All services') }, ...services].map((opt) => {
+                const active = serviceFilter === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[s.typeRow, active && s.typeRowActive]}
+                    onPress={() => { setServiceFilter(opt.id); setShowServicePicker(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.typeRowText, active && s.typeRowTextActive]}>{opt.name}</Text>
+                    {active ? <MaterialIcons name="check" size={20} color={colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -753,6 +892,14 @@ const s = StyleSheet.create({
   quickChipActive: { backgroundColor: colors.primaryTint, borderColor: colors.primary },
   quickChipText: { fontSize: 14, fontFamily: fonts.bold, color: colors.textSecondary },
   quickChipTextActive: { color: colors.primary },
+  typeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted,
+  },
+  typeRowActive: { backgroundColor: colors.primaryTint, borderColor: colors.primary },
+  typeRowText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.textSecondary },
+  typeRowTextActive: { color: colors.primary, fontFamily: fonts.bold },
   sheetSectionLabel: {
     fontSize: 11, fontFamily: fonts.bold, color: colors.textMuted, letterSpacing: 0.8,
     textTransform: 'uppercase', marginTop: 20, marginBottom: 10,

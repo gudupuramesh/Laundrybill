@@ -28,6 +28,10 @@ interface ShopInfo {
     /** Shop currency — symbol (e.g. ₹, د.إ, $) and/or ISO code (INR, AED, USD). */
     currencySymbol?: string;
     currencyCode?: string;
+    /** Owner-configured Terms & Conditions printed near the bottom of the receipt. */
+    receiptTerms?: string;
+    /** false hides the "Track your order online" link (shop settings.trackingEnabled). */
+    showTracking?: boolean;
 }
 
 /**
@@ -309,25 +313,50 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo) => {
         y += 4;
     }
 
-    centerText("Track your order online:", 8, "normal", [100, 100, 100]);
-    y -= 1;
-    const trackingUrl = `${window.location.origin}/track/${order.publicId}`;
+    if (shopInfo.showTracking !== false) {
+        centerText("Track your order online:", 8, "normal", [100, 100, 100]);
+        y -= 1;
+        const trackingUrl = `${window.location.origin}/track/${order.publicId}`;
 
-    doc.setTextColor(0, 102, 204); // Blue color for link
-    doc.setFontSize(8);
-    const linkWidth = doc.getTextWidth(trackingUrl);
-    const linkX = (pageWidth - linkWidth) / 2;
+        doc.setTextColor(0, 102, 204); // Blue color for link
+        doc.setFontSize(8);
+        const linkWidth = doc.getTextWidth(trackingUrl);
+        const linkX = (pageWidth - linkWidth) / 2;
 
-    doc.text(trackingUrl, linkX, y);
-    // Add clickable annotation explicitly
-    doc.link(linkX, y - 3, linkWidth, 4, { url: trackingUrl });
+        doc.text(trackingUrl, linkX, y);
+        // Add clickable annotation explicitly
+        doc.link(linkX, y - 3, linkWidth, 4, { url: trackingUrl });
 
-    doc.setTextColor(0, 0, 0);
-    y += 6;
+        doc.setTextColor(0, 0, 0);
+        y += 6;
+    }
 
     // QR Code Removed as per request
 
+    // --- Terms & Conditions (owner-configured) ---
+    const terms = (shopInfo.receiptTerms || "").trim();
+    if (terms) {
+        y += 4;
+        divider();
+        y += 4;
+        centerText("Terms & Conditions", 9, "bold", [80, 80, 80]);
+        y += 1;
+        doc.setFont(FONT_NORMAL, "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(110, 110, 110);
+        // jsPDF's Helvetica is Latin-1 only — non-Latin scripts (e.g. Arabic/Hindi)
+        // may not render here; they DO render in the app/HTML receipts.
+        const wrapped = doc.splitTextToSize(terms, pageWidth - MARGIN * 2) as string[];
+        for (const line of wrapped) {
+            if (y > pageHeight - FOOTER_HEIGHT) { doc.addPage(); y = MARGIN + 6; }
+            doc.text(line, MARGIN, y);
+            y += 8 * 0.3527 + 1.6;
+        }
+        doc.setTextColor(0, 0, 0);
+    }
+
     y += 5;
+    if (y > pageHeight - FOOTER_HEIGHT) { doc.addPage(); y = MARGIN + 6; }
     centerText("Thank you for your business!", 9, "bold");
 
     // --- GLOBAL FOOTER LOOP ---

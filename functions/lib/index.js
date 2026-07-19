@@ -14,13 +14,14 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.meterTrialOrderOnCreate = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
+exports.runOrderRemindersNow = exports.sendOrderReminders = exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.meterTrialOrderOnCreate = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const dotenv = require("dotenv");
 const plan_normalize_1 = require("./lib/plan-normalize");
 const trial_config_1 = require("./services/trial-config");
+const subscription_events_1 = require("./lib/subscription-events");
 dotenv.config();
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -90,6 +91,18 @@ exports.checkSubscriptionExpiration = (0, scheduler_1.onSchedule)("every day 00:
             }
             await batch.commit();
         }
+        for (const doc of expiredSubsSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId)
+                continue;
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Subscription expired — reverted to Free (paid plan lapsed).",
+                metadata: { fromPlan: (0, plan_normalize_1.normalizePlanId)(d.planId), toPlan: "free", fromStatus: "active", toStatus: "expired" },
+            });
+        }
         console.log("Expiration check completed successfully.");
     }
     catch (error) {
@@ -136,6 +149,14 @@ exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)
             updatedAt: now,
         });
         console.log(`Trial subscription (${trialPlanId}, ${trial.trialOrderLimit} orders) created for shop ${shopId}.`);
+        await (0, subscription_events_1.logSubscriptionEvent)({
+            type: "subscription_created",
+            shopId,
+            shopName: shopData.name || null,
+            provider: "system",
+            description: `Trial started — ${(0, plan_normalize_1.planDisplayName)(trialPlanId)} for ${trial.trialOrderLimit} orders.`,
+            metadata: { toPlan: trialPlanId, toStatus: "trial", trialOrderLimit: trial.trialOrderLimit },
+        });
         // --- Notify all Super Admins about new shop registration ---
         try {
             const tokensSnapshot = await db.collection("superAdminNotificationTokens").get();
@@ -189,7 +210,13 @@ exports.meterTrialOrderOnCreate = (0, firestore_1.onDocumentCreated)("shops/{sho
         return;
     const subRef = db.collection("subscriptions").doc(shopId);
     try {
+        let trialConverted = false;
+        let trialFromPlan = "pro";
         await db.runTransaction(async (tx) => {
+            // Reset on every attempt — the Firestore SDK re-runs this closure on a
+            // write-contention retry, and stale flags from a prior attempt would double-log.
+            trialConverted = false;
+            trialFromPlan = "pro";
             const snap = await tx.get(subRef);
             if (!snap.exists)
                 return;
@@ -209,11 +236,22 @@ exports.meterTrialOrderOnCreate = (0, firestore_1.onDocumentCreated)("shops/{sho
                     trialExpiredAt: now,
                     updatedAt: now,
                 });
+                trialConverted = true;
+                trialFromPlan = (0, plan_normalize_1.normalizePlanId)(sub.planId);
             }
             else {
                 tx.update(subRef, { trialOrdersUsed: used, updatedAt: now });
             }
         });
+        if (trialConverted) {
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_expired",
+                shopId,
+                provider: "system",
+                description: "Trial order limit reached — moved to Free.",
+                metadata: { fromPlan: trialFromPlan, toPlan: "free", fromStatus: "trial", toStatus: "free" },
+            });
+        }
     }
     catch (e) {
         console.error(`meterTrialOrderOnCreate failed for shop ${shopId}:`, e);
@@ -275,6 +313,18 @@ exports.checkTrialExpiry = (0, scheduler_1.onSchedule)("every day 00:05", async 
                 }
             }
             await batch.commit();
+        }
+        for (const doc of trialSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId)
+                continue;
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Trial period ended — moved to Free.",
+                metadata: { fromPlan: (0, plan_normalize_1.normalizePlanId)(d.planId), toPlan: "free", fromStatus: "trial", toStatus: "free" },
+            });
         }
         console.log("Trial expiry check completed.");
     }
@@ -340,6 +390,18 @@ exports.checkGracePeriodExpiry = (0, scheduler_1.onSchedule)("every day 00:10", 
             }
             await batch.commit();
         }
+        for (const doc of graceExpiredSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId)
+                continue;
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Grace period ended after failed payment — reverted to Free.",
+                metadata: { fromPlan: (0, plan_normalize_1.normalizePlanId)(d.planId), toPlan: "free", fromStatus: "grace_period", toStatus: "expired" },
+            });
+        }
         console.log("Grace period expiry check completed successfully.");
     }
     catch (error) {
@@ -404,6 +466,18 @@ exports.checkCancelledSubscriptionEnd = (0, scheduler_1.onSchedule)("every day 0
             }
             await batch.commit();
         }
+        for (const doc of cancelledSnapshot.docs) {
+            const d = doc.data();
+            if (!d.shopId)
+                continue;
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_expired",
+                shopId: d.shopId,
+                provider: "system",
+                description: "Cancelled subscription period ended — reverted to Free.",
+                metadata: { fromPlan: (0, plan_normalize_1.normalizePlanId)(d.planId), toPlan: "free", fromStatus: "cancelled", toStatus: "expired" },
+            });
+        }
         console.log("Cancelled subscription end check completed successfully.");
     }
     catch (error) {
@@ -453,6 +527,13 @@ exports.applyScheduledDowngrades = (0, scheduler_1.onSchedule)("every day 00:20"
             });
             // syncSubscriptionToShop trigger will update the shop from this subscription doc
             console.log(`Downgrade applied for shop ${shopId} → ${toPlan}`);
+            await (0, subscription_events_1.logSubscriptionEvent)({
+                type: "subscription_downgraded",
+                shopId,
+                provider: "system",
+                description: `Scheduled downgrade applied — ${(0, plan_normalize_1.planDisplayName)(subData.planId || "free")} → ${planName}.`,
+                metadata: { fromPlan: (0, plan_normalize_1.normalizePlanId)(subData.planId), toPlan, toStatus: subData.status || "active" },
+            });
         }
         console.log("Scheduled downgrade check completed.");
     }
@@ -544,6 +625,7 @@ var cleanup_order_images_1 = require("./scheduled/cleanup-order-images");
 Object.defineProperty(exports, "cleanupOrderImagesDaily", { enumerable: true, get: function () { return cleanup_order_images_1.cleanupOrderImagesDaily; } });
 __exportStar(require("./requests/create-public-order"), exports);
 __exportStar(require("./requests/track-order"), exports);
+__exportStar(require("./requests/check-login-email"), exports);
 __exportStar(require("./requests/get-public-order-slot-availability"), exports);
 __exportStar(require("./triggers/on-public-order-created"), exports);
 __exportStar(require("./triggers/on-order-updated"), exports);
@@ -564,4 +646,8 @@ __exportStar(require("./requests/verify-razorpay-payment"), exports);
 __exportStar(require("./requests/razorpay-webhook"), exports);
 // Push notifications (scheduled + admin callable)
 __exportStar(require("./scheduled/push-notifications"), exports);
+// Order reminders: delayed / uncollected / due-amount, 3× daily (scheduled + manual trigger)
+var order_reminders_1 = require("./scheduled/order-reminders");
+Object.defineProperty(exports, "sendOrderReminders", { enumerable: true, get: function () { return order_reminders_1.sendOrderReminders; } });
+Object.defineProperty(exports, "runOrderRemindersNow", { enumerable: true, get: function () { return order_reminders_1.runOrderRemindersNow; } });
 //# sourceMappingURL=index.js.map

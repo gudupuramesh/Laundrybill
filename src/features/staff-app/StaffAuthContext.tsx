@@ -88,7 +88,10 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
                                 name: tmData.name || tmData.email,
                                 phone: "",
                                 email: tmData.email,
-                                role: "staff",
+                                // Preserve the real role so a manager (memberType "staff",
+                                // role "manager") can be redirected out of the staff portal
+                                // to the owner dashboard by StaffProtectedRoute.
+                                role: (tmData as { role?: Staff["role"] }).role === "manager" ? "manager" : "staff",
                                 memberType: "staff",
                                 payType: "monthly",
                                 baseSalary: 0,

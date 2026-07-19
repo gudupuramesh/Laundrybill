@@ -28,16 +28,18 @@ import { getCurrentLanguage, changeLanguage } from "@/lib/i18n";
 
 const INVITE_RE = /^[A-Z0-9]{4}-\d{5}$/;
 
-function routeForMember(memberType?: string): string {
+function routeForMember(memberType?: string, role?: string): string {
     if (memberType === "agent") return "/agent";
     if (memberType === "plant") return "/plant";
+    if (role === "manager") return "/"; // managers use the owner-style web dashboard
     return "/staff";
 }
 
 /** users.role written for each member type (kept consistent with the legacy contexts). */
-function userRoleFor(memberType?: string): string {
+function userRoleFor(memberType?: string, role?: string): string {
     if (memberType === "agent") return "agent";
     if (memberType === "plant") return "plant_operator";
+    if (role === "manager") return "manager";
     return "staff";
 }
 
@@ -96,7 +98,7 @@ export function TeamSignupPage() {
 
                 await setDoc(doc(db, "users", uid), {
                     email: email.trim().toLowerCase(),
-                    role: userRoleFor(tmData.memberType),
+                    role: userRoleFor(tmData.memberType, tmData.role),
                     shopId: shopRef.id,
                     teamMemberId: tmDoc.id,
                     createdAt: serverTimestamp(),
@@ -111,7 +113,7 @@ export function TeamSignupPage() {
                     updatedAt: serverTimestamp(),
                 });
 
-                navigate(routeForMember(tmData.memberType), { replace: true });
+                navigate(routeForMember(tmData.memberType, tmData.role), { replace: true });
                 return;
             }
 

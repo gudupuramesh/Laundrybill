@@ -214,6 +214,51 @@ export function useShopMutations() {
         [shopId]
     );
 
+    /** Terms & Conditions shown on the customer's receipt. */
+    const updateReceiptTerms = useCallback(
+        async (terms: string) => {
+            if (!shopId) throw new Error("No shop ID");
+            const shopRef = doc(db, "shops", shopId);
+            await updateDoc(shopRef, {
+                "settings.receiptTerms": terms,
+                updatedAt: serverTimestamp(),
+            });
+        },
+        [shopId]
+    );
+
+    /**
+     * Next order number (the counter every creation path reads + increments).
+     * Lets a shop CONTINUE numbering from previous software (e.g. next bill 3521).
+     * Caller must ensure n ≥ the current value — lowering it would mint duplicate
+     * orderNumber/publicIds and break tracking links & barcode scans.
+     */
+    const updateNextOrderNumber = useCallback(
+        async (n: number) => {
+            if (!shopId) throw new Error("No shop ID");
+            const shopRef = doc(db, "shops", shopId);
+            await updateDoc(shopRef, {
+                "settings.nextOrderNumber": Math.max(1, Math.round(n)),
+                updatedAt: serverTimestamp(),
+            });
+        },
+        [shopId]
+    );
+
+    /** WhatsApp share message customization + the shop-wide customer-tracking switch. */
+    const updateWaShare = useCallback(
+        async (waShare: import("@/types/shop").WaShareSettings, trackingEnabled: boolean) => {
+            if (!shopId) throw new Error("No shop ID");
+            const shopRef = doc(db, "shops", shopId);
+            await updateDoc(shopRef, {
+                "settings.waShare": waShare,
+                "settings.trackingEnabled": trackingEnabled,
+                updatedAt: serverTimestamp(),
+            });
+        },
+        [shopId]
+    );
+
     const updateDeliverySettings = useCallback(
         async (updates: Partial<DeliverySettings>) => {
             if (!shopId) throw new Error("No shop ID");
@@ -300,6 +345,9 @@ export function useShopMutations() {
         updateBankDetails,
         updateGST,
         updateTaxSettings,
+        updateReceiptTerms,
+        updateNextOrderNumber,
+        updateWaShare,
         updateDeliverySettings,
         updateCountrySettings,
         ensureShopCode,

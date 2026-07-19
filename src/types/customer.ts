@@ -22,6 +22,10 @@ export interface Customer {
     notes?: string;
     totalOrders: number;
     totalSpent: number;
+    /** Loyalty: current redeemable points balance (1 point = 1 currency unit). */
+    loyaltyPoints?: number;
+    /** Loyalty: lifetime points earned (never decreases on redemption). */
+    loyaltyEarned?: number;
     lastOrderAt?: Timestamp;
     isActive: boolean;
     createdAt: Timestamp;

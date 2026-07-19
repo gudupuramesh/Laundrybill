@@ -61,6 +61,9 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
                 {task.customer.address || 'No address'}
               </Text>
             </View>
+            {task.timeSlot?.start ? (
+              <StatusPill label={task.timeSlot.start} color={colors.warning} bgColor={colors.warningBg} />
+            ) : null}
           </View>
         </View>
 

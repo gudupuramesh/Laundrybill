@@ -36,6 +36,10 @@ interface TrackingData {
     gstNumber?: string;
     /** Shop ISO country code — picks the tax-reg label + UAE "TAX INVOICE" title. */
     countryCode?: string;
+    /** Owner-configured Terms & Conditions shown on the customer's receipt. */
+    receiptTerms?: string;
+    /** false = the shop turned customer tracking off (hide tracking links on public pages). */
+    trackingEnabled?: boolean;
     assignedAgentId?: string;
     assignedAgentName?: string;
     assignedAgentPhone?: string;
@@ -48,6 +52,8 @@ interface TrackingData {
     pickupPhoto?: string;
     deliveryPhoto?: string;
     plantPhoto?: string;
+    /** Photo captions: who added each photo (name + role) and when (epoch ms). */
+    photoMeta?: { url: string; byName: string; byRole: string; atMs: number | null }[];
     orderSource?: "online" | "pos" | "phone";
 }
 
@@ -136,6 +142,8 @@ export function useOrderTracking(code: string, phone: string) {
                     shopEmail: r.shopEmail || undefined,
                     gstNumber: r.gstNumber || undefined,
                     countryCode: r.countryCode || undefined,
+                    receiptTerms: r.receiptTerms || undefined,
+                    trackingEnabled: r.trackingEnabled !== false,
                     assignedAgentId: r.assignedAgentId || undefined,
                     assignedAgentName: r.assignedAgentName || undefined,
                     assignedAgentPhone: r.assignedAgentPhone || undefined,
@@ -145,6 +153,7 @@ export function useOrderTracking(code: string, phone: string) {
                     deliveryCharge: r.deliveryCharge || 0,
                     discountAmount: r.discountAmount || 0,
                     damagePhotoUrls: r.damagePhotoUrls || undefined,
+                    photoMeta: Array.isArray(r.photoMeta) ? r.photoMeta : undefined,
                     pickupPhoto: r.pickupPhoto || undefined,
                     deliveryPhoto: r.deliveryPhoto || undefined,
                     plantPhoto: r.plantPhoto || undefined,

@@ -21,10 +21,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import type { ImageMetadata } from "@/types/image-upload";
 import type { DeliveryType } from "@/types/order";
 import { useInventory } from "@/hooks/use-inventory";
-import { useCreateOrder, useOrderMutations } from "@/hooks/use-orders";
-import { useCustomers } from "@/hooks/use-customers";
+import { useCreateOrder, useOrderMutations, useOrder } from "@/hooks/use-orders";
+import { useCustomers, useCustomer } from "@/hooks/use-customers";
+import { useShop } from "@/hooks/use-shop";
+import { useCartShopOverride } from "@/features/pos/CartShopOverrideContext";
+import type { PublicCoupon } from "@/types/shop";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
-import { addDays } from "date-fns";
+import { Timestamp } from "firebase/firestore";
+import { addDays, format } from "date-fns";
 import { Store, Truck, Home, Calendar, Minus, Plus, FileText, Check, Shirt, Mail, MapPin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getTranslatedItemName, isWeightUnit } from "@/lib/inventory-translations";
@@ -72,10 +76,20 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
     }, [cart.items, allCategories]);
     const minExpectedDate = useMemo(() => addDays(new Date(), maxTurnaroundDays), [maxTurnaroundDays]);
     const [expectedDate, setExpectedDate] = useState<Date>(minExpectedDate);
-    const [scheduledPickupDate] = useState<Date>(new Date());
     useEffect(() => {
         setExpectedDate(minExpectedDate);
     }, [minExpectedDate]);
+
+    // Pickup date + pickup/delivery time slots (required for home orders).
+    const [pickupDateStr, setPickupDateStr] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+    const [pickupSlot, setPickupSlot] = useState<string>("");
+    const [deliverySlot, setDeliverySlot] = useState<string>("");
+    const [slotError, setSlotError] = useState<string | null>(null);
+    // Parse YYYY-MM-DD as a LOCAL date (new Date("YYYY-MM-DD") is UTC midnight).
+    const scheduledPickupDate = useMemo(() => {
+        const [y, m, d] = pickupDateStr.split("-").map(Number);
+        return y && m && d ? new Date(y, m - 1, d) : new Date();
+    }, [pickupDateStr]);
 
     // Payment: Unpaid / Paid (owner app model)
     const [paymentStatus, setPaymentStatus] = useState<"unpaid" | "paid">("unpaid");
@@ -97,8 +111,64 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
 
     const { settings: deliverySettings } = useDeliverySettings();
 
+    // Active time-slot options (shop-configured; defaults exist for every shop).
+    const pickupSlotOptions = useMemo(() => (deliverySettings.pickupTimeSlots || []).filter((s) => s.isActive), [deliverySettings.pickupTimeSlots]);
+    const deliverySlotOptions = useMemo(() => (deliverySettings.deliveryTimeSlots || []).filter((s) => s.isActive), [deliverySettings.deliveryTimeSlots]);
+    const needsPickupSlot = cart.deliveryType === "pickup_home" && pickupSlotOptions.length > 0;
+    const needsDeliverySlot = isHomeType && deliverySlotOptions.length > 0;
+
+    // Edit mode: prefill pickup date + slots from the existing order.
+    const { order: editingOrder } = useOrder(editOrderId || "");
+    const slotsPrefilled = useRef(false);
+    useEffect(() => {
+        if (!isEditMode || !editingOrder || slotsPrefilled.current) return;
+        slotsPrefilled.current = true;
+        if (editingOrder.scheduledPickupDate?.toDate) setPickupDateStr(format(editingOrder.scheduledPickupDate.toDate(), "yyyy-MM-dd"));
+        if (editingOrder.scheduledPickupTime) setPickupSlot(editingOrder.scheduledPickupTime);
+        if (editingOrder.deliverySlot) setDeliverySlot(editingOrder.deliverySlot);
+    }, [isEditMode, editingOrder]);
+
+    // Selecting slots clears the inline error.
+    useEffect(() => { setSlotError(null); }, [pickupSlot, deliverySlot, cart.deliveryType]);
+
     const { hasFeature, checkLimit, loading: limitsLoading } = useShopLimits();
     const canUploadDamagePhotos = hasFeature("damagePhotos");
+
+    // ── Offers (coupon codes) + loyalty points (Pro+/Business) ──
+    const overrideShop = useCartShopOverride();
+    const { shop: authShop } = useShop();
+    const posShop = overrideShop ?? authShop;
+    const canOffers = hasFeature("offers");
+    const loyaltyCfg = posShop?.settings?.loyalty;
+    const canLoyalty = hasFeature("loyalty") && !!loyaltyCfg?.enabled;
+    const [couponInput, setCouponInput] = useState("");
+    const [couponError, setCouponError] = useState<string | null>(null);
+    const { customer: posCustomer } = useCustomer(cart.customerId || "");
+    const pointsBalance = Math.max(0, Math.round(posCustomer?.loyaltyPoints || 0));
+    // Redeem cap: customer's balance, limited to maxRedeemPercent of the pre-points payable.
+    const prePointsPayable = cart.total + (cart.pointsRedeemed || 0);
+    const redeemCap = Math.min(
+        pointsBalance,
+        Math.floor((prePointsPayable * Math.min(100, Math.max(1, loyaltyCfg?.maxRedeemPercent || 100))) / 100)
+    );
+
+    const applyCouponCode = () => {
+        const code = couponInput.trim().toUpperCase();
+        if (!code) return;
+        const coupons: PublicCoupon[] = posShop?.settings?.publicCoupons ?? [];
+        const coupon = coupons.find((c) => c.code?.toUpperCase() === code);
+        if (!coupon) { setCouponError(t("pos.couponNotFound", "Coupon not found")); return; }
+        if (coupon.active === false) { setCouponError(t("pos.couponInactive", "This coupon is paused")); return; }
+        if (coupon.expiresAt && new Date(coupon.expiresAt + "T23:59:59") < new Date()) {
+            setCouponError(t("pos.couponExpired", "This coupon has expired")); return;
+        }
+        if (coupon.minOrder && coupon.minOrder > 0 && cart.subtotal < coupon.minOrder) {
+            setCouponError(t("pos.couponMinOrder", "Minimum order {{amt}} required", { amt: formatAmount(coupon.minOrder) })); return;
+        }
+        setCouponError(null);
+        cart.applyCoupon(coupon.code, coupon.type, coupon.value);
+        setCouponInput("");
+    };
     const agentLimit = checkLimit("maxDeliveryAgents", 0).limit;
     const canHaveAgents = !limitsLoading && (agentLimit === -1 || (typeof agentLimit === "number" && agentLimit > 0));
 
@@ -190,6 +260,20 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
         d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
     const handlePlaceOrder = async () => {
+        // Home orders must carry their pickup/delivery scheduling info.
+        if (needsPickupSlot && !pickupSlot) {
+            setSlotError(t("checkout.pickupSlotRequired", "Please select a pickup time slot"));
+            return;
+        }
+        if (needsDeliverySlot && !deliverySlot) {
+            setSlotError(t("checkout.deliverySlotRequired", "Please select a delivery time slot"));
+            return;
+        }
+        if (cart.deliveryType === "pickup_home" && !pickupDateStr) {
+            setSlotError(t("checkout.pickupDateRequired", "Please select a pickup date"));
+            return;
+        }
+
         if (isEditMode && editOrderId) {
             setUpdating(true);
             try {
@@ -214,6 +298,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                         discountType: cart.discountType,
                         discountValue: cart.discountValue,
                         discountAmount: cart.discountAmount,
+                        couponCode: cart.couponCode || null,
                         expressCharge: cart.expressCharge,
                         deliveryCharge: cart.deliveryCharge,
                         taxAmount: cart.taxAmount,
@@ -227,7 +312,9 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                     deliveryArea: selectedArea,
                     deliveryNotes: cart.deliveryNotes,
                     expectedDelivery: expectedDate,
-                    scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
+                    scheduledPickupDate: cart.deliveryType === "pickup_home" ? scheduledPickupDate : undefined,
+                    pickupSlot: cart.deliveryType === "pickup_home" ? pickupSlot : "",
+                    deliverySlot: isHomeType ? deliverySlot : "",
                 });
                 setUpdating(false);
                 onComplete(editOrderId);
@@ -269,11 +356,21 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                 expressMultiplier: item.service.expressMultiplier,
             })),
             damagePhotoUrls: (finalDamageUrls && finalDamageUrls.length > 0) ? finalDamageUrls : undefined,
+            photoMeta: (finalDamageUrls && finalDamageUrls.length > 0)
+                ? finalDamageUrls.map((url) => ({
+                    url,
+                    byName: isAgentRoute ? (agent?.name || "Agent") : isStaffRoute ? (staff?.name || "Staff") : (posShop?.name || "Owner"),
+                    byRole: isAgentRoute ? "agent" : isStaffRoute ? "staff" : "owner",
+                    at: Timestamp.now(),
+                }))
+                : undefined,
             financials: {
                 subtotal: cart.subtotal,
                 discountType: cart.discountType,
                 discountValue: cart.discountValue,
                 discountAmount: cart.discountAmount,
+                couponCode: cart.couponCode || null,
+                pointsRedeemed: cart.pointsRedeemed || 0,
                 expressCharge: cart.expressCharge,
                 deliveryCharge: cart.deliveryCharge,
                 taxAmount: cart.taxAmount,
@@ -287,7 +384,9 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
             deliveryArea: selectedArea,
             deliveryNotes: cart.deliveryNotes,
             expectedDelivery: expectedDate,
-            scheduledPickupDate: isHomeType ? scheduledPickupDate : undefined,
+            scheduledPickupDate: cart.deliveryType === "pickup_home" ? scheduledPickupDate : undefined,
+            pickupSlot: cart.deliveryType === "pickup_home" ? (pickupSlot || undefined) : undefined,
+            deliverySlot: isHomeType ? (deliverySlot || undefined) : undefined,
             paymentMethod: "cash",
             staffId: isAgentRoute ? agent?.id : (isStaffRoute ? staff?.id : undefined),
             staffName: isAgentRoute ? agent?.name : (isStaffRoute ? staff?.name : undefined),
@@ -378,6 +477,49 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                                     <button type="button" onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() + 1); setExpectedDate(d); }} aria-label="Later" style={stepBtn}><Plus size={15} /></button>
                                 </div>
                             </div>
+                            {/* Pickup scheduling (Pickup & Delivery orders) */}
+                            {cart.deliveryType === "pickup_home" && (
+                                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                                    <div>
+                                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{t("checkout.pickupDate", "Pickup date")} *</label>
+                                        <input
+                                            type="date"
+                                            value={pickupDateStr}
+                                            min={format(new Date(), "yyyy-MM-dd")}
+                                            onChange={(e) => setPickupDateStr(e.target.value)}
+                                            style={{ width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "9px 10px", outline: "none" }}
+                                        />
+                                    </div>
+                                    {pickupSlotOptions.length > 0 && (
+                                        <LSelect
+                                            label={`${t("checkout.pickupSlot", "Pickup slot")} *`}
+                                            value={pickupSlot}
+                                            onChange={(v) => setPickupSlot(v)}
+                                            options={[
+                                                { value: "", label: t("checkout.selectSlot", "Select time slot…") },
+                                                ...pickupSlotOptions.map((s) => ({ value: s.value, label: s.value })),
+                                            ]}
+                                        />
+                                    )}
+                                </div>
+                            )}
+                            {/* Delivery slot (all home orders) */}
+                            {isHomeType && deliverySlotOptions.length > 0 && (
+                                <div style={{ marginTop: 14 }}>
+                                    <LSelect
+                                        label={`${t("checkout.deliverySlot", "Delivery slot")} *`}
+                                        value={deliverySlot}
+                                        onChange={(v) => setDeliverySlot(v)}
+                                        options={[
+                                            { value: "", label: t("checkout.selectSlot", "Select time slot…") },
+                                            ...deliverySlotOptions.map((s) => ({ value: s.value, label: s.value })),
+                                        ]}
+                                    />
+                                </div>
+                            )}
+                            {slotError && (
+                                <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5, fontWeight: 600, color: "var(--c-error)" }}>{slotError}</p>
+                            )}
                             {isHomeType && (
                                 <div style={{ marginTop: 14 }}>
                                     <LTextArea
@@ -485,9 +627,62 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("pos.subtotal", "Subtotal")}</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.subtotal)}</span></div>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                                 <span style={{ color: "var(--c-text-2)" }}>{t("pos.applyDiscount", "Discount")}</span>
-                                <input type="number" min={0} value={cart.discountValue || ""} onChange={(e) => { const v = parseFloat(e.target.value); if (!v || v <= 0) cart.setDiscount(undefined, undefined); else cart.setDiscount("flat", v); }} placeholder="0"
-                                    style={{ width: 90, font: "inherit", fontFamily: MONO, fontSize: 13, textAlign: "right", color: "var(--c-success)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
+                                {cart.couponCode ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--c-success)", background: "var(--c-success-soft)", padding: "3px 9px", borderRadius: 6 }}>{cart.couponCode} · −{formatAmount(cart.discountAmount)}</span>
+                                        <button type="button" onClick={() => cart.removeCoupon()} aria-label="Remove coupon" style={{ cursor: "pointer", border: 0, background: "transparent", color: "var(--c-text-3)", fontSize: 14, lineHeight: 1 }}>×</button>
+                                    </span>
+                                ) : (
+                                    <input type="number" min={0} value={cart.discountValue || ""} onChange={(e) => { const v = parseFloat(e.target.value); if (!v || v <= 0) cart.setDiscount(undefined, undefined); else cart.setDiscount("flat", v); }} placeholder="0"
+                                        style={{ width: 90, font: "inherit", fontFamily: MONO, fontSize: 13, textAlign: "right", color: "var(--c-success)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
+                                )}
                             </div>
+                            {/* Coupon code entry (offers feature) */}
+                            {canOffers && !cart.couponCode && (posShop?.settings?.publicCoupons?.length || 0) > 0 && (
+                                <div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                        <span style={{ color: "var(--c-text-2)" }}>{t("pos.couponCode", "Coupon code")}</span>
+                                        <span style={{ display: "inline-flex", gap: 6 }}>
+                                            <input value={couponInput} onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }} placeholder="SAVE10"
+                                                style={{ width: 110, font: "inherit", fontFamily: MONO, fontSize: 12.5, textTransform: "uppercase", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
+                                            <button type="button" onClick={applyCouponCode} disabled={!couponInput.trim()}
+                                                style={{ cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 7, padding: "5px 10px", opacity: couponInput.trim() ? 1 : 0.5 }}>
+                                                {t("pos.applyCoupon", "Apply")}
+                                            </button>
+                                        </span>
+                                    </div>
+                                    {couponError && <div style={{ textAlign: "right", fontSize: 11.5, color: "var(--c-error)", marginTop: 3 }}>{couponError}</div>}
+                                </div>
+                            )}
+                            {/* Redeem loyalty points */}
+                            {/* Cashback visibility: show what this order will EARN, even at 0 balance */}
+                            {canLoyalty && !isEditMode && cart.customerId && !cart.isGuest && (() => {
+                                const willEarn = loyaltyCfg?.mode === "fixed"
+                                    ? Math.max(0, Math.round(loyaltyCfg?.earnFixed || 0))
+                                    : Math.max(0, Math.round((cart.total * (loyaltyCfg?.earnPercent || 0)) / 100));
+                                if (willEarn <= 0) return null;
+                                return (
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--c-warning)", fontSize: 12.5 }}>
+                                        <span>🪙 {t("pos.willEarnPoints", "Customer earns {{n}} points when fully paid", { n: willEarn })}</span>
+                                    </div>
+                                );
+                            })()}
+                            {canLoyalty && !isEditMode && cart.customerId && !cart.isGuest && pointsBalance > 0 && (
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                    <span style={{ color: "var(--c-text-2)" }}>
+                                        {t("pos.redeemPoints", "Redeem points")}
+                                        <span style={{ fontSize: 11, color: "var(--c-text-3)" }}> · {t("pos.pointsBalance", "{{n}} available", { n: pointsBalance })}</span>
+                                    </span>
+                                    <input type="number" min={0} max={redeemCap} value={cart.pointsRedeemed || ""}
+                                        onChange={(e) => { const v = Math.floor(Number(e.target.value) || 0); cart.setPointsRedeemed(Math.min(redeemCap, Math.max(0, v))); }} placeholder="0"
+                                        style={{ width: 90, font: "inherit", fontFamily: MONO, fontSize: 13, textAlign: "right", color: "var(--c-violet)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
+                                </div>
+                            )}
+                            {(cart.pointsRedeemed || 0) > 0 && (
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--c-violet)" }}>
+                                    <span>{t("pos.pointsApplied", "Points applied")}</span><span style={{ fontFamily: MONO }}>−{formatAmount(cart.pointsRedeemed || 0)}</span>
+                                </div>
+                            )}
                             {cart.expressCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--c-warning)" }}><span>{t("checkout.expressSurcharge", "Express surcharge")}</span><span style={{ fontFamily: MONO }}>+{formatAmount(cart.expressCharge)}</span></div>}
                             {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{cart.taxName || "VAT"} ({cart.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.taxAmount)}</span></div>}
                             {cart.deliveryCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("pos.deliveryCharge", "Delivery")}</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.deliveryCharge)}</span></div>}

@@ -11,7 +11,7 @@ import {
     useLToast,
 } from "@/components/laundry";
 import { useOrderMutations } from "@/hooks/use-orders";
-import { STATUS_LABELS, mapLegacyDeliveryType, STATUS_FLOW } from "@/types/order";
+import { STATUS_LABELS, mapLegacyDeliveryType, STATUS_FLOW, getItemProgress } from "@/types/order";
 import type { Order, OrderStatus } from "@/types/order";
 import { MessageCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -33,9 +33,14 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
     const [sharedOnWhatsApp, setSharedOnWhatsApp] = useState(false);
     const [loading, setLoading] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [showDeliverConfirm, setShowDeliverConfirm] = useState(false);
     const { addToast } = useLToast();
 
     const deliveryType = mapLegacyDeliveryType(order.deliveryType);
+    // Piece progress — marking the order Delivered cascades to every remaining piece.
+    const pieceProg = (order.items || []).map(getItemProgress);
+    const deliveredPieces = pieceProg.reduce((a, p) => a + p.delivered, 0);
+    const undeliveredPieces = pieceProg.reduce((a, p) => a + (p.qty - p.delivered), 0);
 
     // Only allow the next logical step(s) – no skipping to Delivered until previous steps are done
     const availableStatuses = (() => {
@@ -105,6 +110,12 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
         if (!newStatus) return;
         if (newStatus === "cancelled") {
             setShowCancelConfirm(true);
+            return;
+        }
+        // Confirm only when partial delivery has actually started (some pieces delivered,
+        // some not) — a fresh order marked Delivered cascades silently, as expected.
+        if ((newStatus === "delivered" || newStatus === "picked_up") && deliveredPieces > 0 && undeliveredPieces > 0) {
+            setShowDeliverConfirm(true);
             return;
         }
         void performUpdate();
@@ -218,6 +229,24 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
                 confirmText={t("orders.confirmCancelButton", "Yes, cancel order")}
                 cancelText={t("common.goBack", "No, keep order")}
                 variant="destructive"
+                loading={loading}
+            />
+            {/* Deliver-all confirmation: order-level Delivered cascades to every remaining piece */}
+            <LConfirmDialog
+                open={showDeliverConfirm}
+                onClose={() => setShowDeliverConfirm(false)}
+                onConfirm={() => {
+                    setShowDeliverConfirm(false);
+                    void performUpdate();
+                }}
+                title={t("orders.confirmDeliverAllTitle", "Deliver all items?")}
+                description={t(
+                    "orders.confirmDeliverAllDesc",
+                    "{{count}} piece(s) are not marked delivered yet. Marking the order as delivered will mark every item as delivered.",
+                    { count: undeliveredPieces }
+                )}
+                confirmText={t("orders.confirmDeliverAllButton", "Yes, deliver all")}
+                cancelText={t("common.goBack", "Go back")}
                 loading={loading}
             />
         </LResponsiveDialog>

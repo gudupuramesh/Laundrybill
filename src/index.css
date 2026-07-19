@@ -621,3 +621,6 @@
 @media (max-width: 560px) {
   .lb-kpi { grid-template-columns: 1fr !important; }
 }
+/* Spinner utility (export button, etc.) */
+@keyframes lb-spin { to { transform: rotate(360deg); } }
+.lb-spin { animation: lb-spin 0.8s linear infinite; }

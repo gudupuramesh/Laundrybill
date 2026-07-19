@@ -148,6 +148,7 @@ export function useDriverTasks(options: UseDriverTasksOptions = {}) {
         expectedDelivery: order.expectedDelivery?.toDate(),
         pickupPhoto: order.pickupPhoto,
         deliveryPhoto: order.deliveryPhoto,
+        timeSlot: order.deliverySlot ? { start: order.deliverySlot, end: '' } : undefined,
         priority: 'normal' as TaskPriority,
         status: (order.status === 'delivered' ? 'completed' : 'pending') as TaskStatus,
         orderStatus: order.status,
@@ -243,6 +244,9 @@ export function useCompletePickup() {
           itemsCollected: data.itemsCollected,
           timeline: firestore.FieldValue.arrayUnion(timelineEvent),
           updatedAt: firestore.FieldValue.serverTimestamp(),
+          ...(data.photoUrl ? {
+            photoMeta: firestore.FieldValue.arrayUnion({ url: data.photoUrl, byName: agent?.name || 'Pickup Agent', byRole: 'agent', at: firestore.Timestamp.now() }),
+          } : {}),
         });
         setLoading(false);
         return true;
@@ -309,6 +313,9 @@ export function useCompleteDelivery() {
           'financials.balance': newBalance,
           timeline: firestore.FieldValue.arrayUnion(timelineEvent),
           updatedAt: firestore.FieldValue.serverTimestamp(),
+          ...(data.photoUrl ? {
+            photoMeta: firestore.FieldValue.arrayUnion({ url: data.photoUrl, byName: agent?.name || 'Delivery Agent', byRole: 'agent', at: firestore.Timestamp.now() }),
+          } : {}),
         });
         setLoading(false);
         return true;

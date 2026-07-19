@@ -19,7 +19,7 @@ import {
     signOut as firebaseSignOut,
 } from "firebase/auth";
 import type { User, ConfirmationResult } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, collection, writeBatch, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, writeBatch, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { claimWebSession, releaseWebSession, teardownWebSession } from "@/lib/session-guard";
 import { LSpinner } from "@/components/laundry";
@@ -38,7 +38,7 @@ interface AuthState {
     user: AuthUser | null;
     shopId: string | null;
     shopName: string | null;
-    role: "admin" | "staff" | "plant_operator" | "agent" | null;
+    role: "admin" | "manager" | "staff" | "plant_operator" | "agent" | null;
     loading: boolean;
     error: string | null;
     isNewUser: boolean;
@@ -145,8 +145,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // (clean URL /:shopSlug) — don't claim/evict on it.
                 const seg = path.split("/").filter(Boolean);
                 const isPublicShopSlug = seg.length === 1 && !RESERVED_TOP_LEVEL.has(seg[0].toLowerCase());
+                // Team-portal routes (staff/agent/plant login + their apps) run their OWN auth.
+                // Opening one in a new tab while the owner is logged in must NOT re-claim the
+                // owner's single web-session slot — that would evict the owner's dashboard tab.
+                const isTeamPortalRoute =
+                    path.startsWith("/team") || path.startsWith("/staff") || path.startsWith("/agent") || path.startsWith("/plant");
                 const isPublicRoute =
-                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/") || isPublicShopSlug;
+                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/") || isPublicShopSlug || isTeamPortalRoute;
                 if (!isPublicRoute) {
                     claimWebSession(firebaseUser.uid);
                 }
@@ -160,6 +165,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         // Load user's language preference from Firebase
                         await loadLanguageFromFirebase(firebaseUser.uid);
 
+                        // Team members carry teamMemberId on their users doc. Their EFFECTIVE
+                        // role always comes from the live teamMembers doc — a stale or wrongly
+                        // written users.role (e.g. "staff" for a manager, or worse "admin")
+                        // must never decide what a team login can access.
+                        let effectiveRole = (userData.role || "admin") as AuthState["role"];
+                        if (userData.teamMemberId && userData.shopId) {
+                            try {
+                                const tmSnap = await getDoc(
+                                    doc(db, "shops", userData.shopId, "teamMembers", userData.teamMemberId)
+                                );
+                                if (tmSnap.exists()) {
+                                    const tm = tmSnap.data() as { memberType?: string; role?: string };
+                                    effectiveRole =
+                                        tm.memberType === "plant" ? "plant_operator"
+                                        : tm.memberType === "agent" ? "agent"
+                                        : tm.role === "manager" ? "manager"
+                                        : "staff";
+                                    if (effectiveRole !== userData.role) {
+                                        // Self-heal the stored role so other readers converge too.
+                                        updateDoc(doc(db, "users", firebaseUser.uid), {
+                                            role: effectiveRole,
+                                            updatedAt: serverTimestamp(),
+                                        }).catch(() => {});
+                                    }
+                                }
+                            } catch { /* transient read error — keep the stored role */ }
+                        }
+
                         setState({
                             user: {
                                 uid: firebaseUser.uid,
@@ -170,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             },
                             shopId: userData.shopId,
                             shopName: userData.shopName,
-                            role: userData.role || "admin",
+                            role: effectiveRole,
                             loading: false,
                             error: null,
                             isNewUser: false,
