@@ -629,6 +629,7 @@ __exportStar(require("./requests/check-login-email"), exports);
 __exportStar(require("./requests/get-public-order-slot-availability"), exports);
 __exportStar(require("./triggers/on-public-order-created"), exports);
 __exportStar(require("./triggers/on-order-updated"), exports);
+__exportStar(require("./triggers/on-team-member-deleted"), exports);
 __exportStar(require("./requests/manual-trigger"), exports);
 __exportStar(require("./requests/cancel-subscription"), exports);
 __exportStar(require("./requests/schedule-downgrade"), exports);

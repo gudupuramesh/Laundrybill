@@ -693,6 +693,7 @@ export * from "./requests/check-login-email";
 export * from "./requests/get-public-order-slot-availability";
 export * from "./triggers/on-public-order-created";
 export * from "./triggers/on-order-updated";
+export * from "./triggers/on-team-member-deleted";
 export * from "./requests/manual-trigger";
 export * from "./requests/cancel-subscription";
 export * from "./requests/schedule-downgrade";
