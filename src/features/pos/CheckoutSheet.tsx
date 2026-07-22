@@ -339,6 +339,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
             customerId: cart.customerId,
             customerName: cart.customerName || "Guest",
             customerPhone: cart.customerPhone || "",
+            customerEmail: cart.customerEmail || null,
             isGuest: cart.isGuest,
             items: cart.items.map((item, index) => ({
                 id: `item-${item.service.id}-${index}`,
@@ -438,7 +439,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: custAddress !== "—" ? 14 : 0 }}>
                                 <span style={{ width: 46, height: 46, flex: "none", borderRadius: 12, background: `var(--${custRef}-soft)`, color: `var(--${custRef})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 600 }}>{(cart.customerName || "G").slice(0, 2).toUpperCase()}</span>
-                                <div><div style={{ fontSize: 16, fontWeight: 700 }}>{cart.customerName || t("customer.guest", "Guest")}</div><div style={{ fontSize: 12.5, color: "var(--c-text-3)", fontFamily: MONO }}>{cart.customerPhone || "—"}</div></div>
+                                <div><div style={{ fontSize: 16, fontWeight: 700 }}>{cart.customerName || t("customer.guest", "Guest")}</div><div style={{ fontSize: 12.5, color: "var(--c-text-3)", fontFamily: MONO }}>{cart.customerPhone || cart.customerEmail || "—"}</div></div>
                             </div>
                             {(custAddress !== "—" || (isHomeType && selectedArea)) && (
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11 }}>

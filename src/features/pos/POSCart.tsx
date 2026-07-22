@@ -49,7 +49,7 @@ export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; o
     const total = subtotal - discount + expressSurcharge + vat + delivery;
 
     const custName = cart.customerName || "Walk-in customer";
-    const custMeta = cart.customerPhone || "Tap to add a customer";
+    const custMeta = cart.customerPhone || cart.customerEmail || "Tap to add a customer";
     const initials = (cart.customerName || "WC").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
     // ── Mobile, collapsed: a sticky bottom bar (tap the summary to expand the full cart, or checkout directly)

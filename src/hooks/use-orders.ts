@@ -35,6 +35,7 @@ interface CreateOrderInput {
     customerId?: string;
     customerName: string;
     customerPhone: string;
+    customerEmail?: string | null;
     isGuest: boolean;
     items: OrderItem[];
     financials: Omit<OrderFinancials, "balance"> & { balance?: number };
@@ -692,6 +693,7 @@ export function useCreateOrder() {
                     customerId: input.customerId || null,
                     customerName: input.customerName || "Guest",
                     customerPhone: input.customerPhone || "",
+                    customerEmail: input.customerEmail || null,
                     isGuest: input.isGuest ?? true,
                     items: input.items.map((item) => ({
                         id: item.id || `i-${Date.now()}`,

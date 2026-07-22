@@ -22,6 +22,7 @@ import { TagGeneratorModal } from "@/features/plant-app/components/TagGeneratorM
 import {
     MoreVertical,
     Phone,
+    Mail,
     MessageCircle,
     Printer,
     Edit,
@@ -634,8 +635,13 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                 <div style={secLbl}>{t('customer.title', 'CUSTOMER')}</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     <span style={{ width: 42, height: 42, flex: 'none', borderRadius: '50%', background: 'var(--c-primary-soft)', color: 'var(--c-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>{(order.customerName || '?').trim()[0]?.toUpperCase()}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{order.customerName || t('customer.guest', 'Guest')}</div><div style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: MONO }}>{order.customerPhone}</div></div>
-                                    {order.customerPhone && <button onClick={() => window.open(`tel:${order.customerPhone}`)} aria-label="Call" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Phone size={15} /></button>}
+                                    {/* Fall back to email when the customer has no phone (email-only customers). */}
+                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{order.customerName || t('customer.guest', 'Guest')}</div><div style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis' }}>{order.customerPhone || order.customerEmail || '—'}</div></div>
+                                    {order.customerPhone
+                                        ? <button onClick={() => window.open(`tel:${order.customerPhone}`)} aria-label="Call" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Phone size={15} /></button>
+                                        : order.customerEmail
+                                        ? <button onClick={() => window.open(`mailto:${order.customerEmail}`)} aria-label="Email" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Mail size={15} /></button>
+                                        : null}
                                 </div>
                             </div>
 
@@ -697,8 +703,13 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 onClose={() => setActionSheetOpen(false)}
                 title={t('orders.orderActions')}
                 actions={[
-                    { id: "call", label: t('orders.callCustomer'), icon: <Phone className="h-5 w-5" />, onClick: () => window.open(`tel:${order.customerPhone}`) },
-                    { id: "whatsapp", label: t('orders.whatsapp'), icon: <MessageCircle className="h-5 w-5" />, onClick: handleWhatsAppChat },
+                    // Call when there's a phone; email-only customers get an Email action instead.
+                    ...(order.customerPhone
+                        ? [{ id: "call", label: t('orders.callCustomer'), icon: <Phone className="h-5 w-5" />, onClick: () => window.open(`tel:${order.customerPhone}`) }]
+                        : order.customerEmail
+                        ? [{ id: "email", label: t('orders.emailCustomer', 'Email customer'), icon: <Mail className="h-5 w-5" />, onClick: () => window.open(`mailto:${order.customerEmail}`) }]
+                        : []),
+                    ...(order.customerPhone ? [{ id: "whatsapp", label: t('orders.whatsapp'), icon: <MessageCircle className="h-5 w-5" />, onClick: handleWhatsAppChat }] : []),
                     { id: "download", label: t('orders.downloadReceipt'), icon: <Download className="h-5 w-5" />, onClick: handleDownloadReceipt },
                     { id: "print", label: t('orders.printReceipt'), icon: <Printer className="h-5 w-5" />, onClick: handlePrintPreview },
                     ...(hasFeature("qrScans") ? [{ id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } }] : []),

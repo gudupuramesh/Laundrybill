@@ -30,6 +30,7 @@ interface CartState {
     customerId?: string;
     customerName?: string;
     customerPhone?: string;
+    customerEmail?: string;
     customerAddresses?: CustomerAddress[]; // Customer's saved addresses
     isGuest: boolean;
     discountType?: "percent" | "flat";
@@ -230,6 +231,7 @@ export function useCart(persistKey?: string) {
         customerId: string | undefined,
         customerName: string | undefined,
         customerPhone: string | undefined,
+        customerEmail: string | undefined,
         isGuest: boolean = false,
         addresses?: CustomerAddress[]
     ) => {
@@ -241,6 +243,7 @@ export function useCart(persistKey?: string) {
             customerId,
             customerName,
             customerPhone,
+            customerEmail,
             customerAddresses: addresses,
             isGuest,
             // Auto-fill delivery address from customer's saved address

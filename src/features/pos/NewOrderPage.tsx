@@ -80,7 +80,7 @@ export function NewOrderPage() {
     // Edit mode hydration
     useEffect(() => {
         if (isEditMode && editOrder && !orderLoaded && !loading && items.length > 0) {
-            cart.setCustomer(editOrder.customerId || undefined, editOrder.customerName, editOrder.customerPhone, editOrder.isGuest);
+            cart.setCustomer(editOrder.customerId || undefined, editOrder.customerName, editOrder.customerPhone, editOrder.customerEmail || undefined, editOrder.isGuest);
             cart.setDelivery(editOrder.deliveryType, editOrder.deliveryAddress || undefined, editOrder.deliveryNotes || undefined, editOrder.financials?.deliveryCharge || 0);
             if (editOrder.items && editOrder.items.length > 0) {
                 const orderItems = editOrder.items.map(item => ({
@@ -120,7 +120,7 @@ export function NewOrderPage() {
         const addressesForCart = customer.addresses?.length
             ? customer.addresses
             : (customer.address ? [{ id: "legacy", address: customer.address, isDefault: true }] : undefined);
-        cart.setCustomer(customer.id, customer.name, customer.phone, false, addressesForCart);
+        cart.setCustomer(customer.id, customer.name, customer.phone, customer.email || undefined, false, addressesForCart);
     };
 
     const handleCheckout = () => {

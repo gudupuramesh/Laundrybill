@@ -1144,7 +1144,8 @@ export default function OrderDetailsScreen({
             <View style={styles.customerAvatar}><MaterialIcons name="person" size={20} color="#00408f" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{order.customerName || t('mobile.guestLabel')}</Text>
-              <Text style={styles.customerPhone}>{order.customerPhone || t('mobile.noPhoneLabel')}</Text>
+              {/* Fall back to email when the customer has no phone (email-only customers). */}
+              <Text style={styles.customerPhone}>{order.customerPhone || order.customerEmail || t('mobile.noPhoneLabel')}</Text>
             </View>
             {order.customerPhone ? (
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1158,6 +1159,10 @@ export default function OrderDetailsScreen({
                   <MaterialIcons name="chat" size={16} color="#25D366" />
                 </TouchableOpacity>
               </View>
+            ) : order.customerEmail ? (
+              <TouchableOpacity style={styles.smallCircleBtn} onPress={() => Linking.openURL(`mailto:${order.customerEmail}`).catch(() => {})}>
+                <MaterialIcons name="mail-outline" size={16} color="#00408f" />
+              </TouchableOpacity>
             ) : null}
           </View>
           {(order.deliveryAddress || order.pickupAddress) ? (
