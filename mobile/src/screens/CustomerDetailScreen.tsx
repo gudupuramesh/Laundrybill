@@ -81,10 +81,13 @@ export default function CustomerDetailScreen({
   onBack,
   customerId,
   onViewOrder,
+  onNewOrder,
 }: {
   onBack: () => void;
   customerId: string;
   onViewOrder?: (id: string) => void;
+  /** Start a new order pre-filled with this customer. */
+  onNewOrder?: (customer: { id: string; name: string; phone: string; email: string | null; address: string | null }) => void;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -300,7 +303,16 @@ export default function CustomerDetailScreen({
                 </TouchableOpacity>
               </>
             ) : null}
-            <TouchableOpacity style={styles.actionBtnPrimary}>
+            <TouchableOpacity
+              style={styles.actionBtnPrimary}
+              onPress={() => onNewOrder?.({
+                id: customerId,
+                name: customer.name || '',
+                phone: customer.phone || '',
+                email: customer.email ?? null,
+                address: customer.address || customer.addresses?.[0]?.address || null,
+              })}
+            >
               <MaterialIcons name="note-add" size={16} color={colors.surface} />
               <Text style={styles.actionBtnPrimaryText}>{t('dashboard.newOrder')}</Text>
             </TouchableOpacity>

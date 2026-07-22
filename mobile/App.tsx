@@ -561,6 +561,25 @@ function MainLayout() {
     setActiveScreen('CREATE_ORDER');
   };
 
+  // Start a new order pre-filled with a specific customer (from Customer Detail).
+  const startOrderForCustomer = (customer: { id: string; name: string; phone: string; email: string | null; address: string | null }) => {
+    if (orderLimitReached) {
+      Alert.alert(
+        t('mobile.orderLimitTitle'),
+        t('mobile.orderLimitMessage', { limit: appPlanLimits.maxOrders }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('mobile.upgradePlan'), onPress: () => setActiveScreen('SUBSCRIPTION') },
+        ]
+      );
+      return;
+    }
+    setEditingOrder(null);
+    setPendingOrderCustomer(customer);
+    setOrderInProgress(true);
+    setActiveScreen('CREATE_ORDER');
+  };
+
   const openEditOrder = (order: any) => {
     setEditingOrder(order);
     setOrderInProgress(true);
@@ -928,6 +947,7 @@ function MainLayout() {
           onBack={() => setActiveScreen('CREATE_ORDER')}
           customerId={customerId}
           onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
+          onNewOrder={startOrderForCustomer}
         />
       </View>
     );
@@ -942,6 +962,7 @@ function MainLayout() {
           onBack={() => setActiveScreen(null)}
           customerId={customerId}
           onViewOrder={(id: string) => setActiveScreen(`ORDER_DETAILS_${id}`)}
+          onNewOrder={startOrderForCustomer}
         />
       </View>
     );
