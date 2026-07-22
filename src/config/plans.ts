@@ -52,6 +52,7 @@ export const PLANS: Record<PlanType, Plan> = {
         limits: {
             maxOrders: 50,
             maxCustomers: 100,
+            maxTeamLogins: 0,
             maxStaff: 1,
             maxDeliveryAgents: 0,
             maxPlantStaff: 0,
@@ -99,6 +100,7 @@ export const PLANS: Record<PlanType, Plan> = {
             maxCustomers: -1,
             // Pro is owner-only: no team logins of any type (staff/agent/plant).
             // Creating logins requires Pro+ or Business.
+            maxTeamLogins: 0,
             maxStaff: 0,
             maxDeliveryAgents: 0,
             maxPlantStaff: 0,
@@ -143,6 +145,10 @@ export const PLANS: Record<PlanType, Plan> = {
         limits: {
             maxOrders: -1,
             maxCustomers: -1,
+            // The cap is on TOTAL logins, not roles — 4 logins in any mix
+            // (e.g. 4 managers, or 2 managers + 2 agents). Per-role fields are
+            // legacy values for old app builds; they are no longer enforced.
+            maxTeamLogins: 4,
             maxStaff: 3,
             maxDeliveryAgents: 2,
             maxPlantStaff: 1,
@@ -185,7 +191,9 @@ export const PLANS: Record<PlanType, Plan> = {
         limits: {
             maxOrders: -1,
             maxCustomers: -1,
-            // Finite (large) login caps — Business is also capped per the plan policy.
+            // 15 TOTAL logins in any role mix. Per-role fields are legacy values
+            // for old app builds; they are no longer enforced.
+            maxTeamLogins: 15,
             maxStaff: 15,
             maxDeliveryAgents: 15,
             maxPlantStaff: 15,
@@ -220,6 +228,19 @@ export function hasFeature(planId: PlanType | string, feature: keyof PlanFeature
     return plan.features[feature] ?? false;
 }
 
+/**
+ * TOTAL team-login cap for a plan (any role mix). Prefers the explicit
+ * maxTeamLogins; older Firestore plan docs without it fall back to the sum of
+ * the legacy per-role caps (any -1 → unlimited).
+ */
+export function getTeamLoginCap(limits: Partial<Plan["limits"]> | undefined | null): number {
+    if (!limits) return 0;
+    if (typeof limits.maxTeamLogins === "number") return limits.maxTeamLogins;
+    const parts = [limits.maxStaff ?? 0, limits.maxDeliveryAgents ?? 0, limits.maxPlantStaff ?? 0];
+    if (parts.some((p) => p === -1)) return -1;
+    return parts.reduce((a, b) => a + Math.max(0, b), 0);
+}
+
 export function isWithinLimit(
     planId: PlanType | string,
     limitType: "maxOrders" | "maxCustomers" | "maxStaff" | "maxServices",
@@ -235,7 +256,7 @@ export function isWithinLimit(
 export const PLAN_COMPARISON = [
     { feature: "Monthly Orders", free: "50", pro: "Unlimited", pro_plus: "Unlimited", business: "Unlimited" },
     { feature: "Customers", free: "100", pro: "Unlimited", pro_plus: "Unlimited", business: "Unlimited" },
-    { feature: "Team logins", free: "Owner only", pro: "Owner only", pro_plus: "3 staff · 2 agents · 1 plant", business: "15 each" },
+    { feature: "Team logins", free: "Owner only", pro: "Owner only", pro_plus: "4 total (any role)", business: "15 total (any role)" },
     { feature: "Order Tracking Link", free: false, pro: true, pro_plus: true, business: true },
     { feature: "WhatsApp Receipts", free: false, pro: true, pro_plus: true, business: true },
     { feature: "QR Code Scanning", free: false, pro: true, pro_plus: true, business: true },

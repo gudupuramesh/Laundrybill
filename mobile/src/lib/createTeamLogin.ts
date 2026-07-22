@@ -5,8 +5,35 @@
  * an invite code. The roster (`staff`) row is created separately by the caller.
  */
 import { firestore } from './db';
+import { teamLoginCapFromLimits } from './usePlanLimits';
 
 export type LoginMemberType = 'staff' | 'agent' | 'plant';
+
+/**
+ * Resolve the shop's TOTAL team-login cap (any role mix) from its subscription
+ * plan. -1 = unlimited. Returns null when the plan can't be resolved (fail-open:
+ * Firestore rules still gate login creation by plan feature flags).
+ */
+async function resolveTeamLoginCap(shopId: string): Promise<number | null> {
+  try {
+    const subSnap = await firestore().collection('subscriptions').doc(shopId).get();
+    const sub = (subSnap.data() as any) || {};
+    const planId = sub.planId || sub.planName || 'free';
+    const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
+    const isProPlus = normalized === 'proplus' || normalized === 'pro+';
+    const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium');
+    const isPro = !isProPlus && !isBusiness && (normalized === 'pro' || normalized === 'starter');
+    const canonical = isProPlus ? 'pro_plus' : isBusiness ? 'business' : isPro ? 'pro' : 'free';
+    const candidates = [planId, normalized, canonical].filter((v, i, a) => a.indexOf(v) === i);
+    for (const id of candidates) {
+      const snap = await firestore().collection('plans').doc(String(id)).get();
+      if (snap.exists) return teamLoginCapFromLimits((snap.data() as any)?.limits || {});
+    }
+  } catch {
+    // Network/permission hiccup — don't block the owner; rules still apply.
+  }
+  return null;
+}
 
 function generateRandomInviteCode(shopCode: string): string {
   const code = (shopCode || 'SHOP').toUpperCase().slice(0, 4);
@@ -36,6 +63,20 @@ export async function createTeamLogin(params: {
     .limit(1)
     .get();
   if (!existing.empty) throw new Error('EMAIL_ALREADY_USED');
+
+  // Enforce the plan's TOTAL login cap — logins are capped in number, not by
+  // role, so the owner can use their slots in any mix (e.g. 4 managers).
+  const cap = await resolveTeamLoginCap(shopId);
+  if (cap !== null && cap >= 0) {
+    const all = await firestore().collection(`shops/${shopId}/teamMembers`).get();
+    if (all.size >= cap) {
+      throw new Error(
+        cap === 0
+          ? 'Creating team logins requires the Pro+ or Business plan. Upgrade to add staff, agent or plant logins.'
+          : `Login limit reached — your plan allows ${cap} total logins (any role mix) and you already have ${all.size}. Delete an unused login or upgrade your plan.`
+      );
+    }
+  }
 
   // Ensure the shop has a short code (used as the invite-code prefix).
   const shopDoc = await firestore().collection('shops').doc(shopId).get();

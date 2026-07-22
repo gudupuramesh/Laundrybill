@@ -511,11 +511,10 @@ function MainLayout() {
   const currentShopId = getShopIdFn();
   const appOrdersUsed = useMergedOrdersUsed(appSubData, currentShopId);
   const appPlanLimits = usePlanLimits(appSubData);
-  // Team logins are a Pro+/Business feature — hide the create-login entry on plans with no allowance (Free, Pro, trial). (-1 = unlimited)
-  const canCreateLogins =
-    (appPlanLimits.maxStaff ?? 0) !== 0 ||
-    (appPlanLimits.maxAgents ?? 0) !== 0 ||
-    (appPlanLimits.maxPlantStaff ?? 0) !== 0;
+  // Team logins are a Pro+/Business feature — hide the create-login entry on plans
+  // with no allowance (Free, Pro, trial). The cap is on TOTAL logins (any role
+  // mix); -1 = unlimited, 0 = owner-only.
+  const canCreateLogins = (appPlanLimits.maxTeamLogins ?? 0) !== 0;
 
   React.useEffect(() => {
     if (!currentShopId) return;

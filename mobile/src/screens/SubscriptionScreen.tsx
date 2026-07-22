@@ -494,7 +494,7 @@ export default function SubscriptionScreen({
           <View style={s.usageGroup}>
             <UsageBar label="Orders" used={ordersUsed} limit={planLimits.maxOrders} />
             <UsageBar label="Customers" used={totalCustomers} limit={planLimits.maxCustomers} />
-            <UsageBar label="Staff Accounts" used={totalStaff} limit={planLimits.maxStaff} />
+            <UsageBar label="Team Logins" used={totalStaff} limit={planLimits.maxTeamLogins} />
           </View>
         </LinearGradient>
 

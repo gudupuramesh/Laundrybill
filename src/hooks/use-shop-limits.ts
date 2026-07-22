@@ -1,7 +1,7 @@
 import { usePlans } from "@/features/super-admin/hooks/use-plans";
 import type { PlanType, PlanFeatures } from "@/types/plans";
 import { normalizePlanId } from "@/types/plans";
-import { PLANS, getPlan } from "@/config/plans";
+import { PLANS, getPlan, getTeamLoginCap } from "@/config/plans";
 
 import { useShop } from "@/hooks/use-shop";
 import { useShopSubscription } from "@/hooks/use-shop-subscription";
@@ -90,9 +90,16 @@ export function useShopLimits() {
     // During an order-metered trial, surface the trial order cap so usage shows "X / N" and
     // the POS soft-blocks at N. The server is the authoritative cap (it flips trial→free at N).
     const trialOrderCap = Number((subscription as { trialOrderLimit?: number } | undefined)?.trialOrderLimit) || 10;
-    const plan = isTrial
+    const trialPlan = isTrial
         ? { ...basePlan, limits: { ...basePlan.limits, maxOrders: trialOrderCap } }
         : basePlan;
+    // The enforced login cap is TOTAL logins (any role mix). Normalize it here so
+    // checkLimit("maxTeamLogins", …) always sees a number, even for old Firestore
+    // plan docs that only carry the legacy per-role caps.
+    const plan = {
+        ...trialPlan,
+        limits: { ...trialPlan.limits, maxTeamLogins: getTeamLoginCap(trialPlan.limits) },
+    };
 
     // Feature Check
     const hasFeature = (feature: keyof PlanFeatures) => {

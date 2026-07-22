@@ -15,6 +15,7 @@ import { useShop } from "@/hooks/use-shop";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizePlanId, type Plan, type PlanType } from "@/types/plans";
+import { getTeamLoginCap } from "@/config/plans";
 import { LSpinner, useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { startRazorpaySubscription } from "@/lib/razorpay-checkout";
@@ -204,7 +205,7 @@ export function SubscriptionPage() {
     const featureRows: { label: string; kind: "num" | "bool"; get: (p: Plan) => number | boolean }[] = [
         { label: "Orders / month", kind: "num", get: (p) => p.limits.maxOrders },
         { label: "Customers", kind: "num", get: (p) => p.limits.maxCustomers },
-        { label: "Staff accounts", kind: "num", get: (p) => p.limits.maxStaff },
+        { label: "Team logins (any role)", kind: "num", get: (p) => getTeamLoginCap(p.limits) },
         { label: "Services", kind: "num", get: (p) => p.limits.maxServices },
         { label: "Order tracking", kind: "bool", get: (p) => p.features.orderTracking },
         { label: "WhatsApp receipts", kind: "bool", get: (p) => p.features.whatsappReceipts },
@@ -559,7 +560,7 @@ export function SubscriptionPage() {
                                             <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 9 }}>
                                                 <PlanFeat label={`${numLimit(plan.limits.maxOrders)} orders / mo`} on />
                                                 <PlanFeat label={`${numLimit(plan.limits.maxCustomers)} customers`} on />
-                                                <PlanFeat label={`${numLimit(plan.limits.maxStaff)} staff accounts`} on />
+                                                <PlanFeat label={`${numLimit(getTeamLoginCap(plan.limits))} team logins (any role)`} on />
                                                 <PlanFeat label="Reports & analytics" on={plan.features.reports} />
                                                 <PlanFeat label="Driver / Agent app" on={plan.features.driverApp} />
                                                 <PlanFeat label="Plant dashboard" on={plan.features.plantApp} />

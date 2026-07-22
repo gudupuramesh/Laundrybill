@@ -9,6 +9,12 @@ import { firestore } from './db';
 export interface PlanLimits {
   maxOrders: number;
   maxCustomers: number;
+  /**
+   * TOTAL team logins allowed in ANY role mix (manager/staff/agent/plant).
+   * This is the enforced cap; the per-role fields below are legacy.
+   * -1 = unlimited, 0 = owner-only.
+   */
+  maxTeamLogins: number;
   maxStaff: number;
   maxAgents: number;
   maxPlantStaff: number;
@@ -20,11 +26,24 @@ export interface PlanLimits {
 const EMPTY_LIMITS: PlanLimits = {
   maxOrders: 0,
   maxCustomers: 0,
+  maxTeamLogins: 0,
   maxStaff: 0,
   maxAgents: 0,
   maxPlantStaff: 0,
   storageGb: 0,
 };
+
+/**
+ * TOTAL login cap from a plan's limits map. Prefers the explicit maxTeamLogins;
+ * older plan docs without it fall back to the sum of the legacy per-role caps
+ * (any -1 → unlimited).
+ */
+export function teamLoginCapFromLimits(l: any): number {
+  if (typeof l?.maxTeamLogins === 'number') return l.maxTeamLogins;
+  const parts = [l?.maxStaff ?? 0, l?.maxAgents ?? l?.maxDeliveryAgents ?? 0, l?.maxPlantStaff ?? 0];
+  if (parts.some((p: number) => p === -1)) return -1;
+  return parts.reduce((a: number, b: number) => a + Math.max(0, b), 0);
+}
 
 /**
  * Hook to get the current plan's limits from Firestore.
@@ -80,6 +99,7 @@ export function usePlanLimits(subscriptionData: any): PlanLimits {
             const next: PlanLimits = {
               maxOrders: l.maxOrders ?? 0,
               maxCustomers: l.maxCustomers ?? 0,
+              maxTeamLogins: teamLoginCapFromLimits(l),
               maxStaff: l.maxStaff ?? 0,
               maxAgents: l.maxAgents ?? l.maxDeliveryAgents ?? 0,
               maxPlantStaff: l.maxPlantStaff ?? 0,

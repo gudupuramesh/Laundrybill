@@ -596,7 +596,7 @@ export default function SettingsScreen({
               </View>
               <View style={styles.usageDivider} />
               <View style={styles.usageStat}>
-                <Text style={styles.usageValue}>{totalStaff}{planLimits.maxStaff > 0 ? `/${planLimits.maxStaff}` : ''}</Text>
+                <Text style={styles.usageValue}>{totalStaff}{planLimits.maxTeamLogins > 0 ? `/${planLimits.maxTeamLogins}` : ''}</Text>
                 <Text style={styles.usageLabel}>{t('mobile.staffUsage')}</Text>
               </View>
             </View>

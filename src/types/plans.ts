@@ -69,9 +69,15 @@ export interface PlanFeatures {
 export interface PlanLimits {
     maxOrders: number; // per month, -1 = unlimited
     maxCustomers: number; // total, -1 = unlimited
-    maxStaff: number; // Staff App users (total)
-    maxDeliveryAgents: number; // Agent App users (total)
-    maxPlantStaff: number; // Plant App users (total)
+    /**
+     * TOTAL team logins allowed, in ANY role mix (manager/staff/agent/plant).
+     * This is the enforced cap — the per-role fields below are legacy display
+     * values kept for older app builds. -1 = unlimited, 0 = owner-only.
+     */
+    maxTeamLogins?: number;
+    maxStaff: number; // LEGACY per-role cap (Staff App users) — no longer enforced
+    maxDeliveryAgents: number; // LEGACY per-role cap (Agent App users) — no longer enforced
+    maxPlantStaff: number; // LEGACY per-role cap (Plant App users) — no longer enforced
     maxRoster: number; // Roster for attendance/payroll (no app access), -1 = unlimited
     maxServices: number; // total, -1 = unlimited
     storageGB: number; // image storage

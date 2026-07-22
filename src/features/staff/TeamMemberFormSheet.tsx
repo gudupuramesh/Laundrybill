@@ -1,7 +1,7 @@
 /**
  * Team Member Form Sheet — design-system tokens.
  * Create app logins (Staff App, Agent, Plant) → email + invite code.
- * Plan limits (maxStaff, maxDeliveryAgents, maxPlantStaff) apply.
+ * The plan caps TOTAL logins (maxTeamLogins) — any role mix is allowed.
  */
 
 import { useState, useEffect, type CSSProperties } from "react";
@@ -56,21 +56,21 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
     const { createTeamMember } = useTeamMemberMutations();
     const { teamMembers } = useTeamMembers();
     const { staff } = useStaff();
-    const { checkLimit } = useShopLimits();
+    const { checkLimit, hasFeature } = useShopLimits();
     const { settings: deliverySettings } = useDeliverySettings();
 
-    const staffLimit = checkLimit("maxStaff", teamMembers.filter((m) => m.memberType === "staff").length);
-    const agentLimit = checkLimit("maxDeliveryAgents", teamMembers.filter((m) => m.memberType === "agent").length);
-    const plantLimit = checkLimit("maxPlantStaff", teamMembers.filter((m) => m.memberType === "plant").length);
+    // The plan caps TOTAL logins — the owner chooses any role mix (e.g. on a
+    // 4-login plan: 4 managers, or 2 managers + 2 agents).
+    const loginLimit = checkLimit("maxTeamLogins", teamMembers.length);
+    const limitDesc = t("staff.limitReachedUpgrade", "Limit reached — upgrade plan");
 
     // Manager is a Staff-app login with the manager role (memberType 'staff' + role 'manager').
-    // It shares the staff plan slot, so it lives alongside "Staff App" here.
     const memberTypeOptions = [
-        { value: "staff", label: t("staff.memberTypeStaff", "Staff App"), description: !staffLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeStaffDesc", "Order management & basic access"), disabled: !staffLimit.allowed },
-        { value: "manager", label: t("staff.memberTypeManager", "Manager"), description: !staffLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeManagerDesc", "Staff App access with manager role"), disabled: !staffLimit.allowed },
-        { value: "agent", label: t("staff.memberTypeAgent", "Delivery Agent"), description: !agentLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeAgentDesc", "Pickup & delivery tracking"), disabled: !agentLimit.allowed },
-        { value: "plant", label: t("staff.memberTypePlant", "Plant Operator"), description: !plantLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypePlantDesc", "Processing & plant management"), disabled: !plantLimit.allowed },
-    ].filter((opt) => (opt.value === "agent" ? agentLimit.limit !== 0 : opt.value === "plant" ? plantLimit.limit !== 0 : true));
+        { value: "staff", label: t("staff.memberTypeStaff", "Staff App"), description: !loginLimit.allowed ? limitDesc : t("staff.memberTypeStaffDesc", "Order management & basic access"), disabled: !loginLimit.allowed },
+        { value: "manager", label: t("staff.memberTypeManager", "Manager"), description: !loginLimit.allowed ? limitDesc : t("staff.memberTypeManagerDesc", "Staff App access with manager role"), disabled: !loginLimit.allowed },
+        { value: "agent", label: t("staff.memberTypeAgent", "Delivery Agent"), description: !loginLimit.allowed ? limitDesc : t("staff.memberTypeAgentDesc", "Pickup & delivery tracking"), disabled: !loginLimit.allowed },
+        { value: "plant", label: t("staff.memberTypePlant", "Plant Operator"), description: !loginLimit.allowed ? limitDesc : t("staff.memberTypePlantDesc", "Processing & plant management"), disabled: !loginLimit.allowed },
+    ].filter((opt) => (opt.value === "agent" ? hasFeature("driverApp") : opt.value === "plant" ? hasFeature("plantApp") : true));
 
     // Selector value is a login-type ("staff" | "manager" | "agent" | "plant"); manager maps
     // to memberType 'staff' + role 'manager' at creation.
@@ -85,8 +85,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
 
     useEffect(() => {
         if (open) {
-            const defaultType: MemberType = staffLimit.allowed ? "staff" : agentLimit.allowed ? "agent" : plantLimit.allowed ? "plant" : "staff";
-            setForm({ email: prefill?.email || "", memberType: prefill?.memberType || defaultType, name: prefill?.name || "", staffId: prefill?.staffId || "", vehicleType: "bike", vehicleNumber: "", serviceAreas: [] });
+            setForm({ email: prefill?.email || "", memberType: prefill?.memberType || "staff", name: prefill?.name || "", staffId: prefill?.staffId || "", vehicleType: "bike", vehicleNumber: "", serviceAreas: [] });
             setCreatedInviteCode(null);
             setErrors({});
         }
@@ -101,8 +100,7 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
         else if (teamMembers.some((tm) => tm.email.toLowerCase() === emailTrim.toLowerCase())) newErrors.email = t("staff.emailAlreadyUsed", "This email is already registered for an app login.");
         else if (staff.some((s) => s.id !== form.staffId && s.email?.toLowerCase() === emailTrim.toLowerCase())) newErrors.email = t("staff.emailAlreadyUsed", "This email is already registered for an app login.");
 
-        const limit = form.memberType === "agent" ? agentLimit : form.memberType === "plant" ? plantLimit : staffLimit;
-        if (!limit.allowed) newErrors.memberType = t("validation.planLimitReached", "Plan limit reached.");
+        if (!loginLimit.allowed) newErrors.memberType = t("validation.planLimitReached", "Plan limit reached.");
         if (form.memberType === "agent" && !form.vehicleNumber?.trim()) newErrors.vehicleNumber = t("common.required", "Required");
 
         if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
@@ -180,6 +178,11 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
                     </div>
 
                     <Divider label={t("staff.memberTypeLabel", "Login type")} />
+                    {loginLimit.limit > 0 && (
+                        <div style={{ fontSize: 12, color: loginLimit.allowed ? "var(--c-text-3)" : "var(--c-error)", marginTop: -4 }}>
+                            {t("staff.loginsUsed", "{{used}} of {{limit}} logins used — any role mix", { used: teamMembers.length, limit: loginLimit.limit })}
+                        </div>
+                    )}
                     <RadioCards value={form.memberType} onChange={(v) => setForm({ ...form, memberType: v as LoginType })} options={memberTypeOptions} />
                     {errors.memberType && <div style={errTxt}>{errors.memberType}</div>}
 

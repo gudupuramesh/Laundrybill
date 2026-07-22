@@ -115,7 +115,9 @@ export default function StaffListScreen({
           // Roster row is saved; surface why the login part failed.
           const msg = e?.message === 'EMAIL_ALREADY_USED'
             ? 'That email already has a login. The staff member was still added.'
-            : 'Staff added, but the login could not be created.';
+            : e?.message
+              ? `Staff added, but the login could not be created. ${e.message}`
+              : 'Staff added, but the login could not be created.';
           resetForm();
           setShowAddModal(false);
           Alert.alert('Heads up', msg);

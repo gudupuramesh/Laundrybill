@@ -63,10 +63,8 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
     const { createTeamMember } = useTeamMemberMutations();
 
     const rosterLimit = checkLimit("maxRoster", activeStaff.length);
-    const staffLoginLimit = checkLimit("maxStaff", teamMembers.filter((m) => m.memberType === "staff").length);
-    const agentLoginLimit = checkLimit("maxDeliveryAgents", teamMembers.filter((m) => m.memberType === "agent").length);
-    const plantLoginLimit = checkLimit("maxPlantStaff", teamMembers.filter((m) => m.memberType === "plant").length);
-    const loginLimitFor = (k: string) => (k === "agent" ? agentLoginLimit : k === "plant" ? plantLoginLimit : staffLoginLimit);
+    // The plan caps TOTAL logins (any role mix) — one shared limit for all types.
+    const loginLimit = checkLimit("maxTeamLogins", teamMembers.length);
     const memberTypeForLogin = (k: string): MemberType => (k === "agent" ? "agent" : k === "plant" ? "plant" : "staff");
     const roleForLogin = (k: string): StaffRole => (k === "manager" ? "manager" : k === "plant" ? "plant_operator" : "staff");
 
@@ -74,11 +72,12 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
         { value: "monthly", label: t("staff.monthlySalary", "Monthly Salary"), description: t("staff.monthlySalaryDesc", "Fixed monthly payment") },
         { value: "daily", label: t("staff.dailyWage", "Daily Wage"), description: t("staff.dailyWageDesc", "Daily rate payment") },
     ];
+    const loginLimitDesc = !loginLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : null;
     const memberTypeOptions = [
-        { value: "staff", label: t("staff.memberTypeStaff", "Staff App"), description: !staffLoginLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeStaffDesc", "Order management & basic access") },
-        { value: "manager", label: t("staff.memberTypeManager", "Manager"), description: !staffLoginLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeManagerDesc", "Staff App access with manager role") },
-        { value: "agent", label: t("staff.memberTypeAgent", "Delivery Agent"), description: !agentLoginLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypeAgentDesc", "Pickup & delivery tracking") },
-        { value: "plant", label: t("staff.memberTypePlant", "Plant Operator"), description: !plantLoginLimit.allowed ? t("staff.limitReachedUpgrade", "Limit reached — upgrade plan") : t("staff.memberTypePlantDesc", "Processing & plant management") },
+        { value: "staff", label: t("staff.memberTypeStaff", "Staff App"), description: loginLimitDesc ?? t("staff.memberTypeStaffDesc", "Order management & basic access") },
+        { value: "manager", label: t("staff.memberTypeManager", "Manager"), description: loginLimitDesc ?? t("staff.memberTypeManagerDesc", "Staff App access with manager role") },
+        { value: "agent", label: t("staff.memberTypeAgent", "Delivery Agent"), description: loginLimitDesc ?? t("staff.memberTypeAgentDesc", "Pickup & delivery tracking") },
+        { value: "plant", label: t("staff.memberTypePlant", "Plant Operator"), description: loginLimitDesc ?? t("staff.memberTypePlantDesc", "Processing & plant management") },
     ];
     const { createStaff, updateStaff } = useStaffMutations();
     const [loading, setLoading] = useState(false);
@@ -111,7 +110,7 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) newErrors.email = t("common.invalidEmail", "Invalid email");
         const wantsLogin = !isEdit && createLogin && isOwner;
         if (wantsLogin) {
-            if (!loginLimitFor(loginType).allowed) newErrors.loginType = t("validation.planLimitReached", "Plan limit reached for this login type. Upgrade to add more.");
+            if (!loginLimit.allowed) newErrors.loginType = t("validation.loginLimitReached", "Login limit reached — your plan allows {{limit}} total logins (any role). Upgrade to add more.", { limit: loginLimit.limit });
         }
         if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
         if (!isEdit && !rosterLimit.allowed) { alert(t("validation.planLimitReachedDesc", "You have reached the roster limit. Upgrade plan to add more staff.")); return; }

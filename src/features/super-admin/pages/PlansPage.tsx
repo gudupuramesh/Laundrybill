@@ -11,6 +11,7 @@ import { PlanEditorSheet } from "../components/PlanEditorSheet";
 import { Check, X, Edit, Trash2 } from "lucide-react";
 import type { Plan } from "@/types/plans";
 import { normalizePlanId } from "@/types/plans";
+import { getTeamLoginCap } from "@/config/plans";
 import { cn } from "@/lib/utils";
 
 const PLAN_COLORS: Record<string, string> = {
@@ -138,9 +139,7 @@ export function PlansPage() {
                                 <div className="grid grid-cols-2 gap-2">
                                     <LimitItem label="Orders / month" value={plan.limits.maxOrders} />
                                     <LimitItem label="Customers" value={plan.limits.maxCustomers} />
-                                    <LimitItem label="Staff members" value={plan.limits.maxStaff} />
-                                    <LimitItem label="Delivery agents" value={plan.limits.maxDeliveryAgents} />
-                                    <LimitItem label="Plant staff" value={plan.limits.maxPlantStaff} />
+                                    <LimitItem label="Team logins (any role)" value={getTeamLoginCap(plan.limits)} />
                                     <LimitItem label="Storage" value={`${plan.limits.storageGB === -1 ? "Unlimited" : plan.limits.storageGB + " GB"}`} />
                                 </div>
                             </div>

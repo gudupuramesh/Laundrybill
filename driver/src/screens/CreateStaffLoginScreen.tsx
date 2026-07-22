@@ -8,7 +8,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
-import { usePlanLimits } from '../lib/usePlanLimits';
+import { usePlanLimits, teamLoginCapFromLimits } from '../lib/usePlanLimits';
+import { createTeamLogin } from '../lib/createTeamLogin';
 import { colors, fonts, radii, shadows } from '../theme';
 
 type MemberType = 'staff' | 'agent' | 'plant';
@@ -18,12 +19,6 @@ const MEMBER_TYPES: { key: MemberType; label: string; desc: string; icon: string
   { key: 'agent', label: 'Delivery Agent', desc: 'Pickup & delivery tracking', icon: 'delivery-dining', color: colors.success, bg: colors.successBg },
   { key: 'plant', label: 'Plant Operator', desc: 'Processing & plant management', icon: 'precision-manufacturing', color: colors.warning, bg: colors.warningBg },
 ];
-
-function generateRandomInviteCode(shopCode: string): string {
-  const code = (shopCode || 'SHOP').toUpperCase().slice(0, 4);
-  const randomNum = Math.floor(10000 + Math.random() * 90000);
-  return `${code}-${randomNum}`;
-}
 
 export interface StaffLoginPrefill {
   name?: string;
@@ -42,10 +37,10 @@ export default function CreateStaffLoginScreen({
 }: {
   onBack: () => void;
   prefill?: StaffLoginPrefill | null;
-  /** Plan limits for the current shop. A login type is creatable only when its
-   *  limit is unlimited (-1) or positive. Limit 0/undefined = not allowed on
-   *  this plan (Pro is owner-only → all three are 0 → "Upgrade to Business"). */
-  planLimits?: { maxStaff?: number; maxAgents?: number; maxPlantStaff?: number } | null;
+  /** Plan limits for the current shop. The plan caps TOTAL logins (any role
+   *  mix) — maxTeamLogins. 0 = no logins on this plan (upgrade); -1 = unlimited.
+   *  Older callers may pass only the legacy per-role caps, which are summed. */
+  planLimits?: { maxTeamLogins?: number; maxStaff?: number; maxAgents?: number; maxPlantStaff?: number } | null;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -63,19 +58,24 @@ export default function CreateStaffLoginScreen({
   const resolvedLimits = usePlanLimits(subData);
   const effLimits = planLimits ?? resolvedLimits;
 
-  const limitForType = (mt: MemberType): number => {
-    if (!effLimits) return -1; // no info → fail-open (prior behavior)
-    if (mt === 'staff') return effLimits.maxStaff ?? 0;
-    if (mt === 'agent') return effLimits.maxAgents ?? 0;
-    return effLimits.maxPlantStaff ?? 0;
-  };
-  const typeAllowed = (mt: MemberType) => limitForType(mt) !== 0;
+  // TOTAL login cap, any role mix (e.g. 4 logins = 4 staff, or 2 staff +
+  // 2 agents). Roles are a free choice — only the count is limited.
+  const totalCap = effLimits ? teamLoginCapFromLimits(effLimits) : -1;
+  const loginsAllowed = totalCap !== 0;
+  const typeAllowed = (_mt: MemberType) => loginsAllowed;
 
-  const initialType: MemberType =
-    (prefill?.memberType && typeAllowed(prefill.memberType) ? prefill.memberType : undefined) ||
-    (['staff', 'agent', 'plant'] as MemberType[]).find(typeAllowed) ||
-    prefill?.memberType ||
-    'staff';
+  // Live count of existing logins for the "X of Y used" line + cap gate.
+  const [loginCount, setLoginCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore()
+      .collection(`shops/${shopId}/teamMembers`)
+      .onSnapshot((snap: any) => setLoginCount(snap?.size ?? 0), () => {});
+    return () => unsub();
+  }, [shopId]);
+  const capReached = totalCap > 0 && loginCount !== null && loginCount >= totalCap;
+
+  const initialType: MemberType = prefill?.memberType || 'staff';
 
   const [memberType, setMemberType] = useState<MemberType>(initialType);
   const selectedAllowed = typeAllowed(memberType);
@@ -89,10 +89,17 @@ export default function CreateStaffLoginScreen({
   const [createdName, setCreatedName] = useState('');
 
   const handleCreate = async () => {
-    if (!typeAllowed(memberType)) {
+    if (!loginsAllowed) {
       Alert.alert(
         'Upgrade required',
         'Creating team logins is a Pro+ or Business feature. Upgrade your plan to add staff, agent or plant logins.'
+      );
+      return;
+    }
+    if (capReached) {
+      Alert.alert(
+        'Login limit reached',
+        `Your plan allows ${totalCap} total logins (any role mix) and you already have ${loginCount}. Delete an unused login or upgrade your plan.`
       );
       return;
     }
@@ -104,48 +111,15 @@ export default function CreateStaffLoginScreen({
 
     setSaving(true);
     try {
-      // Check if email already exists
-      const existing = await firestore()
-        .collection(`shops/${shopId}/teamMembers`)
-        .where('email', '==', trimEmail)
-        .limit(1)
-        .get();
-
-      if (!existing.empty) {
-        Alert.alert('Already Exists', 'A team member with this email already exists');
-        setSaving(false);
-        return;
-      }
-
-      // Get shop code
-      const shopDoc = await firestore().collection('shops').doc(shopId).get();
-      const shopData = shopDoc.data() as any;
-      let shopCode = shopData?.shopCode;
-      if (!shopCode) {
-        // Generate from shop name
-        const shopName = shopData?.name || 'Shop';
-        const clean = shopName.toUpperCase().replace(/[^A-Z]/g, '');
-        shopCode = clean.length >= 2 ? clean.slice(0, 2) : clean.padEnd(2, 'X');
-        shopCode += String.fromCharCode(65 + Math.floor(Math.random() * 26));
-        shopCode += String.fromCharCode(65 + Math.floor(Math.random() * 26));
-        await firestore().collection('shops').doc(shopId).update({ shopCode });
-      }
-
-      const inviteCode = generateRandomInviteCode(shopCode);
-
-      // Create team member document
-      await firestore().collection(`shops/${shopId}/teamMembers`).add({
-        email: trimEmail,
-        inviteCode,
-        memberType,
+      // Shared lib: dedupes by email, ensures shop code, enforces the TOTAL
+      // login cap, creates the teamMembers doc, returns the invite code.
+      const { inviteCode } = await createTeamLogin({
+        shopId,
         name: trimName,
-        phone: phone.trim() || null,
-        vehicle: null,
-        serviceAreas: [],
-        inviteStatus: 'pending',
-        isActive: memberType === 'agent',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        email: trimEmail,
+        phone: phone.trim() || undefined,
+        memberType,
+        linkedStaffId: prefill?.linkedStaffId,
       });
 
       // Mirror EVERY login (agents included) into the staff roster so they show
@@ -178,7 +152,10 @@ export default function CreateStaffLoginScreen({
       setCreatedInviteCode(inviteCode);
       setCreatedName(trimName);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to create login');
+      const msg = e?.message === 'EMAIL_ALREADY_USED'
+        ? 'A team member with this email already exists'
+        : e?.message;
+      Alert.alert('Error', msg || 'Failed to create login');
     }
     setSaving(false);
   };
@@ -255,6 +232,11 @@ export default function CreateStaffLoginScreen({
         <ScrollView contentContainerStyle={[s.scrollContent, { paddingBottom: 30 + insets.bottom }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Member Type Selector */}
           <Text style={s.sectionLabel}>SELECT MEMBER TYPE</Text>
+          {totalCap > 0 && loginCount !== null && (
+            <Text style={[s.loginsUsedText, capReached && { color: colors.warning }]}>
+              {loginCount} of {totalCap} logins used — any role mix
+            </Text>
+          )}
           <View style={s.typeCards}>
             {MEMBER_TYPES.map((mt) => {
               const allowed = typeAllowed(mt.key);
@@ -306,11 +288,21 @@ export default function CreateStaffLoginScreen({
             </View>
           )}
 
+          {/* Cap-reached note — logins are capped in total, roles are free choice */}
+          {selectedAllowed && capReached && (
+            <View style={s.upgradeNote}>
+              <MaterialIcons name="lock" size={18} color={colors.warning} />
+              <Text style={s.upgradeNoteText}>
+                Login limit reached — your plan allows {totalCap} total logins (any role mix). Delete an unused login or upgrade your plan.
+              </Text>
+            </View>
+          )}
+
           {/* Create Button */}
           <TouchableOpacity
-            style={[s.createBtn, (!name.trim() || !email.trim() || !selectedAllowed) && { opacity: 0.5 }]}
+            style={[s.createBtn, (!name.trim() || !email.trim() || !selectedAllowed || capReached) && { opacity: 0.5 }]}
             onPress={handleCreate}
-            disabled={saving || !name.trim() || !email.trim() || !selectedAllowed}
+            disabled={saving || !name.trim() || !email.trim() || !selectedAllowed || capReached}
             activeOpacity={0.8}
           >
             {saving ? (
@@ -343,6 +335,7 @@ const s = StyleSheet.create({
   scrollContent: { padding: 16, gap: 16 },
 
   sectionLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.8, marginBottom: 4 },
+  loginsUsedText: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, marginTop: -10 },
 
   // Type Cards
   typeCards: { flexDirection: 'row', gap: 10 },

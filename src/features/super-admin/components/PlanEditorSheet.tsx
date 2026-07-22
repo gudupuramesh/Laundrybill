@@ -67,6 +67,7 @@ export function PlanEditorSheet({
                 limits: {
                     maxOrders: 50,
                     maxCustomers: 100,
+                    maxTeamLogins: 0,
                     maxStaff: 1,
                     maxServices: -1,
                     storageGB: 1,
@@ -189,7 +190,16 @@ export function PlanEditorSheet({
                                 })}
                             />
                             <LTextInput
-                                label="Max Staff (Admins/Mgr)"
+                                label="Total Team Logins (any role, -1 = unlimited)"
+                                type="number"
+                                value={formData.limits.maxTeamLogins ?? 0}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    limits: { ...formData.limits, maxTeamLogins: Number(e.target.value) }
+                                })}
+                            />
+                            <LTextInput
+                                label="Max Staff (legacy, not enforced)"
                                 type="number"
                                 value={formData.limits.maxStaff}
                                 onChange={(e) => setFormData({
@@ -198,7 +208,7 @@ export function PlanEditorSheet({
                                 })}
                             />
                             <LTextInput
-                                label="Max Delivery Agents"
+                                label="Max Delivery Agents (legacy, not enforced)"
                                 type="number"
                                 value={formData.limits.maxDeliveryAgents ?? 0}
                                 onChange={(e) => setFormData({
@@ -207,7 +217,7 @@ export function PlanEditorSheet({
                                 })}
                             />
                             <LTextInput
-                                label="Max Plant Staff"
+                                label="Max Plant Staff (legacy, not enforced)"
                                 type="number"
                                 value={formData.limits.maxPlantStaff ?? 0}
                                 onChange={(e) => setFormData({

@@ -173,7 +173,8 @@
     "gstDesc": "GST must be 15 characters (e.g., 29ABCDE1234F1Z5)",
     "ifscDesc": "IFSC must be 11 characters (e.g., SBIN0001234)",
     "upiDesc": "UPI ID must contain @ (e.g., name@upi)",
-    "accountDesc": "Account number must be 8-18 digits"
+    "accountDesc": "Account number must be 8-18 digits",
+    "loginLimitReached": "Login limit reached — your plan allows {{limit}} total logins (any role). Upgrade to add more."
   },
   "shop": {
     "settings": "Shop Settings",
@@ -866,7 +867,8 @@
     "tabAppLogins": "App Logins",
     "noAppLogins": "No App Logins",
     "noAppLoginsDesc": "Create app logins for Staff App, Agents, or Plant operators. They'll receive an email and invite code to sign up.",
-    "emailAlreadyUsed": "This email is already registered for an app login. Each email can only be used once."
+    "emailAlreadyUsed": "This email is already registered for an app login. Each email can only be used once.",
+    "loginsUsed": "{{used}} of {{limit}} logins used — any role mix"
   },
   "apps": {
     "title": "Apps",
