@@ -57,6 +57,17 @@ export default function SettingsScreen({
   const [userProfileEmail, setUserProfileEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [serviceCount, setServiceCount] = useState(0);
+  // Live count of team logins (teamMembers docs) — the number the plan cap
+  // applies to. subscription.usage.totalStaff is NOT maintained, so never use it.
+  const [teamLoginCount, setTeamLoginCount] = useState(0);
+
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore()
+      .collection(`shops/${shopId}/teamMembers`)
+      .onSnapshot((snap: any) => setTeamLoginCount(snap?.size ?? 0), () => {});
+    return () => unsub();
+  }, [shopId]);
 
   // Settings state
   const [languageCode, setLanguageCode] = useState('en');
@@ -501,6 +512,14 @@ export default function SettingsScreen({
   const totalCustomers = subscriptionData?.usage?.totalCustomers || 0;
   const totalStaff = subscriptionData?.usage?.totalStaff || 0;
 
+  // Plan facts shown in the banner: when it expires, how many staff logins have
+  // been created (vs the cap), and the billing cycle. More useful at a glance
+  // than raw order/customer/staff usage counts (those live on the plan screen).
+  const planExpiryText = displayEndDate || (planStatus === 'free' ? t('mobile.never', { defaultValue: 'Never' }) : '—');
+  const billingText = billingCycle
+    ? billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)
+    : (planStatus === 'free' ? t('mobile.planStatusFree', { defaultValue: 'Free' }) : '—');
+
   const statusLabel = planStatus === 'trial' ? t('mobile.planStatusTrial') :
     planStatus === 'active' ? t('mobile.planStatusActive') :
     planStatus === 'grace_period' ? t('mobile.planStatusGrace') :
@@ -583,37 +602,29 @@ export default function SettingsScreen({
               </View>
             </View>
 
-            {/* Usage Stats: Orders / Customers / Staff */}
+            {/* Plan facts: Expiry / Staff logins created / Billing cycle */}
             <View style={styles.usageRow}>
               <View style={styles.usageStat}>
-                <Text style={styles.usageValue}>{ordersUsed}{maxOrders > 0 ? `/${maxOrders}` : ''}</Text>
-                <Text style={styles.usageLabel}>{t('mobile.ordersUsage')}</Text>
+                <Text style={[styles.usageValue, styles.usageValueSm]} numberOfLines={1}>{planExpiryText}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.expires', { defaultValue: 'Expires' })}</Text>
               </View>
               <View style={styles.usageDivider} />
               <View style={styles.usageStat}>
-                <Text style={styles.usageValue}>{totalCustomers}{planLimits.maxCustomers > 0 ? `/${planLimits.maxCustomers}` : ''}</Text>
-                <Text style={styles.usageLabel}>{t('mobile.customersUsage')}</Text>
+                <Text style={[styles.usageValue, styles.usageValueSm]} numberOfLines={1}>{teamLoginCount}{planLimits.maxTeamLogins > 0 ? `/${planLimits.maxTeamLogins}` : ''}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.staffLoginsLabel', { defaultValue: 'Staff Logins' })}</Text>
               </View>
               <View style={styles.usageDivider} />
               <View style={styles.usageStat}>
-                <Text style={styles.usageValue}>{totalStaff}{planLimits.maxTeamLogins > 0 ? `/${planLimits.maxTeamLogins}` : ''}</Text>
-                <Text style={styles.usageLabel}>{t('mobile.staffUsage')}</Text>
+                <Text style={[styles.usageValue, styles.usageValueSm]} numberOfLines={1}>{billingText}</Text>
+                <Text style={styles.usageLabel}>{t('mobile.billing', { defaultValue: 'Billing' })}</Text>
               </View>
             </View>
 
-            {/* Progress bar */}
-            {maxOrders > 0 && (
-              <View style={styles.usageBar}>
-                <View style={[styles.usageBarFill, { width: `${Math.min(100, (ordersUsed / maxOrders) * 100)}%` }]} />
-              </View>
-            )}
-
-            {/* Footer: billing + upgrade */}
+            {/* Footer: upgrade (expiry & billing now shown in the stat row above) */}
             <View style={styles.promoFooter}>
-              <View>
-                {displayEndDate ? <Text style={styles.promoExpiry}>{t('mobile.expires')}: {displayEndDate}</Text> : null}
-                {billingCycle ? <Text style={styles.promoExpiry}>{t('mobile.billing')}: {billingCycle}</Text> : null}
-              </View>
+              {startDate ? (
+                <Text style={styles.promoExpiry}>{t('mobile.since', { defaultValue: 'Since' })}: {startDate}</Text>
+              ) : <View />}
               <TouchableOpacity style={styles.upgradeBtn} onPress={onOpenSubscription}>
                 <Text style={styles.upgradeBtnText}>{t('common.upgradePlan')}</Text>
               </TouchableOpacity>
@@ -1186,6 +1197,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: fonts.bold,
     color: colors.surface,
+  },
+  // Slightly smaller so a date ("17 Sep 2026") or "Monthly" fits one line in a 1/3 column.
+  usageValueSm: {
+    fontSize: 13,
   },
   usageLabel: {
     fontSize: 9,

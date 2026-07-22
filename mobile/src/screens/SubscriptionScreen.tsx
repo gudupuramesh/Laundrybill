@@ -38,25 +38,32 @@ import { useMergedOrdersUsed } from '../lib/useBillingPeriodOrderCount';
 type PurchaseUIState = 'idle' | 'loading' | 'purchasing' | 'restoring' | 'syncing' | 'done' | 'failed';
 
 // ────────────────────────────────────────────────────────────────────────────
-// Three-tier feature comparison: Free → Pro (small shops) → Business (big shops)
+// Four-tier feature comparison: Free → Pro → Pro+ → Business.
+// Values mirror the canonical plan features in web src/config/plans.ts (the
+// authoritative entitlement source). Pro+ = single-shop team; Business adds
+// damage photos on top of everything Pro+ has.
 // ────────────────────────────────────────────────────────────────────────────
 const PLAN_FEATURES = [
-  { label: 'Orders & POS',          free: true,  pro: true,  biz: true,  icon: 'receipt-long' },
-  { label: 'Customer management',   free: true,  pro: true,  biz: true,  icon: 'people' },
-  { label: 'Services & items',      free: true,  pro: true,  biz: true,  icon: 'grid-view' },
-  { label: 'Order tracking link',   free: false, pro: true,  biz: true,  icon: 'link' },
-  { label: 'QR code scanning',      free: false, pro: true,  biz: true,  icon: 'qr-code-scanner' },
-  { label: 'WhatsApp receipts',     free: false, pro: true,  biz: true,  icon: 'chat' },
-  { label: 'Reports & analytics',   free: false, pro: true,  biz: true,  icon: 'bar-chart' },
-  { label: 'Staff management',      free: false, pro: true,  biz: true,  icon: 'badge' },
-  { label: 'Attendance & payroll',   free: false, pro: true,  biz: true,  icon: 'event-available' },
-  { label: 'Expenses tracking',     free: false, pro: true,  biz: true,  icon: 'account-balance-wallet' },
-  { label: 'Damage photos',         free: false, pro: false, biz: true,  icon: 'photo-camera' },
-  { label: 'Multi-staff app login',  free: false, pro: false, biz: true,  icon: 'group-add' },
-  { label: 'Driver / agent app',    free: false, pro: false, biz: true,  icon: 'local-shipping' },
-  { label: 'Plant processing',      free: false, pro: false, biz: true,  icon: 'precision-manufacturing' },
-  { label: 'Public booking page',   free: false, pro: false, biz: true,  icon: 'storefront' },
-  { label: 'Web dashboard access',  free: false, pro: false, biz: true,  icon: 'computer' },
+  { label: 'Orders & POS',          free: true,  pro: true,  proPlus: true,  biz: true,  icon: 'receipt-long' },
+  { label: 'Customer management',   free: true,  pro: true,  proPlus: true,  biz: true,  icon: 'people' },
+  { label: 'Services & items',      free: true,  pro: true,  proPlus: true,  biz: true,  icon: 'grid-view' },
+  { label: 'Order tracking link',   free: false, pro: true,  proPlus: true,  biz: true,  icon: 'link' },
+  { label: 'QR code scanning',      free: false, pro: true,  proPlus: true,  biz: true,  icon: 'qr-code-scanner' },
+  { label: 'WhatsApp receipts',     free: false, pro: true,  proPlus: true,  biz: true,  icon: 'chat' },
+  { label: 'Reports & analytics',   free: false, pro: true,  proPlus: true,  biz: true,  icon: 'bar-chart' },
+  { label: 'Staff management',      free: false, pro: true,  proPlus: true,  biz: true,  icon: 'badge' },
+  { label: 'Attendance & payroll',  free: false, pro: true,  proPlus: true,  biz: true,  icon: 'event-available' },
+  { label: 'Expenses tracking',     free: false, pro: true,  proPlus: true,  biz: true,  icon: 'account-balance-wallet' },
+  { label: 'Web dashboard access',  free: false, pro: true,  proPlus: true,  biz: true,  icon: 'computer' },
+  { label: 'Coupons & offers',      free: false, pro: false, proPlus: true,  biz: true,  icon: 'local-offer' },
+  { label: 'Loyalty points',        free: false, pro: false, proPlus: true,  biz: true,  icon: 'stars' },
+  { label: 'Per-item tracking',     free: false, pro: false, proPlus: true,  biz: true,  icon: 'checklist' },
+  { label: 'Order reminders',       free: false, pro: false, proPlus: true,  biz: true,  icon: 'notifications-active' },
+  { label: 'Staff app logins',      free: false, pro: false, proPlus: true,  biz: true,  icon: 'group-add' },
+  { label: 'Driver / agent app',    free: false, pro: false, proPlus: true,  biz: true,  icon: 'local-shipping' },
+  { label: 'Plant processing',      free: false, pro: false, proPlus: true,  biz: true,  icon: 'precision-manufacturing' },
+  { label: 'Public booking page',   free: false, pro: false, proPlus: true,  biz: true,  icon: 'storefront' },
+  { label: 'Damage photos',         free: false, pro: false, proPlus: false, biz: true,  icon: 'photo-camera' },
 ] as const;
 
 // Plan limits summary for the cards
@@ -156,7 +163,16 @@ export default function SubscriptionScreen({
   const planLimits = usePlanLimits(sub);
   const ordersUsed = useMergedOrdersUsed(sub, shopId);
   const totalCustomers = sub?.usage?.totalCustomers ?? 0;
-  const totalStaff = sub?.usage?.totalStaff ?? 0;
+  // Live count of team logins — subscription.usage.totalStaff is NOT maintained
+  // (it stays 0 forever), so count the teamMembers docs the cap applies to.
+  const [teamLoginCount, setTeamLoginCount] = useState(0);
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore()
+      .collection(`shops/${shopId}/teamMembers`)
+      .onSnapshot((snap: any) => setTeamLoginCount(snap?.size ?? 0), () => {});
+    return () => unsub();
+  }, [shopId]);
 
   // ── Load current offering + subscription doc + entitlement ──────────────
   useEffect(() => {
@@ -402,11 +418,10 @@ export default function SubscriptionScreen({
 
   const rcNotConfigured = !isRevenueCatConfigured();
 
-  // When Business is hidden, drop the Business-only feature rows so the
-  // comparison doesn't show rows that are unavailable in every shown tier.
-  const compFeatures = SHOW_BUSINESS_PLAN
-    ? PLAN_FEATURES
-    : PLAN_FEATURES.filter((f) => f.free || f.pro);
+  // Comparison shows all four tiers (Free/Pro/Pro+/Business) as an informational
+  // table — Pro+/Business are sold on the web, not in-app, but the shop owner
+  // should still see what each tier includes. So show every feature row.
+  const compFeatures = PLAN_FEATURES;
 
   // ── Loading ──────────────────────────────────────────────────────────
   if (uiState === 'loading') {
@@ -494,7 +509,7 @@ export default function SubscriptionScreen({
           <View style={s.usageGroup}>
             <UsageBar label="Orders" used={ordersUsed} limit={planLimits.maxOrders} />
             <UsageBar label="Customers" used={totalCustomers} limit={planLimits.maxCustomers} />
-            <UsageBar label="Team Logins" used={totalStaff} limit={planLimits.maxTeamLogins} />
+            <UsageBar label="Team Logins" used={teamLoginCount} limit={planLimits.maxTeamLogins} />
           </View>
         </LinearGradient>
 
@@ -838,36 +853,25 @@ export default function SubscriptionScreen({
             <Text style={[s.compHeaderCell, { flex: 1, textAlign: 'left' }]}>Feature</Text>
             <Text style={s.compHeaderCell}>Free</Text>
             <Text style={[s.compHeaderCell, { color: colors.primary }]}>Pro</Text>
-            {SHOW_BUSINESS_PLAN && (
-              <Text style={[s.compHeaderCell, { color: '#0D47A1' }]}>Biz</Text>
-            )}
+            <Text style={[s.compHeaderCell, { color: '#6D28D9' }]}>Pro+</Text>
+            <Text style={[s.compHeaderCell, { color: '#0D47A1' }]}>Biz</Text>
           </View>
 
           {compFeatures.map((f, i) => (
             <View key={f.label} style={[s.compRow, i === compFeatures.length - 1 && { borderBottomWidth: 0 }]}>
               <View style={s.compFeatureCell}>
-                <MaterialIcons name={f.icon as any} size={14} color={(SHOW_BUSINESS_PLAN ? f.biz : f.pro) ? colors.primary : colors.textMuted} />
+                <MaterialIcons name={f.icon as any} size={14} color={f.biz ? colors.primary : colors.textMuted} />
                 <Text style={s.compFeatureText} numberOfLines={1}>{f.label}</Text>
               </View>
-              <View style={s.compCheckCell}>
-                <MaterialIcons
-                  name={f.free ? 'check-circle' : 'cancel'}
-                  size={16}
-                  color={f.free ? colors.success : colors.border}
-                />
-              </View>
-              <View style={s.compCheckCell}>
-                <MaterialIcons
-                  name={f.pro ? 'check-circle' : 'cancel'}
-                  size={16}
-                  color={f.pro ? colors.success : colors.border}
-                />
-              </View>
-              {SHOW_BUSINESS_PLAN && (
-                <View style={s.compCheckCell}>
-                  <MaterialIcons name="check-circle" size={16} color={colors.success} />
+              {([f.free, f.pro, f.proPlus, f.biz] as boolean[]).map((on, ci) => (
+                <View key={ci} style={s.compCheckCell}>
+                  <MaterialIcons
+                    name={on ? 'check-circle' : 'cancel'}
+                    size={15}
+                    color={on ? colors.success : colors.border}
+                  />
                 </View>
-              )}
+              ))}
             </View>
           ))}
         </View>
@@ -1086,12 +1090,12 @@ const s = StyleSheet.create({
 
   // Comparison table
   comparisonCard: { backgroundColor: colors.surface, borderRadius: radii.card, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, ...shadows.card },
-  compHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.surfaceMuted, borderBottomWidth: 1, borderBottomColor: colors.border },
-  compHeaderCell: { fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', width: 38, textAlign: 'center' },
-  compRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.border },
-  compFeatureCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  compFeatureText: { fontSize: 12, fontFamily: fonts.medium, color: colors.text, flex: 1 },
-  compCheckCell: { width: 38, alignItems: 'center' },
+  compHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, backgroundColor: colors.surfaceMuted, borderBottomWidth: 1, borderBottomColor: colors.border },
+  compHeaderCell: { fontSize: 9.5, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 0.3, textTransform: 'uppercase', width: 34, textAlign: 'center' },
+  compRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.border },
+  compFeatureCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  compFeatureText: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.text, flex: 1 },
+  compCheckCell: { width: 34, alignItems: 'center' },
 
   // Actions
   actionsCard: { backgroundColor: colors.surface, borderRadius: radii.card, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, ...shadows.card },
