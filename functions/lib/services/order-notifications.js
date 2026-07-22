@@ -11,6 +11,57 @@ exports.sendOrderNotification = void 0;
 const admin = require("firebase-admin");
 const push_sender_1 = require("./push-sender");
 const db = admin.firestore();
+/**
+ * Team pushes are plan-gated: when a shop's plan lapses to Free/Pro (no team
+ * app features), its team members' logins are blocked in the apps — their push
+ * notifications must stop too. Evaluated from the subscription doc (the billing
+ * source of truth), resolving the plan's feature flags. Fail-open on read
+ * errors so an infra hiccup never silently drops paid shops' notifications.
+ * Cached briefly per instance — one order event fans out several notifications.
+ */
+const teamFeatureCache = new Map();
+const TEAM_FEATURE_TTL_MS = 60000;
+async function shopTeamFeatures(shopId) {
+    var _a, _b, _c;
+    const cached = teamFeatureCache.get(shopId);
+    if (cached && Date.now() - cached.at < TEAM_FEATURE_TTL_MS)
+        return cached.features;
+    const subSnap = await db.collection("subscriptions").doc(shopId).get();
+    const sub = subSnap.data() || {};
+    const status = String(sub.status || "").toLowerCase();
+    const activeUntil = (_b = (_a = sub.activeUntil) === null || _a === void 0 ? void 0 : _a.toDate) === null || _b === void 0 ? void 0 : _b.call(_a);
+    const paid = status === "active" ||
+        status === "trial" ||
+        status === "grace_period" ||
+        (status === "cancelled" && !!activeUntil && activeUntil > new Date());
+    let features = {};
+    if (paid) {
+        const planId = String(sub.planId || sub.planName || "free");
+        const canonical = planId.toLowerCase().replace(/[_\s-]/g, "");
+        const canonicalId = canonical === "proplus" || canonical === "pro+" ? "pro_plus" :
+            canonical === "business" || canonical === "enterprise" || canonical === "premium" ? "business" :
+                canonical === "pro" || canonical === "starter" ? "pro" : "free";
+        for (const id of [planId, canonicalId].filter((v, i, a) => a.indexOf(v) === i)) {
+            const planSnap = await db.collection("plans").doc(id).get();
+            if (planSnap.exists) {
+                features = (((_c = planSnap.data()) === null || _c === void 0 ? void 0 : _c.features) || {});
+                break;
+            }
+        }
+    }
+    teamFeatureCache.set(shopId, { at: Date.now(), features });
+    return features;
+}
+/** True when the shop's CURRENT plan includes the given team-app feature. */
+async function teamPushAllowed(shopId, feature) {
+    try {
+        const features = await shopTeamFeatures(shopId);
+        return features[feature] === true;
+    }
+    catch (_a) {
+        return true; // fail-open
+    }
+}
 /** Collect all push targets for the shop (main app users). */
 async function getShopPushTargets(shopId) {
     const snapshot = await db
@@ -30,6 +81,9 @@ async function getShopPushTargets(shopId) {
 }
 /** Collect push targets for an agent (driver app). Returns web + android tokens. */
 async function getAgentPushTargets(shopId, agentId) {
+    // Plan gate: lapsed/downgraded shops (no driver app on the plan) get no agent pushes.
+    if (!(await teamPushAllowed(shopId, "driverApp")))
+        return [];
     const col = db.collection("shops").doc(shopId).collection("agentNotificationTokens");
     // Fetch web token ({agentId}) and android token ({agentId}_android) in parallel
     const [webSnap, androidSnap] = await Promise.all([
@@ -58,6 +112,19 @@ async function getAgentPushTargets(shopId, agentId) {
  * Targets are tagged cleanup:"clearFields" so an invalid token never deletes the member.
  */
 async function getTeamRolePushTargets(shopId, filter) {
+    var _a, _b, _c;
+    // Plan gate: lapsed/downgraded shops get no team pushes. Managers/staff ride on
+    // staffApp; plant on plantApp (mixed staff+plant queries require either).
+    const wantsPlant = !filter.managerOnly && !!((_a = filter.memberTypes) === null || _a === void 0 ? void 0 : _a.includes("plant"));
+    const wantsStaff = filter.managerOnly || !!((_b = filter.memberTypes) === null || _b === void 0 ? void 0 : _b.includes("staff"));
+    const [staffOk, plantOk] = await Promise.all([
+        wantsStaff ? teamPushAllowed(shopId, "staffApp") : Promise.resolve(false),
+        wantsPlant ? teamPushAllowed(shopId, "plantApp") : Promise.resolve(false),
+    ]);
+    if (!staffOk && !plantOk)
+        return [];
+    const allowedTypes = (_c = filter.memberTypes) === null || _c === void 0 ? void 0 : _c.filter((t) => (t === "plant" ? plantOk : staffOk));
+    filter = Object.assign(Object.assign({}, filter), { memberTypes: allowedTypes });
     const col = db.collection("shops").doc(shopId).collection("teamMembers");
     let query = col;
     if (filter.managerOnly) {

@@ -51,6 +51,7 @@ import OrdersScreen from './src/screens/OrdersScreen';
 import OrderDetailsScreen from './src/screens/OrderDetailsScreen';
 import StaffScanScreen from './src/screens/StaffScanScreen';
 import TeamProfileScreen from './src/screens/TeamProfileScreen';
+import PlanBlockedScreen from './src/screens/PlanBlockedScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
@@ -919,7 +920,7 @@ function ManagerShell() {
 }
 
 function Root() {
-  const { agent, loading } = useDriverAuth();
+  const { agent, loading, teamAccess } = useDriverAuth();
 
   if (loading && !agent) {
     return (
@@ -929,6 +930,10 @@ function Root() {
     );
   }
   if (!agent) return <LoginScreen />;
+
+  // Plan gate: an expired shop plan (or a login beyond the downgraded plan's
+  // total cap) blocks the app — only the owner can renew/upgrade or free slots.
+  if (teamAccess && teamAccess.state !== 'ok') return <PlanBlockedScreen access={teamAccess} />;
 
   // Route by memberType; within the staff surface, role separates manager from staff.
   const memberType = agent.memberType;

@@ -14,6 +14,59 @@ const db = admin.firestore();
 type DocRef = FirebaseFirestore.DocumentReference;
 
 /**
+ * Team pushes are plan-gated: when a shop's plan lapses to Free/Pro (no team
+ * app features), its team members' logins are blocked in the apps — their push
+ * notifications must stop too. Evaluated from the subscription doc (the billing
+ * source of truth), resolving the plan's feature flags. Fail-open on read
+ * errors so an infra hiccup never silently drops paid shops' notifications.
+ * Cached briefly per instance — one order event fans out several notifications.
+ */
+const teamFeatureCache = new Map<string, { at: number; features: Record<string, boolean> }>();
+const TEAM_FEATURE_TTL_MS = 60_000;
+
+async function shopTeamFeatures(shopId: string): Promise<Record<string, boolean>> {
+  const cached = teamFeatureCache.get(shopId);
+  if (cached && Date.now() - cached.at < TEAM_FEATURE_TTL_MS) return cached.features;
+  const subSnap = await db.collection("subscriptions").doc(shopId).get();
+  const sub = subSnap.data() || {};
+  const status = String(sub.status || "").toLowerCase();
+  const activeUntil = sub.activeUntil?.toDate?.() as Date | undefined;
+  const paid =
+    status === "active" ||
+    status === "trial" ||
+    status === "grace_period" ||
+    (status === "cancelled" && !!activeUntil && activeUntil > new Date());
+  let features: Record<string, boolean> = {};
+  if (paid) {
+    const planId = String(sub.planId || sub.planName || "free");
+    const canonical = planId.toLowerCase().replace(/[_\s-]/g, "");
+    const canonicalId =
+      canonical === "proplus" || canonical === "pro+" ? "pro_plus" :
+      canonical === "business" || canonical === "enterprise" || canonical === "premium" ? "business" :
+      canonical === "pro" || canonical === "starter" ? "pro" : "free";
+    for (const id of [planId, canonicalId].filter((v, i, a) => a.indexOf(v) === i)) {
+      const planSnap = await db.collection("plans").doc(id).get();
+      if (planSnap.exists) {
+        features = (planSnap.data()?.features || {}) as Record<string, boolean>;
+        break;
+      }
+    }
+  }
+  teamFeatureCache.set(shopId, { at: Date.now(), features });
+  return features;
+}
+
+/** True when the shop's CURRENT plan includes the given team-app feature. */
+async function teamPushAllowed(shopId: string, feature: "staffApp" | "driverApp" | "plantApp"): Promise<boolean> {
+  try {
+    const features = await shopTeamFeatures(shopId);
+    return features[feature] === true;
+  } catch {
+    return true; // fail-open
+  }
+}
+
+/**
  * A push target plus the Firestore doc it came from (for invalid-token cleanup).
  * `cleanup` says HOW to prune an invalid token:
  *  - "delete"      → the doc is a disposable token doc (notificationTokens /
@@ -72,6 +125,8 @@ async function getShopPushTargets(shopId: string): Promise<TargetWithRef[]> {
 
 /** Collect push targets for an agent (driver app). Returns web + android tokens. */
 async function getAgentPushTargets(shopId: string, agentId: string): Promise<TargetWithRef[]> {
+  // Plan gate: lapsed/downgraded shops (no driver app on the plan) get no agent pushes.
+  if (!(await teamPushAllowed(shopId, "driverApp"))) return [];
   const col = db.collection("shops").doc(shopId).collection("agentNotificationTokens");
 
   // Fetch web token ({agentId}) and android token ({agentId}_android) in parallel
@@ -106,6 +161,18 @@ async function getTeamRolePushTargets(
   shopId: string,
   filter: { memberTypes?: Array<"plant" | "staff">; managerOnly?: boolean },
 ): Promise<TargetWithRef[]> {
+  // Plan gate: lapsed/downgraded shops get no team pushes. Managers/staff ride on
+  // staffApp; plant on plantApp (mixed staff+plant queries require either).
+  const wantsPlant = !filter.managerOnly && !!filter.memberTypes?.includes("plant");
+  const wantsStaff = filter.managerOnly || !!filter.memberTypes?.includes("staff");
+  const [staffOk, plantOk] = await Promise.all([
+    wantsStaff ? teamPushAllowed(shopId, "staffApp") : Promise.resolve(false),
+    wantsPlant ? teamPushAllowed(shopId, "plantApp") : Promise.resolve(false),
+  ]);
+  if (!staffOk && !plantOk) return [];
+  const allowedTypes = filter.memberTypes?.filter((t) => (t === "plant" ? plantOk : staffOk));
+  filter = { ...filter, memberTypes: allowedTypes };
+
   const col = db.collection("shops").doc(shopId).collection("teamMembers");
 
   let query: FirebaseFirestore.Query = col;

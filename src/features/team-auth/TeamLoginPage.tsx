@@ -20,6 +20,7 @@ import {
     sendPasswordResetEmail,
 } from "firebase/auth";
 import {
+    collection,
     collectionGroup,
     query,
     where,
@@ -46,17 +47,47 @@ function routeForMember(memberType?: string, role?: string): string {
     return "/staff";
 }
 
-/** Does the member's shop plan include the app-login feature for their role? */
-async function shopAllowsLogin(shopId: string, memberType?: string): Promise<boolean> {
+/** TOTAL login cap from a plan's limits (any role mix); legacy per-role sum fallback. */
+function teamLoginCap(limits: Record<string, number> | undefined): number {
+    if (!limits) return 0;
+    if (typeof limits.maxTeamLogins === "number") return limits.maxTeamLogins;
+    const parts = [limits.maxStaff ?? 0, limits.maxDeliveryAgents ?? 0, limits.maxPlantStaff ?? 0];
+    if (parts.some((p) => p === -1)) return -1;
+    return parts.reduce((a, b) => a + Math.max(0, b), 0);
+}
+
+type TeamLoginBlock = null | { reason: "expired" } | { reason: "over_cap"; cap: number };
+
+/**
+ * Is this member's login still covered by the shop's plan?
+ *  - "expired": the plan lacks the member's app feature (Free/Pro/lapsed) → all blocked.
+ *  - "over_cap": plan has team logins but the shop exceeds the TOTAL cap (e.g.
+ *    Business 15 → Pro+ 4); the OLDEST `cap` logins keep working, newer are blocked.
+ */
+async function shopLoginBlock(shopId: string, memberType: string | undefined, memberId: string): Promise<TeamLoginBlock> {
     try {
         const shopSnap = await getDoc(doc(db, "shops", shopId));
         const planId = (shopSnap.data()?.plan as string) || "free";
         const planSnap = await getDoc(doc(db, "plans", planId));
         const features = (planSnap.data()?.features || {}) as Record<string, boolean>;
         const key = memberType === "agent" ? "driverApp" : memberType === "plant" ? "plantApp" : "staffApp";
-        return features[key] === true;
+        if (features[key] !== true) return { reason: "expired" };
+
+        const cap = teamLoginCap(planSnap.data()?.limits as Record<string, number> | undefined);
+        if (cap >= 0) {
+            const all = await getDocs(collection(db, "shops", shopId, "teamMembers"));
+            const ranked = all.docs
+                .map((d) => {
+                    const at = (d.data().createdAt as { toMillis?: () => number; seconds?: number } | undefined);
+                    return { id: d.id, at: at?.toMillis?.() ?? (at?.seconds ? at.seconds * 1000 : 0) };
+                })
+                .sort((a, b) => a.at - b.at);
+            const index = ranked.findIndex((r) => r.id === memberId);
+            if (index >= cap) return { reason: "over_cap", cap };
+        }
+        return null;
     } catch {
-        return true; // fail-open: don't lock out paying staff on a transient read error
+        return null; // fail-open: don't lock out paying staff on a transient read error
     }
 }
 
@@ -67,7 +98,7 @@ async function shopAllowsLogin(shopId: string, memberType?: string): Promise<boo
  * true if they ARE a team member but their shop's plan no longer includes team logins
  * (e.g. downgraded to Pro) — team logins are a Pro+/Business feature.
  */
-async function resolveTeamHome(uid: string): Promise<{ home: string | null; blocked: boolean }> {
+async function resolveTeamHome(uid: string): Promise<{ home: string | null; blocked: TeamLoginBlock }> {
     const fetchTeam = () =>
         getDocs(query(collectionGroup(db, "teamMembers"), where("authUid", "==", uid)));
 
@@ -82,19 +113,24 @@ async function resolveTeamHome(uid: string): Promise<{ home: string | null; bloc
         const staffSnap = await getDocs(query(collectionGroup(db, "staff"), where("authUid", "==", uid)));
         if (!staffSnap.empty) memberDoc = staffSnap.docs[0];
     }
-    if (!memberDoc) return { home: null, blocked: false };
+    if (!memberDoc) return { home: null, blocked: null };
 
     const memberType = memberDoc.data().memberType as string | undefined;
     const memberRole = memberDoc.data().role as string | undefined;
     const shopId = memberDoc.ref.parent.parent?.id;
-    if (shopId && !(await shopAllowsLogin(shopId, memberType))) {
-        return { home: null, blocked: true };
+    if (shopId) {
+        const block = await shopLoginBlock(shopId, memberType, memberDoc.id);
+        if (block) return { home: null, blocked: block };
     }
-    return { home: routeForMember(memberType, memberRole), blocked: false };
+    return { home: routeForMember(memberType, memberRole), blocked: null };
 }
 
 const TEAM_PLAN_BLOCKED_MSG =
     "Your shop's plan no longer includes team app logins. Ask the shop owner to upgrade to Pro+ or Business.";
+const blockedMessage = (block: TeamLoginBlock): string =>
+    block?.reason === "over_cap"
+        ? `Your shop's current plan allows ${block.cap} team login${block.cap === 1 ? "" : "s"} and this login is outside that limit. Ask the shop owner to upgrade or free up a login slot.`
+        : TEAM_PLAN_BLOCKED_MSG;
 
 function InstallPrompt() {
     const { canInstall, promptInstall } = usePWAInstall();
@@ -164,7 +200,7 @@ export function TeamLoginPage() {
                 // A confirmed team member landing here (e.g. reload) claims their web slot;
                 // an owner who merely opened this page resolves to no home and is left alone.
                 if (res.home) { claimWebSession(current.uid); navigate(res.home, { replace: true }); return; }
-                if (res.blocked) { firebaseSignOut(auth).catch(() => {}); setError(TEAM_PLAN_BLOCKED_MSG); }
+                if (res.blocked) { firebaseSignOut(auth).catch(() => {}); setError(blockedMessage(res.blocked)); }
                 setBooting(false);
             })
             .catch(() => active && setBooting(false));
@@ -203,7 +239,7 @@ export function TeamLoginPage() {
                 await firebaseSignOut(auth);
                 setError(
                     res.blocked
-                        ? TEAM_PLAN_BLOCKED_MSG
+                        ? blockedMessage(res.blocked)
                         : "This account isn't registered as a team member. If you're the shop owner, use the main LaundryBill app to sign in."
                 );
                 setLoading(false);

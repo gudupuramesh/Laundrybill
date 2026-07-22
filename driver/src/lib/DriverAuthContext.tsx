@@ -13,6 +13,7 @@ import { firestore, auth } from './firebase';
 import { Alert } from 'react-native';
 import { claimMobileSession, teardownMobileSession } from './sessionGuard';
 import { setResolvedShopId, setResolvedAgentId, setResolvedAgentName } from './auth';
+import { evaluateTeamAccess, type TeamAccess } from './planAccess';
 import type { Staff, TeamMember } from '../types/staff';
 
 /**
@@ -52,6 +53,12 @@ interface DriverAuthContextType {
   shopName: string | null;
   /** The shop (company) the logged-in member works for. */
   shop: ShopInfo | null;
+  /**
+   * Whether this login is still covered by the shop's plan. null while
+   * evaluating (treated as OK so a slow read never blocks paint); 'expired' /
+   * 'over_cap' render the PlanBlockedScreen instead of the app shells.
+   */
+  teamAccess: TeamAccess | null;
   loading: boolean;
   error: string | null;
   isOnline: boolean;
@@ -65,6 +72,9 @@ interface DriverAuthContextType {
 const DriverAuthContext = createContext<DriverAuthContextType | null>(null);
 
 const CACHE_KEY = 'driver_agent_cache';
+/** Last known plan-access verdict, so a blocked login stays blocked across cold
+ *  starts (no flash of the app before the async re-check lands). */
+const ACCESS_CACHE_KEY = 'driver_team_access_cache';
 
 /** shopId is segment 1 of `shops/{shopId}/teamMembers|staff/{id}`. */
 function shopIdFromPath(path: string): string | null {
@@ -88,6 +98,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   const [shopId, setShopId] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string | null>(null);
   const [shop, setShop] = useState<ShopInfo | null>(null);
+  const [teamAccess, setTeamAccess] = useState<TeamAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
@@ -118,12 +129,14 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     setShopId(null);
     setShopName(null);
     setShop(null);
+    setTeamAccess(null);
     setIsOnline(false);
     setAgentDocPath(null);
     setResolvedShopId(null);
     setResolvedAgentId(null);
     setResolvedAgentName(null);
     void AsyncStorage.removeItem(CACHE_KEY);
+    void AsyncStorage.removeItem(ACCESS_CACHE_KEY);
   }, []);
 
   // Hydrate from cache for an instant first paint (verified by the auth listener).
@@ -142,10 +155,48 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           setResolvedShopId(c.shopId);
           setResolvedAgentId(c.agent.id);
           setResolvedAgentName(c.agent.name || c.agent.email || null);
+          // Restore the last plan-access verdict for THIS member so a blocked
+          // login stays blocked from the first frame (re-checked live below).
+          AsyncStorage.getItem(ACCESS_CACHE_KEY)
+            .then((rawAccess) => {
+              if (!rawAccess) return;
+              const cached = JSON.parse(rawAccess);
+              if (cached?.memberId === c.agent.id && cached?.access) setTeamAccess(cached.access);
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {});
   }, []);
+
+  // Plan gate for EXISTING logins: expired plan (→ free/Pro) blocks every team
+  // login; a plan over its total login cap (e.g. Business 15 → Pro+ 4) blocks
+  // the logins beyond the cap (oldest keep working). Re-evaluated on sign-in
+  // and live whenever the shop's subscription doc changes.
+  useEffect(() => {
+    if (!shopId || !agent?.id) return;
+    const memberId = agent.id;
+    const memberType = (agent as any).memberType as string | undefined;
+    let cancelled = false;
+    const run = () => {
+      evaluateTeamAccess(shopId, memberId, memberType)
+        .then((access) => {
+          if (cancelled) return;
+          setTeamAccess(access);
+          void AsyncStorage.setItem(ACCESS_CACHE_KEY, JSON.stringify({ memberId, access }));
+        })
+        .catch(() => {});
+    };
+    run();
+    const unsub = firestore()
+      .collection('subscriptions')
+      .doc(shopId)
+      .onSnapshot(() => run(), () => {});
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [shopId, agent?.id]);
 
   // Auth state → resolve the agent record + shop.
   useEffect(() => {
@@ -393,6 +444,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     shopId,
     shopName,
     shop,
+    teamAccess,
     loading,
     error,
     isOnline,
