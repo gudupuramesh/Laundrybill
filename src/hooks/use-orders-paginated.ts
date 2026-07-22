@@ -173,13 +173,13 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
         }
 
         if (specialFilter === 'payment_due') {
-            // "Due" = handed over (fully or partially) AND unpaid
+            // "Due" = ANY non-cancelled order with an unpaid balance — including orders
+            // still in progress (pending/processing/ready). Matches the apps' Due filter,
+            // so web and app always show the same count. Cancelled orders have their
+            // balance voided to 0 on cancel, but we filter them client-side as a guard.
             const q = query(
                 collection(db, 'shops', shopId, 'orders'),
-                where("status", "in", ["delivered", "picked_up", "partially_delivered"]),
-                where("financials.balance", ">", 0),
-                orderBy('createdAt', 'desc'),
-                limit(PAGINATION.ORDERS_PER_PAGE)
+                where("financials.balance", ">", 0)
             );
 
             const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -187,14 +187,15 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                     id: doc.id,
                     ...doc.data(),
                 })) as Order[];
+                orderList = orderList.filter((o) => o.status !== 'cancelled');
                 if (orderSource === 'online') {
                     orderList = orderList.filter((o) => o.orderSource === 'online');
                 } else if (orderSource === 'pos') {
                     orderList = orderList.filter((o) => o.orderSource !== 'online');
                 }
+                orderList.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setOrders(orderList);
-                lastDocRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
-                setHasMore(snapshot.docs.length === PAGINATION.ORDERS_PER_PAGE);
+                setHasMore(false); // full dues list is loaded in one go
                 setTotalCount(orderList.length);
                 setLoading(false);
             });

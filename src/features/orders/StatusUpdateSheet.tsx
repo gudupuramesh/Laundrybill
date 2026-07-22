@@ -42,8 +42,10 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
     const deliveredPieces = pieceProg.reduce((a, p) => a + p.delivered, 0);
     const undeliveredPieces = pieceProg.reduce((a, p) => a + (p.qty - p.delivered), 0);
 
-    // Only allow the next logical step(s) – no skipping to Delivered until previous steps are done
-    const availableStatuses = (() => {
+    // Show the WHOLE journey like the apps do: completed steps (✓), the current step,
+    // and every future step — any future step is selectable so staff can jump straight
+    // ahead (e.g. Processing → Delivered). Skipping still cascades pieces in updateStatus.
+    const { steps, canCancel, hasFuture } = (() => {
         const flow = STATUS_FLOW[deliveryType];
         let currentIndex = flow.indexOf(order.status);
 
@@ -65,26 +67,22 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
             }
         }
 
-        const terminalStates: OrderStatus[] = ["delivered", "picked_up", "cancelled"];
-        if (terminalStates.includes(order.status)) {
-            return [];
-        }
+        const isCancelled = order.status === "cancelled";
+        // A cancelled order has no position in the flow; everything else defaults to step 1.
+        if (currentIndex === -1) currentIndex = isCancelled ? flow.length : 0;
 
-        if (currentIndex === -1) {
-            currentIndex = 0;
-        }
+        const list = flow.map((status, i) => ({
+            status,
+            state: (i < currentIndex ? "done" : i === currentIndex ? "current" : "future") as
+                "done" | "current" | "future",
+            index: i,
+        }));
 
-        if (currentIndex >= flow.length - 1) return [];
-
-        // Only the immediate next step – no skipping (e.g. cannot jump to Delivered from Processing)
-        const nextStatus = flow[currentIndex + 1];
-        const options: OrderStatus[] = [nextStatus];
-
-        if (["pending", "processing", "pickup_scheduled", "pickup_completed"].includes(order.status)) {
-            options.push("cancelled");
-        }
-
-        return options;
+        return {
+            steps: list,
+            canCancel: ["pending", "processing", "pickup_scheduled", "pickup_completed"].includes(order.status),
+            hasFuture: list.some((s) => s.state === "future"),
+        };
     })();
 
     const performUpdate = async () => {
@@ -172,25 +170,82 @@ export function StatusUpdateSheet({ open, onClose, order, onSuccess }: StatusUpd
                 {/* Status Options */}
                 <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{t('orders.newStatus', 'New Status')}</label>
-                    {availableStatuses.length === 0 ? (
+                    {!hasFuture && !canCancel ? (
                         <div style={{ fontSize: 13, color: "var(--c-text-3)", background: "var(--c-surface-2)", borderRadius: 10, padding: 14, textAlign: "center" }}>{t('orders.noStatusChange', 'No further status changes available.')}</div>
                     ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                            {availableStatuses.map((status) => {
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {/* Whole journey: ✓ done · ● current · selectable future steps (same as the apps) */}
+                            {steps.map(({ status, state, index }) => {
+                                const selectable = state === "future";
                                 const on = newStatus === status;
-                                const danger = status === "cancelled";
-                                const accent = danger ? "var(--c-error)" : "var(--c-primary)";
+                                const done = state === "done";
+                                const current = state === "current";
                                 return (
-                                    <button key={status} type="button" onClick={() => setNewStatus(status)} aria-pressed={on}
-                                        style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", borderRadius: 11, border: `1.5px solid ${on ? accent : "var(--c-border)"}`, background: on ? (danger ? "var(--c-error-soft)" : "var(--c-primary-soft)") : "var(--c-surface)" }}>
-                                        <span style={{ width: 20, height: 20, flex: "none", borderRadius: "50%", border: `2px solid ${on ? accent : "var(--c-border-strong)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <span style={{ width: 10, height: 10, borderRadius: "50%", background: accent }} />}</span>
-                                        <span style={{ minWidth: 0 }}>
-                                            <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: on && danger ? "var(--c-error)" : "var(--c-text)" }}>{STATUS_LABELS[status]}</span>
-                                            {danger && <span style={{ display: "block", fontSize: 12, color: "var(--c-text-3)", marginTop: 1 }}>{t('orders.cannotUndo', 'This action cannot be undone')}</span>}
+                                    <button
+                                        key={status}
+                                        type="button"
+                                        onClick={() => selectable && setNewStatus(status)}
+                                        disabled={!selectable}
+                                        aria-pressed={on}
+                                        style={{
+                                            cursor: selectable ? "pointer" : "default",
+                                            font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12,
+                                            padding: "12px 14px", borderRadius: 11,
+                                            border: `1.5px solid ${on ? "var(--c-primary)" : current ? "var(--c-primary-soft)" : "var(--c-border)"}`,
+                                            background: on ? "var(--c-primary-soft)" : current ? "var(--c-primary-soft)" : "var(--c-surface)",
+                                            opacity: done ? 0.65 : 1,
+                                        }}
+                                    >
+                                        {/* Step indicator: check when done, dot when current/selected, number when future */}
+                                        <span style={{
+                                            width: 22, height: 22, flex: "none", borderRadius: "50%",
+                                            border: `2px solid ${done ? "var(--c-success)" : on || current ? "var(--c-primary)" : "var(--c-border-strong)"}`,
+                                            background: done ? "var(--c-success)" : on || current ? "var(--c-primary)" : "transparent",
+                                            color: done || on || current ? "#fff" : "var(--c-text-3)",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            fontSize: 10, fontWeight: 700,
+                                        }}>
+                                            {done ? "✓" : on || current ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} /> : index + 1}
+                                        </span>
+                                        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--c-text)" }}>{STATUS_LABELS[status]}</span>
+                                            {current && (
+                                                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--c-primary)", background: "var(--c-surface)", border: "1px solid var(--c-primary)", borderRadius: 5, padding: "1px 6px" }}>
+                                                    {t('orders.currentStep', 'Current')}
+                                                </span>
+                                            )}
                                         </span>
                                     </button>
                                 );
                             })}
+
+                            {/* Cancel — separate, destructive */}
+                            {canCancel && (
+                                <button
+                                    type="button"
+                                    onClick={() => setNewStatus("cancelled")}
+                                    aria-pressed={newStatus === "cancelled"}
+                                    style={{
+                                        marginTop: 4, cursor: "pointer", font: "inherit", textAlign: "left",
+                                        display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 11,
+                                        border: `1.5px solid ${newStatus === "cancelled" ? "var(--c-error)" : "var(--c-error-soft)"}`,
+                                        background: newStatus === "cancelled" ? "var(--c-error-soft)" : "var(--c-surface)",
+                                    }}
+                                >
+                                    <span style={{
+                                        width: 22, height: 22, flex: "none", borderRadius: "50%",
+                                        border: "2px solid var(--c-error)",
+                                        background: newStatus === "cancelled" ? "var(--c-error)" : "transparent",
+                                        color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700,
+                                    }}>
+                                        {newStatus === "cancelled" ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} /> : <span style={{ color: "var(--c-error)" }}>×</span>}
+                                    </span>
+                                    <span style={{ minWidth: 0 }}>
+                                        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--c-error)" }}>{STATUS_LABELS["cancelled"]}</span>
+                                        <span style={{ display: "block", fontSize: 12, color: "var(--c-text-3)", marginTop: 1 }}>{t('orders.cannotUndo', 'This action cannot be undone')}</span>
+                                    </span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
