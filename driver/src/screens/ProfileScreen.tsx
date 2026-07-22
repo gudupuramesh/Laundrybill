@@ -5,15 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
 import { useDriverAuth } from '../lib/DriverAuthContext';
 import { useDriverTasks } from '../hooks/use-driver-tasks';
-
-function initials(name: string): string {
-  const parts = (name || '').trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() || '').join('') || 'A';
-}
+import { MemberCard, ShopCard } from '../components/TeamProfileCards';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { agent, shopName, isOnline, goOnline, goOffline, signOutAgent } = useDriverAuth();
+  const { agent, shop, shopName, isOnline, goOnline, goOffline, signOutAgent } = useDriverAuth();
   const { lifetimeStats } = useDriverTasks();
 
   const vehicle = agent?.vehicle;
@@ -31,13 +27,7 @@ export default function ProfileScreen() {
         contentContainerStyle={{ padding: 14, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 90 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.head}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(agent?.name || '')}</Text>
-          </View>
-          <Text style={styles.name}>{agent?.name || 'Agent'}</Text>
-          <Text style={styles.shop}>{shopName || 'Shop'}</Text>
-        </View>
+        <MemberCard agent={agent} />
 
         <View style={[styles.card, styles.rowBetween]}>
           <View style={styles.row}>
@@ -89,10 +79,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Account</Text>
-          <Text style={styles.value}>{agent?.email || '—'}</Text>
-        </View>
+        <ShopCard shop={shop} shopName={shopName} />
 
         <TouchableOpacity style={[styles.card, styles.rowBetween]} onPress={confirmSignOut} activeOpacity={0.8}>
           <View style={styles.row}>

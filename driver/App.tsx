@@ -50,6 +50,7 @@ import AddCustomerScreen from './src/screens/AddCustomerScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import OrderDetailsScreen from './src/screens/OrderDetailsScreen';
 import StaffScanScreen from './src/screens/StaffScanScreen';
+import TeamProfileScreen from './src/screens/TeamProfileScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
@@ -507,16 +508,8 @@ function StaffShell() {
         // Scan an order/garment tag → open the order to check or update status.
         return <StaffScanScreen />;
       case 'staffProfile':
-        return (
-          <View style={[styles.center, { padding: 24 }]}>
-            <MaterialIcons name="person" size={44} color={colors.primary} />
-            <Text style={styles.phTitle}>{agent?.name || 'Staff'}</Text>
-            {shopName ? <Text style={styles.phShop}>{shopName}</Text> : null}
-            <TouchableOpacity style={styles.phBtn} activeOpacity={0.85} onPress={signOutAgent}>
-              <Text style={styles.phBtnText}>Sign out</Text>
-            </TouchableOpacity>
-          </View>
-        );
+        // The StaffShell wrapper already pads the top inset → padTop={false}.
+        return <TeamProfileScreen padTop={false} />;
       case 'staffOrders':
       default:
         // No onNewOrder → OrdersScreen hides its in-screen FAB; the raised
@@ -755,8 +748,6 @@ function ManagerShell() {
       case 'manProfile':
         return (
           <ManagerProfileScreen
-            name={agent?.name}
-            shopName={shopName}
             onSignOut={signOutAgent}
             onManageExpenses={() => navigate({ name: 'managerExpenseList' })}
             onManageStaff={() => navigate({ name: 'managerStaff' })}

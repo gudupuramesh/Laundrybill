@@ -4,21 +4,22 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
 import { TutorialVideosSheet } from '../components/HelpButton';
+import { useDriverAuth } from '../lib/DriverAuthContext';
+import { MemberCard, ShopCard } from '../components/TeamProfileCards';
 
 type Row = { key: string; label: string; icon: keyof typeof MaterialIcons.glyphMap; onPress: () => void };
 
 /**
- * The manager's Profile — a settings menu mirroring the owner Settings (minus
- * shop-account deletion, billing, and shop profile). Each row opens a ported
- * owner screen as an overlay; Tutorial Videos opens the shared sheet locally.
+ * The manager's Profile — the member's own details + the company/shop card,
+ * followed by a settings menu mirroring the owner Settings (minus shop-account
+ * deletion, billing, and shop profile). Each row opens a ported owner screen as
+ * an overlay; Tutorial Videos opens the shared sheet locally.
  */
 export default function ManagerProfileScreen({
-  name, shopName, onSignOut,
+  onSignOut,
   onManageExpenses, onManageStaff, onMarkAttendance, onManageService,
   onManageItems, onTaxSettings, onServiceArea,
 }: {
-  name?: string;
-  shopName?: string | null;
   onSignOut: () => void;
   onManageExpenses: () => void;
   onManageStaff: () => void;
@@ -29,6 +30,7 @@ export default function ManagerProfileScreen({
   onServiceArea: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { agent, shop, shopName } = useDriverAuth();
   const [showTutorials, setShowTutorials] = useState(false);
 
   const rows: Row[] = [
@@ -49,12 +51,9 @@ export default function ManagerProfileScreen({
         <Text style={s.headerTitle}>Profile</Text>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 24 + insets.bottom }} showsVerticalScrollIndicator={false}>
-        <View style={s.idCard}>
-          <View style={s.avatar}><MaterialIcons name="person" size={30} color={colors.primary} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.idName}>{name || 'Manager'}</Text>
-            <Text style={s.idRole}>Manager{shopName ? ` · ${shopName}` : ''}</Text>
-          </View>
+        <View style={s.cards}>
+          <MemberCard agent={agent} />
+          <ShopCard shop={shop} shopName={shopName} />
         </View>
 
         <View style={s.menu}>
@@ -85,13 +84,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   headerTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.text },
-  idCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.surface,
-    margin: 16, marginBottom: 12, padding: 16, borderRadius: radii.card, borderWidth: 1, borderColor: colors.border,
-  },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' },
-  idName: { fontSize: 17, fontFamily: fonts.bold, color: colors.text },
-  idRole: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
+  cards: { paddingHorizontal: 16, paddingTop: 16 },
   menu: {
     backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: radii.card,
     borderWidth: 1, borderColor: colors.border, overflow: 'hidden',

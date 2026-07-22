@@ -15,10 +15,43 @@ import { claimMobileSession, teardownMobileSession } from './sessionGuard';
 import { setResolvedShopId, setResolvedAgentId, setResolvedAgentName } from './auth';
 import type { Staff, TeamMember } from '../types/staff';
 
+/**
+ * The subset of the shops/{shopId} doc a team member needs to see on their
+ * profile — the company they work for. Picked explicitly (not spread) so the
+ * shop's settings/bank details never land in the login cache.
+ */
+export interface ShopInfo {
+  name: string;
+  logoUrl?: string | null;
+  logo?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  whatsappNumber?: string | null;
+  shopCode?: string | null;
+  location?: { address?: string; city?: string; state?: string; pincode?: string } | null;
+}
+
+/** Pick the profile-relevant shop fields from a raw shops/{id} doc. */
+function pickShop(data: any): ShopInfo | null {
+  if (!data) return null;
+  return {
+    name: data.name || 'Shop',
+    logoUrl: data.logoUrl ?? null,
+    logo: data.logo ?? null,
+    phone: data.phone ?? null,
+    email: data.email ?? null,
+    whatsappNumber: data.whatsappNumber ?? null,
+    shopCode: data.shopCode ?? null,
+    location: data.location ?? null,
+  };
+}
+
 interface DriverAuthContextType {
   agent: Staff | null;
   shopId: string | null;
   shopName: string | null;
+  /** The shop (company) the logged-in member works for. */
+  shop: ShopInfo | null;
   loading: boolean;
   error: string | null;
   isOnline: boolean;
@@ -54,16 +87,19 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   const [agent, setAgent] = useState<Staff | null>(null);
   const [shopId, setShopId] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string | null>(null);
+  const [shop, setShop] = useState<ShopInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [agentDocPath, setAgentDocPath] = useState<string | null>(null);
 
   const applyResolved = useCallback(
-    (a: Staff, sId: string, sName: string, docPath: string, online: boolean) => {
+    (a: Staff, sId: string, shopInfo: ShopInfo | null, docPath: string, online: boolean) => {
+      const sName = shopInfo?.name || 'Shop';
       setAgent(a);
       setShopId(sId);
       setShopName(sName);
+      setShop(shopInfo);
       setIsOnline(online);
       setAgentDocPath(docPath);
       setResolvedShopId(sId);
@@ -71,7 +107,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       setResolvedAgentName(a.name || (a as any).email || null);
       void AsyncStorage.setItem(
         CACHE_KEY,
-        JSON.stringify({ agent: a, shopId: sId, shopName: sName, docPath, online }),
+        JSON.stringify({ agent: a, shopId: sId, shopName: sName, shop: shopInfo, docPath, online }),
       );
     },
     [],
@@ -81,6 +117,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     setAgent(null);
     setShopId(null);
     setShopName(null);
+    setShop(null);
     setIsOnline(false);
     setAgentDocPath(null);
     setResolvedShopId(null);
@@ -99,6 +136,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           setAgent(c.agent);
           setShopId(c.shopId);
           setShopName(c.shopName);
+          setShop(c.shop ?? null);
           setIsOnline(!!c.online);
           setAgentDocPath(c.docPath);
           setResolvedShopId(c.shopId);
@@ -147,7 +185,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
             applyResolved(
               staffLike,
               sId,
-              (shopDoc.data() as any)?.name || 'Shop',
+              pickShop(shopDoc.data()),
               tmDoc.ref.path,
               tmData.isOnline ?? false,
             );
@@ -168,7 +206,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
               applyResolved(
                 staffData,
                 sId,
-                (shopDoc.data() as any)?.name || 'Shop',
+                pickShop(shopDoc.data()),
                 staffDoc.ref.path,
                 staffData.isOnline ?? false,
               );
@@ -275,7 +313,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
           const shopDoc = await firestore().doc(`shops/${sId}`).get();
           const staffLike = teamMemberToStaff({ ...tmData, id: tmDoc.id, authUid: uid, inviteStatus: 'accepted' });
-          applyResolved(staffLike, sId, (shopDoc.data() as any)?.name || 'Shop', tmDoc.ref.path, tmData.isOnline ?? false);
+          applyResolved(staffLike, sId, pickShop(shopDoc.data()), tmDoc.ref.path, tmData.isOnline ?? false);
           setLoading(false);
         } else {
           // Legacy: staff collection.
@@ -318,7 +356,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
           const shopDoc = await firestore().doc(`shops/${sId}`).get();
           const resolved = { ...staffData, id: staffDoc.id, authUid: uid, email: normEmail, inviteStatus: 'accepted' as const };
-          applyResolved(resolved as Staff, sId, (shopDoc.data() as any)?.name || 'Shop', staffDoc.ref.path, staffData.isOnline ?? false);
+          applyResolved(resolved as Staff, sId, pickShop(shopDoc.data()), staffDoc.ref.path, staffData.isOnline ?? false);
           setLoading(false);
         }
       } catch (err: any) {
@@ -354,6 +392,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     agent,
     shopId,
     shopName,
+    shop,
     loading,
     error,
     isOnline,
