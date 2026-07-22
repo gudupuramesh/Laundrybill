@@ -48,6 +48,7 @@ import {
   doc as mDoc,
   getDoc as mGetDoc,
   getDocs as mGetDocs,
+  getCountFromServer as mGetCountFromServer,
   setDoc as mSetDoc,
   updateDoc as mUpdateDoc,
   deleteDoc as mDeleteDoc,
@@ -144,6 +145,17 @@ class QueryRef<T = DocumentData> {
   }
   async get(): Promise<QuerySnap<T>> {
     return new QuerySnap<T>(await mGetDocs(this._q));
+  }
+  /** Server-side count aggregate (no doc reads). Mirrors the RN-Firebase API:
+   *  `.count().get()` → `{ data: () => ({ count }) }`. */
+  count(): { get: () => Promise<{ data: () => { count: number } }> } {
+    const q = this._q;
+    return {
+      get: async () => {
+        const snap = await mGetCountFromServer(q);
+        return { data: () => ({ count: snap.data().count }) };
+      },
+    };
   }
   onSnapshot(onNext: (s: QuerySnap<T>) => void, onError?: (e: Error) => void): () => void {
     return mOnSnapshot(this._q, (s) => onNext(new QuerySnap<T>(s)),

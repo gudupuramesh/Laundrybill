@@ -162,7 +162,29 @@ export default function SubscriptionScreen({
 
   const planLimits = usePlanLimits(sub);
   const ordersUsed = useMergedOrdersUsed(sub, shopId);
-  const totalCustomers = sub?.usage?.totalCustomers ?? 0;
+  // Live customer + lifetime order counts — subscription.usage.* is NOT
+  // maintained (stays 0). count() aggregates: no doc downloads.
+  const [customerCount, setCustomerCount] = useState(0);
+  const [lifetimeOrders, setLifetimeOrders] = useState(0);
+  useEffect(() => {
+    if (!shopId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await firestore().collection(`shops/${shopId}/customers`).count().get();
+        if (!cancelled) setCustomerCount(snap.data().count ?? 0);
+      } catch { /* leave 0 on error */ }
+      try {
+        const snap = await firestore().collection(`shops/${shopId}/orders`).count().get();
+        if (!cancelled) setLifetimeOrders(snap.data().count ?? 0);
+      } catch { /* leave 0 on error */ }
+    })();
+    return () => { cancelled = true; };
+  }, [shopId]);
+
+  // Metered plans (Free/trial monthly cap) show this-period usage against the
+  // cap; unlimited plans show the shop's TOTAL lifetime orders.
+  const ordersMetered = planLimits.maxOrders > 0;
   // Live count of team logins — subscription.usage.totalStaff is NOT maintained
   // (it stays 0 forever), so count the teamMembers docs the cap applies to.
   const [teamLoginCount, setTeamLoginCount] = useState(0);
@@ -507,8 +529,12 @@ export default function SubscriptionScreen({
 
           {/* Usage Progress Bars */}
           <View style={s.usageGroup}>
-            <UsageBar label="Orders" used={ordersUsed} limit={planLimits.maxOrders} />
-            <UsageBar label="Customers" used={totalCustomers} limit={planLimits.maxCustomers} />
+            <UsageBar
+              label={ordersMetered ? 'Orders (this month)' : 'Total Orders'}
+              used={ordersMetered ? ordersUsed : lifetimeOrders}
+              limit={planLimits.maxOrders}
+            />
+            <UsageBar label="Customers" used={customerCount} limit={planLimits.maxCustomers} />
             <UsageBar label="Team Logins" used={teamLoginCount} limit={planLimits.maxTeamLogins} />
           </View>
         </LinearGradient>
