@@ -3,7 +3,7 @@
     "name": "Laundrybill Team",
     "slug": "laundrybill-driver",
     "scheme": "laundrybilldriver",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill.driver",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Laundrybill Team uses your photos to attach pickup and delivery proof to orders."
