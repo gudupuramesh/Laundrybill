@@ -159,13 +159,11 @@ export function CustomerFormSheet({
         setForm({ ...form, name: filtered });
     };
 
-    // Validate phone
+    // Validate phone — optional now (a customer can be email-only), but if a
+    // phone IS entered it must be a full number. The "at least one contact"
+    // rule is enforced in handleSubmit.
     const validatePhone = () => {
-        if (!form.phone) {
-            setErrors((prev) => ({ ...prev, phone: t("validation.required") }));
-            return false;
-        }
-        if (form.phone.length < phoneDigits) {
+        if (form.phone && form.phone.length < phoneDigits) {
             setErrors((prev) => ({ ...prev, phone: t("validation.digitsEntered", { count: form.phone.length }) }));
             return false;
         }
@@ -198,10 +196,21 @@ export function CustomerFormSheet({
             return;
         }
 
+        // A customer needs a name + at least one contact (phone OR email).
+        if (!form.phone && !form.email) {
+            setErrors((prev) => ({ ...prev, phone: t("validation.contactRequired", "Enter a phone or email") }));
+            addToast({
+                type: "error",
+                title: t("validation.contactRequired", "Add a phone or email"),
+                description: t("validation.contactRequiredDesc", "Enter at least a phone number or an email for this customer."),
+            });
+            return;
+        }
+
         setLoading(true);
         try {
-            // Check for duplicate phone
-            const isPhoneDuplicate = await checkDuplicatePhone(form.phone);
+            // Check for duplicate phone (only when a phone was entered).
+            const isPhoneDuplicate = form.phone ? await checkDuplicatePhone(form.phone) : false;
             if (isPhoneDuplicate) {
                 setErrors((prev) => ({ ...prev, phone: t("validation.customerExists") }));
                 addToast({
@@ -244,6 +253,13 @@ export function CustomerFormSheet({
                     title: t("validation.duplicatePhone"),
                     description: t("validation.duplicatePhoneCustomerDesc", "This mobile number is already used by another customer. Each customer must have a unique phone number."),
                 });
+            } else if (error instanceof Error && error.message === "DUPLICATE_EMAIL") {
+                setErrors((prev) => ({ ...prev, email: t("validation.emailExists") }));
+                addToast({
+                    type: "error",
+                    title: t("validation.duplicateEmail"),
+                    description: t("validation.duplicateEmailDesc"),
+                });
             } else {
                 addToast({ type: "error", title: t("validation.saveError") });
             }
@@ -263,10 +279,15 @@ export function CustomerFormSheet({
 
     const phoneHasError = phoneTouched && form.phone.length > 0 && form.phone.length < phoneDigits;
 
+    // Valid when: name ok, at least one contact present, and if a phone/email is
+    // entered it's well-formed. A full phone OR a non-empty email satisfies contact.
+    const phoneComplete = form.phone.length === phoneDigits;
+    const hasContact = phoneComplete || (!!form.email && isValidEmail(form.email));
     const isValid =
         form.name.trim() &&
         !/\d/.test(form.name) &&
-        form.phone.length === phoneDigits &&
+        (form.phone.length === 0 || phoneComplete) &&
+        hasContact &&
         !errors.phone &&
         !errors.email &&
         !errors.name;

@@ -19,6 +19,7 @@ import { useCustomers } from "@/hooks/use-customers";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShop } from "@/hooks/use-shop";
 import { getCountry } from "@/config/countries";
+import { isValidEmail } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import { Search, UserPlus, X, MapPin, Phone, Mail } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -71,8 +72,13 @@ export function CustomerDetailsCard({
 
     const selectedCustomer = customers.find((c) => c.id === customerId);
 
+    // Name + at least one contact (full phone OR valid email). Phone optional.
+    const phoneComplete = form.phone.length === country.phoneDigits;
+    const custHasContact = phoneComplete || (!!form.email.trim() && isValidEmail(form.email.trim()));
+    const canCreateCustomer = !!form.name.trim() && custHasContact && (form.phone.length === 0 || phoneComplete);
+
     const handleCreate = async () => {
-        if (!form.name.trim() || form.phone.length !== country.phoneDigits) return;
+        if (!canCreateCustomer) return;
         setSaving(true);
         const addressParts = [form.flat, form.street, form.pincode].filter(Boolean);
         const combinedAddress = addressParts.length > 0 ? addressParts.join(', ') : undefined;
@@ -97,6 +103,12 @@ export function CustomerDetailsCard({
                     type: "error",
                     title: t("validation.duplicatePhone", "Duplicate phone"),
                     description: t("validation.duplicatePhoneCustomerDesc", "This mobile number is already used by another customer."),
+                });
+            } else if (err instanceof Error && err.message === "DUPLICATE_EMAIL") {
+                addToast({
+                    type: "error",
+                    title: t("validation.duplicateEmail", "Duplicate email"),
+                    description: t("validation.duplicateEmailDesc", "This email is already used by another customer."),
                 });
             } else {
                 addToast({ type: "error", title: t("validation.saveError", "Could not save") });
@@ -296,7 +308,7 @@ export function CustomerDetailsCard({
                         <LButton
                             variant="primary"
                             loading={saving}
-                            disabled={!form.name.trim() || form.phone.length !== country.phoneDigits}
+                            disabled={!canCreateCustomer}
                             onClick={handleCreate}
                             className="rounded-xl px-6 cursor-pointer"
                         >

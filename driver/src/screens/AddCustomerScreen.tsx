@@ -61,8 +61,17 @@ export default function AddCustomerScreen({
     const trimmedName = name.trim();
     const trimmedPhone = normalizePhone(phone, phoneCountryCode);
 
+    // A customer needs a name + at least one contact — phone OR email. Many
+    // customers now give only an email, so phone is no longer mandatory.
+    const trimmedEmail = email.trim();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    const hasPhone = !!phone.trim() && isValidPhoneByCountry(trimmedPhone, phoneCountryCode, phoneDigits);
+    const hasEmail = !!trimmedEmail && emailValid;
+
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
-    if (!isValidPhoneByCountry(trimmedPhone, phoneCountryCode, phoneDigits)) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg')); return; }
+    if (phone.trim() && !hasPhone) { Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg')); return; }
+    if (trimmedEmail && !emailValid) { Alert.alert(t('mobile.invalidEmailTitle', 'Invalid email'), t('mobile.invalidEmailMsg', 'Enter a valid email address.')); return; }
+    if (!hasPhone && !hasEmail) { Alert.alert(t('mobile.contactRequiredTitle', 'Add a contact'), t('mobile.contactRequiredMsg', 'Enter at least a phone number or an email to save this customer.')); return; }
 
     if (!shopId || saving) return;
     setSaving(true);
@@ -88,10 +97,16 @@ export default function AddCustomerScreen({
         }
       }
 
-      // Check for duplicate phone (both local and E.164 for selected country)
-      let dupSnap = await custCollection.where('phone', '==', trimmedPhone).limit(1).get();
-      if (dupSnap.empty) {
-        dupSnap = await custCollection.where('phone', '==', toE164(trimmedPhone, { countryCode: phoneCountryCode })).limit(1).get();
+      const e164 = hasPhone ? toE164(trimmedPhone, { countryCode: phoneCountryCode }) : '';
+      const emailLower = hasEmail ? trimmedEmail.toLowerCase() : null;
+
+      // Duplicate check: by phone when present, otherwise by email.
+      let dupSnap;
+      if (hasPhone) {
+        dupSnap = await custCollection.where('phone', '==', trimmedPhone).limit(1).get();
+        if (dupSnap.empty) dupSnap = await custCollection.where('phone', '==', e164).limit(1).get();
+      } else {
+        dupSnap = await custCollection.where('email', '==', emailLower).limit(1).get();
       }
 
       if (!dupSnap.empty) {
@@ -99,7 +114,9 @@ export default function AddCustomerScreen({
         const dupId = dupSnap.docs[0].id;
         Alert.alert(
           'Customer Already Exists',
-          `"${dupData.name || 'Unknown'}" is already registered with this phone number (${trimmedPhone}).`,
+          hasPhone
+            ? `"${dupData.name || 'Unknown'}" is already registered with this phone number (${trimmedPhone}).`
+            : `"${dupData.name || 'Unknown'}" is already registered with this email (${emailLower}).`,
           [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -108,8 +125,8 @@ export default function AddCustomerScreen({
                 onCreated?.({
                   id: dupId,
                   name: dupData.name || trimmedName,
-                  phone: dupData.phone || toE164(trimmedPhone, { countryCode: phoneCountryCode }),
-                  email: dupData.email ?? null,
+                  phone: dupData.phone || e164,
+                  email: dupData.email ?? emailLower,
                   address: dupData.address ?? null,
                 });
                 onBack();
@@ -123,8 +140,8 @@ export default function AddCustomerScreen({
 
       const customerData = {
         name: trimmedName,
-        phone: toE164(trimmedPhone, { countryCode: phoneCountryCode }),
-        email: email.trim() || null,
+        phone: e164,
+        email: emailLower,
         address: address.trim() || null,
         notes: notes.trim() || null,
         totalOrders: 0,
@@ -185,7 +202,7 @@ export default function AddCustomerScreen({
               autoCapitalize="words"
             />
 
-            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: colors.error }}>*</Text></Text>
+            <Text style={styles.fieldLabel}>{t('mobile.fieldPhone')} <Text style={{ color: colors.textMuted, fontFamily: fonts.medium }}>({t('mobile.orEmail', 'or email')})</Text></Text>
             <View style={styles.phoneRow}>
               <TouchableOpacity style={styles.phonePrefix} onPress={() => setShowCountryPicker(true)} activeOpacity={0.7}>
                 <Text style={styles.phonePrefixText}>{selectedCountry.phoneCode}</Text>
@@ -238,7 +255,7 @@ export default function AddCustomerScreen({
 
           {/* Save Button */}
           <TouchableOpacity
-            style={[styles.saveBtn, (!name.trim() || !phone.trim()) && { opacity: 0.5 }]}
+            style={[styles.saveBtn, (!name.trim() || (!phone.trim() && !email.trim())) && { opacity: 0.5 }]}
             onPress={handleSave}
             disabled={saving || !name.trim() || !phone.trim()}
             activeOpacity={0.8}

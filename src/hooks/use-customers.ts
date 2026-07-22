@@ -116,33 +116,40 @@ export function useCustomers(searchQuery?: string) {
     const createCustomer = useCallback(async (data: Partial<Customer>): Promise<Customer | null> => {
         if (!shopId) return null;
 
-        // Validate phone
-        if (!data.phone || !hasValidPhoneLength(data.phone)) {
+        // A customer needs at least one contact — phone OR email (name always).
+        // Phone stays the primary identity when present; an email-only customer
+        // is deduped by email instead. If a phone is given it must be valid.
+        if (data.phone && !hasValidPhoneLength(data.phone)) {
             console.error("Invalid phone number");
             return null;
         }
-
-        // Validate email if provided
         if (data.email && !isValidEmail(data.email)) {
             console.error("Invalid email address");
             return null;
         }
+        if (!data.phone && !data.email) {
+            console.error("Customer needs a phone or email");
+            return null;
+        }
 
-        const normalized = normalizePhone(data.phone);
+        const normalized = data.phone ? normalizePhone(data.phone) : "";
+        const normEmail = data.email ? normalizeEmail(data.email) : null;
 
         try {
             const customersRef = collection(db, `shops/${shopId}/customers`);
-            // Enforce unique phone per shop: do not allow same number for multiple customers
-            const existingQ = query(customersRef, where("phone", "==", normalized));
-            const existingSnap = await getDocs(existingQ);
-            if (!existingSnap.empty) {
-                throw new Error("DUPLICATE_PHONE");
+            // Unique per shop: dedupe by phone when present, otherwise by email.
+            if (normalized) {
+                const existingSnap = await getDocs(query(customersRef, where("phone", "==", normalized)));
+                if (!existingSnap.empty) throw new Error("DUPLICATE_PHONE");
+            } else if (normEmail) {
+                const existingSnap = await getDocs(query(customersRef, where("email", "==", normEmail)));
+                if (!existingSnap.empty) throw new Error("DUPLICATE_EMAIL");
             }
 
             const customerData = {
                 name: toTitleCase(data.name || ""),
                 phone: normalized,
-                email: data.email ? normalizeEmail(data.email) : null,
+                email: normEmail,
                 address: data.address ? toTitleCase(data.address) : null,
                 area: data.area ? data.area.trim() : null,
                 notes: data.notes || null,
@@ -156,7 +163,7 @@ export function useCustomers(searchQuery?: string) {
             const docRef = await addDoc(customersRef, customerData);
             return { id: docRef.id, ...customerData } as unknown as Customer;
         } catch (error) {
-            if (error instanceof Error && error.message === "DUPLICATE_PHONE") throw error;
+            if (error instanceof Error && (error.message === "DUPLICATE_PHONE" || error.message === "DUPLICATE_EMAIL")) throw error;
             console.error("Error creating customer:", error);
             return null;
         }

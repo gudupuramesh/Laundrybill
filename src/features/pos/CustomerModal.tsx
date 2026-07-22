@@ -10,6 +10,7 @@ import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShop } from "@/hooks/use-shop";
 import { getCountry } from "@/config/countries";
 import { useLToast } from "@/components/laundry";
+import { isValidEmail } from "@/lib/utils";
 import { Search, X, ChevronRight } from "lucide-react";
 import type { Customer } from "@/types/customer";
 
@@ -41,14 +42,23 @@ export function CustomerModal({ open, onClose, onSelect }: { open: boolean; onCl
 
     if (!open) return null;
 
+    // A customer needs a name + at least one contact (phone OR email). Many
+    // customers give only an email now, so phone is no longer mandatory.
+    const ncDigits = nc.phone.replace(/\D/g, "");
+    const ncHasPhone = ncDigits.length >= 6;
+    const ncHasEmail = !!nc.email.trim() && isValidEmail(nc.email.trim());
+    const canAddCustomer = !!nc.name.trim() && (ncHasPhone || ncHasEmail);
+
     const handleAdd = async () => {
-        if (!nc.name.trim() || nc.phone.replace(/\D/g, "").length < 6) return;
+        if (!canAddCustomer) return;
         setSaving(true);
         try {
-            const created = await createCustomer({ name: nc.name, phone: nc.phone, email: nc.email || undefined, address: nc.address || undefined, area: nc.area || undefined });
+            // Only pass a phone if it's a real number; a stray partial phone shouldn't block an email-only customer.
+            const created = await createCustomer({ name: nc.name, phone: ncHasPhone ? nc.phone : undefined, email: nc.email || undefined, address: nc.address || undefined, area: nc.area || undefined });
             if (created) { onSelect(created); onClose(); setNc({ name: "", phone: "", email: "", address: "", area: areas[0] || "" }); }
         } catch (e) {
-            addToast({ type: "error", title: e instanceof Error && e.message === "DUPLICATE_PHONE" ? "Phone already used" : "Could not save" });
+            const dup = e instanceof Error && (e.message === "DUPLICATE_PHONE" || e.message === "DUPLICATE_EMAIL");
+            addToast({ type: "error", title: dup ? (e as Error).message === "DUPLICATE_EMAIL" ? "Email already used" : "Phone already used" : "Could not save" });
         } finally { setSaving(false); }
     };
 
@@ -113,7 +123,7 @@ export function CustomerModal({ open, onClose, onSelect }: { open: boolean; onCl
                         </div>
                         <div style={{ padding: "14px 20px", borderTop: "1px solid var(--c-border)", display: "flex", justifyContent: "flex-end", gap: 10 }}>
                             <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "9px 16px" }}>Cancel</button>
-                            <button onClick={handleAdd} disabled={saving || !nc.name.trim() || nc.phone.replace(/\D/g, "").length < 6} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "9px 16px", opacity: saving || !nc.name.trim() ? 0.6 : 1 }}>{saving ? "Saving…" : "Add & select"}</button>
+                            <button onClick={handleAdd} disabled={saving || !canAddCustomer} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "9px 16px", opacity: saving || !canAddCustomer ? 0.6 : 1 }}>{saving ? "Saving…" : "Add & select"}</button>
                         </div>
                     </>
                 )}
