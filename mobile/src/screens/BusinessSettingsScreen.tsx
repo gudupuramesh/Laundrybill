@@ -57,6 +57,12 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
   const [cType, setCType] = useState<'percent' | 'flat'>('percent');
   const [cValue, setCValue] = useState('');
   const [cMin, setCMin] = useState('');
+  // Loyalty / cashback points (settings.loyalty) — mirrors the web OffersPage.
+  const [loyEnabled, setLoyEnabled] = useState(false);
+  const [loyMode, setLoyMode] = useState<'percent' | 'fixed'>('percent');
+  const [loyEarnPercent, setLoyEarnPercent] = useState('5');
+  const [loyEarnFixed, setLoyEarnFixed] = useState('10');
+  const [loyMaxRedeem, setLoyMaxRedeem] = useState('100');
 
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -79,6 +85,12 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
       setWaDate(ws.showExpectedDate !== false); setWaReceipt(ws.showReceiptLink !== false);
       setTracking(s.trackingEnabled !== false);
       setCoupons(Array.isArray(s.publicCoupons) ? s.publicCoupons : []);
+      const loy = s.loyalty || {};
+      setLoyEnabled(!!loy.enabled);
+      setLoyMode(loy.mode === 'fixed' ? 'fixed' : 'percent');
+      setLoyEarnPercent(String(loy.earnPercent ?? 5));
+      setLoyEarnFixed(String(loy.earnFixed ?? 10));
+      setLoyMaxRedeem(String(loy.maxRedeemPercent ?? 100));
       setLoading(false);
     }, () => setLoading(false));
     return unsub;
@@ -131,6 +143,26 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
   };
   const removeCoupon = (code: string) => patch('', { publicCoupons: coupons.filter((c) => c.code !== code) }, 'coupon');
   const toggleCoupon = (code: string, active: boolean) => patch('', { publicCoupons: coupons.map((c) => c.code === code ? { ...c, active } : c) }, 'coupon');
+
+  const saveLoyalty = () => {
+    const earnPercent = Math.min(100, Math.max(0, Number(loyEarnPercent) || 0));
+    const earnFixed = Math.max(0, Math.round(Number(loyEarnFixed) || 0));
+    if (loyEnabled && loyMode === 'percent' && earnPercent <= 0) {
+      Alert.alert(t('mobile.errorTitle', 'Error'), t('mobile.loyaltyEarnPercentRequired', 'Set a cashback % greater than 0')); return;
+    }
+    if (loyEnabled && loyMode === 'fixed' && earnFixed <= 0) {
+      Alert.alert(t('mobile.errorTitle', 'Error'), t('mobile.loyaltyEarnFixedRequired', 'Set points-per-order greater than 0')); return;
+    }
+    patch('', {
+      loyalty: {
+        enabled: loyEnabled,
+        mode: loyMode,
+        earnPercent,
+        earnFixed,
+        maxRedeemPercent: Math.min(100, Math.max(1, Number(loyMaxRedeem) || 100)),
+      },
+    }, 'loyalty');
+  };
 
   const addBand = () => setBands([...bands, { id: `b-${Date.now()}`, label: '', fee: 0 }]);
 
@@ -260,6 +292,61 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
             </View>
           ) : null}
 
+          {/* ── Loyalty / cashback points (offers feature: Pro+/Business) ── */}
+          {canOffers ? (
+            <View style={styles.card}>
+              <View style={styles.rowBetween}>
+                <View style={styles.cardHead}><MaterialIcons name="stars" size={18} color={colors.warning} /><Text style={styles.cardTitle}>{t('mobile.loyaltyTitle', 'Cashback / loyalty points')}</Text></View>
+                <Switch value={loyEnabled} onValueChange={setLoyEnabled} trackColor={{ true: colors.primary }} />
+              </View>
+              <Text style={styles.help}>{t('mobile.loyaltyHelp', 'Customers earn points on paid orders and redeem them for discounts on future orders.')}</Text>
+
+              {loyEnabled ? (
+                <>
+                  <Text style={[styles.label, { marginTop: 12 }]}>{t('mobile.loyaltyEarnMode', 'How points are earned')}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.modeBtn, loyMode === 'percent' && styles.modeBtnActive]}
+                      onPress={() => setLoyMode('percent')}
+                    >
+                      <Text style={[styles.modeBtnText, loyMode === 'percent' && styles.modeBtnTextActive]}>{t('mobile.loyaltyModePercent', '% of order')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modeBtn, loyMode === 'fixed' && styles.modeBtnActive]}
+                      onPress={() => setLoyMode('fixed')}
+                    >
+                      <Text style={[styles.modeBtnText, loyMode === 'fixed' && styles.modeBtnTextActive]}>{t('mobile.loyaltyModeFixed', 'Fixed points')}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>
+                        {loyMode === 'percent' ? t('mobile.loyaltyEarnPercent', 'Cashback %') : t('mobile.loyaltyEarnFixed', 'Points / order')}
+                      </Text>
+                      {loyMode === 'percent' ? (
+                        <TextInput style={styles.input} value={loyEarnPercent} onChangeText={setLoyEarnPercent} keyboardType="number-pad" placeholder="5" placeholderTextColor={colors.textMuted} />
+                      ) : (
+                        <TextInput style={styles.input} value={loyEarnFixed} onChangeText={setLoyEarnFixed} keyboardType="number-pad" placeholder="10" placeholderTextColor={colors.textMuted} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>{t('mobile.loyaltyMaxRedeem', 'Max redeem %')}</Text>
+                      <TextInput style={styles.input} value={loyMaxRedeem} onChangeText={setLoyMaxRedeem} keyboardType="number-pad" placeholder="100" placeholderTextColor={colors.textMuted} />
+                    </View>
+                  </View>
+                  <Text style={styles.help}>
+                    {loyMode === 'percent'
+                      ? t('mobile.loyaltyPreviewPercent', 'Each paid order earns {{p}}% of its value as points. Points cover up to {{m}}% of a future order.', { p: Number(loyEarnPercent) || 0, m: Number(loyMaxRedeem) || 100 })
+                      : t('mobile.loyaltyPreviewFixed', 'Each paid order earns {{n}} points. Points cover up to {{m}}% of a future order.', { n: Number(loyEarnFixed) || 0, m: Number(loyMaxRedeem) || 100 })}
+                  </Text>
+                </>
+              ) : null}
+
+              <SaveBtn onPress={saveLoyalty} busy={saving === 'loyalty'} t={t} />
+            </View>
+          ) : null}
+
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -305,6 +392,10 @@ const styles = StyleSheet.create({
   addRowText: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary },
   toggleLabel: { fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text },
   toggleDesc: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 2, lineHeight: 16 },
+  modeBtn: { flex: 1, paddingVertical: 10, borderRadius: radii.input, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, alignItems: 'center' },
+  modeBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  modeBtnText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.textSecondary },
+  modeBtnTextActive: { color: colors.primary },
   couponRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   couponCode: { fontSize: 14, fontFamily: fonts.bold, color: colors.text, letterSpacing: 0.5 },
   couponMeta: { fontSize: 12, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 1 },

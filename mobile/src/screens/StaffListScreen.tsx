@@ -43,6 +43,7 @@ export default function StaffListScreen({
   const insets = useSafeAreaInsets();
   const shopId = getShopId();
   const [staff, setStaff] = useState<any[]>([]);
+  const [logins, setLogins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Add Staff Modal
@@ -159,11 +160,33 @@ export default function StaffListScreen({
     return unsub;
   }, [shopId]);
 
+  // Team logins (teamMembers) — to badge staff who have app access + count logins.
+  useEffect(() => {
+    if (!shopId) return;
+    const unsub = firestore()
+      .collection(`shops/${shopId}/teamMembers`)
+      .onSnapshot(
+        (snap: any) => setLogins(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))),
+        () => {},
+      );
+    return unsub;
+  }, [shopId]);
+
+  // A roster member has a login if a teamMembers doc links to them by staffId or
+  // shares their email (createTeamLogin sets both when created from a roster row).
+  const loginStaffIds = useMemo(() => new Set(logins.map((l) => l.staffId).filter(Boolean)), [logins]);
+  const loginEmails = useMemo(
+    () => new Set(logins.map((l) => (l.email || '').toLowerCase()).filter(Boolean)),
+    [logins],
+  );
+  const hasLogin = (m: any): boolean =>
+    loginStaffIds.has(m.id) || (!!m.email && loginEmails.has(String(m.email).toLowerCase()));
+
   const stats = useMemo(() => {
     const total = staff.length;
     const active = staff.filter(s => s.isActive !== false).length;
-    return { total, active, inactive: total - active };
-  }, [staff]);
+    return { total, active, inactive: total - active, logins: logins.length };
+  }, [staff, logins]);
 
   return (
     <View style={s.container}>
@@ -199,6 +222,11 @@ export default function StaffListScreen({
               <Text style={s.statLabel}>INACTIVE</Text>
               <Text style={s.statValue}>{stats.inactive}</Text>
             </View>
+            <View style={s.statDivider} />
+            <View style={s.statCol}>
+              <Text style={s.statLabel}>{t('mobile.staffLoginsStat', { defaultValue: 'LOGINS' })}</Text>
+              <Text style={[s.statValue, { color: colors.primary }]}>{stats.logins}</Text>
+            </View>
           </View>
         </View>
 
@@ -228,7 +256,14 @@ export default function StaffListScreen({
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                     <Avatar name={member.name || '?'} size={44} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={s.staffName} numberOfLines={1}>{member.name || 'Unknown'}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={s.staffName} numberOfLines={1}>{member.name || 'Unknown'}</Text>
+                        {hasLogin(member) && (
+                          <View style={s.loginBadge}>
+                            <MaterialIcons name="vpn-key" size={11} color={colors.primary} />
+                          </View>
+                        )}
+                      </View>
                       <Text style={s.staffMeta} numberOfLines={1}>
                         {member.phone || ''} · {role}
                       </Text>
@@ -380,6 +415,7 @@ const s = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   activeBadge: { backgroundColor: colors.successBg },
   inactiveBadge: { backgroundColor: colors.warningBg },
+  loginBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' },
   statusText: { fontSize: 10, fontFamily: fonts.bold },
 
   emptyState: { alignItems: 'center', paddingVertical: 48, gap: 8 },
