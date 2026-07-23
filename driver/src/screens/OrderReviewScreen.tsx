@@ -422,7 +422,19 @@ export default function OrderReviewScreen({
       // Convert expectedDelivery to a plain date to avoid Firestore serialization issues
       const deliveryDate = new Date(expectedDelivery.getTime());
 
+      // Customer's saved GPS pin (captured by an agent at their door) — copied
+      // onto new orders so navigation stays precise for any future agent.
+      let custGeo: { lat: number; lng: number } | null = null;
+      if (draftOrder.customer.id) {
+        try {
+          const custSnap = await firestore().collection(`shops/${shopId}/customers`).doc(draftOrder.customer.id).get();
+          const c = custSnap.data() as { lat?: number; lng?: number } | undefined;
+          if (typeof c?.lat === 'number' && typeof c?.lng === 'number') custGeo = { lat: c.lat, lng: c.lng };
+        } catch { /* non-fatal */ }
+      }
+
       const orderData: Record<string, any> = {
+        ...(custGeo ? { deliveryLat: custGeo.lat, deliveryLng: custGeo.lng } : {}),
         orderNumber,
         publicId: orderNumber,
         customerId: draftOrder.customer.id || null,

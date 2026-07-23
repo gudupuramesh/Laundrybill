@@ -655,6 +655,18 @@ export function useCreateOrder() {
             const shopRef = doc(db, `shops/${shopId}`);
             const ordersRef = collection(db, `shops/${shopId}/orders`);
 
+            // Customer's saved GPS pin (captured by an agent at their door) —
+            // copied onto new orders so navigation stays precise for any agent.
+            // Fetched OUTSIDE the transaction (read-only, non-critical).
+            let custGeo: { lat: number; lng: number } | null = null;
+            if (input.customerId) {
+                try {
+                    const custSnap = await getDoc(doc(db, `shops/${shopId}/customers/${input.customerId}`));
+                    const c = custSnap.data() as { lat?: number; lng?: number } | undefined;
+                    if (typeof c?.lat === "number" && typeof c?.lng === "number") custGeo = { lat: c.lat, lng: c.lng };
+                } catch { /* non-fatal */ }
+            }
+
             const result = await runTransaction(db, async (transaction) => {
                 const shopDoc = await transaction.get(shopRef);
                 if (!shopDoc.exists()) throw new Error("Shop not found");
@@ -737,6 +749,9 @@ export function useCreateOrder() {
                     paymentReference: input.paymentReference || null,
                     deliveryType: input.deliveryType || "pickup_store",
                     deliveryAddress: input.deliveryAddress || null,
+                    // Reuse the customer's saved GPS pin (captured by an agent at
+                    // their door) so navigation is precise on every future order.
+                    ...(custGeo ? { deliveryLat: custGeo.lat, deliveryLng: custGeo.lng } : {}),
                     deliveryArea: input.deliveryArea || null,
                     deliveryNotes: input.deliveryNotes || null,
                     deliverySlot: input.deliverySlot || null,

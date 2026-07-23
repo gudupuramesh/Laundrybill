@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
@@ -15,6 +15,8 @@ import { useDriverTasks } from '../hooks/use-driver-tasks';
 import { useNav } from '../lib/nav';
 import { callCustomer, navigateToAddress } from '../lib/actions';
 import { useCurrency } from '../lib/currency';
+import { getShopId } from '../lib/auth';
+import { captureAndSaveCustomerLocation } from '../lib/saveCustomerLocation';
 
 const PAY_PILL: Record<string, { label: string; color: string }> = {
   paid: { label: 'Paid', color: colors.success },
@@ -30,6 +32,22 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
   const task = deliveryTasks.find((t) => t.orderId === orderId);
   const [sheet, setSheet] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [locSaving, setLocSaving] = useState(false);
+  const [locSaved, setLocSaved] = useState(false);
+
+  const handleSaveLocation = async () => {
+    const shopId = getShopId();
+    if (!shopId || !task || locSaving) return;
+    setLocSaving(true);
+    try {
+      await captureAndSaveCustomerLocation(shopId, task.raw.id, (task.raw as any).customerId);
+      setLocSaved(true);
+    } catch (e: any) {
+      Alert.alert('Location', e?.message || 'Could not get your current location.');
+    } finally {
+      setLocSaving(false);
+    }
+  };
 
   if (!task) {
     return (
@@ -104,6 +122,17 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
             onPress={() => navigateToAddress(task.customer.address)}
           />
         </View>
+
+        {/* Pin the customer's exact location while at the door — saved on the
+            order AND the customer for future pickups/deliveries by any agent. */}
+        <Button
+          label={locSaved ? 'Location saved ✓' : (task.raw as any).deliveryLat ? 'Update customer location' : 'Save customer location'}
+          icon="my-location"
+          variant="tint"
+          loading={locSaving}
+          style={{ marginBottom: 11 }}
+          onPress={handleSaveLocation}
+        />
 
         {/* Full edit — items/services/prices/delivery. Locked once delivered. */}
         {!done && onEditOrder ? (

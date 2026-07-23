@@ -19,6 +19,10 @@ export interface Customer {
     address?: string;              // Keep for backward compatibility
     addresses?: CustomerAddress[]; // New: array of addresses
     area?: string;                 // Service area / locality (from settings.serviceAreas)
+    /** GPS pin captured by a delivery agent at the customer's door — copied onto
+     *  new orders (deliveryLat/Lng) so any future agent navigates precisely. */
+    lat?: number;
+    lng?: number;
     notes?: string;
     totalOrders: number;
     totalSpent: number;

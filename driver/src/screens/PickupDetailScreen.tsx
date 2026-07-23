@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
@@ -16,6 +16,8 @@ import { TagSheet } from '../components/TagSheet';
 import { useDriverTasks } from '../hooks/use-driver-tasks';
 import { useNav } from '../lib/nav';
 import { callCustomer, navigateToAddress } from '../lib/actions';
+import { getShopId } from '../lib/auth';
+import { captureAndSaveCustomerLocation } from '../lib/saveCustomerLocation';
 
 export default function PickupDetailScreen({ orderId, onEditOrder }: { orderId: string; onEditOrder?: (order: any) => void }) {
   const insets = useSafeAreaInsets();
@@ -26,6 +28,22 @@ export default function PickupDetailScreen({ orderId, onEditOrder }: { orderId: 
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [locSaving, setLocSaving] = useState(false);
+  const [locSaved, setLocSaved] = useState(false);
+
+  const handleSaveLocation = async () => {
+    const shopId = getShopId();
+    if (!shopId || !task || locSaving) return;
+    setLocSaving(true);
+    try {
+      await captureAndSaveCustomerLocation(shopId, task.raw.id, (task.raw as any).customerId);
+      setLocSaved(true);
+    } catch (e: any) {
+      Alert.alert('Location', e?.message || 'Could not get your current location.');
+    } finally {
+      setLocSaving(false);
+    }
+  };
 
   if (!task) {
     return (
@@ -82,6 +100,18 @@ export default function PickupDetailScreen({ orderId, onEditOrder }: { orderId: 
               onPress={() => navigateToAddress(task.customer.address)}
             />
           </View>
+          {/* Pin the customer's exact location while standing at the door — saved
+              on the order AND the customer, so the next pickup/delivery navigates
+              precisely even with a different agent. */}
+          <Button
+            label={locSaved ? 'Location saved ✓' : (task.raw as any).deliveryLat ? 'Update customer location' : 'Save customer location'}
+            icon="my-location"
+            variant="tint"
+            small
+            loading={locSaving}
+            style={{ marginTop: 8 }}
+            onPress={handleSaveLocation}
+          />
         </View>
 
         <View style={styles.card}>
