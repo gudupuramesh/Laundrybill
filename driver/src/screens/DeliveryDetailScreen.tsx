@@ -16,7 +16,7 @@ import { useNav } from '../lib/nav';
 import { callCustomer, navigateToAddress } from '../lib/actions';
 import { useCurrency } from '../lib/currency';
 import { getShopId } from '../lib/auth';
-import { captureAndSaveCustomerLocation } from '../lib/saveCustomerLocation';
+import { SaveLocationSheet } from '../components/SaveLocationSheet';
 
 const PAY_PILL: Record<string, { label: string; color: string }> = {
   paid: { label: 'Paid', color: colors.success },
@@ -32,22 +32,8 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
   const task = deliveryTasks.find((t) => t.orderId === orderId);
   const [sheet, setSheet] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
-  const [locSaving, setLocSaving] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
   const [locSaved, setLocSaved] = useState(false);
-
-  const handleSaveLocation = async () => {
-    const shopId = getShopId();
-    if (!shopId || !task || locSaving) return;
-    setLocSaving(true);
-    try {
-      await captureAndSaveCustomerLocation(shopId, task.raw.id, (task.raw as any).customerId);
-      setLocSaved(true);
-    } catch (e: any) {
-      Alert.alert('Location', e?.message || 'Could not get your current location.');
-    } finally {
-      setLocSaving(false);
-    }
-  };
 
   if (!task) {
     return (
@@ -127,11 +113,10 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
             order AND the customer for future pickups/deliveries by any agent. */}
         <Button
           label={locSaved ? 'Location saved ✓' : (task.raw as any).deliveryLat ? 'Update customer location' : 'Save customer location'}
-          icon="my-location"
+          icon="place"
           variant="tint"
-          loading={locSaving}
           style={{ marginBottom: 11 }}
-          onPress={handleSaveLocation}
+          onPress={() => setLocOpen(true)}
         />
 
         {/* Full edit — items/services/prices/delivery. Locked once delivered. */}
@@ -169,6 +154,17 @@ export default function DeliveryDetailScreen({ orderId, onEditOrder }: { orderId
         }}
       />
       <TagSheet order={task.raw} open={tagOpen} onClose={() => setTagOpen(false)} />
+      <SaveLocationSheet
+        open={locOpen}
+        onClose={() => setLocOpen(false)}
+        shopId={getShopId() || ''}
+        orderId={task.raw.id}
+        customerId={(task.raw as any).customerId}
+        initialLat={(task.raw as any).deliveryLat}
+        initialLng={(task.raw as any).deliveryLng}
+        initialAddress={task.customer.address}
+        onSaved={() => setLocSaved(true)}
+      />
     </View>
   );
 }
