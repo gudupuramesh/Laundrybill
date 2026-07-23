@@ -171,18 +171,37 @@ export default function StaffDetailScreen({
   };
 
   const handleDeleteStaff = () => {
-    Alert.alert('Delete Staff', `Permanently delete ${staff?.name}? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await firestore().collection(`shops/${shopId}/staff`).doc(staffId).delete();
-            onBack();
-          } catch (e: any) { Alert.alert('Error', e.message); }
+    Alert.alert(
+      'Delete Staff',
+      `Permanently delete ${staff?.name}? This also revokes their app login and deletes their sign-in credentials. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete the login(s) FIRST — linked by staffId, or an unlinked
+              // login left behind with the same email. Removing the teamMembers
+              // doc revokes app access and (via the onTeamMemberDeleted Cloud
+              // Function) deletes the Firebase Auth account. Without this the
+              // roster reconcile resurrects the row from the surviving login.
+              const staffEmail = (staff?.email || '').trim().toLowerCase();
+              const tmSnap = await firestore().collection(`shops/${shopId}/teamMembers`).get();
+              for (const d of tmSnap.docs) {
+                const tm = d.data() as { staffId?: string | null; email?: string };
+                const sameStaff = tm.staffId === staffId;
+                const unlinkedSameEmail = !tm.staffId && !!staffEmail && (tm.email || '').trim().toLowerCase() === staffEmail;
+                if (sameStaff || unlinkedSameEmail) {
+                  await firestore().collection(`shops/${shopId}/teamMembers`).doc(d.id).delete();
+                }
+              }
+              await firestore().collection(`shops/${shopId}/staff`).doc(staffId).delete();
+              onBack();
+            } catch (e: any) { Alert.alert('Error', e.message); }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleRevokeLogin = () => {
