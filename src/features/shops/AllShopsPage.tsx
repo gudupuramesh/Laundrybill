@@ -9,7 +9,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useShopDailyStats } from "@/hooks/use-shop-daily-stats";
@@ -21,9 +22,9 @@ import {
 } from "date-fns";
 import {
     Plus, ChevronRight, TrendingUp, TrendingDown, Banknote, Receipt, PiggyBank,
-    Trophy, AlertTriangle, Package, Clock,
+    Trophy, AlertTriangle, Package, Clock, Trash2, X,
 } from "lucide-react";
-import { LSpinner } from "@/components/laundry";
+import { LSpinner, useLToast } from "@/components/laundry";
 
 interface ShopRow {
     id: string;
@@ -65,13 +66,19 @@ function periodRange(key: PeriodKey): { start: Date; end: Date; prevStart: Date;
 }
 
 export function AllShopsPage() {
-    const { user, shopId, primaryShopId, switchShop } = useAuth();
+    const { user, shopId, primaryShopId, switchShop, refreshOwnedShops } = useAuth();
     const { checkLimit } = useShopLimits();
     const { formatAmount } = useCurrency();
+    const { addToast } = useLToast();
     const navigate = useNavigate();
 
     const [shops, setShops] = useState<ShopRow[] | null>(null);
     const [period, setPeriod] = useState<PeriodKey>("month");
+    const [reloadKey, setReloadKey] = useState(0);
+    // Delete-branch flow (child shops only — never the primary).
+    const [deleteTarget, setDeleteTarget] = useState<ShopRow | null>(null);
+    const [deleteConfirmName, setDeleteConfirmName] = useState("");
+    const [deleting, setDeleting] = useState(false);
 
     // Owned shops (rules: isShopOwner authorizes all of them).
     useEffect(() => {
@@ -88,7 +95,28 @@ export function AllShopsPage() {
                 setShops(rows);
             })
             .catch(() => setShops([]));
-    }, [user?.uid, primaryShopId]);
+    }, [user?.uid, primaryShopId, reloadKey]);
+
+    const handleDeleteBranch = async () => {
+        if (!deleteTarget || deleting) return;
+        if (deleteConfirmName.trim() !== deleteTarget.name.trim()) return;
+        setDeleting(true);
+        try {
+            const fn = httpsCallable<{ shopId: string }, { success: boolean; shopName: string }>(functions, "deleteBranchShop");
+            await fn({ shopId: deleteTarget.id });
+            addToast({ type: "success", title: "Branch deleted", description: `${deleteTarget.name} and all its data were permanently removed.` });
+            // If the deleted branch was the active shop, fall back to the main shop.
+            if (deleteTarget.id === shopId && primaryShopId) switchShop(primaryShopId);
+            setDeleteTarget(null);
+            setDeleteConfirmName("");
+            setReloadKey((k) => k + 1);
+            await refreshOwnedShops();
+        } catch (e) {
+            addToast({ type: "error", title: "Could not delete branch", description: (e as Error)?.message || "Please try again." });
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     const range = useMemo(() => periodRange(period), [period]);
     const { reports, loading: reportLoading } = useFranchiseReport(
@@ -205,10 +233,75 @@ export function AllShopsPage() {
                                 switchShop(r.shopId);
                                 navigate("/dashboard");
                             }}
+                            onDelete={
+                                r.shopId === primaryShopId
+                                    ? undefined
+                                    : () => {
+                                          const row = shops.find((s) => s.id === r.shopId);
+                                          if (row) {
+                                              setDeleteTarget(row);
+                                              setDeleteConfirmName("");
+                                          }
+                                      }
+                            }
                         />
                     ))
                 )}
             </div>
+
+            {/* Delete-branch confirmation — type the branch name to unlock */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-lg font-bold text-foreground">Delete {deleteTarget.name}?</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    This permanently deletes the branch and <span className="font-semibold text-foreground">ALL its data</span> —
+                                    orders, customers, inventory, reports — and revokes its staff logins. Its public page
+                                    and areas go offline. <span className="font-semibold text-red-600">This cannot be undone.</span>
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDeleteTarget(null)}
+                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                                disabled={deleting}
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Type <span className="text-foreground">{deleteTarget.name}</span> to confirm
+                        </label>
+                        <input
+                            value={deleteConfirmName}
+                            onChange={(e) => setDeleteConfirmName(e.target.value)}
+                            placeholder={deleteTarget.name}
+                            className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-red-400"
+                            autoFocus
+                        />
+                        <div className="mt-4 flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={deleting}
+                                className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteBranch}
+                                disabled={deleting || deleteConfirmName.trim() !== deleteTarget.name.trim()}
+                                className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-40"
+                            >
+                                {deleting ? "Deleting…" : "Delete permanently"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -229,7 +322,7 @@ function Kpi({ icon: Icon, tint, label, value, sub, loading }: {
 }
 
 function BranchRow({
-    report: r, rank, isTop, needsAttention, isActive, isPrimary, revenueShare, formatAmount, onOpen,
+    report: r, rank, isTop, needsAttention, isActive, isPrimary, revenueShare, formatAmount, onOpen, onDelete,
 }: {
     report: BranchReport;
     rank: number;
@@ -240,16 +333,22 @@ function BranchRow({
     revenueShare: number;
     formatAmount: (n: number) => string;
     onOpen: () => void;
+    /** Present only for CHILD branches — the main shop can never be deleted. */
+    onDelete?: () => void;
 }) {
     // Live open-workload count (independent of the selected period).
     const live = useShopDailyStats(r.shopId);
     const growth = Math.round(r.growthPct);
 
     return (
-        <button
-            type="button"
+        <div
+            role="button"
+            tabIndex={0}
             onClick={onOpen}
-            className={`w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/60 ${
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") onOpen();
+            }}
+            className={`w-full cursor-pointer rounded-2xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/60 ${
                 isActive ? "border-primary" : "border-border"
             }`}
         >
@@ -285,6 +384,19 @@ function BranchRow({
                         )}
                     </div>
                 </div>
+                {onDelete && (
+                    <button
+                        type="button"
+                        title="Delete branch"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete();
+                        }}
+                        className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                )}
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
             </div>
 
@@ -302,7 +414,7 @@ function BranchRow({
                     style={{ width: `${Math.max(3, Math.round(revenueShare * 100))}%` }}
                 />
             </div>
-        </button>
+        </div>
     );
 }
 

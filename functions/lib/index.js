@@ -775,6 +775,8 @@ __exportStar(require("./requests/revenuecat-webhook"), exports);
 __exportStar(require("./requests/create-razorpay-subscription"), exports);
 __exportStar(require("./requests/verify-razorpay-payment"), exports);
 __exportStar(require("./requests/razorpay-webhook"), exports);
+// Multi-shop: owner deletes a franchise branch (child shop) permanently
+__exportStar(require("./requests/delete-branch-shop"), exports);
 // Push notifications (scheduled + admin callable)
 __exportStar(require("./scheduled/push-notifications"), exports);
 // Order reminders: delayed / uncollected / due-amount, 3× daily (scheduled + manual trigger)

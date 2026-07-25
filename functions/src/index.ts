@@ -879,6 +879,9 @@ export * from "./requests/create-razorpay-subscription";
 export * from "./requests/verify-razorpay-payment";
 export * from "./requests/razorpay-webhook";
 
+// Multi-shop: owner deletes a franchise branch (child shop) permanently
+export * from "./requests/delete-branch-shop";
+
 // Push notifications (scheduled + admin callable)
 export * from "./scheduled/push-notifications";
 
