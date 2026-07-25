@@ -7,9 +7,11 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronsUpDown, Check, LayoutGrid, Plus, Store } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
+import { useShopLimits } from "@/hooks/use-shop-limits";
 
 export function ShopSwitcher({ className }: { className?: string }) {
     const { shopId, shopName, user, ownedShops, switchShop } = useAuth();
+    const { plan } = useShopLimits();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
     const wrapRef = useRef<HTMLDivElement>(null);
@@ -26,8 +28,12 @@ export function ShopSwitcher({ className }: { className?: string }) {
 
     const label = shopName || user?.displayName || "My shop";
 
-    // Single shop (or team member): plain text, exactly like before.
-    if (ownedShops.length <= 1) {
+    // A multi-shop-capable plan (Franchise) unlocks the menu even with ONE shop —
+    // otherwise there'd be no way to add shop #2. Team members (0 owned shops)
+    // and single-shop owners on single-shop plans see plain text, like before.
+    const multiShopPlan = (plan?.limits?.maxShops ?? 1) > 1;
+    const showMenu = ownedShops.length > 1 || (ownedShops.length === 1 && multiShopPlan);
+    if (!showMenu) {
         return <p className={className || "text-sm font-medium text-foreground truncate"}>{label}</p>;
     }
 
