@@ -254,7 +254,6 @@ const s = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
-    transition: 'width 0.3s',
   },
   dotActive: {
     width: 20,
