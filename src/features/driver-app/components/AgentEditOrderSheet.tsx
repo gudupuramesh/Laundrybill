@@ -88,6 +88,7 @@ function AgentEditOrderSheetInner({
                 order.customerId,
                 order.customerName,
                 order.customerPhone,
+                order.customerEmail,
                 order.isGuest
             );
             cart.setDelivery(
@@ -114,6 +115,7 @@ function AgentEditOrderSheetInner({
                 order.customerId,
                 order.customerName,
                 order.customerPhone,
+                order.customerEmail,
                 order.isGuest
             );
             cart.setDelivery(
