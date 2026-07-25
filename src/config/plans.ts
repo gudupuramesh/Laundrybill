@@ -7,9 +7,11 @@
  *   Business — Big shops & entrepreneurs (plant, driver, multi-staff, public page, web login)
  *
  * Pricing:
- *   Pro      — app stores (RevenueCat): Android ₹299/mo, iOS ₹499/mo  (LIVE)
- *   Pro+     — web (Razorpay recurring): ₹799/mo
- *   Business — web (Razorpay recurring): ₹1,999/mo
+ *   Pro       — app stores (RevenueCat): Android ₹299/mo, iOS ₹499/mo  (LIVE)
+ *   Pro+      — web (Razorpay recurring): ₹799/mo
+ *   Business  — web (Razorpay recurring): ₹1,999/mo
+ *   Franchise — web (Razorpay recurring): ₹4,999/mo — ONE subscription covering
+ *               up to `maxShops` shops per owner; every shop gets Business features.
  *
  * NOTE: the live displayed prices come from Firestore `plans/{id}` (super-admin);
  * the values below are the code fallback and must be kept in sync with Firestore.
@@ -53,6 +55,7 @@ export const PLANS: Record<PlanType, Plan> = {
             maxOrders: 50,
             maxCustomers: 100,
             maxTeamLogins: 0,
+            maxShops: 1,
             maxStaff: 1,
             maxDeliveryAgents: 0,
             maxPlantStaff: 0,
@@ -101,6 +104,7 @@ export const PLANS: Record<PlanType, Plan> = {
             // Pro is owner-only: no team logins of any type (staff/agent/plant).
             // Creating logins requires Pro+ or Business.
             maxTeamLogins: 0,
+            maxShops: 1,
             maxStaff: 0,
             maxDeliveryAgents: 0,
             maxPlantStaff: 0,
@@ -149,6 +153,7 @@ export const PLANS: Record<PlanType, Plan> = {
             // (e.g. 4 managers, or 2 managers + 2 agents). Per-role fields are
             // legacy values for old app builds; they are no longer enforced.
             maxTeamLogins: 4,
+            maxShops: 1,
             maxStaff: 3,
             maxDeliveryAgents: 2,
             maxPlantStaff: 1,
@@ -194,6 +199,7 @@ export const PLANS: Record<PlanType, Plan> = {
             // 15 TOTAL logins in any role mix. Per-role fields are legacy values
             // for old app builds; they are no longer enforced.
             maxTeamLogins: 15,
+            maxShops: 1,
             maxStaff: 15,
             maxDeliveryAgents: 15,
             maxPlantStaff: 15,
@@ -204,13 +210,64 @@ export const PLANS: Record<PlanType, Plan> = {
         apps: ["admin", "staff", "driver", "plant"],
         isActive: true,
     },
+
+    franchise: {
+        id: "franchise",
+        name: "Franchise",
+        description: "One subscription for up to 4 shops — every shop gets full Business features",
+        badge: "Multi-Shop",
+        prices: { monthly: 4999, yearly: 49990 },
+        pricesIntl: { monthly: 89, yearly: 890 }, // USD — international tier
+        features: {
+            // Full Business feature set on EVERY shop the owner runs.
+            ...BASE_FEATURES,
+            orderTracking: true,
+            whatsappReceipts: true,
+            staffManagement: true,
+            attendance: true,
+            payroll: true,
+            expenses: true,
+            reports: true,
+            damagePhotos: true,
+            staffApp: true,
+            driverApp: true,
+            plantApp: true,
+            qrScans: true,
+            publicOrderingPage: true,
+            webDashboard: true,
+            itemTracking: true,
+            orderReminders: true,
+            offers: true,
+            loyalty: true,
+        },
+        limits: {
+            maxOrders: -1,
+            maxCustomers: -1,
+            // Caps are PER SHOP (each shop counts its own teamMembers); the
+            // owner-level cap is maxShops — shops covered by one subscription.
+            maxTeamLogins: 15,
+            maxShops: 4,
+            maxStaff: 15,
+            maxDeliveryAgents: 15,
+            maxPlantStaff: 15,
+            maxRoster: -1,
+            maxServices: -1,
+            storageGB: 200,
+        },
+        apps: ["admin", "staff", "driver", "plant"],
+        isActive: true,
+    },
 };
 
 export function getPlan(planId: string | PlanType | null | undefined): Plan {
-    const id = planId === "free" || planId === "pro" || planId === "pro_plus" || planId === "business" ? planId : null;
+    const id =
+        planId === "free" || planId === "pro" || planId === "pro_plus" || planId === "business" || planId === "franchise"
+            ? planId
+            : null;
     if (id) return PLANS[id];
     // Legacy ids
     const n = String(planId || "").toLowerCase().replace(/[_\s-]/g, "");
+    if (n === "franchise" || n === "multishop") return PLANS.franchise;
     if (n === "proplus" || n === "pro+") return PLANS.pro_plus;
     if (n === "business" || n === "enterprise" || n === "premium") return PLANS.business;
     if (n === "pro" || n === "starter") return PLANS.pro;

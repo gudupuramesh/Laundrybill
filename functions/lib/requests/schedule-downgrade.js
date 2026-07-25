@@ -12,8 +12,11 @@ const subscription_events_1 = require("../lib/subscription-events");
 const PLAN_ORDER = {
     free: 0,
     pro: 1,
+    pro_plus: 2,
+    business: 3,
+    franchise: 4,
 };
-const VALID_TO_PLAN_RAW = ["free", "pro", "pro_plus", "business"];
+const VALID_TO_PLAN_RAW = ["free", "pro", "pro_plus", "business", "franchise"];
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
@@ -52,6 +55,11 @@ exports.scheduleDowngrade = (0, https_1.onCall)(async (request) => {
         const status = subData === null || subData === void 0 ? void 0 : subData.status;
         const currentPlan = (subData === null || subData === void 0 ? void 0 : subData.planId) || "free";
         const currentPlanNorm = (0, plan_normalize_1.normalizePlanId)(currentPlan);
+        // Franchise mirror docs (child shops) are not directly billable — the
+        // owner manages the plan on their primary shop.
+        if ((subData === null || subData === void 0 ? void 0 : subData.managedBy) === "franchise") {
+            throw new https_1.HttpsError("failed-precondition", "This shop is covered by your Franchise subscription. Manage the plan on your primary shop.");
+        }
         if (status !== "active") {
             throw new https_1.HttpsError("failed-precondition", "Only active subscriptions can be downgraded.");
         }

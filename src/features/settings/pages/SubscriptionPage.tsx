@@ -27,6 +27,7 @@ import {
     Sparkles,
     Zap,
     Building2,
+    Store,
     Smartphone,
     CalendarClock,
 } from "lucide-react";
@@ -42,6 +43,7 @@ const PLAN_ICON: Record<PlanType, typeof Sparkles> = {
     pro: Zap,
     pro_plus: Zap,
     business: Building2,
+    franchise: Store,
 };
 
 type Cycle = "monthly" | "yearly";
@@ -61,7 +63,11 @@ export function SubscriptionPage() {
     const { subscription, loading: subLoading } = useShopSubscription();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
-    const { user, shopId } = useAuth();
+    const { user, shopId, primaryShopId } = useAuth();
+    // Billing always targets the PRIMARY shop (multi-shop owners may be viewing
+    // a child shop; child shops never carry their own paid subscription).
+    const billingShopId = primaryShopId || shopId;
+    const viewingChildShop = !!primaryShopId && !!shopId && shopId !== primaryShopId;
     const { shop } = useShop();
     const { addToast } = useLToast();
 
@@ -78,18 +84,18 @@ export function SubscriptionPage() {
     const [cycle, setCycle] = useState<Cycle>("monthly");
     const [subscribing, setSubscribing] = useState<PlanType | null>(null);
 
-    // Pro+ / Business are charged on the web via Razorpay (recurring monthly).
+    // Pro+ / Business / Franchise are charged on the web via Razorpay (recurring monthly).
     const handleSubscribe = async (plan: Plan) => {
         const pid = normalizePlanId(plan.id);
-        if (pid !== "pro_plus" && pid !== "business") return;
-        if (!shopId) {
+        if (pid !== "pro_plus" && pid !== "business" && pid !== "franchise") return;
+        if (!billingShopId) {
             addToast({ type: "error", title: "Not ready", description: "Your shop isn't loaded yet — please retry in a moment." });
             return;
         }
         setSubscribing(pid);
         try {
             const result = await startRazorpaySubscription({
-                shopId,
+                shopId: billingShopId,
                 planId: pid,
                 planName: plan.name,
                 email: user?.email || undefined,
@@ -473,6 +479,23 @@ export function SubscriptionPage() {
                     {/* available plans */}
                     <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--c-text)", marginBottom: 12 }}>Available plans</div>
+                        {viewingChildShop && (
+                            <div
+                                style={{
+                                    fontSize: 12.5,
+                                    color: "var(--c-text-2)",
+                                    background: "var(--c-surface-2)",
+                                    border: "1px solid var(--c-border)",
+                                    borderRadius: 10,
+                                    padding: "10px 14px",
+                                    marginBottom: 12,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                This shop is covered by your main shop&apos;s subscription — any plan you buy here
+                                is billed on your primary shop and applies to all your shops.
+                            </div>
+                        )}
                         <div
                             style={{
                                 display: "grid",
@@ -484,7 +507,7 @@ export function SubscriptionPage() {
                                 const id = normalizePlanId(plan.id);
                                 const isCurrent = id === currentPlanId;
                                 const popular = id === "pro";
-                                const contactOnly = id === "pro_plus" || id === "business";
+                                const contactOnly = id === "pro_plus" || id === "business" || id === "franchise";
                                 const Icon = PLAN_ICON[id] || Sparkles;
                                 return (
                                     <div
@@ -561,6 +584,9 @@ export function SubscriptionPage() {
                                                 <PlanFeat label={`${numLimit(plan.limits.maxOrders)} orders / mo`} on />
                                                 <PlanFeat label={`${numLimit(plan.limits.maxCustomers)} customers`} on />
                                                 <PlanFeat label={`${numLimit(getTeamLoginCap(plan.limits))} team logins (any role)`} on />
+                                                {(plan.limits.maxShops ?? 1) > 1 && (
+                                                    <PlanFeat label={`${plan.limits.maxShops} shops — one subscription`} on />
+                                                )}
                                                 <PlanFeat label="Reports & analytics" on={plan.features.reports} />
                                                 <PlanFeat label="Driver / Agent app" on={plan.features.driverApp} />
                                                 <PlanFeat label="Plant dashboard" on={plan.features.plantApp} />

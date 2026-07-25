@@ -36,7 +36,8 @@ function isPaidStatus(sub: any): boolean {
 function canonicalPlanId(planId: string): 'free' | 'pro' | 'pro_plus' | 'business' {
   const n = String(planId || '').toLowerCase().replace(/[_\s-]/g, '');
   if (n === 'proplus' || n === 'pro+') return 'pro_plus';
-  if (n === 'business' || n === 'enterprise' || n === 'premium') return 'business';
+  // Franchise (multi-shop owner plan) carries Business-level access per shop.
+  if (n === 'business' || n === 'enterprise' || n === 'premium' || n === 'franchise' || n === 'multishop') return 'business';
   if (n === 'pro' || n === 'starter') return 'pro';
   return 'free';
 }

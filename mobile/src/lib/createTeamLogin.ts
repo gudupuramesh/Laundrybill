@@ -21,7 +21,8 @@ async function resolveTeamLoginCap(shopId: string): Promise<number | null> {
     const planId = sub.planId || sub.planName || 'free';
     const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
     const isProPlus = normalized === 'proplus' || normalized === 'pro+';
-    const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium');
+    // Franchise (multi-shop owner plan) carries Business-level caps per shop.
+    const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium' || normalized === 'franchise' || normalized === 'multishop');
     const isPro = !isProPlus && !isBusiness && (normalized === 'pro' || normalized === 'starter');
     const canonical = isProPlus ? 'pro_plus' : isBusiness ? 'business' : isPro ? 'pro' : 'free';
     const candidates = [planId, normalized, canonical].filter((v, i, a) => a.indexOf(v) === i);

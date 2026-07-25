@@ -199,6 +199,15 @@ export function PlanEditorSheet({
                                 })}
                             />
                             <LTextInput
+                                label="Max Shops (multi-shop / franchise, 1 = single)"
+                                type="number"
+                                value={formData.limits.maxShops ?? 1}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    limits: { ...formData.limits, maxShops: Number(e.target.value) }
+                                })}
+                            />
+                            <LTextInput
                                 label="Max Staff (legacy, not enforced)"
                                 type="number"
                                 value={formData.limits.maxStaff}

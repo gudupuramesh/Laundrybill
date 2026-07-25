@@ -30,6 +30,7 @@ const PLAN_COLORS: Record<PlanType, string> = {
     pro: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
     pro_plus: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
     business: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+    franchise: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
 };
 
 const PLAN_LABELS: Record<PlanType, string> = {
@@ -37,6 +38,7 @@ const PLAN_LABELS: Record<PlanType, string> = {
     pro: "Pro",
     pro_plus: "Pro+",
     business: "Business",
+    franchise: "Franchise",
 };
 
 const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [

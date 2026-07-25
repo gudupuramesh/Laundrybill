@@ -37,13 +37,13 @@ exports.getWebhookSecret = getWebhookSecret;
 async function getRazorpayPlanId(planId, region) {
     const snap = await admin.firestore().collection("platformSettings").doc("subscription").get();
     const d = snap.data() || {};
-    const key = region === "intl"
-        ? planId === "pro_plus"
-            ? "razorpayProPlusMonthlyPlanIdIntl"
-            : "razorpayBusinessMonthlyPlanIdIntl"
-        : planId === "pro_plus"
-            ? "razorpayProPlusMonthlyPlanId"
-            : "razorpayBusinessMonthlyPlanId";
+    const keyByPlan = {
+        // [india key, intl key] in platformSettings/subscription
+        pro_plus: ["razorpayProPlusMonthlyPlanId", "razorpayProPlusMonthlyPlanIdIntl"],
+        business: ["razorpayBusinessMonthlyPlanId", "razorpayBusinessMonthlyPlanIdIntl"],
+        franchise: ["razorpayFranchiseMonthlyPlanId", "razorpayFranchiseMonthlyPlanIdIntl"],
+    };
+    const key = keyByPlan[planId][region === "intl" ? 1 : 0];
     const v = d[key];
     return typeof v === "string" && v.trim() ? v.trim() : null;
 }

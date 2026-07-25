@@ -28,6 +28,13 @@ export function usePlans() {
                     const data = d.data() as Plan;
                     return { ...data, isActive: data.isActive !== false };
                 });
+                // Union in config tiers that don't have a Firestore doc yet (e.g. a
+                // newly shipped tier like Franchise) so they're visible and can be
+                // saved — Save persists them via setDoc(merge).
+                const existingIds = new Set(fetchedPlans.map((p) => p.id));
+                Object.values(PLANS).forEach((p) => {
+                    if (!existingIds.has(p.id)) fetchedPlans.push({ ...p, isActive: p.isActive !== false });
+                });
                 // Sort by price roughly to keep order: Free -> Pro -> Business
                 fetchedPlans.sort((a, b) => a.prices.monthly - b.prices.monthly);
                 setPlans(fetchedPlans);

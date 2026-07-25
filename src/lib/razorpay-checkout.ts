@@ -61,7 +61,7 @@ export type RazorpayResult =
  */
 export async function startRazorpaySubscription(opts: {
     shopId: string;
-    planId: "pro_plus" | "business";
+    planId: "pro_plus" | "business" | "franchise";
     planName: string;
     email?: string;
     contact?: string;

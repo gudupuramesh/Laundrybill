@@ -51,6 +51,16 @@ export const cancelSubscriptionAtPeriodEnd = onCall(
 
         const subData = subDoc.data();
         const status = subData?.status;
+
+        // Franchise mirror docs (child shops) are not directly billable — the
+        // owner cancels the Franchise subscription on their primary shop.
+        if (subData?.managedBy === "franchise") {
+            throw new HttpsError(
+                "failed-precondition",
+                "This shop is covered by your Franchise subscription. Cancel it from your primary shop."
+            );
+        }
+
         if (status !== "active") {
             throw new HttpsError("failed-precondition", "Only active subscriptions can be cancelled.");
         }

@@ -114,7 +114,7 @@ exports.checkSubscriptionExpiration = (0, scheduler_1.onSchedule)("every day 00:
  * New shops always start on the Free plan.
  */
 exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)("shops/{shopId}", async (event) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     const shopId = event.params.shopId;
     const shopData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
     if (!shopId || !shopData) {
@@ -129,6 +129,44 @@ exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)
             return;
         }
         const now = admin.firestore.Timestamp.now();
+        // ── Multi-shop: an ADDITIONAL shop (ownerId != doc id) never gets its own
+        // trial. If the owner's primary subscription is an entitled Franchise
+        // plan, write a mirror subscription so every per-shop reader (rules,
+        // apps, web) sees the plan; otherwise the child shop is Free.
+        const ownerUid = String(shopData.ownerId || "");
+        if (ownerUid && ownerUid !== shopId) {
+            const ownerSub = (await db.collection("subscriptions").doc(ownerUid).get()).data() || {};
+            const ownerPlan = (0, plan_normalize_1.normalizePlanId)(ownerSub.planId);
+            const ownerStatus = String(ownerSub.status || "");
+            const activeUntil = (_c = (_b = ownerSub.activeUntil) === null || _b === void 0 ? void 0 : _b.toDate) === null || _c === void 0 ? void 0 : _c.call(_b);
+            const entitled = ownerPlan === "franchise" &&
+                (ownerStatus === "active" ||
+                    ownerStatus === "trial" ||
+                    ownerStatus === "grace_period" ||
+                    (ownerStatus === "cancelled" && !!activeUntil && activeUntil > new Date()));
+            if (entitled) {
+                await subRef.set(Object.assign(Object.assign(Object.assign({ shopId, shopName: shopData.name || "", ownerEmail: shopData.email || "", ownerPhone: shopData.phone || "", planId: "franchise", planName: "Franchise (linked shop)", status: ownerStatus, billingCycle: ownerSub.billingCycle || "monthly", managedBy: "franchise", parentShopId: ownerUid }, (ownerSub.currentPeriodEnd ? { currentPeriodEnd: ownerSub.currentPeriodEnd } : {})), (ownerSub.endDate ? { endDate: ownerSub.endDate } : {})), { createdAt: now, updatedAt: now }));
+                console.log(`Franchise mirror subscription created for child shop ${shopId} (owner ${ownerUid}).`);
+            }
+            else {
+                await subRef.set({
+                    shopId,
+                    shopName: shopData.name || "",
+                    ownerEmail: shopData.email || "",
+                    ownerPhone: shopData.phone || "",
+                    planId: "free",
+                    planName: "Free",
+                    status: "free",
+                    billingCycle: "monthly",
+                    managedBy: "franchise",
+                    parentShopId: ownerUid,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+                console.log(`Child shop ${shopId} created without franchise entitlement — set to Free.`);
+            }
+            return; // no trial, no super-admin "new shop" push for child shops
+        }
         // Order-based trial: the shop gets the trial plan's features (Pro by default)
         // for the first N orders, after which `meterTrialOrderOnCreate` converts it to Free.
         const trial = await (0, trial_config_1.getTrialConfig)();
@@ -171,8 +209,8 @@ exports.createTrialSubscriptionOnShopCreate = (0, firestore_1.onDocumentCreated)
                 const shopPhone = shopData.phone || "";
                 const shopEmail = shopData.email || "";
                 const contactInfo = [shopPhone, shopEmail].filter(Boolean).join(" | ");
-                const city = ((_b = shopData.location) === null || _b === void 0 ? void 0 : _b.city) || "";
-                const state = ((_c = shopData.location) === null || _c === void 0 ? void 0 : _c.state) || "";
+                const city = ((_d = shopData.location) === null || _d === void 0 ? void 0 : _d.city) || "";
+                const state = ((_e = shopData.location) === null || _e === void 0 ? void 0 : _e.state) || "";
                 const locationInfo = [city, state].filter(Boolean).join(", ");
                 const results = await Promise.allSettled(tokens.map((token) => admin.messaging().send({
                     token,
@@ -549,7 +587,7 @@ exports.applyScheduledDowngrades = (0, scheduler_1.onSchedule)("every day 00:20"
  * regardless of how the subscription was updated (Admin, Stripe, Background Job).
  */
 exports.syncSubscriptionToShop = (0, firestore_1.onDocumentWritten)("subscriptions/{subscriptionId}", async (event) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     const subscriptionId = event.params.subscriptionId;
     const newData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.after.data();
     // If deleted, we might want to revert logic, but mostly we care about Updates/Creates
@@ -605,11 +643,103 @@ exports.syncSubscriptionToShop = (0, firestore_1.onDocumentWritten)("subscriptio
             }
         });
         console.log(`Successfully synced plan '${effectivePlanId}' (status: ${status}) to shop ${shopId}.`);
+        // ── Franchise fan-out: keep the owner's OTHER shops' mirror subscriptions
+        // in step with the primary subscription. Mirror docs (managedBy ==
+        // 'franchise') never re-fan — they only sync their own shop above.
+        if (newData.managedBy !== "franchise") {
+            const beforePlan = (0, plan_normalize_1.normalizePlanId)((_f = (_e = (_d = event.data) === null || _d === void 0 ? void 0 : _d.before) === null || _e === void 0 ? void 0 : _e.data()) === null || _f === void 0 ? void 0 : _f.planId);
+            const afterPlan = (0, plan_normalize_1.normalizePlanId)(newData.planId);
+            if (afterPlan === "franchise" || beforePlan === "franchise") {
+                await fanOutFranchiseToChildShops(shopId, newData, afterPlan);
+            }
+        }
     }
     catch (error) {
         console.error(`Error syncing to shop ${shopId}:`, error);
     }
 });
+/**
+ * Upsert mirror subscriptions on every other shop owned by the franchise
+ * owner. On an entitled franchise sub the mirrors carry planId 'franchise' +
+ * the primary's status; on downgrade/expiry they flip to status 'expired' so
+ * each mirror's own sync run forces that child shop back to Free.
+ */
+async function fanOutFranchiseToChildShops(primaryShopId, primarySub, afterPlan) {
+    var _a, _b, _c;
+    try {
+        const primaryShop = (await db.collection("shops").doc(primaryShopId).get()).data() || {};
+        const ownerUid = String(primaryShop.ownerId || primaryShopId);
+        const owned = await db.collection("shops").where("ownerId", "==", ownerUid).get();
+        const children = owned.docs
+            .filter((d) => d.id !== primaryShopId)
+            .sort((a, b) => {
+            var _a, _b, _c, _d, _e, _f;
+            const ta = (_c = (_b = (_a = a.data().createdAt) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : 0;
+            const tb = (_f = (_e = (_d = b.data().createdAt) === null || _d === void 0 ? void 0 : _d.toMillis) === null || _e === void 0 ? void 0 : _e.call(_d)) !== null && _f !== void 0 ? _f : 0;
+            return ta - tb; // oldest first — they win the maxShops cap
+        });
+        if (!children.length)
+            return;
+        // Server-side backstop on shops covered: plans/franchise.limits.maxShops
+        // (primary + N-1 children). Anything past the cap is treated as not covered.
+        let maxShops = 4;
+        try {
+            const planDoc = (await db.collection("plans").doc("franchise").get()).data();
+            const v = Number((_a = planDoc === null || planDoc === void 0 ? void 0 : planDoc.limits) === null || _a === void 0 ? void 0 : _a.maxShops);
+            if (Number.isFinite(v) && v > 0)
+                maxShops = v;
+        }
+        catch ( /* keep default */_d) { /* keep default */ }
+        const coveredChildren = children.slice(0, Math.max(0, maxShops - 1));
+        const uncovered = children.slice(Math.max(0, maxShops - 1));
+        const status = String(primarySub.status || "");
+        const activeUntil = (_c = (_b = primarySub.activeUntil) === null || _b === void 0 ? void 0 : _b.toDate) === null || _c === void 0 ? void 0 : _c.call(_b);
+        const entitled = afterPlan === "franchise" &&
+            (status === "active" ||
+                status === "trial" ||
+                status === "grace_period" ||
+                (status === "cancelled" && !!activeUntil && activeUntil > new Date()));
+        const now = admin.firestore.Timestamp.now();
+        const writes = [];
+        for (const child of coveredChildren) {
+            const ref = db.collection("subscriptions").doc(child.id);
+            if (entitled) {
+                writes.push(ref.set(Object.assign(Object.assign(Object.assign(Object.assign({ shopId: child.id, shopName: child.data().name || "", planId: "franchise", planName: "Franchise (linked shop)", status, billingCycle: primarySub.billingCycle || "monthly", managedBy: "franchise", parentShopId: primaryShopId }, (primarySub.currentPeriodEnd ? { currentPeriodEnd: primarySub.currentPeriodEnd } : {})), (primarySub.endDate ? { endDate: primarySub.endDate } : {})), (primarySub.activeUntil ? { activeUntil: primarySub.activeUntil } : {})), { updatedAt: now }), { merge: true }));
+            }
+            else {
+                // Owner left franchise (downgrade/expiry) → child mirrors expire;
+                // each mirror's own sync run then forces shops/{child}.plan = 'free'.
+                writes.push(ref.set({
+                    shopId: child.id,
+                    planId: "free",
+                    planName: "Free",
+                    status: "expired",
+                    managedBy: "franchise",
+                    parentShopId: primaryShopId,
+                    updatedAt: now,
+                }, { merge: true }));
+            }
+        }
+        for (const child of uncovered) {
+            const ref = db.collection("subscriptions").doc(child.id);
+            writes.push(ref.set({
+                shopId: child.id,
+                planId: "free",
+                planName: "Free",
+                status: "expired",
+                managedBy: "franchise",
+                parentShopId: primaryShopId,
+                updatedAt: now,
+            }, { merge: true }));
+        }
+        await Promise.all(writes);
+        console.log(`Franchise fan-out from ${primaryShopId}: ${coveredChildren.length} covered, ` +
+            `${uncovered.length} over-cap, entitled=${entitled}.`);
+    }
+    catch (e) {
+        console.error(`Franchise fan-out failed for ${primaryShopId}:`, e);
+    }
+}
 /**
  * Notification Functions
  */

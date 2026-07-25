@@ -60,7 +60,8 @@ function canonicalTier(subscriptionData: any): string {
   const planId = subscriptionData?.planId || subscriptionData?.planName || 'free';
   const normalized = String(planId).toLowerCase().replace(/[_\s-]/g, '');
   const isProPlus = normalized === 'proplus' || normalized === 'pro+';
-  const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium');
+  // Franchise (multi-shop owner plan) carries Business-level caps per shop.
+  const isBusiness = !isProPlus && (normalized === 'business' || normalized === 'enterprise' || normalized === 'premium' || normalized === 'franchise' || normalized === 'multishop');
   const isPro = !isProPlus && !isBusiness && (normalized === 'pro' || normalized === 'starter');
   return isProPlus ? 'pro_plus' : isBusiness ? 'business' : isPro ? 'pro' : 'free';
 }

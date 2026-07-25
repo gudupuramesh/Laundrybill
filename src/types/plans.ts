@@ -11,12 +11,14 @@
  */
 
 /** Canonical plan ids */
-export type PlanType = "free" | "pro" | "pro_plus" | "business";
+export type PlanType = "free" | "pro" | "pro_plus" | "business" | "franchise";
 
 /** Normalize legacy / variant tier ids from older data */
 export function normalizePlanId(raw: string | null | undefined): PlanType {
     if (!raw) return "free";
     const r = String(raw).toLowerCase().replace(/[_\s-]/g, "");
+    // Franchise (multi-shop) tier — test before business
+    if (r === "franchise" || r === "multishop") return "franchise";
     // Pro+ tier — must be tested BEFORE business and bare-pro
     if (r === "proplus" || r === "pro+") return "pro_plus";
     // Business tier aliases
@@ -75,6 +77,12 @@ export interface PlanLimits {
      * values kept for older app builds. -1 = unlimited, 0 = owner-only.
      */
     maxTeamLogins?: number;
+    /**
+     * Shops one owner subscription covers (franchise/multi-shop). 1 = single
+     * shop (default for every non-franchise tier). Enforced client-side on the
+     * "Add shop" flow and server-side by the franchise fan-out cap.
+     */
+    maxShops?: number;
     maxStaff: number; // LEGACY per-role cap (Staff App users) — no longer enforced
     maxDeliveryAgents: number; // LEGACY per-role cap (Agent App users) — no longer enforced
     maxPlantStaff: number; // LEGACY per-role cap (Plant App users) — no longer enforced

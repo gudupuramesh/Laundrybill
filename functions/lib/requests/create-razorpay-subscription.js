@@ -26,8 +26,8 @@ exports.createRazorpaySubscription = (0, https_1.onCall)({ secrets: [secrets_1.R
     if (!shopId || typeof shopId !== "string") {
         throw new https_1.HttpsError("invalid-argument", "Missing or invalid shopId.");
     }
-    if (planId !== "pro_plus" && planId !== "business") {
-        throw new https_1.HttpsError("invalid-argument", "Plan must be 'pro_plus' or 'business'.");
+    if (planId !== "pro_plus" && planId !== "business" && planId !== "franchise") {
+        throw new https_1.HttpsError("invalid-argument", "Plan must be 'pro_plus', 'business' or 'franchise'.");
     }
     // Ownership check (same pattern as cancelSubscriptionAtPeriodEnd)
     const shopSnap = await db.collection("shops").doc(shopId).get();
@@ -38,6 +38,12 @@ exports.createRazorpaySubscription = (0, https_1.onCall)({ secrets: [secrets_1.R
     const ownerId = (_a = shop.ownerId) !== null && _a !== void 0 ? _a : shop.userId;
     if (ownerId && ownerId !== uid) {
         throw new https_1.HttpsError("permission-denied", "You can only subscribe for your own shop.");
+    }
+    // Multi-shop: billing always lives on the PRIMARY shop (doc id == owner
+    // uid). A child (franchise) shop must never carry its own paid sub —
+    // its plan is mirrored from the owner's subscription.
+    if (ownerId && ownerId !== shopId) {
+        throw new https_1.HttpsError("failed-precondition", "Billing is managed on your primary shop. Open Subscription from your main shop to change plans.");
     }
     const { keyId } = (0, razorpay_1.getRazorpayKeys)();
     if (!keyId) {

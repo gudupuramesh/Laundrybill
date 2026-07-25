@@ -260,6 +260,7 @@ export default function SubscriptionScreen({
   const currentPlanId = useMemo(() => {
     const raw = (sub?.planId || sub?.planName || 'free');
     const n = String(raw).toLowerCase().replace(/[_\s-]/g, '');
+    if (n === 'franchise' || n === 'multishop') return 'franchise';
     if (n === 'proplus' || n === 'pro+') return 'pro_plus';
     if (n === 'business' || n === 'enterprise' || n === 'premium') return 'business';
     if (n === 'pro' || n === 'starter') return 'pro';
@@ -267,6 +268,7 @@ export default function SubscriptionScreen({
   }, [sub]);
 
   const planDisplayName = useMemo(() => {
+    if (currentPlanId === 'franchise') return 'Franchise Plan';
     if (currentPlanId === 'business') return 'Business Plan';
     if (currentPlanId === 'pro_plus') return 'Pro+ Plan';
     if (currentPlanId === 'pro') return 'Pro Plan';

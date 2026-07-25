@@ -44,7 +44,7 @@ export async function logSubscriptionEvent(input: SubscriptionEventInput): Promi
     }
 }
 
-const PLAN_RANK: Record<PlanType, number> = { free: 0, pro: 1, pro_plus: 2, business: 3 };
+const PLAN_RANK: Record<PlanType, number> = { free: 0, pro: 1, pro_plus: 2, business: 3, franchise: 4 };
 
 /** Pick the ActivityType for a plan transition so the timeline colours it correctly. */
 export function planChangeActivityType(
