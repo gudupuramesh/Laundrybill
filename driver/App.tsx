@@ -32,6 +32,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import TodayScreen from './src/screens/TodayScreen';
 import PickupsScreen from './src/screens/PickupsScreen';
 import DeliveriesScreen from './src/screens/DeliveriesScreen';
+import RouteScreen from './src/screens/RouteScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import PickupDetailScreen from './src/screens/PickupDetailScreen';
@@ -186,6 +187,11 @@ function MainShell() {
         {top?.name === 'deliveryDetail' && (
           <View style={styles.overlay}>
             <DeliveryDetailScreen orderId={top.orderId} onEditOrder={(order: any) => openCreate(order)} />
+          </View>
+        )}
+        {top?.name === 'route' && (
+          <View style={styles.overlay}>
+            <RouteScreen />
           </View>
         )}
 

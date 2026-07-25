@@ -15,36 +15,10 @@ import {
   saveCustomerLocation,
   type LatLng,
 } from '../lib/saveCustomerLocation';
+import { TILE, tilesForView } from '../lib/osmTiles';
 
-// ── OpenStreetMap raster tiles (keyless, no WebView) ──────────────────────────
-const TILE = 256;
-const ZOOM = 16;
 const MAP_H = 180;
-const lngToWorldX = (lng: number, z: number) => ((lng + 180) / 360) * Math.pow(2, z) * TILE;
-const latToWorldY = (lat: number, z: number) => {
-  const rad = (lat * Math.PI) / 180;
-  const y = (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
-  return y * Math.pow(2, z) * TILE;
-};
-/** Tiles + offsets to fill a w×h box centered on (lat,lng). Point maps to box center. */
-function osmTiles(lat: number, lng: number, w: number, h: number) {
-  const n = Math.pow(2, ZOOM);
-  const originX = lngToWorldX(lng, ZOOM) - w / 2;
-  const originY = latToWorldY(lat, ZOOM) - h / 2;
-  const tiles: { uri: string; left: number; top: number }[] = [];
-  for (let tx = Math.floor(originX / TILE); tx <= Math.floor((originX + w) / TILE); tx++) {
-    for (let ty = Math.floor(originY / TILE); ty <= Math.floor((originY + h) / TILE); ty++) {
-      if (ty < 0 || ty >= n) continue;
-      const wx = ((tx % n) + n) % n;
-      tiles.push({
-        uri: `https://tile.openstreetmap.org/${ZOOM}/${wx}/${ty}.png`,
-        left: tx * TILE - originX,
-        top: ty * TILE - originY,
-      });
-    }
-  }
-  return tiles;
-}
+const ZOOM = 16;
 
 export function SaveLocationSheet({
   open,
@@ -140,7 +114,7 @@ export function SaveLocationSheet({
       <View style={s.mapBox} onLayout={(e) => setMapW(Math.round(e.nativeEvent.layout.width))}>
         {pos ? (
           <>
-            {osmTiles(pos.lat, pos.lng, mapW, MAP_H).map((t) => (
+            {tilesForView(pos.lat, pos.lng, mapW, MAP_H, ZOOM).map((t) => (
               <Image
                 key={`${t.left}_${t.top}`}
                 source={{ uri: t.uri, headers: { 'User-Agent': 'LaundrybillTeam/1.0' } }}

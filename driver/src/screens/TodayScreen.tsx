@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme';
 import { useDriverAuth } from '../lib/DriverAuthContext';
@@ -22,7 +23,14 @@ export default function TodayScreen() {
   const { formatCompact } = useCurrency();
   const nav = useNav();
 
-  const upNext = tasks.filter((t) => t.status === 'pending').slice(0, 4);
+  const pending = tasks.filter((t) => t.status === 'pending');
+  const upNext = pending.slice(0, 4);
+  const endToday = (() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  })();
+  const routeStops = pending.filter((t) => t.scheduledDate.getTime() <= endToday).length;
 
   return (
     <View style={styles.flex}>
@@ -57,6 +65,20 @@ export default function TodayScreen() {
           <View style={styles.statDivider} />
           <Stat label="Collected" value={formatCompact(todayStats.collected)} />
         </View>
+
+        {/* Route optimizer entry — orders today's stops into the shortest run. */}
+        <TouchableOpacity style={styles.routeCard} activeOpacity={0.85} onPress={() => nav.navigate({ name: 'route' })}>
+          <View style={styles.routeIcon}>
+            <MaterialIcons name="route" size={22} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.routeTitle}>Plan route</Text>
+            <Text style={styles.routeSub}>
+              {routeStops > 0 ? `Optimize ${routeStops} stop${routeStops === 1 ? '' : 's'} for the shortest run` : 'Optimize your pickups & deliveries'}
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+        </TouchableOpacity>
 
         <Text style={styles.sectionLabel}>Up next</Text>
         {upNext.length === 0 ? (
@@ -119,6 +141,27 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.bold, fontSize: 22, color: colors.text },
   statLabel: { fontFamily: fonts.semibold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: colors.textMuted },
   statDivider: { width: 1, height: 34, backgroundColor: colors.border },
+  routeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 16,
+  },
+  routeIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  routeTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  routeSub: { fontFamily: fonts.semibold, fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   sectionLabel: {
     fontFamily: fonts.bold,
     fontSize: 11,

@@ -17,6 +17,7 @@ export type TabKey =
 export type Route =
   | { name: 'pickupDetail'; orderId: string }
   | { name: 'deliveryDetail'; orderId: string }
+  | { name: 'route' }
   | { name: 'plantOrderDetail'; orderId: string }
   | { name: 'plantCompleted' }
   // Staff routes
