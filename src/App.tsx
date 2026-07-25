@@ -47,6 +47,8 @@ const HelpPage = lazy(() => named(import("@/features/help"), "HelpPage"));
 const SettingsPageMasterDetail = lazy(() => named(import("@/features/settings"), "SettingsPageMasterDetail"));
 const ShopSettingsPage = lazy(() => named(import("@/features/settings"), "ShopSettingsPage"));
 const DeliverySettingsPage = lazy(() => named(import("@/features/settings"), "DeliverySettingsPage"));
+const AllShopsPage = lazy(() => named(import("@/features/shops/AllShopsPage"), "AllShopsPage"));
+const AddShopPage = lazy(() => named(import("@/features/shops/AddShopPage"), "AddShopPage"));
 const SubscriptionPage = lazy(() => named(import("@/features/settings/pages/SubscriptionPage"), "SubscriptionPage"));
 const PaymentHistoryPage = lazy(() => named(import("@/features/settings/pages/PaymentHistoryPage"), "PaymentHistoryPage"));
 const PublicPageSettingsPage = lazy(() => named(import("@/features/settings/pages/PublicPageSettingsPage"), "PublicPageSettingsPage"));
@@ -282,6 +284,9 @@ function App() {
               <Route path="settings" element={<SettingsPageMasterDetail />} />
               <Route path="shop-settings" element={<ShopSettingsPage />} />
               <Route path="delivery-settings" element={<DeliverySettingsPage />} />
+              {/* Multi-shop (owner-only): overview of all owned shops + add-shop */}
+              <Route path="shops" element={<OwnerRoute><AllShopsPage /></OwnerRoute>} />
+              <Route path="shops/new" element={<OwnerRoute><AddShopPage /></OwnerRoute>} />
               <Route path="settings/subscription" element={<OwnerRoute><SubscriptionPage /></OwnerRoute>} />
               <Route path="settings/payment-history" element={<OwnerRoute><PaymentHistoryPage /></OwnerRoute>} />
               <Route path="settings/public-page" element={<OwnerRoute><FeatureGuard feature="publicOrderingPage"><PublicPageSettingsPage /></FeatureGuard></OwnerRoute>} />

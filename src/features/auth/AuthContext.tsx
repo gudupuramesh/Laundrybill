@@ -19,8 +19,9 @@ import {
     signOut as firebaseSignOut,
 } from "firebase/auth";
 import type { User, ConfirmationResult } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, writeBatch, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, limit, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { buildNewShopData, seedDefaultInventory } from "@/lib/new-shop";
 import { claimWebSession, releaseWebSession, teardownWebSession } from "@/lib/session-guard";
 import { LSpinner } from "@/components/laundry";
 import { loadLanguageFromFirebase } from "@/lib/i18n";
@@ -44,6 +45,12 @@ interface AuthState {
     isNewUser: boolean;
 }
 
+/** A shop owned by the signed-in owner (multi-shop / franchise). */
+export interface OwnedShop {
+    id: string;
+    name: string;
+}
+
 interface AuthContextType extends AuthState {
     // Phone OTP
     sendOtp: (phone: string) => Promise<void>;
@@ -62,6 +69,15 @@ interface AuthContextType extends AuthState {
     clearError: () => void;
     // New user setup
     completeSignup: (shopName: string, additionalData?: Record<string, unknown>) => Promise<void>;
+    // ── Multi-shop (owners) ────────────────────────────────────────────────
+    /** The owner's PRIMARY shop (users/{uid}.shopId) — billing always targets it. */
+    primaryShopId: string | null;
+    /** Every shop this owner owns (ownerId == uid). Single-shop owners: 1 entry. */
+    ownedShops: OwnedShop[];
+    /** Switch the ACTIVE shop (client-local; no Firestore write). */
+    switchShop: (shopId: string) => void;
+    /** Re-query owned shops (e.g. after Add Shop). */
+    refreshOwnedShops: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,7 +98,7 @@ const RESERVED_TOP_LEVEL = new Set([
     "login", "track", "receipt", "order", "team", "staff", "agent", "plant", "super-admin",
     "dashboard", "scan", "new-order", "orders", "customers", "inventory", "manage-staff",
     "attendance", "payroll", "expenses", "reports", "apps", "settings", "shop-settings",
-    "delivery-settings", "help", "subscription",
+    "delivery-settings", "help", "subscription", "shops",
 ]);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -101,6 +117,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [recaptchaVerifier, setRecaptchaVerifier] =
         useState<RecaptchaVerifier | null>(null);
     const [pendingUser, setPendingUser] = useState<User | null>(null);
+
+    // ── Multi-shop (owners) ────────────────────────────────────────────────
+    // state.shopId stays the PRIMARY shop (users/{uid}.shopId — never rewritten
+    // on switch). The ACTIVE shop is client-local: context overrides shopId/
+    // shopName with the selection, persisted per-uid in localStorage. Access to
+    // non-primary shops is authorized by rules' isShopOwner (shops.ownerId).
+    const [ownedShops, setOwnedShops] = useState<OwnedShop[]>([]);
+    const [activeShop, setActiveShop] = useState<OwnedShop | null>(null);
+
+    const activeShopStorageKey = (uid: string) => `lb_active_shop_${uid}`;
+
+    const loadOwnedShops = async (uid: string, primaryId: string | null): Promise<void> => {
+        try {
+            // NOTE: multi-shop is keyed on shops.ownerId == uid (what the security
+            // rules' isShopOwner authorizes). A cross-provider LINKED identity (uid
+            // != ownerId) gets an empty list here → no switcher; its primary shop
+            // still works via users.shopId (isShopMember). Multi-shop owners should
+            // use their original sign-in method.
+            const snap = await getDocs(query(collection(db, "shops"), where("ownerId", "==", uid)));
+            const shops: OwnedShop[] = snap.docs
+                .map((d) => ({ id: d.id, name: (d.data().name as string) || "My shop" }))
+                // Primary shop first, then by name for a stable menu order.
+                .sort((a, b) => (a.id === primaryId ? -1 : b.id === primaryId ? 1 : a.name.localeCompare(b.name)));
+            setOwnedShops(shops);
+            // Restore the persisted active-shop selection (only if still owned).
+            const savedId = typeof window !== "undefined" ? window.localStorage.getItem(activeShopStorageKey(uid)) : null;
+            const saved = savedId ? shops.find((s) => s.id === savedId) : undefined;
+            setActiveShop(saved && saved.id !== primaryId ? saved : null);
+        } catch (e) {
+            console.warn("Could not load owned shops:", e);
+            setOwnedShops([]);
+            setActiveShop(null);
+        }
+    };
+
+    const refreshOwnedShops = async (): Promise<void> => {
+        const uid = auth.currentUser?.uid;
+        if (uid) await loadOwnedShops(uid, state.shopId);
+    };
+
+    const switchShop = (shopId: string) => {
+        const uid = auth.currentUser?.uid;
+        if (!uid) return;
+        const target = ownedShops.find((s) => s.id === shopId);
+        if (!target) return;
+        if (target.id === state.shopId) {
+            // Back to the primary shop — clear the override.
+            setActiveShop(null);
+            try { window.localStorage.removeItem(activeShopStorageKey(uid)); } catch { /* ignore */ }
+        } else {
+            setActiveShop(target);
+            try { window.localStorage.setItem(activeShopStorageKey(uid), target.id); } catch { /* ignore */ }
+        }
+    };
+
+    // Load the owned-shops list whenever an OWNER account settles (team members
+    // and signed-out states clear it).
+    useEffect(() => {
+        const uid = state.user?.uid;
+        if (uid && state.shopId && state.role === "admin") {
+            loadOwnedShops(uid, state.shopId);
+        } else {
+            setOwnedShops([]);
+            setActiveShop(null);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.user?.uid, state.shopId, state.role]);
 
     // Initialize recaptcha
     useEffect(() => {
@@ -211,7 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } else {
                         // Check if this is a staff member (they won't have a users doc)
                         // Staff users have authUid set in their staff document
-                        const { collectionGroup, query, where, getDocs } = await import("firebase/firestore");
+                        const { collectionGroup } = await import("firebase/firestore");
                         const staffQuery = query(
                             collectionGroup(db, "staff"),
                             where("authUid", "==", firebaseUser.uid)
@@ -239,19 +322,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         } else {
                             // Cross-provider: check if this auth identity's email/phone matches an existing shop.
                             // If so, auto-associate this UID with that shop (same person, different sign-in method).
+                            // Multi-shop safe: with several owned shops sharing contact info, always link to
+                            // the PRIMARY shop (doc id == ownerId), never an arbitrary child shop.
+                            const pickPrimaryShop = (
+                                docs: Array<{ id: string; data: () => Record<string, unknown> }>
+                            ): { id: string; name: string } | null => {
+                                if (!docs.length) return null;
+                                const primary = docs.find((d) => d.id === (d.data().ownerId as string));
+                                const oldest = [...docs].sort((a, b) => {
+                                    const ta = (a.data().createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+                                    const tb = (b.data().createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+                                    return ta - tb;
+                                })[0];
+                                const pick = primary || oldest;
+                                return { id: pick.id, name: (pick.data().name as string) || "" };
+                            };
                             let matchedShop: { id: string; name: string } | null = null;
 
                             if (firebaseUser.email) {
                                 const emailQ = query(
                                     collection(db, "shops"),
                                     where("email", "==", firebaseUser.email.trim().toLowerCase()),
-                                    limit(1)
+                                    limit(10)
                                 );
                                 const emailSnap = await getDocs(emailQ);
-                                if (!emailSnap.empty) {
-                                    const shop = emailSnap.docs[0];
-                                    matchedShop = { id: shop.id, name: shop.data().name || "" };
-                                }
+                                matchedShop = pickPrimaryShop(emailSnap.docs);
                             }
 
                             if (!matchedShop && firebaseUser.phoneNumber) {
@@ -259,15 +354,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 if (digits.length === 10) {
                                     const withPrefix = `+91${digits}`;
                                     const [q1, q2] = [
-                                        query(collection(db, "shops"), where("phone", "==", withPrefix), limit(1)),
-                                        query(collection(db, "shops"), where("phone", "==", digits), limit(1)),
+                                        query(collection(db, "shops"), where("phone", "==", withPrefix), limit(10)),
+                                        query(collection(db, "shops"), where("phone", "==", digits), limit(10)),
                                     ];
                                     const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
                                     const snap = !snap1.empty ? snap1 : snap2;
-                                    if (!snap.empty) {
-                                        const shop = snap.docs[0];
-                                        matchedShop = { id: shop.id, name: shop.data().name || "" };
-                                    }
+                                    matchedShop = pickPrimaryShop(snap.docs);
                                 }
                             }
 
@@ -350,75 +442,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return unsubscribe;
     }, []);
 
-    // Seed default categories and inventory for new shops.
-    // Uses platform default catalog (Super Admin Items List) when present, so new shops get categories, items, and images.
-    const seedDefaultInventory = async (shopId: string) => {
-        const batch = writeBatch(db);
-        const { getDefaultCatalog } = await import("@/features/super-admin/hooks/use-default-catalog");
-        const platformCatalog = await getDefaultCatalog();
-
-        if (platformCatalog?.categories?.length && platformCatalog?.items?.length) {
-            // Seed from platform catalog (includes imageUrl when set)
-            platformCatalog.categories.forEach((cat) => {
-                const ref = doc(collection(db, `shops/${shopId}/categories`), cat.id);
-                batch.set(ref, {
-                    name: cat.name,
-                    icon: cat.icon,
-                    order: cat.order,
-                    turnaroundDays: cat.turnaroundDays,
-                    isActive: true,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                });
-            });
-            platformCatalog.items.forEach((item) => {
-                const ref = doc(collection(db, `shops/${shopId}/inventory`));
-                const itemData: Record<string, unknown> = {
-                    categoryId: item.categoryId,
-                    categoryName: item.categoryName,
-                    subCategory: item.subCategory ?? "",
-                    name: item.name,
-                    basePrice: item.basePrice,
-                    pricingType: item.pricingType,
-                    turnaroundDays: item.turnaroundDays,
-                    order: item.order,
-                    expressMultiplier: 1.5,
-                    isActive: true,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                };
-                if (item.imageUrl) itemData.imageUrl = item.imageUrl;
-                batch.set(ref, itemData);
-            });
-        } else {
-            const { DEFAULT_CATEGORIES, DEFAULT_ITEMS } = await import("@/lib/default-inventory");
-            DEFAULT_CATEGORIES.forEach((cat) => {
-                const ref = doc(collection(db, `shops/${shopId}/categories`), cat.id);
-                batch.set(ref, {
-                    name: cat.name,
-                    icon: cat.icon,
-                    order: cat.order,
-                    turnaroundDays: cat.turnaroundDays,
-                    isActive: true,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                });
-            });
-            DEFAULT_ITEMS.forEach((item) => {
-                const ref = doc(collection(db, `shops/${shopId}/inventory`));
-                batch.set(ref, {
-                    ...item,
-                    expressMultiplier: 1.5,
-                    isActive: true,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                });
-            });
-        }
-
-        await batch.commit();
-    };
-
     // Complete signup for new users
     const completeSignup = async (shopName: string, additionalData?: Record<string, unknown>) => {
         if (!pendingUser) {
@@ -480,67 +503,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Build the shop document — merge additionalData (phone, email, location, country from welcome page)
             // so everything is saved in one atomic write (no race condition with navigation redirect)
             // Country/currency settings come from LoginPage's country dropdown via additionalData
-            const currencyCode = (additionalData?.currency as string) || "INR";
-            const currencySymbol = (additionalData?.currencySymbol as string) || "₹";
-            const countryCode = (additionalData?.countryCode as string) || "IN";
-            const phoneCountryCode = (additionalData?.phoneCountryCode as string) || "+91";
-            const shopLocale = (additionalData?.locale as string) || "en-IN";
-            const shopTimezone = (additionalData?.timezone as string) || "Asia/Kolkata";
-            const taxName = (additionalData?.taxName as string) || "GST";
-
-            const shopData: Record<string, unknown> = {
-                name: shopName,
-                ownerId: userId,
-                phone: pendingUser.phoneNumber || null,
-                email: pendingUser.email || null,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                settings: {
-                    countryCode,
-                    currency: currencyCode,
-                    currencySymbol,
-                    phoneCountryCode,
-                    locale: shopLocale,
-                    timezone: shopTimezone,
-                    orderPrefix: "A",
-                    nextOrderNumber: 1,
-                    adsEnabled: true,
-                    showSelfPromo: true,
-                    whatsappNotifications: true,
-                    smsNotifications: false,
-                    tax: { enabled: true, name: taxName, rate: 18 },
-                    delivery: {
-                        enableServiceAreas: enableServiceAreas,
-                        serviceAreas: initialServiceAreas,
-                        enablePickupSlots: true,
-                        enableDeliverySlots: true,
-                        deliveryFeeEnabled: true,
-                        deliveryFeeMinOrder: 300,
-                        deliveryFeeAmount: 50,
-                        defaultCharge: 50,
-                        pickupTimeSlots: [
-                            { id: "slot1", value: "9:00 AM - 11:00 AM", isActive: true },
-                            { id: "slot2", value: "11:00 AM - 1:00 PM", isActive: true },
-                            { id: "slot3", value: "2:00 PM - 4:00 PM", isActive: true },
-                            { id: "slot4", value: "4:00 PM - 6:00 PM", isActive: true },
-                        ],
-                        deliveryTimeSlots: [
-                            { id: "slot1", value: "9:00 AM - 11:00 AM", isActive: true },
-                            { id: "slot2", value: "11:00 AM - 1:00 PM", isActive: true },
-                            { id: "slot3", value: "2:00 PM - 4:00 PM", isActive: true },
-                            { id: "slot4", value: "4:00 PM - 6:00 PM", isActive: true },
-                        ]
-                    }
-                },
-            };
-
-            // Merge additional data from the welcome page form (phone, email, location)
-            // This overrides the defaults above when the user provides values on the form
-            if (additionalData) {
-                if (additionalData.phone) shopData.phone = additionalData.phone;
-                if (additionalData.email) shopData.email = additionalData.email;
-                if (additionalData.location) shopData.location = additionalData.location;
-            }
+            const shopData = buildNewShopData(shopName, userId, {
+                phone: (additionalData?.phone as string) || pendingUser.phoneNumber || null,
+                email: (additionalData?.email as string) || pendingUser.email || null,
+                location: (additionalData?.location as string) || null,
+                currency: additionalData?.currency as string | undefined,
+                currencySymbol: additionalData?.currencySymbol as string | undefined,
+                countryCode: additionalData?.countryCode as string | undefined,
+                phoneCountryCode: additionalData?.phoneCountryCode as string | undefined,
+                locale: additionalData?.locale as string | undefined,
+                timezone: additionalData?.timezone as string | undefined,
+                taxName: additionalData?.taxName as string | undefined,
+                initialServiceAreas,
+                enableServiceAreas,
+            });
 
             // Create shop document (shop ID = user ID for owner)
             await setDoc(doc(db, "shops", userId), shopData);
@@ -864,6 +840,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         <AuthContext.Provider
             value={{
                 ...state,
+                // Active-shop override (multi-shop owners): everything that reads
+                // shopId from useAuth() follows the selected shop; state.shopId
+                // itself remains the primary shop from users/{uid}.
+                shopId: activeShop?.id ?? state.shopId,
+                shopName: activeShop?.name ?? state.shopName,
+                primaryShopId: state.shopId,
+                ownedShops,
+                switchShop,
+                refreshOwnedShops,
                 sendOtp,
                 verifyOtp,
                 signInWithGoogle,

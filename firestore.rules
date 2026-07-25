@@ -192,25 +192,25 @@ service cloud.firestore {
       
       // Stock subcollection
       match /stock/{stockId} {
-        allow read: if isShopMember(shopId);
-        allow write: if isShopAdmin(shopId);
+        allow read: if isShopMember(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
-      
+
       // Monthly reports subcollection
       match /monthly_reports/{reportId} {
-        allow read: if isShopAdmin(shopId);
-        allow write: if isShopAdmin(shopId);
+        allow read: if isShopAdmin(shopId) || isShopOwner(shopId);
+        allow write: if isShopAdmin(shopId) || isShopOwner(shopId);
       }
-      
+
       // Storage / image activity log (uploads and deletes to R2) – shop writes, Super Admin reads
       match /storageEvents/{eventId} {
-        allow create: if isShopMember(shopId);
+        allow create: if isShopMember(shopId) || isShopOwner(shopId);
         allow read: if isSuperAdmin();
       }
       // Storage summary (total bytes + image count) – shop writes, Super Admin reads
       match /storageStats/{docId} {
         allow read: if isSuperAdmin();
-        allow create, update: if isShopMember(shopId);
+        allow create, update: if isShopMember(shopId) || isShopOwner(shopId);
       }
     }
     

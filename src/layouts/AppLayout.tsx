@@ -50,6 +50,7 @@ import { useSeenOnlineOrders, SeenOnlineOrdersContext } from "@/hooks/use-seen-o
 import type { PlanFeatures } from "@/types/plans";
 import { HelpQuickSheet } from "@/features/help";
 import { DashboardHeaderActions } from "@/features/dashboard/DashboardHeaderActions";
+import { ShopSwitcher } from "@/components/ShopSwitcher";
 
 // LaundryBill brand mark — blue rounded square + glyph (design system)
 function BrandMark() {
@@ -118,7 +119,7 @@ export function AppLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
-    const { user, shopId, role, shopName, signOut } = useAuth();
+    const { user, shopId, role, signOut } = useAuth();
 
     // Register FCM token for push notifications (new online order alerts)
     useFcmTokenRegistration(app, shopId ?? null, user?.uid ?? null);
@@ -287,9 +288,8 @@ export function AppLayout() {
                         <div className="flex items-center gap-3">
                             <LAvatar name={user?.displayName || "User"} size="sm" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">
-                                    {shopName || user?.displayName}
-                                </p>
+                                {/* Multi-shop owners get a switcher; others see the shop name */}
+                                <ShopSwitcher />
                                 <p className="text-xs text-muted-foreground capitalize">
                                     {role}
                                 </p>
@@ -362,8 +362,9 @@ export function AppLayout() {
                         {/* User Info */}
                         <div className="flex items-center gap-3 p-3 bg-muted rounded-xl mb-4">
                             <LAvatar name={user?.displayName || "User"} size="md" />
-                            <div className="flex-1">
-                                <p className="font-semibold text-foreground">{shopName || user?.displayName}</p>
+                            <div className="flex-1 min-w-0">
+                                {/* Multi-shop owners get a switcher; others see the shop name */}
+                                <ShopSwitcher className="font-semibold text-foreground truncate" />
                                 <p className="text-sm text-muted-foreground capitalize">{role}</p>
                             </div>
                         </div>
