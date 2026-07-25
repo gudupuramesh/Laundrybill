@@ -531,6 +531,7 @@ export function ShopDetailsPage() {
                     <option value="pro">Pro</option>
                     <option value="pro_plus">Pro+</option>
                     <option value="business">Business</option>
+                    <option value="franchise">Franchise (multi-shop)</option>
                   </select>
                 </div>
                 <div>

@@ -52,7 +52,7 @@ export interface SubscriptionKpis {
     expiring: number;
     past: number;
     free: number;
-    byPlan: { pro: number; pro_plus: number; business: number };
+    byPlan: { pro: number; pro_plus: number; business: number; franchise: number };
 }
 
 interface UseSubscriptionsOptions {
@@ -219,7 +219,7 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
             expiring: 0,
             past: 0,
             free: 0,
-            byPlan: { pro: 0, pro_plus: 0, business: 0 },
+            byPlan: { pro: 0, pro_plus: 0, business: 0, franchise: 0 },
         };
         for (const s of all) {
             if (isActivePaid(s)) {
@@ -229,7 +229,7 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}) {
                 // even though it counts as an active-paid subscriber for the view.
                 if (s.status === "active") k.mrr += monthlyPrice(s.planId, s.billingCycle);
                 const p = normalizePlanId(s.planId);
-                if (p === "pro" || p === "business") k.byPlan[p]++;
+                if (p === "pro" || p === "business" || p === "franchise") k.byPlan[p]++;
                 else if (p === "pro_plus") k.byPlan.pro_plus++;
             }
             if (s.status === "trial") k.trialing++;

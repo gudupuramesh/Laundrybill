@@ -70,6 +70,7 @@ const PLAN_OPTIONS: { value: PlanType | "all"; label: string }[] = [
     { value: "pro", label: "Pro" },
     { value: "pro_plus", label: "Pro+" },
     { value: "business", label: "Business" },
+    { value: "franchise", label: "Franchise" },
     { value: "free", label: "Free" },
 ];
 
