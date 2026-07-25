@@ -8,7 +8,9 @@
  */
 
 import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { LEmptyState, LPageLoader } from "@/components/laundry";
+import { useAuth } from "@/features/auth/AuthContext";
 import { useFinancialReports } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,6 +86,7 @@ export function ReportsPage() {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
+    const { ownedShops, shopName } = useAuth();
     const [rangeOption, setRangeOption] = useState<DateRangeOption>("thisMonth");
     const [customStart, setCustomStart] = useState<string>(format(startOfMonth(new Date()), "yyyy-MM-dd"));
     const [customEnd, setCustomEnd] = useState<string>(format(endOfMonth(new Date()), "yyyy-MM-dd"));
@@ -245,6 +248,22 @@ export function ReportsPage() {
             </header>
 
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 44px", minHeight: 0 }}>
+
+                {/* ---- Franchise: this report covers ONE shop; link to the master view ---- */}
+                {ownedShops.length > 1 && (
+                    <Link
+                        to="/shops"
+                        style={{
+                            display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
+                            background: "var(--c-primary-soft)", border: "1px solid var(--c-border)",
+                            borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600,
+                            color: "var(--c-primary)", textDecoration: "none",
+                        }}
+                    >
+                        This report shows <span style={{ fontWeight: 700 }}>{shopName}</span> only — view the all-shops
+                        franchise report →
+                    </Link>
+                )}
 
                 {/* ---- KPI row ---- */}
                 <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: 14, marginBottom: 16 }}>
