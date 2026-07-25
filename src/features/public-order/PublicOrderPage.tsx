@@ -7,12 +7,14 @@
  * Phase 2: Templates – 5 presets, hero with logo/name/address/phone/timing
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { usePublicShop } from "./hooks/use-public-shop";
+import { useFranchiseBranches, type FranchiseBranch } from "./hooks/use-franchise-branches";
 import { LCard } from "@/components/laundry";
 import { PublicOrderContent } from "./components/PublicOrderContent";
-import { AlertCircle, Store } from "lucide-react";
+import { FranchiseAreaGate } from "./components/FranchiseAreaGate";
+import { AlertCircle, MapPin, Store } from "lucide-react";
 import { PublicOrderHero } from "./components/PublicOrderHero";
 import { getPublicTemplate } from "./config/templates";
 
@@ -22,6 +24,48 @@ export function PublicOrderPage() {
   const [compactHeader, setCompactHeader] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cartHasItems, setCartHasItems] = useState(false);
+
+  // ── Franchise area routing ────────────────────────────────────────────────
+  // Multi-shop owners: the customer picks their area first; the chosen branch
+  // then serves the whole session (menu, prices, slots, order destination).
+  const { branches, loading: branchesLoading, gateNeeded } = useFranchiseBranches(shop);
+  const [routed, setRouted] = useState<{ branch: FranchiseBranch; area: string } | null>(null);
+  const ownerId = (shop as { ownerId?: string } | null)?.ownerId || "";
+  const routeStorageKey = `lb_pub_area_${ownerId}`;
+
+  // Restore a previous area choice for this franchise (per browser session).
+  useEffect(() => {
+    if (!gateNeeded || routed) return;
+    try {
+      const raw = sessionStorage.getItem(routeStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { shopId?: string; area?: string };
+      const branch = branches.find((b) => b.shop.id === saved.shopId);
+      if (branch && saved.area && branch.areas.includes(saved.area)) {
+        setRouted({ branch, area: saved.area });
+      }
+    } catch {
+      /* ignore bad storage */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateNeeded, branches]);
+
+  const selectArea = (branch: FranchiseBranch, area: string) => {
+    setRouted({ branch, area });
+    try {
+      sessionStorage.setItem(routeStorageKey, JSON.stringify({ shopId: branch.shop.id, area }));
+    } catch {
+      /* ignore */
+    }
+  };
+  const changeArea = () => {
+    setRouted(null);
+    try {
+      sessionStorage.removeItem(routeStorageKey);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Prettify the URL slug into a display name so the loading splash can greet by store
   // name before the shop doc has loaded (e.g. "dry-laun" → "Dry Laun", "ramesh" → "Ramesh").
@@ -86,9 +130,14 @@ export function PublicOrderPage() {
     );
   }
 
-  const template = getPublicTemplate(shop.publicOrdering?.template);
+  // The branch actually being booked — the routed one for franchises, else the
+  // slug's shop. Hero, WhatsApp, menu, slots and order creation all follow it.
+  const showGate = gateNeeded && !routed && !branchesLoading;
+  const activeShop = routed?.branch.shop ?? shop;
 
-  const primaryNumber = shop.phone || shop.whatsappNumber;
+  const template = getPublicTemplate(activeShop.publicOrdering?.template);
+
+  const primaryNumber = activeShop.phone || activeShop.whatsappNumber;
   const whatsappDigits = primaryNumber?.replace(/\D/g, "").replace(/^91/, "") || "";
   const whatsappUrl = whatsappDigits
     ? `https://wa.me/91${whatsappDigits.length === 10 ? whatsappDigits : whatsappDigits}`
@@ -103,17 +152,42 @@ export function PublicOrderPage() {
       data-testid="public-order-page"
     >
       <PublicOrderHero
-        shop={shop}
-        templateId={shop.publicOrdering?.template}
+        shop={activeShop}
+        templateId={activeShop.publicOrdering?.template}
         compact={compactHeader}
       />
+
+      {/* Franchise: routed-area pill — lets the customer change their area */}
+      {gateNeeded && routed && (
+        <button
+          type="button"
+          onClick={changeArea}
+          className="mx-auto -mt-1 mb-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm"
+        >
+          <MapPin className="h-3.5 w-3.5 text-primary" />
+          Serving {routed.area}
+          <span className="text-primary">· Change</span>
+        </button>
+      )}
+
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <PublicOrderContent
-          shop={shop}
-          onOrderingActive={setCompactHeader}
-          onCheckoutOpenChange={setCheckoutOpen}
-          onCartHasItemsChange={setCartHasItems}
-        />
+        {branchesLoading ? (
+          // Franchise branch lookup in flight — brief; avoids flashing the wrong menu.
+          <div className="flex flex-1 items-center justify-center">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : showGate ? (
+          <FranchiseAreaGate branches={branches} onSelect={selectArea} />
+        ) : (
+          <PublicOrderContent
+            key={activeShop.id}
+            shop={activeShop}
+            initialArea={routed?.area}
+            onOrderingActive={setCompactHeader}
+            onCheckoutOpenChange={setCheckoutOpen}
+            onCartHasItemsChange={setCartHasItems}
+          />
+        )}
       </div>
 
       {/* Floating WhatsApp – hidden when cart has items or checkout is open so it doesn’t overlap CTA */}

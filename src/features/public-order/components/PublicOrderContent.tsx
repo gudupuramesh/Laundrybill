@@ -49,19 +49,21 @@ type OrderMode = "quick" | "select";
 
 interface PublicOrderContentProps {
     shop: Shop;
+    /** Pre-selected delivery area (franchise area-gate routes the customer here). */
+    initialArea?: string;
     onOrderingActive?: (active: boolean) => void;
     onCheckoutOpenChange?: (open: boolean) => void;
     onCartHasItemsChange?: (hasItems: boolean) => void;
 }
 
-export function PublicOrderContent({ shop, onOrderingActive, onCheckoutOpenChange, onCartHasItemsChange }: PublicOrderContentProps) {
+export function PublicOrderContent({ shop, initialArea, onOrderingActive, onCheckoutOpenChange, onCartHasItemsChange }: PublicOrderContentProps) {
     const [mode, setMode] = useState<OrderMode>("quick");
     const [estWeight, setEstWeight] = useState("");
     const [estPieces, setEstPieces] = useState("");
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [confirmPhone, setConfirmPhone] = useState("");
     const [search, setSearch] = useState("");
-    const [selectedArea, setSelectedArea] = useState("");
+    const [selectedArea, setSelectedArea] = useState(initialArea || "");
     const [selectedCategory, setSelectedCategory] = useState(""); // "" = All
     const [itemDetailOpen, setItemDetailOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
