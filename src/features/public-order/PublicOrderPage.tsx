@@ -151,9 +151,12 @@ export function PublicOrderPage() {
       ].join(" ")}
       data-testid="public-order-page"
     >
+      {/* Brand identity ALWAYS follows the link the customer opened (one
+          franchise brand); only the functional bits below (menu, prices,
+          slots, offers, order destination) follow the serving branch. */}
       <PublicOrderHero
-        shop={activeShop}
-        templateId={activeShop.publicOrdering?.template}
+        shop={shop}
+        templateId={shop.publicOrdering?.template}
         compact={compactHeader}
       />
 
@@ -166,6 +169,9 @@ export function PublicOrderPage() {
         >
           <MapPin className="h-3.5 w-3.5 text-primary" />
           Serving {routed.area}
+          {routed.branch.shop.id !== shop.id && (
+            <span className="text-muted-foreground">— {routed.branch.shop.name}</span>
+          )}
           <span className="text-primary">· Change</span>
         </button>
       )}
@@ -182,6 +188,7 @@ export function PublicOrderPage() {
           <PublicOrderContent
             key={activeShop.id}
             shop={activeShop}
+            brandShop={shop}
             initialArea={routed?.area}
             onOrderingActive={setCompactHeader}
             onCheckoutOpenChange={setCheckoutOpen}

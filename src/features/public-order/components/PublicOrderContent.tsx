@@ -49,6 +49,10 @@ type OrderMode = "quick" | "select";
 
 interface PublicOrderContentProps {
     shop: Shop;
+    /** Franchise: the BRAND shop (the link's shop). Testimonials + footer name
+     *  come from it so the page keeps one identity; menu/prices/slots/offers
+     *  stay on `shop` (the serving branch). Defaults to `shop`. */
+    brandShop?: Shop;
     /** Pre-selected delivery area (franchise area-gate routes the customer here). */
     initialArea?: string;
     onOrderingActive?: (active: boolean) => void;
@@ -56,7 +60,8 @@ interface PublicOrderContentProps {
     onCartHasItemsChange?: (hasItems: boolean) => void;
 }
 
-export function PublicOrderContent({ shop, initialArea, onOrderingActive, onCheckoutOpenChange, onCartHasItemsChange }: PublicOrderContentProps) {
+export function PublicOrderContent({ shop, brandShop, initialArea, onOrderingActive, onCheckoutOpenChange, onCartHasItemsChange }: PublicOrderContentProps) {
+    const brand = brandShop ?? shop;
     const [mode, setMode] = useState<OrderMode>("quick");
     const [estWeight, setEstWeight] = useState("");
     const [estPieces, setEstPieces] = useState("");
@@ -104,7 +109,8 @@ export function PublicOrderContent({ shop, initialArea, onOrderingActive, onChec
     const featuredCode = shop.publicOrdering?.featuredCouponCode;
     const offerText = shop.publicOrdering?.offerText?.trim();
     const offerEnabled = (shop.publicOrdering?.offerEnabled ?? !!featuredCode) && (!!offerText || !!featuredCode);
-    const testimonials = shop.publicOrdering?.testimonials ?? [];
+    // Testimonials are brand-level marketing — keep the link's identity.
+    const testimonials = brand.publicOrdering?.testimonials ?? [];
     const minOrderValue = shop.publicOrdering?.minOrderValue || 0;
     // Enforced only on the Price Calculator (priced items). Book Pickup is priced at intake, so it's informational there.
     const belowMin = minOrderValue > 0 && cart.total < minOrderValue;
@@ -607,9 +613,9 @@ export function PublicOrderContent({ shop, initialArea, onOrderingActive, onChec
                     </div>
                 )}
 
-                {/* footer */}
+                {/* footer — brand name (the link's identity, not the serving branch) */}
                 <div style={{ marginTop: 30, paddingTop: 18, borderTop: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{shop.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{brand.name}</span>
                     <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--c-text-3)" }}>Powered by LaundryBill</span>
                 </div>
             </div>
