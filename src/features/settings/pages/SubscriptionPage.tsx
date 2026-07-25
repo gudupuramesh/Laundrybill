@@ -34,9 +34,12 @@ import {
 
 const MONO = "'IBM Plex Mono'";
 
+// Owner app store listings (LaundryBill POS Manager). Region-neutral URLs so
+// each store localizes automatically; env vars can still override.
 const GOOGLE_PLAY_URL =
-    import.meta.env.VITE_GOOGLE_PLAY_URL || "https://play.google.com/store/apps";
-const APP_STORE_URL = import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.com";
+    import.meta.env.VITE_GOOGLE_PLAY_URL || "https://play.google.com/store/apps/details?id=in.laundrybill";
+const APP_STORE_URL =
+    import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.com/app/laundry-bill-pos-manager/id6778047645";
 
 const PLAN_ICON: Record<PlanType, typeof Sparkles> = {
     free: Sparkles,
