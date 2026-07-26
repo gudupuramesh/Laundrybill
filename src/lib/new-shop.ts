@@ -3,7 +3,7 @@
  * completeSignup) and the multi-shop "Add shop" page, so a shop created either
  * way gets identical defaults (settings, tax, delivery slots, seeded catalog).
  */
-import { doc, collection, writeBatch, serverTimestamp } from "firebase/firestore";
+import { doc, collection, getDocs, writeBatch, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export interface NewShopOptions {
@@ -147,4 +147,47 @@ export async function seedDefaultInventory(shopId: string): Promise<void> {
     }
 
     await batch.commit();
+}
+
+/**
+ * Seed a franchise BRANCH's catalog by copying the main shop's categories +
+ * items, so every branch starts with the same services and prices. Falls back
+ * to the default catalog when the source shop has none.
+ */
+export async function seedBranchCatalog(newShopId: string, sourceShopId: string): Promise<void> {
+    try {
+        const [catSnap, itemSnap] = await Promise.all([
+            getDocs(collection(db, `shops/${sourceShopId}/categories`)),
+            getDocs(collection(db, `shops/${sourceShopId}/inventory`)),
+        ]);
+        if (!catSnap.docs.length || !itemSnap.docs.length) {
+            await seedDefaultInventory(newShopId);
+            return;
+        }
+
+        const batch = writeBatch(db);
+        catSnap.docs.forEach((d) => {
+            const { createdAt: _c, updatedAt: _u, ...rest } = d.data() as Record<string, unknown>;
+            batch.set(doc(collection(db, `shops/${newShopId}/categories`), d.id), {
+                ...rest,
+                isActive: rest.isActive !== false,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        });
+        itemSnap.docs.forEach((d) => {
+            const { createdAt: _c, updatedAt: _u, ...rest } = d.data() as Record<string, unknown>;
+            batch.set(doc(collection(db, `shops/${newShopId}/inventory`)), {
+                ...rest,
+                expressMultiplier: rest.expressMultiplier ?? 1.5,
+                isActive: rest.isActive !== false,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        });
+        await batch.commit();
+    } catch (e) {
+        console.warn("Branch catalog copy failed — falling back to the default catalog:", e);
+        await seedDefaultInventory(newShopId);
+    }
 }

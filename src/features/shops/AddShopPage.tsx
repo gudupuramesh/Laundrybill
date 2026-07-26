@@ -12,12 +12,12 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useShop } from "@/hooks/use-shop";
 import { useShopLimits } from "@/hooks/use-shop-limits";
-import { buildNewShopData, seedDefaultInventory } from "@/lib/new-shop";
+import { buildNewShopData, seedBranchCatalog } from "@/lib/new-shop";
 import { LButton, LTextInput, useLToast } from "@/components/laundry";
 import { ArrowLeft, Store } from "lucide-react";
 
 export function AddShopPage() {
-    const { user, ownedShops, refreshOwnedShops, switchShop } = useAuth();
+    const { user, ownedShops, refreshOwnedShops, switchShop, primaryShopId } = useAuth();
     const { shop: primaryShop } = useShop();
     const { checkLimit, plan: currentPlan } = useShopLimits();
     const { addToast } = useLToast();
@@ -60,7 +60,9 @@ export function AddShopPage() {
                     taxName: (s.tax as { name?: string } | undefined)?.name,
                 }),
             );
-            await seedDefaultInventory(ref.id);
+            // Branches inherit the main shop's services + prices (falls back to
+            // the default catalog when the main shop has none yet).
+            await seedBranchCatalog(ref.id, primaryShopId || uid);
             await refreshOwnedShops();
             switchShop(ref.id);
             addToast({ type: "success", title: "Shop created", description: `${name.trim()} is ready — you're now viewing it.` });
@@ -115,8 +117,8 @@ export function AddShopPage() {
                     <LTextInput label="Shop email (optional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="branch@example.com" />
                     <LTextInput label="City / area (optional)" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Indiranagar, Bengaluru" />
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                        The new shop starts with your default service menu and prices — adjust them any time in its own
-                        Services page. Staff logins, orders, and customers stay separate per shop.
+                        The new shop starts with your main shop&apos;s service menu and prices — adjust them any time in
+                        its own Services page. Staff logins, orders, and customers stay separate per shop.
                     </p>
                     <LButton fullWidth loading={saving} onClick={handleCreate}>
                         Create shop

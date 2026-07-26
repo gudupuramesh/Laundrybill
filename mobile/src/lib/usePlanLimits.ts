@@ -15,6 +15,8 @@ export interface PlanLimits {
    * -1 = unlimited, 0 = owner-only.
    */
   maxTeamLogins: number;
+  /** Shops one owner subscription covers (Franchise). 1 = single shop. */
+  maxShops: number;
   maxStaff: number;
   maxAgents: number;
   maxPlantStaff: number;
@@ -23,10 +25,12 @@ export interface PlanLimits {
 
 // Fallback when plan document doesn't exist at all in Firestore.
 // Zero = fully restricted, forces admin to configure plans properly.
+// maxShops defaults to 1 — every plan runs at least the owner's own shop.
 const EMPTY_LIMITS: PlanLimits = {
   maxOrders: 0,
   maxCustomers: 0,
   maxTeamLogins: 0,
+  maxShops: 1,
   maxStaff: 0,
   maxAgents: 0,
   maxPlantStaff: 0,
@@ -101,6 +105,8 @@ export function usePlanLimits(subscriptionData: any): PlanLimits {
               maxOrders: l.maxOrders ?? 0,
               maxCustomers: l.maxCustomers ?? 0,
               maxTeamLogins: teamLoginCapFromLimits(l),
+              // Franchise/multi-shop: how many shops one subscription covers.
+              maxShops: typeof l.maxShops === 'number' && l.maxShops > 0 ? l.maxShops : 1,
               maxStaff: l.maxStaff ?? 0,
               maxAgents: l.maxAgents ?? l.maxDeliveryAgents ?? 0,
               maxPlantStaff: l.maxPlantStaff ?? 0,

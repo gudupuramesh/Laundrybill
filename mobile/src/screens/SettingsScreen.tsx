@@ -33,6 +33,7 @@ export default function SettingsScreen({
   onServiceAreas,
   onBusinessSettings,
   onFeedback,
+  multiShop,
 }: {
   onManageServices: () => void,
   onManageItems: () => void,
@@ -46,6 +47,13 @@ export default function SettingsScreen({
   onServiceAreas?: () => void,
   onBusinessSettings: () => void,
   onFeedback?: () => void,
+  /** Multi-shop (Franchise): shop switcher + all-shops overview. */
+  multiShop?: {
+    shops: { id: string; name: string }[];
+    maxShops: number;
+    onSwitchShop: () => void;
+    onAllShops: () => void;
+  },
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -569,7 +577,19 @@ export default function SettingsScreen({
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.storeName} numberOfLines={1}>{shopName}</Text>
+              {/* Multi-shop owners: the name is a switcher */}
+              {multiShop && multiShop.shops.length > 1 ? (
+                <TouchableOpacity
+                  onPress={multiShop.onSwitchShop}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                >
+                  <Text style={styles.storeName} numberOfLines={1}>{shopName}</Text>
+                  <MaterialIcons name="unfold-more" size={17} color={colors.primary} />
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.storeName} numberOfLines={1}>{shopName}</Text>
+              )}
               <Text style={styles.ownerInfo} numberOfLines={1}>
                 {shopData?.location?.city ? `Store: ${shopData.location.city}` : ownerDisplay || t('mobile.noContactInfo')}
               </Text>
@@ -631,6 +651,48 @@ export default function SettingsScreen({
             </View>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* Franchise / multi-shop — shown when the plan covers >1 shop or the
+            owner already runs branches. */}
+        {multiShop && (multiShop.shops.length > 1 || multiShop.maxShops > 1) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Franchise</Text>
+            <View style={styles.sectionCard}>
+              <TouchableOpacity style={styles.listItem} onPress={multiShop.onAllShops}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.primaryTint }]}>
+                    <MaterialIcons name="dashboard" size={18} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>All shops</Text>
+                    <Text style={styles.listItemSubtext}>Combined sales, expenses & profit</Text>
+                  </View>
+                </View>
+                <View style={styles.listItemRight}>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countText}>{multiShop.shops.length}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.listItemNoBorder} onPress={multiShop.onSwitchShop}>
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listItemIcon, { backgroundColor: colors.successBg }]}>
+                    <MaterialIcons name="swap-horiz" size={18} color={colors.success} />
+                  </View>
+                  <View>
+                    <Text style={styles.listItemText}>Switch shop</Text>
+                    <Text style={styles.listItemSubtext}>
+                      {multiShop.shops.length > 1 ? 'Work in another branch' : 'Add your first branch'}
+                    </Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Services & Items */}
         <View style={styles.section}>

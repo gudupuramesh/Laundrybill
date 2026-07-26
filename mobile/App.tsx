@@ -36,6 +36,14 @@ import FeedbackScreen from './src/screens/FeedbackScreen';
 import ServiceAreasScreen from './src/screens/ServiceAreasScreen';
 import BusinessSettingsScreen from './src/screens/BusinessSettingsScreen';
 import ReportsScreen from './src/screens/ReportsScreen';
+import FranchiseScreen from './src/screens/FranchiseScreen';
+import AddShopScreen from './src/screens/AddShopScreen';
+import { ShopSwitcherSheet } from './src/components/ShopSwitcherSheet';
+import {
+  setPrimaryShopId, getPrimaryShopId, setOwnedShops, getOwnedShops,
+  restoreActiveShop, clearActiveShop, switchActiveShop, subscribeActiveShop,
+  type OwnedShop,
+} from './src/lib/activeShop';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -59,6 +67,33 @@ const RESOLVED_SHOPID_KEY = (uid: string) => `resolved_shopid_v1_${uid}`;
 
 /** Ensures the native splash is noticeable on fast resumes (cached login); without this, hideAsync runs almost instantly. */
 const MIN_SPLASH_MS = 720;
+
+/**
+ * Multi-shop (Franchise) hydration: record the PRIMARY shop, load the owner's
+ * shops, then restore the branch they were last viewing. Best-effort — a
+ * single-shop owner is unaffected and any failure just leaves the primary shop
+ * active.
+ */
+async function hydrateMultiShop(uid: string, primaryShopId: string | null) {
+  try {
+    setPrimaryShopId(primaryShopId);
+    if (!primaryShopId) {
+      setOwnedShops([]);
+      return;
+    }
+    const { firestore } = require('./src/lib/firebase');
+    const snap = await firestore().collection('shops').where('ownerId', '==', uid).get();
+    const shops: OwnedShop[] = snap.docs
+      .map((d: any) => ({ id: d.id, name: (d.data()?.name as string) || 'My shop' }))
+      .sort((a: OwnedShop, b: OwnedShop) =>
+        a.id === primaryShopId ? -1 : b.id === primaryShopId ? 1 : a.name.localeCompare(b.name),
+      );
+    setOwnedShops(shops);
+    if (shops.length > 1) await restoreActiveShop(uid);
+  } catch (e) {
+    console.warn('Multi-shop hydration skipped:', e);
+  }
+}
 
 /**
  * The designed full-bleed splash (icon + "Laundry Bill" on the blue gradient).
@@ -157,6 +192,23 @@ function MainLayout() {
   // A customer just created from the order flow's Add Customer screen — handed to
   // CreateOrderScreen on remount so it auto-selects and jumps to the items step.
   const [pendingOrderCustomer, setPendingOrderCustomer] = useState<{ id: string; name: string; phone: string; email: string | null; address: string | null } | null>(null);
+
+  // ── Multi-shop (Franchise) ────────────────────────────────────────────
+  // Screens read the shared getShopId() at render time, so switching shops
+  // bumps this epoch: it keys the screen tree, remounting every screen so all
+  // live listeners re-subscribe against the newly active shop.
+  const [shopEpoch, setShopEpoch] = useState(0);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [ownedShopsState, setOwnedShopsState] = useState<OwnedShop[]>([]);
+
+  useEffect(() => {
+    // Seed from whatever hydration already resolved, then track changes.
+    setOwnedShopsState(getOwnedShops());
+    return subscribeActiveShop(() => {
+      setOwnedShopsState(getOwnedShops());
+      setShopEpoch((n) => n + 1);
+    });
+  }, []);
 
   // Firebase Auth State
   const [initializing, setInitializing] = useState(true);
@@ -303,6 +355,8 @@ function MainLayout() {
         } else {
           logoutRevenueCat().catch(() => {});
           teardownMobileSession();
+          // Multi-shop: drop the branch selection so the next account starts clean.
+          void clearActiveShop();
         }
         if (currentUser) {
           try {
@@ -326,6 +380,9 @@ function MainLayout() {
                 setActiveScreen(null);
                 setInitializing(false);
                 console.log('[auth-route]', 'fast_path_cached_shopid', { uid, shopId: cachedShopId });
+                // Multi-shop: the cached id is the PRIMARY shop; restore any
+                // branch the owner was last viewing.
+                void hydrateMultiShop(uid, cachedShopId);
                 // Background check: only re-route on a CONFIRMED deletion (a
                 // successful read that finds no shop), never on a network error.
                 void (async () => {
@@ -426,6 +483,10 @@ function MainLayout() {
             setResolvedShopId(foundShopId);
             if (foundShopId) void AsyncStorage.setItem(RESOLVED_SHOPID_KEY(uid), foundShopId);
             else void AsyncStorage.removeItem(RESOLVED_SHOPID_KEY(uid));
+
+            // Multi-shop: this resolved shop is the PRIMARY one; a previously
+            // chosen branch is restored once the owned list loads.
+            void hydrateMultiShop(uid, foundShopId);
 
             if (foundShopId) {
               console.log('[auth-route]', routingReason, { uid, shopId: foundShopId });
@@ -632,6 +693,12 @@ function MainLayout() {
                  onServiceAreas={() => setActiveScreen('SERVICE_AREAS')}
                  onBusinessSettings={() => setActiveScreen('BUSINESS_SETTINGS')}
                  onFeedback={() => setActiveScreen('FEEDBACK')}
+                 multiShop={{
+                   shops: ownedShopsState,
+                   maxShops: appPlanLimits.maxShops,
+                   onSwitchShop: () => setSwitcherOpen(true),
+                   onAllShops: () => setActiveScreen('FRANCHISE'),
+                 }}
                />;
       default:
         return <HomeScreen
@@ -839,6 +906,34 @@ function MainLayout() {
     );
   }
 
+  // ── Multi-shop (Franchise) ──────────────────────────────────────────
+  if (activeScreen === 'FRANCHISE') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <FranchiseScreen
+          key={shopEpoch}
+          maxShops={appPlanLimits.maxShops}
+          onBack={() => setActiveScreen(null)}
+          onAddShop={() => setActiveScreen('ADD_SHOP')}
+          onShopSwitched={() => { setActiveTab('HOME'); setActiveScreen(null); }}
+        />
+      </View>
+    );
+  }
+
+  if (activeScreen === 'ADD_SHOP') {
+    return (
+      <View style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <AddShopScreen
+          onBack={() => setActiveScreen('FRANCHISE')}
+          onCreated={() => { setActiveTab('HOME'); setActiveScreen(null); }}
+        />
+      </View>
+    );
+  }
+
   if (activeScreen === 'SERVICE_AREAS') {
     return (
       <View style={styles.safeArea}>
@@ -974,8 +1069,9 @@ function MainLayout() {
     <View style={[styles.safeArea, { paddingTop: isOrderScreenActive ? 0 : insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
 
-      {/* Dynamic Screen Content */}
-      <View style={styles.content}>
+      {/* Dynamic Screen Content — keyed on shopEpoch so switching shops
+          remounts every screen and its live listeners re-subscribe. */}
+      <View style={styles.content} key={shopEpoch}>
         {renderScreen()}
       </View>
 
@@ -1033,6 +1129,24 @@ function MainLayout() {
       {updateInfo?.updateAvailable && !updateDismissed && (
         <UpdateModal info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
       )}
+
+      {/* Multi-shop switcher (Franchise) */}
+      <ShopSwitcherSheet
+        open={switcherOpen}
+        onClose={() => setSwitcherOpen(false)}
+        shops={ownedShopsState}
+        activeShopId={currentShopId}
+        primaryShopId={getPrimaryShopId()}
+        canAdd={ownedShopsState.length < (appPlanLimits.maxShops || 1)}
+        onSelect={async (id) => {
+          setSwitcherOpen(false);
+          await switchActiveShop(id);
+          setActiveTab('HOME');
+          setActiveScreen(null);
+        }}
+        onAddShop={() => { setSwitcherOpen(false); setActiveScreen('ADD_SHOP'); }}
+        onViewAll={() => { setSwitcherOpen(false); setActiveScreen('FRANCHISE'); }}
+      />
 
       {/* CreateOrderScreen overlay — stays mounted while order is in progress */}
       {orderInProgress && (
