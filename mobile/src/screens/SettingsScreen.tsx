@@ -494,13 +494,15 @@ export default function SettingsScreen({
   // Subscription
   const planName = subscriptionData?.planId || subscriptionData?.planName || shopData?.plan || 'free';
   const normalizedPlan = String(planName).toLowerCase().replace(/[_\s-]/g, '');
-  const planDisplayName = (normalizedPlan === 'proplus')
-    ? 'Pro+ Plan'
-    : (normalizedPlan === 'business' || normalizedPlan === 'enterprise' || normalizedPlan === 'premium')
-      ? 'Business Plan'
-      : (normalizedPlan === 'pro' || normalizedPlan === 'starter')
-        ? 'Pro Plan'
-        : 'Free Plan';
+  const planDisplayName = (normalizedPlan === 'franchise' || normalizedPlan === 'multishop')
+    ? 'Franchise Plan'
+    : (normalizedPlan === 'proplus')
+      ? 'Pro+ Plan'
+      : (normalizedPlan === 'business' || normalizedPlan === 'enterprise' || normalizedPlan === 'premium')
+        ? 'Business Plan'
+        : (normalizedPlan === 'pro' || normalizedPlan === 'starter')
+          ? 'Pro Plan'
+          : 'Free Plan';
   const planStatus = subscriptionData?.status || 'trial';
   const billingCycle = subscriptionData?.billingCycle || '';
 

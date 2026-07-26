@@ -512,7 +512,7 @@ export default function OrderDetailsScreen({
       .then((snap: any) => {
         const d = snap.data() || {};
         const n = String(d.planId || d.planName || '').toLowerCase().replace(/[_\s-]/g, '');
-        setItemTracking(n === 'proplus' || n === 'pro+' || n === 'business' || n === 'enterprise' || n === 'premium');
+        setItemTracking(n === 'proplus' || n === 'pro+' || n === 'business' || n === 'enterprise' || n === 'premium' || n === 'franchise' || n === 'multishop');
       })
       .catch(() => {});
   }, [shopId]);

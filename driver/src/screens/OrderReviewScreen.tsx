@@ -314,7 +314,7 @@ export default function OrderReviewScreen({
   const orderLimitReached = !editOrderId && !isPaidPlan && planLimits.maxOrders > 0 && ordersUsed >= planLimits.maxOrders;
   // Offers & loyalty are Pro+/Business features (same normalization as item tracking).
   const planNorm = planKey.replace(/[_\s-]/g, '');
-  const offersPlan = ['proplus', 'pro+', 'business', 'enterprise', 'premium'].includes(planNorm);
+  const offersPlan = ['proplus', 'pro+', 'business', 'enterprise', 'premium', 'franchise', 'multishop'].includes(planNorm);
   // Damage/stain photos are a BUSINESS-only feature (Firestore plans doc authoritative).
   const planFeatures = usePlanFeatures(subData);
   const canDamagePhotos = !!planFeatures.damagePhotos;

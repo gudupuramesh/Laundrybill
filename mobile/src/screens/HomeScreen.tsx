@@ -150,7 +150,9 @@ export default function HomeScreen({
     t('mobile.planStatusFree');
   const normalizedPlanKey = planKey.replace(/[_\s-]/g, '');
   const paidPlanShort =
-    (normalizedPlanKey === 'proplus')
+    (normalizedPlanKey === 'franchise' || normalizedPlanKey === 'multishop')
+      ? 'Franchise'
+      : (normalizedPlanKey === 'proplus')
       ? 'Pro+'
       : (normalizedPlanKey === 'business' || normalizedPlanKey === 'enterprise' || normalizedPlanKey === 'premium')
         ? 'Business'

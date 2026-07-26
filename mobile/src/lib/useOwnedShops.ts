@@ -6,11 +6,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { firestore } from './firebase';
 import { auth } from './auth';
-import { getPrimaryShopId, setOwnedShops, subscribeActiveShop, type OwnedShop } from './activeShop';
+import { getPrimaryShopId, getOwnedShops, setOwnedShops, subscribeActiveShop, type OwnedShop } from './activeShop';
 
 export function useOwnedShops(): { shops: OwnedShop[]; loading: boolean; refresh: () => Promise<void> } {
-  const [shops, setShops] = useState<OwnedShop[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seed from the store so a remount shows the known shops instantly instead
+  // of flashing an empty list while the query runs.
+  const [shops, setShops] = useState<OwnedShop[]>(() => getOwnedShops());
+  const [loading, setLoading] = useState(() => getOwnedShops().length === 0);
 
   const load = useCallback(async () => {
     const uid = auth().currentUser?.uid;
@@ -40,8 +42,11 @@ export function useOwnedShops(): { shops: OwnedShop[]; loading: boolean; refresh
 
   useEffect(() => {
     load();
-    // Re-read when the active shop / owned list changes elsewhere.
-    return subscribeActiveShop(() => {});
+    // Mirror list changes made elsewhere (add/delete a branch) straight from
+    // the store — never re-query here, that would notify and loop.
+    return subscribeActiveShop((kind) => {
+      if (kind === 'shops') setShops(getOwnedShops());
+    });
   }, [load]);
 
   return { shops, loading, refresh: load };

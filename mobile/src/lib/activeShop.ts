@@ -21,13 +21,20 @@ const ACTIVE_SHOP_KEY = (uid: string) => `active_shop_v1_${uid}`;
 let _primaryShopId: string | null = null;
 let _ownedShops: OwnedShop[] = [];
 
-type Listener = () => void;
+/**
+ * Change kinds are distinct on purpose:
+ *  - 'active' → the ACTIVE shop changed; the app must remount its screens.
+ *  - 'shops'  → only the owned-shops LIST changed (a refresh); remounting on
+ *               this would re-trigger the refresh → infinite loop.
+ */
+export type ShopChangeKind = 'active' | 'shops';
+type Listener = (kind: ShopChangeKind) => void;
 const listeners = new Set<Listener>();
 
-function notify() {
+function notify(kind: ShopChangeKind) {
   listeners.forEach((fn) => {
     try {
-      fn();
+      fn(kind);
     } catch {
       /* a bad subscriber must not break the switch */
     }
@@ -49,7 +56,8 @@ export function getPrimaryShopId(): string | null {
 
 export function setOwnedShops(shops: OwnedShop[]) {
   _ownedShops = shops;
-  notify();
+  // List-only change — never remount the screen tree for this.
+  notify('shops');
 }
 export function getOwnedShops(): OwnedShop[] {
   return _ownedShops;
@@ -80,7 +88,7 @@ export async function switchActiveShop(shopId: string): Promise<void> {
       /* persistence is best-effort — the in-memory switch still applies */
     }
   }
-  notify();
+  notify('active');
 }
 
 /**
@@ -94,7 +102,7 @@ export async function restoreActiveShop(uid: string): Promise<void> {
     if (!saved || saved === _primaryShopId) return;
     if (_ownedShops.some((s) => s.id === saved)) {
       setResolvedShopId(saved);
-      notify();
+      notify('active');
     } else {
       await AsyncStorage.removeItem(ACTIVE_SHOP_KEY(uid));
     }
@@ -114,5 +122,5 @@ export async function clearActiveShop(uid?: string | null): Promise<void> {
       /* ignore */
     }
   }
-  notify();
+  notify('active');
 }
