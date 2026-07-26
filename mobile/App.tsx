@@ -44,6 +44,7 @@ import {
   restoreActiveShop, clearActiveShop, switchActiveShop, subscribeActiveShop,
   type OwnedShop,
 } from './src/lib/activeShop';
+import { getShopId as getActiveShopId } from './src/lib/auth';
 import { DraftOrderPayload } from './src/types/orderDraft';
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from './src/lib/billing/revenuecat';
 import { usePushNotifications, registerBackgroundHandler } from './src/lib/usePushNotifications';
@@ -204,9 +205,12 @@ function MainLayout() {
   useEffect(() => {
     // Seed from whatever hydration already resolved, then track changes.
     setOwnedShopsState(getOwnedShops());
-    return subscribeActiveShop(() => {
+    return subscribeActiveShop((kind) => {
       setOwnedShopsState(getOwnedShops());
-      setShopEpoch((n) => n + 1);
+      // Remount ONLY when the active shop actually changed. Bumping on a
+      // list refresh would re-key (remount) the screen that just loaded the
+      // list, which reloads it again — an endless flicker.
+      if (kind === 'active') setShopEpoch((n) => n + 1);
     });
   }, []);
 
@@ -543,6 +547,13 @@ function MainLayout() {
 
   // Register push notifications when user is logged in
   usePushNotifications(user ? (data: any) => {
+    // Multi-shop: an alert can come from ANY owned branch. Switch to that shop
+    // first, otherwise the order would be opened against the wrong shop and
+    // show as missing. (switchActiveShop no-ops when it's already active.)
+    const fromShopId = typeof data?.shopId === 'string' ? data.shopId : null;
+    if (fromShopId && fromShopId !== getActiveShopId() && getOwnedShops().some((s) => s.id === fromShopId)) {
+      void switchActiveShop(fromShopId);
+    }
     // Navigate to order details if notification contains orderId
     if (data?.orderId) {
       setActiveScreen(`ORDER_DETAILS_${data.orderId}`);

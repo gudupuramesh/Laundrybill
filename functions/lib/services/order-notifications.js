@@ -189,6 +189,7 @@ function buildNotification(type, publicId, customerName) {
 }
 /** Send order notification to shop and/or assigned agent. Invalid tokens are pruned. */
 async function sendOrderNotification(payload) {
+    var _a;
     const { shopId, orderId, publicId, orderNumber, customerName, type, recipient, assignedAgentId } = payload;
     const data = {
         type,
@@ -222,9 +223,28 @@ async function sendOrderNotification(payload) {
     const allTargets = [...ownerTargets, ...teamTargets];
     if (allTargets.length === 0)
         return;
+    // Multi-shop: a franchise owner is alerted from EVERY shop they own, so the
+    // owner's message names the branch. Team members are single-shop — their
+    // message stays unchanged.
+    let ownerBody = body;
+    if (ownerTargets.length > 0) {
+        try {
+            const shopName = (_a = (await db.collection("shops").doc(shopId).get()).data()) === null || _a === void 0 ? void 0 : _a.name;
+            if (shopName && typeof shopName === "string") {
+                ownerBody = `${body} · ${shopName}`;
+                data.shopName = shopName;
+            }
+        }
+        catch (_b) {
+            /* keep the plain body — a name lookup must never block the alert */
+        }
+    }
     // One sendPush per app → each request's Expo tokens are all from one project.
-    const groups = [ownerTargets, teamTargets].filter((g) => g.length > 0);
-    const results = await Promise.all(groups.map((g) => (0, push_sender_1.sendPush)(g, { title, body, data, channelId: "order_updates", priority: "high" })));
+    const groups = [
+        { targets: ownerTargets, body: ownerBody },
+        { targets: teamTargets, body },
+    ].filter((g) => g.targets.length > 0);
+    const results = await Promise.all(groups.map((g) => (0, push_sender_1.sendPush)(g.targets, { title, body: g.body, data, channelId: "order_updates", priority: "high" })));
     const successCount = results.reduce((sum, r) => sum + r.successCount, 0);
     const invalid = new Set(results.flatMap((r) => r.invalidTokens));
     // Prune invalid/expired tokens. Token docs are deleted outright; teamMembers

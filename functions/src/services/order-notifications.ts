@@ -271,11 +271,30 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
   const allTargets = [...ownerTargets, ...teamTargets];
   if (allTargets.length === 0) return;
 
+  // Multi-shop: a franchise owner is alerted from EVERY shop they own, so the
+  // owner's message names the branch. Team members are single-shop — their
+  // message stays unchanged.
+  let ownerBody = body;
+  if (ownerTargets.length > 0) {
+    try {
+      const shopName = (await db.collection("shops").doc(shopId).get()).data()?.name;
+      if (shopName && typeof shopName === "string") {
+        ownerBody = `${body} · ${shopName}`;
+        data.shopName = shopName;
+      }
+    } catch {
+      /* keep the plain body — a name lookup must never block the alert */
+    }
+  }
+
   // One sendPush per app → each request's Expo tokens are all from one project.
-  const groups = [ownerTargets, teamTargets].filter((g) => g.length > 0);
+  const groups = [
+    { targets: ownerTargets, body: ownerBody },
+    { targets: teamTargets, body },
+  ].filter((g) => g.targets.length > 0);
   const results = await Promise.all(
     groups.map((g) =>
-      sendPush(g, { title, body, data, channelId: "order_updates", priority: "high" }),
+      sendPush(g.targets, { title, body: g.body, data, channelId: "order_updates", priority: "high" }),
     ),
   );
 
