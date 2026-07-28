@@ -151,6 +151,9 @@ export default function OrdersScreen({
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [timePeriod, setTimePeriod] = useState('all_time');
+  /** What a date range matches on: when the order was CREATED, or when its
+   *  pickup/delivery is SCHEDULED (the latter allows future dates). */
+  const [dateBasis, setDateBasis] = useState<'created' | 'scheduled'>('created');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
@@ -218,14 +221,17 @@ export default function OrdersScreen({
 
   const filteredOrders = useMemo(() => {
     let list = orders;
+    // Date ranges match either the CREATION date or the SCHEDULED pickup/delivery
+    // date, per the toggle in the Filter-by-Date sheet.
+    const dateOf = (o: any) => (dateBasis === 'scheduled' ? upcomingAt(o) : toDate(o.createdAt));
     if (timePeriod === 'custom') {
       const start = customStart ? new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate(), 0, 0, 0, 0) : null;
       const end = customEnd ? new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate(), 23, 59, 59, 999) : null;
-      if (start) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= start; });
-      if (end) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c <= end; });
+      if (start) list = list.filter((o) => { const c = dateOf(o); return c && c >= start; });
+      if (end) list = list.filter((o) => { const c = dateOf(o); return c && c <= end; });
     } else {
       const rangeStart = getTimeRange(timePeriod);
-      if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
+      if (rangeStart) list = list.filter((o) => { const c = dateOf(o); return c && c >= rangeStart; });
     }
 
     if (orderType !== 'all') list = list.filter((o) => (o.deliveryType || 'pickup_store') === orderType);
@@ -701,6 +707,28 @@ export default function OrdersScreen({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+            {/* What the date range applies to. "Pickup / delivery" unlocks FUTURE
+                days — an order booked for next week has a future scheduled date
+                but was created in the past. */}
+            <View style={s.basisRow}>
+              {([
+                { key: 'created', label: t('mobile.dateBasisOrder', { defaultValue: 'Order date' }) },
+                { key: 'scheduled', label: t('mobile.dateBasisScheduled', { defaultValue: 'Pickup / delivery' }) },
+              ] as const).map((opt) => {
+                const active = dateBasis === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[s.basisChip, active && s.basisChipActive]}
+                    onPress={() => setDateBasis(opt.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.basisChipText, active && s.basisChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             {/* Quick options */}
             <View style={s.quickGrid}>
               {[
@@ -762,7 +790,9 @@ export default function OrdersScreen({
                   const isStart = sameDay(d, customStart);
                   const isEnd = sameDay(d, customEnd);
                   const isMid = !!inRange(d) && !isStart && !isEnd;
-                  const isFuture = d > new Date();
+                  // Future days are only meaningless for CREATION dates; on the
+                  // pickup/delivery basis they're exactly what you want to pick.
+                  const isFuture = d > new Date() && dateBasis === 'created';
                   return (
                     <TouchableOpacity
                       key={d.toISOString()}
@@ -936,6 +966,14 @@ const s = StyleSheet.create({
   sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sheetTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  basisRow: {
+    flexDirection: 'row', gap: 6, backgroundColor: colors.surfaceMuted,
+    borderRadius: 12, padding: 4, marginBottom: 14,
+  },
+  basisChip: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  basisChipActive: { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  basisChipText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.textMuted },
+  basisChipTextActive: { fontFamily: fonts.bold, color: colors.primary },
   quickChip: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted,
