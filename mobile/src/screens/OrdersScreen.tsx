@@ -18,6 +18,32 @@ function toDate(val: any): Date | null {
   return new Date(val);
 }
 
+/**
+ * When a scheduled order is next DUE: the home-pickup date while it's still
+ * awaiting pickup, otherwise the expected delivery. Same rule as the web
+ * "Scheduled" filter and the Team app's "Upcoming", so all three agree.
+ */
+export function upcomingAt(order: any): Date | null {
+  const awaitingPickup =
+    order?.deliveryType === 'pickup_home' && ['pending', 'pickup_scheduled'].includes(order?.status);
+  return toDate(awaitingPickup ? order?.scheduledPickupDate : order?.expectedDelivery);
+}
+
+/** "Pickup Fri 31 Jul · 9–11 AM" for work booked on a FUTURE day; null otherwise. */
+export function scheduledLabel(order: any): string | null {
+  const at = upcomingAt(order);
+  if (!at) return null;
+  if (['delivered', 'picked_up', 'cancelled'].includes(order?.status)) return null;
+  const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+  if (at <= endToday) return null;
+
+  const awaitingPickup =
+    order?.deliveryType === 'pickup_home' && ['pending', 'pickup_scheduled'].includes(order?.status);
+  const slot = awaitingPickup ? order?.scheduledPickupTime : order?.deliverySlot;
+  const day = at.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${awaitingPickup ? 'Pickup' : 'Delivery'} ${day}${slot ? ` · ${slot}` : ''}`;
+}
+
 function getTimeRange(key: string): Date | null {
   const now = new Date();
   switch (key) {
@@ -86,6 +112,7 @@ export default function OrdersScreen({
     { key: 'processing', label: t('mobile.ordersFilterProcessing') },
     { key: 'ready', label: t('mobile.ordersFilterReady') },
     { key: 'overdue', label: t('mobile.ordersFilterOverdue', { defaultValue: 'Overdue' }) },
+    { key: 'scheduled', label: t('mobile.ordersFilterScheduled', { defaultValue: 'Scheduled' }) },
     { key: 'completed', label: t('mobile.ordersFilterCompleted') },
     { key: 'due', label: t('mobile.ordersFilterDue') },
   ], [t]);
@@ -219,6 +246,23 @@ export default function OrdersScreen({
           if (sp && sp < startToday) return true;
         }
         return false;
+      });
+    }
+    else if (filter === 'scheduled') {
+      // Work booked for a FUTURE day: a home pickup still awaiting collection,
+      // or an order whose expected delivery is after today. Mirrors the web
+      // "Scheduled" chip and the Team app's "Upcoming".
+      const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+      list = list.filter((o) => {
+        if (['delivered', 'picked_up', 'cancelled'].includes(o.status)) return false;
+        const at = upcomingAt(o);
+        return !!at && at > endToday;
+      });
+      // Soonest first — reads as a work queue, not creation order.
+      list = [...list].sort((a, b) => {
+        const ta = upcomingAt(a)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const tb = upcomingAt(b)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return ta - tb;
       });
     }
     else if (filter === 'completed') list = list.filter((o) => ['delivered', 'picked_up'].includes(o.status));
@@ -554,6 +598,13 @@ export default function OrdersScreen({
                       {itemCount} {t('mobile.items', { defaultValue: 'items' })}
                       {itemSummary ? ` · ${itemSummary}` : ''}
                     </Text>
+                    {/* Booked for a future day → show WHEN, in every filter */}
+                    {scheduledLabel(order) ? (
+                      <View style={s.ocScheduled}>
+                        <MaterialIcons name="event" size={12} color={colors.primary} />
+                        <Text style={s.ocScheduledText} numberOfLines={1}>{scheduledLabel(order)}</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   {/* Dashed separator */}
@@ -963,6 +1014,8 @@ const s = StyleSheet.create({
   // Row 2
   ocCustomer: { fontSize: 15, fontFamily: fonts.bold, color: colors.text },
   ocItemSummary: { fontSize: 13, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: 2 },
+  ocScheduled: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  ocScheduledText: { fontSize: 12, fontFamily: fonts.bold, color: colors.primary, flexShrink: 1 },
 
   // Dashed separator
   dashedLine: {

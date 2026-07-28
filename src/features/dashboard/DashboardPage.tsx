@@ -17,7 +17,7 @@ import { useCurrency } from "@/hooks/use-currency";
 import { LPageLoader, LEmptyState } from "@/components/laundry";
 import {
     Search, ScanLine, Package, DollarSign, PackageCheck, Clock, CreditCard,
-    Activity, TrendingUp, AlertTriangle, FileWarning, ArrowRight,
+    Activity, TrendingUp, AlertTriangle, FileWarning, ArrowRight, CalendarClock,
 } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
 import type { Order } from "@/types/order";
@@ -137,6 +137,7 @@ export function DashboardPage() {
             : { c: "var(--c-violet)", l: "Pickup" };
 
     const alerts = [
+        { title: "Scheduled ahead", sub: "Booked for a later day", count: fin.scheduledAheadCount, ref: "c-primary", soft: "c-primary-soft", icon: <CalendarClock size={15} />, to: "/orders?attention=scheduled" },
         { title: "Overdue orders", sub: "Past scheduled window", count: fin.pendingCount, ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, to: "/orders?filter=overdue" },
         { title: "Unpaid invoices", sub: `${formatAmount(fin.due)} outstanding`, count: fin.unpaidCount, ref: "c-error", soft: "c-error-soft", icon: <FileWarning size={15} />, to: "/orders?filter=unpaid" },
         { title: "Online orders", sub: "From public page", count: fin.onlineOrdersCount, ref: "c-info", soft: "c-info-soft", icon: <Package size={15} />, to: "/orders" },

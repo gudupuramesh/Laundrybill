@@ -8,6 +8,17 @@ import { useCurrency } from '../lib/currency';
 import { callCustomer, navigateToAddress } from '../lib/actions';
 import type { DriverTask } from '../hooks/use-driver-tasks';
 
+/** "Fri 31 Jul · 9:00 AM" when the task is scheduled beyond today; null otherwise. */
+function futureDayLabel(task: DriverTask): string | null {
+  const at = task.scheduledDate;
+  if (!at || task.status === 'completed') return null;
+  const endToday = new Date();
+  endToday.setHours(23, 59, 59, 999);
+  if (at <= endToday) return null;
+  const day = at.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${task.type === 'pickup' ? 'Pickup' : 'Delivery'} ${day}${task.timeSlot?.start ? ` · ${task.timeSlot.start}` : ''}`;
+}
+
 function pill(
   task: DriverTask,
   money: (n?: number | null) => string,
@@ -63,6 +74,15 @@ export function TaskCard({ task, onPress }: { task: DriverTask; onPress: () => v
         </Text>
       </View>
 
+      {/* Booked for a FUTURE day → show which day, so an Upcoming task is
+          never mistaken for today's work. */}
+      {futureDayLabel(task) ? (
+        <View style={styles.schedRow}>
+          <MaterialIcons name="event" size={13} color={colors.primary} />
+          <Text style={styles.schedText} numberOfLines={1}>{futureDayLabel(task)}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Button
           label="Call"
@@ -104,5 +124,7 @@ const styles = StyleSheet.create({
   customer: { fontFamily: fonts.semibold, fontSize: 12, color: colors.textSecondary },
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
   addr: { fontFamily: fonts.semibold, fontSize: 12, color: colors.textSecondary, flexShrink: 1 },
+  schedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  schedText: { fontFamily: fonts.bold, fontSize: 12, color: colors.primary, flexShrink: 1 },
   actions: { flexDirection: 'row', gap: 8 },
 });

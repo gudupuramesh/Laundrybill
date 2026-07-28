@@ -23,7 +23,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/features/auth/AuthContext';
 import type { Order, OrderStatus, DeliveryType } from '@/types/order';
 import { PAGINATION } from '@/constants/pagination';
-import { startOfToday } from 'date-fns';
+import { startOfToday, endOfToday } from 'date-fns';
 
 export type OrderSourceFilter = 'all' | 'online' | 'pos';
 
@@ -32,10 +32,26 @@ interface UseOrdersOptions {
     deliveryType?: DeliveryType | 'all';
     orderSource?: OrderSourceFilter;
     searchTerm?: string;
-    specialFilter?: 'pending_overdue' | 'payment_due' | null;
+    specialFilter?: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | null;
     /** Filter by order creation date. Reuses the createdAt ordering, so no new index needed. */
     dateStart?: Date | null;
     dateEnd?: Date | null;
+}
+
+/**
+ * When a scheduled order is next DUE: the home-pickup date while it's still
+ * awaiting pickup, otherwise the expected delivery. Used to sort the Scheduled
+ * list soonest-first and to label rows.
+ */
+export function upcomingAt(order: Order): Date | null {
+    const awaitingPickup =
+        order.deliveryType === 'pickup_home' && ['pending', 'pickup_scheduled'].includes(order.status);
+    const src = awaitingPickup ? order.scheduledPickupDate : order.expectedDelivery;
+    return src?.toDate?.() ?? null;
+}
+
+function upcomingAtMillis(order: Order): number {
+    return upcomingAt(order)?.getTime() ?? Number.MAX_SAFE_INTEGER;
 }
 
 interface UseOrdersReturn {
@@ -169,6 +185,67 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                 }
             };
             fetchOverdue();
+            return;
+        }
+
+        if (specialFilter === 'scheduled_upcoming') {
+            // "Scheduled" = work booked for a FUTURE day: a home pickup due after
+            // today, or an order whose expected delivery is after today. Mirrors
+            // the Team app's Upcoming chip so web/app/agent all agree.
+            const fetchUpcoming = async () => {
+                try {
+                    const endToday = endOfToday();
+                    const ordersRef = collection(db, 'shops', shopId, 'orders');
+
+                    const activeStatuses = [
+                        "pending", "processing", "ready", "ready_for_pickup",
+                        "out_for_delivery", "pickup_scheduled", "pickup_completed",
+                        "partially_delivered"
+                    ];
+
+                    const deliveryQuery = query(
+                        ordersRef,
+                        where("expectedDelivery", ">", Timestamp.fromDate(endToday)),
+                        where("status", "in", activeStatuses)
+                    );
+
+                    const pickupQuery = query(
+                        ordersRef,
+                        where("deliveryType", "==", "pickup_home"),
+                        where("status", "in", ["pending", "pickup_scheduled"]),
+                        where("scheduledPickupDate", ">", Timestamp.fromDate(endToday))
+                    );
+
+                    const [delSnap, pickSnap] = await Promise.all([
+                        getDocs(deliveryQuery),
+                        getDocs(pickupQuery)
+                    ]);
+
+                    const merged = new Map();
+                    [...delSnap.docs, ...pickSnap.docs].forEach(doc => {
+                        merged.set(doc.id, { id: doc.id, ...doc.data() });
+                    });
+
+                    let results = Array.from(merged.values()) as Order[];
+                    if (orderSource === 'online') {
+                        results = results.filter((o) => o.orderSource === 'online');
+                    } else if (orderSource === 'pos') {
+                        results = results.filter((o) => o.orderSource !== 'online');
+                    }
+                    // Soonest first — the list reads as a work queue, not creation order.
+                    results.sort((a, b) => upcomingAtMillis(a) - upcomingAtMillis(b));
+
+                    setOrders(results);
+                    setHasMore(false);
+                    setTotalCount(results.length);
+                    setLoading(false);
+                } catch (err: any) {
+                    console.error("Upcoming fetch error:", err);
+                    setError(err.message);
+                    setLoading(false);
+                }
+            };
+            fetchUpcoming();
             return;
         }
 

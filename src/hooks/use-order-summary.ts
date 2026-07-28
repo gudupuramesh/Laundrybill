@@ -12,6 +12,8 @@ export interface OrderSummaryMetrics {
     pendingCount: number; // Overdue (Missed Pickup or Delivery)
     unpaidCount: number;  // Delivered but unpaid
     onlineOrdersCount: number; // Orders from public page (pending/active)
+    /** Work booked for a FUTURE day (home pickup or delivery after today). */
+    scheduledAheadCount: number;
     /** IDs of active online orders (for unseen-badge logic) */
     onlineOrderIds: string[];
     loading: boolean;
@@ -26,6 +28,7 @@ export function useOrderSummary(): OrderSummaryMetrics {
         pendingCount: 0,
         unpaidCount: 0,
         onlineOrdersCount: 0,
+        scheduledAheadCount: 0,
         onlineOrderIds: [],
         loading: true
     });
@@ -102,13 +105,31 @@ export function useOrderSummary(): OrderSummaryMetrics {
                     where("status", "in", ["pending", "pickup_scheduled", "pickup_completed", "processing", "ready", "out_for_delivery"])
                 );
 
+                // 7. Scheduled ahead — booked for a FUTURE day (mirrors the
+                // Orders page "Scheduled" filter and the Team app's Upcoming).
+                const endToday = new Date(today);
+                endToday.setHours(23, 59, 59, 999);
+                const aheadDeliveryQuery = query(
+                    ordersRef,
+                    where("expectedDelivery", ">", Timestamp.fromDate(endToday)),
+                    where("status", "in", activeStatuses)
+                );
+                const aheadPickupQuery = query(
+                    ordersRef,
+                    where("deliveryType", "==", "pickup_home"),
+                    where("status", "in", ["pending", "pickup_scheduled"]),
+                    where("scheduledPickupDate", ">", Timestamp.fromDate(endToday))
+                );
+
                 const results = await Promise.allSettled([
                     getDocs(monthQuery),
                     getDocs(dueQuery),
                     getDocs(unpaidDeliveredQuery),
                     getDocs(overdueDeliveryQuery),
                     getDocs(overduePickupQuery),
-                    getDocs(onlineOrdersQuery)
+                    getDocs(onlineOrdersQuery),
+                    getDocs(aheadDeliveryQuery),
+                    getDocs(aheadPickupQuery)
                 ]);
 
                 // Helper to safely get docs
@@ -127,6 +148,8 @@ export function useOrderSummary(): OrderSummaryMetrics {
                 const overdueDelDocs = getDocsFromResult(results[3], "overdueDel");
                 const overduePickDocs = getDocsFromResult(results[4], "overduePick");
                 const onlineDocs = getDocsFromResult(results[5], "online");
+                const aheadDelDocs = getDocsFromResult(results[6], "aheadDel");
+                const aheadPickDocs = getDocsFromResult(results[7], "aheadPick");
 
                 // Process Month Data
                 let revenue = 0;
@@ -158,6 +181,11 @@ export function useOrderSummary(): OrderSummaryMetrics {
                 const pendingCount = overdueIds.size;
                 const onlineOrdersCount = onlineDocs.length;
                 const onlineOrderIds = onlineDocs.map((d: { id: string }) => d.id);
+                // Dedup: an order scheduled ahead on BOTH pickup and delivery counts once.
+                const scheduledAheadCount = new Set<string>([
+                    ...aheadDelDocs.map((d: { id: string }) => d.id),
+                    ...aheadPickDocs.map((d: { id: string }) => d.id),
+                ]).size;
 
                 setMetrics({
                     revenue,
@@ -166,6 +194,7 @@ export function useOrderSummary(): OrderSummaryMetrics {
                     pendingCount,
                     unpaidCount,
                     onlineOrdersCount,
+                    scheduledAheadCount,
                     onlineOrderIds,
                     loading: false
                 });

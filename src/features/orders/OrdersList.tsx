@@ -9,11 +9,11 @@ import { useState, useEffect, useRef, useMemo, useContext, type CSSProperties } 
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import { LEmptyState, LSpinner } from "@/components/laundry";
-import { useOrdersPaginated, type OrderSourceFilter } from "@/hooks/use-orders-paginated";
+import { useOrdersPaginated, upcomingAt, type OrderSourceFilter } from "@/hooks/use-orders-paginated";
 import { useCurrency } from "@/hooks/use-currency";
-import type { OrderStatus, DeliveryType } from "@/types/order";
+import type { Order, OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
-import { ClipboardList, Search, SlidersHorizontal, Plus, Globe, AlertTriangle, Wallet } from "lucide-react";
+import { ClipboardList, Search, SlidersHorizontal, Plus, Globe, AlertTriangle, Wallet, CalendarClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderFilterSheet } from "./OrderFilterSheet";
@@ -21,6 +21,24 @@ import { ExportDataButton } from "@/components/ExportDataButton";
 import { exportOrders } from "@/lib/data-export";
 
 const MONO = "'IBM Plex Mono'";
+
+/**
+ * "Pickup Fri 31 Jul · 9–11 AM" for work booked on a FUTURE day (null for
+ * today/past, so only genuinely-scheduled orders get the badge).
+ */
+function scheduledLabel(order: Order): string | null {
+    const at = upcomingAt(order);
+    if (!at) return null;
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    if (at.getTime() <= end.getTime()) return null;
+
+    const awaitingPickup =
+        order.deliveryType === "pickup_home" && ["pending", "pickup_scheduled"].includes(order.status);
+    const slot = awaitingPickup ? order.scheduledPickupTime : order.deliverySlot;
+    const day = at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    return `${awaitingPickup ? "Pickup" : "Delivery"} ${day}${slot ? ` · ${slot}` : ""}`;
+}
 const AV = ["c-primary", "c-info", "c-violet", "c-cyan", "c-success", "c-warning"];
 
 // app status → DS tint
@@ -88,7 +106,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-    const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | null>(null);
+    const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | "scheduled_upcoming" | null>(null);
     const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "lastMonth">("all");
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -102,11 +120,13 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         return { dateStart: null as Date | null, dateEnd: null as Date | null };
     }, [period]);
 
-    // Deep-link filters (?attention=overdue|due — used by reminder push notifications)
+    // Deep-link filters (?attention=overdue|due|scheduled — used by reminder push
+    // notifications and the dashboard's "Scheduled ahead" card)
     useEffect(() => {
         const attention = searchParams.get("attention");
         if (attention === "overdue") setSpecialFilter("pending_overdue");
         else if (attention === "due") setSpecialFilter("payment_due");
+        else if (attention === "scheduled") setSpecialFilter("scheduled_upcoming");
         if (attention) setSearchParams({}, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
@@ -125,7 +145,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const handleFilterApply = (
         type: DeliveryType | "all",
         status: OrderStatus | "all",
-        newSpecialFilter: "pending_overdue" | "payment_due" | null = null,
+        newSpecialFilter: "pending_overdue" | "payment_due" | "scheduled_upcoming" | null = null,
         orderSource: OrderSourceFilter = "all",
         serviceId: string = "all"
     ) => {
@@ -232,6 +252,10 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "pending_overdue" ? "var(--c-error)" : "var(--c-border)"}`, background: specialFilter === "pending_overdue" ? "var(--c-error-soft)" : "var(--c-surface)", color: specialFilter === "pending_overdue" ? "var(--c-error)" : "var(--c-text-2)" }}>
                     <AlertTriangle size={13} />{t("orders.filters.overdueOrders", "Overdue")}
                 </button>
+                <button onClick={() => { setSpecialFilter(specialFilter === "scheduled_upcoming" ? null : "scheduled_upcoming"); }}
+                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "scheduled_upcoming" ? "var(--c-primary)" : "var(--c-border)"}`, background: specialFilter === "scheduled_upcoming" ? "var(--c-primary-soft)" : "var(--c-surface)", color: specialFilter === "scheduled_upcoming" ? "var(--c-primary)" : "var(--c-text-2)" }}>
+                    <CalendarClock size={13} />{t("orders.filters.scheduled", "Scheduled")}
+                </button>
                 <button onClick={() => { setSpecialFilter(specialFilter === "payment_due" ? null : "payment_due"); }}
                     style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-border)"}`, background: specialFilter === "payment_due" ? "var(--c-warning-soft)" : "var(--c-surface)", color: specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-text-2)" }}>
                     <Wallet size={13} />{t("orders.filters.unpaidDues", "Unpaid dues")}
@@ -287,6 +311,13 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: `var(--${tyRef})`, whiteSpace: "nowrap" }}>
                                                         <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${tyRef})` }} />{t(`orders.deliveryTypes.${dtype}`, dtype.replace("_", " "))}
                                                     </span>
+                                                    {/* Booked for a future day → show WHEN, so scheduled work is
+                                                        identifiable in any list, not just the Scheduled filter. */}
+                                                    {scheduledLabel(order) && (
+                                                        <div style={{ marginTop: 3, fontSize: 11, fontWeight: 600, color: "var(--c-primary)", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
+                                                            <CalendarClock size={11} />{scheduledLabel(order)}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td style={TD}>
                                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, whiteSpace: "nowrap" }}>
