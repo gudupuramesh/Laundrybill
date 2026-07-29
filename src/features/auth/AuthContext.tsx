@@ -233,8 +233,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // owner's single web-session slot — that would evict the owner's dashboard tab.
                 const isTeamPortalRoute =
                     path.startsWith("/team") || path.startsWith("/staff") || path.startsWith("/agent") || path.startsWith("/plant");
+                // The Super Admin console runs its OWN auth (SuperAdminAuthContext) and must
+                // never touch the owner's single web-session slot. Without this, an operator
+                // whose email is both a super admin AND a shop owner is ONE uid: the console
+                // tab and the dashboard tab claim the same slot and evict each other, so
+                // opening one instantly signs the other out (and Firebase's shared
+                // persistence signs out both tabs).
+                const isSuperAdminRoute = path.startsWith("/super-admin");
                 const isPublicRoute =
-                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/") || isPublicShopSlug || isTeamPortalRoute;
+                    path.startsWith("/order/") || path.startsWith("/track") || path.startsWith("/receipt/") || isPublicShopSlug || isTeamPortalRoute || isSuperAdminRoute;
                 if (!isPublicRoute) {
                     claimWebSession(firebaseUser.uid);
                 }
