@@ -7,14 +7,15 @@
 
 import { useState, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { LEmptyState, LSkeletonList } from "@/components/laundry";
+import { LEmptyState, LSkeletonList, useLToast } from "@/components/laundry";
 import { useStaff } from "@/hooks/use-staff";
-import { useTeamMembers } from "@/hooks/use-team-members";
+import { useTeamMembers, useTeamMemberMutations } from "@/hooks/use-team-members";
+import { useAuth } from "@/features/auth";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useCurrency } from "@/hooks/use-currency";
 import { StaffFormSheet } from "./StaffFormSheet";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
-import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight } from "lucide-react";
+import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { TeamMember } from "@/types/staff";
@@ -31,11 +32,11 @@ interface StaffListProps {
     onTabChange?: () => void;
 }
 
-function Kpi({ icon, value, label, tint }: { icon: ReactNode; value: ReactNode; label: string; tint: string }) {
+function Kpi({ icon, value, label, tint, sub }: { icon: ReactNode; value: ReactNode; label: string; tint: string; sub?: string }) {
     return (
         <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "15px 16px", boxShadow: "var(--sh-sm)", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 38, height: 38, flex: "none", borderRadius: 10, background: `var(--${tint}-soft)`, color: `var(--${tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</span>
-            <div><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 21, letterSpacing: "-.02em" }}>{value}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{label}</div></div>
+            <div><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 21, letterSpacing: "-.02em" }}>{value}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{label}{sub ? <span style={{ marginLeft: 5, color: "var(--c-text-3)", opacity: .8 }}>· {sub}</span> : null}</div></div>
         </div>
     );
 }
@@ -61,6 +62,10 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
 
     const { staff: staffList, activeStaff, loading } = useStaff();
     const { teamMembers, agentCount: appAgentCount, loading: teamMembersLoading } = useTeamMembers();
+    const { deleteTeamMember } = useTeamMemberMutations();
+    const { addToast } = useLToast();
+    const { role } = useAuth();
+    const isOwner = role === "admin"; // login removal is owner-only, like in the profile panel
     const { checkLimit, hasFeature } = useShopLimits();
     // Team (app) logins are a Pro+/Business feature — hide all create UI on plans without it (Free, Pro, trial).
     const canTeamLogins = hasFeature("staffApp") || hasFeature("driverApp") || hasFeature("plantApp");
@@ -76,6 +81,13 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
     }, [searchParams, setSearchParams]);
 
     const displayStaff = showInactive ? staffList : activeStaff;
+    const inactiveCount = staffList.length - activeStaff.length;
+    // App logins are capped in TOTAL by the plan (any role mix) — show the cap next to
+    // the count so "why do I have 7 logins for 4 people" answers itself.
+    const loginLimit = checkLimit("maxTeamLogins", teamMembers.length);
+    const loginSub = loginLimit.limit === -1
+        ? t("staff.unlimitedLogins", "unlimited on your plan")
+        : t("staff.ofPlanLogins", `of ${loginLimit.limit} on your plan`);
     const filteredStaff = displayStaff.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.phone.includes(searchQuery));
     const filteredTeamMembers = teamMembers.filter((tm) => tm.email.toLowerCase().includes(searchQuery.toLowerCase()) || (tm.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || tm.inviteCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -89,6 +101,22 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
         const msg = String(t("staff.whatsappInviteMessage", { name: tm.name || tm.email, code: tm.inviteCode, link }));
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
+    // Deleting the login doc also deletes the member's Firebase sign-in account
+    // (onTeamMemberDeleted Cloud Function), so the email can be invited again.
+    const handleRemoveLogin = async (tm: TeamMember) => {
+        const ok = window.confirm(
+            t("staff.removeLoginConfirm",
+                `Remove ${tm.name || tm.email}'s app login? They can no longer sign in to the Team app, the login slot is freed, and their sign-in account is deleted so the same email can be used again. Roster, attendance and payroll history stays.`)
+        );
+        if (!ok) return;
+        try {
+            await deleteTeamMember(tm.id);
+            addToast({ type: "success", title: t("staff.loginRemoved", "Login removed — the email is free to reuse") });
+        } catch (e) {
+            console.error(e);
+            addToast({ type: "error", title: t("staff.removeLoginFailed", "Could not remove the login. Please try again.") });
+        }
+    };
 
     const ghostBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "6px 11px" };
 
@@ -98,7 +126,7 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
             <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("staff.title", "Staff")}</span>
-                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{staffList.length} {t("staff.members", "members")}</span>
+                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{displayStaff.length} {t("staff.members", "members")}</span>
                 </div>
                 <div style={{ flex: 1 }} />
                 <div style={{ position: "relative", width: isMobile ? "100%" : undefined }}>
@@ -129,9 +157,12 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPIs */}
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 18 }}>
-                    <Kpi icon={<Users size={18} />} value={staffList.length} label={t("staff.totalStaff", "Total staff")} tint="c-primary" />
-                    <Kpi icon={<UserCheck size={18} />} value={activeStaff.length} label={t("staff.activeStaff", "Active")} tint="c-success" />
-                    <Kpi icon={<Smartphone size={18} />} value={teamMembers.length} label={t("staff.appLogins", "App logins")} tint="c-violet" />
+                    {/* The roster hides inactive staff unless "Show inactive" is ticked, so the
+                        headline number is the ACTIVE count and deactivated people get their own
+                        tile — a total that silently included them read as a broken list. */}
+                    <Kpi icon={<Users size={18} />} value={activeStaff.length} label={t("staff.activeStaff", "Active staff")} tint="c-primary" />
+                    <Kpi icon={<UserCheck size={18} />} value={inactiveCount} label={t("staff.inactiveStaff", "Inactive")} tint={inactiveCount > 0 ? "c-warning" : "c-success"} />
+                    <Kpi icon={<Smartphone size={18} />} value={teamMembers.length} label={t("staff.appLogins", "App logins")} tint="c-violet" sub={loginSub} />
                     <Kpi icon={<MapPin size={18} />} value={appAgentCount} label={t("staff.agents", "Delivery agents")} tint="c-info" />
                 </div>
 
@@ -217,6 +248,9 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                                                 {tm.memberType === "agent" && <button onClick={(e) => { e.stopPropagation(); setEditingAreasFor(tm); }} style={ghostBtn}><MapPin size={14} />{t("staff.editAreas", "Areas")}</button>}
                                                 <button onClick={(e) => { e.stopPropagation(); handleCopyInvite(tm); }} style={ghostBtn}>{copiedId === tm.id ? <Check size={14} /> : <Copy size={14} />}{copiedId === tm.id ? t("common.copied", "Copied") : t("common.copy", "Copy")}</button>
                                                 <button onClick={(e) => { e.stopPropagation(); handleWhatsAppShare(tm); }} style={ghostBtn}><MessageCircle size={14} />WhatsApp</button>
+                                                {isOwner && <button onClick={(e) => { e.stopPropagation(); handleRemoveLogin(tm); }}
+                                                    title={t("staff.removeLoginHint", "Revokes app access, frees the login slot, and deletes their sign-in email so it can be invited again.")}
+                                                    style={{ ...ghostBtn, color: "var(--c-error)", background: "var(--c-error-soft)", borderColor: "transparent" }}><Trash2 size={14} />{t("staff.removeLogin", "Remove")}</button>}
                                             </div>
                                         </div>
                                     </div>

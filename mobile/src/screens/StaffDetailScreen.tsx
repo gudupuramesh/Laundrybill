@@ -150,9 +150,17 @@ export default function StaffDetailScreen({
 
   const handleToggleActive = () => {
     const isActive = staff?.isActive !== false;
+    // Deactivating must also cut app access: a deactivated employee keeping a
+    // working Team-app login is both a security hole and a wasted paid seat
+    // (the plan's login cap counts every teamMembers doc). Mirrors the web panel.
+    const revokes = isActive && !!teamMember;
     Alert.alert(
       isActive ? 'Deactivate Staff' : 'Activate Staff',
-      isActive ? `Deactivate ${staff?.name}? They won't appear in attendance.` : `Reactivate ${staff?.name}?`,
+      isActive
+        ? revokes
+          ? `Deactivate ${staff?.name}? This also revokes their app login, so they can no longer sign in, and frees the login slot. Attendance and payroll history stays.`
+          : `Deactivate ${staff?.name}? They won't appear in attendance.`
+        : `Reactivate ${staff?.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -160,6 +168,11 @@ export default function StaffDetailScreen({
           style: isActive ? 'destructive' : 'default',
           onPress: async () => {
             try {
+              if (revokes && teamMember) {
+                // Revoke first — don't deactivate while they still hold app access.
+                await firestore().collection(`shops/${shopId}/teamMembers`).doc(teamMember.id).delete();
+                setTeamMember(null);
+              }
               await firestore().collection(`shops/${shopId}/staff`).doc(staffId).update({
                 isActive: !isActive, updatedAt: new Date(),
               });
@@ -206,7 +219,10 @@ export default function StaffDetailScreen({
 
   const handleRevokeLogin = () => {
     if (!teamMember) return;
-    Alert.alert('Revoke Login', `Remove app login access for ${staff?.name}?`, [
+    Alert.alert(
+      'Revoke Login',
+      `Remove app login access for ${staff?.name}? This frees a login slot and deletes their sign-in email, so the same email can be invited again. Roster, attendance and payroll history stays.`,
+      [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Revoke', style: 'destructive',

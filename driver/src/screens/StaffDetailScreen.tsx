@@ -152,7 +152,11 @@ export default function StaffDetailScreen({
     const isActive = staff?.isActive !== false;
     Alert.alert(
       isActive ? 'Deactivate Staff' : 'Activate Staff',
-      isActive ? `Deactivate ${staff?.name}? They won't appear in attendance.` : `Reactivate ${staff?.name}?`,
+      // Revoking a login is owner-only in the Team app, so say plainly that the
+      // login survives — otherwise a manager assumes deactivating cut app access.
+      isActive
+        ? `Deactivate ${staff?.name}? They won't appear in attendance. Their app login stays active — only the shop owner can revoke it.`
+        : `Reactivate ${staff?.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

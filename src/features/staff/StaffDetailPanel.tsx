@@ -65,7 +65,6 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
     }
 
     const handleUpdateStaff = async (data: Parameters<typeof updateStaff>[1]) => { await updateStaff(staff.id, data); setEditSheetOpen(false); };
-    const handleDeactivate = async () => { await deactivateStaff(staff.id); };
     const handleDeleteCompletely = async () => {
         const warning = t("staff.deleteConfirm", `Permanently delete ${staff.name}? This also removes their app login. Attendance and payroll history stays. This cannot be undone.`);
         if (!window.confirm(warning)) return;
@@ -97,6 +96,28 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
         : linkedLogin?.memberType === "plant" ? t("staff.memberTypePlant", "Plant Operator")
         : linkedLogin?.role === "manager" ? t("staff.memberTypeManager", "Manager")
         : t("staff.memberTypeStaff", "Staff Member");
+    // Deactivating must also cut app access: a deactivated employee keeping a
+    // working Team-app login is both a security hole and a wasted paid seat
+    // (the plan's login cap counts every teamMembers doc).
+    const handleDeactivate = async () => {
+        if (staff.isActive && linkedLogin) {
+            const ok = window.confirm(
+                t("staff.deactivateRevokesLogin",
+                    `Deactivate ${staff.name}? This also revokes their app login, so they can no longer sign in to the Team app, and frees the login slot. Attendance and payroll history stays.`)
+            );
+            if (!ok) return;
+            try {
+                await deleteTeamMember(linkedLogin.id);
+            } catch (e) {
+                console.error(e);
+                addToast({ type: "error", title: t("staff.revokeFailed", "Could not revoke the login. Please try again.") });
+                return; // don't deactivate while they still hold app access
+            }
+        }
+        await deactivateStaff(staff.id);
+        if (staff.isActive) addToast({ type: "success", title: t("staff.deactivated", "Staff deactivated") });
+    };
+
     const handleRevoke = async () => {
         if (!linkedLogin) return;
         if (!window.confirm(t("staff.revokeConfirm", `Remove app login access for ${staff.name}?`))) return;
@@ -129,8 +150,15 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                 </nav>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => setEditSheetOpen(true)} style={hdrBtn}><Edit size={15} />{t("common.edit", "Edit")}</button>
-                <button onClick={handleDeactivate} style={{ ...hdrBtn, color: staff.isActive ? "var(--c-error)" : "var(--c-success)", borderColor: staff.isActive ? "var(--c-error)" : "var(--c-success)" }}><Power size={15} />{staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")}</button>
-                {isOwner && <button onClick={handleDeleteCompletely} disabled={deleting} style={{ ...hdrBtn, color: "#fff", background: "var(--c-error)", borderColor: "var(--c-error)", opacity: deleting ? 0.6 : 1 }}><Trash2 size={15} />{deleting ? t("common.loading", "Deleting…") : t("staff.delete", "Delete")}</button>}
+                {/* Deactivate vs Delete confused owners — spell out what each one keeps. */}
+                <button onClick={handleDeactivate}
+                    title={staff.isActive
+                        ? t("staff.deactivateHint", "Revokes their app login and hides them from the roster. Attendance and payroll history stays, and you can reactivate any time.")
+                        : t("staff.activateHint", "Puts them back on the roster. Create a new app login if they need one.")}
+                    style={{ ...hdrBtn, color: staff.isActive ? "var(--c-error)" : "var(--c-success)", borderColor: staff.isActive ? "var(--c-error)" : "var(--c-success)" }}><Power size={15} />{staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")}</button>
+                {isOwner && <button onClick={handleDeleteCompletely} disabled={deleting}
+                    title={t("staff.deleteHint", "Erases the staff record and their app login for good. Attendance and payroll history stays. Cannot be undone.")}
+                    style={{ ...hdrBtn, color: "#fff", background: "var(--c-error)", borderColor: "var(--c-error)", opacity: deleting ? 0.6 : 1 }}><Trash2 size={15} />{deleting ? t("common.loading", "Deleting…") : isMobile ? t("staff.delete", "Delete") : t("staff.deleteForever", "Delete permanently")}</button>}
             </header>
 
             <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
@@ -234,6 +262,7 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                                     <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("staff.type", "Type")}</span><span style={{ fontWeight: 600 }}>{loginTypeLabel}</span></div>
                                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("staff.status", "Status")}</span>{(() => { const ok = linkedLogin.inviteStatus === "accepted"; return <span style={{ fontSize: 11, fontWeight: 600, color: ok ? "var(--c-success)" : "var(--c-warning)", background: ok ? "var(--c-success-soft)" : "var(--c-warning-soft)", padding: "3px 9px", borderRadius: 20 }}>{ok ? t("staff.inviteAccepted", "Accepted") : t("staff.invitePending", "Pending")}</span>; })()}</div>
                                     {isOwner && <button onClick={handleRevoke} style={{ marginTop: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-error)", background: "var(--c-error-soft)", border: "1px solid var(--c-error-soft)", borderRadius: 10, padding: 11 }}><Ban size={15} />{t("staff.revokeLogin", "Revoke login access")}</button>}
+                                    {isOwner && <div style={{ fontSize: 11.5, color: "var(--c-text-3)", lineHeight: 1.45 }}>{t("staff.loginSlotHint", "Every login — accepted or still pending — uses one slot of your plan's limit. Revoking frees the slot; the roster entry and history stay.")}</div>}
                                 </div>
                             ) : isOwner ? (
                                 <button onClick={() => setCreateLoginOpen(true)} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, font: "inherit", textAlign: "left", padding: 13, borderRadius: 11, border: "1px dashed var(--c-primary)", background: "var(--c-primary-soft)" }}>

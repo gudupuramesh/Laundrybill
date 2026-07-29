@@ -33,11 +33,13 @@ export default function StaffListScreen({
   onViewStaff,
   onAddStaff,
   canCreateLogins = false,
+  teamLoginCap = 0,
 }: {
   onBack: () => void;
   onViewStaff?: (id: string) => void;
   onAddStaff?: () => void;
   canCreateLogins?: boolean; // team logins are a Pro+/Business feature — hide the "create login" toggle otherwise
+  teamLoginCap?: number; // plan's TOTAL login cap (-1 = unlimited) — shown on the LOGINS stat
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -225,7 +227,11 @@ export default function StaffListScreen({
             <View style={s.statDivider} />
             <View style={s.statCol}>
               <Text style={s.statLabel}>{t('mobile.staffLoginsStat', { defaultValue: 'LOGINS' })}</Text>
-              <Text style={[s.statValue, { color: colors.primary }]}>{stats.logins}</Text>
+              {/* Every teamMembers doc uses one plan slot — show count/cap so an
+                  over-cap shop (e.g. after a downgrade) sees it at a glance. */}
+              <Text style={[s.statValue, { color: teamLoginCap > 0 && stats.logins > teamLoginCap ? colors.error : colors.primary }]}>
+                {teamLoginCap > 0 ? `${stats.logins}/${teamLoginCap}` : stats.logins}
+              </Text>
             </View>
           </View>
         </View>

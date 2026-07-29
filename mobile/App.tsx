@@ -871,6 +871,7 @@ function MainLayout() {
           onViewStaff={(id: string) => setActiveScreen(`STAFF_DETAIL_${id}`)}
           onAddStaff={() => {/* TODO: CreateStaffScreen */}}
           canCreateLogins={canCreateLogins}
+          teamLoginCap={appPlanLimits.maxTeamLogins ?? 0}
         />
       </View>
     );
