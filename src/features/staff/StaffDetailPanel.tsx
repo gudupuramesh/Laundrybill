@@ -6,6 +6,7 @@
 
 import { useState, useMemo, type CSSProperties } from "react";
 import { LSpinner, useLToast } from "@/components/laundry";
+import { MHeader, MIconBtn } from "@/components/laundry/LMobileRows";
 import { useStaff, useStaffMutations, useAttendance, usePayroll } from "@/hooks/use-staff";
 import { useTeamMembers, useTeamMemberMutations } from "@/hooks/use-team-members";
 import { StaffFormSheet } from "./StaffFormSheet";
@@ -141,8 +142,24 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
 
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 16px" : "0 22px" }}>
+            {/* header — on mobile, the owner app's header bar (breadcrumbs are a website thing) */}
+            {isMobile ? (
+                <div style={{ position: "sticky", top: 0, zIndex: 5 }}>
+                    <MHeader
+                        onBack={onClose}
+                        title={staff.name}
+                        sub={roleMeta.label}
+                        right={
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <MIconBtn aria-label={t("common.edit", "Edit")} onClick={() => setEditSheetOpen(true)}><Edit size={17} /></MIconBtn>
+                                <MIconBtn aria-label={staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")} tint={staff.isActive ? "c-error" : "c-success"} onClick={handleDeactivate}><Power size={17} /></MIconBtn>
+                                {isOwner && <MIconBtn aria-label={t("staff.deleteForever", "Delete permanently")} tint="c-error" onClick={() => { if (!deleting) handleDeleteCompletely(); }}><Trash2 size={17} /></MIconBtn>}
+                            </div>
+                        }
+                    />
+                </div>
+            ) : (
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
                 <button onClick={onClose} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={onClose} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("staff.title", "Staff")}</button><span>/</span>
@@ -158,8 +175,9 @@ export function StaffDetailPanel({ staffId, onClose }: StaffDetailPanelProps) {
                     style={{ ...hdrBtn, color: staff.isActive ? "var(--c-error)" : "var(--c-success)", borderColor: staff.isActive ? "var(--c-error)" : "var(--c-success)" }}><Power size={15} />{staff.isActive ? t("staff.deactivate", "Deactivate") : t("staff.activate", "Activate")}</button>
                 {isOwner && <button onClick={handleDeleteCompletely} disabled={deleting}
                     title={t("staff.deleteHint", "Erases the staff record and their app login for good. Attendance and payroll history stays. Cannot be undone.")}
-                    style={{ ...hdrBtn, color: "#fff", background: "var(--c-error)", borderColor: "var(--c-error)", opacity: deleting ? 0.6 : 1 }}><Trash2 size={15} />{deleting ? t("common.loading", "Deleting…") : isMobile ? t("staff.delete", "Delete") : t("staff.deleteForever", "Delete permanently")}</button>}
+                    style={{ ...hdrBtn, color: "#fff", background: "var(--c-error)", borderColor: "var(--c-error)", opacity: deleting ? 0.6 : 1 }}><Trash2 size={15} />{deleting ? t("common.loading", "Deleting…") : t("staff.deleteForever", "Delete permanently")}</button>}
             </header>
+            )}
 
             <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
                 {/* profile header */}

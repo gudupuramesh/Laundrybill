@@ -32,13 +32,16 @@ function hasValidPhoneLength(phone?: string): boolean {
 }
 import type { Customer } from "@/types/customer";
 
-const PAGE_SIZE = 10;
+// 50 per page: the customer list infinite-scrolls, so each fetch should be
+// a screenful-plus, not a teaser.
+const PAGE_SIZE = 50;
 
 export function useCustomers(searchQuery?: string) {
     const { shopId } = useAuth();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
 
     // Initial load with real-time listener (dynamically adjusts limit to 1000 during active search to allow client search across 1000 contacts)
@@ -91,7 +94,10 @@ export function useCustomers(searchQuery?: string) {
 
     // Load more (pagination)
     const loadMore = useCallback(async () => {
-        if (!shopId || !lastDoc || !hasMore) return;
+        // loadingMore guard: the infinite-scroll sentinel can fire repeatedly while
+        // a fetch is in flight — re-entering with the same cursor duplicates rows.
+        if (!shopId || !lastDoc || !hasMore || loadingMore) return;
+        setLoadingMore(true);
 
         const customersRef = collection(db, `shops/${shopId}/customers`);
         const q = query(
@@ -110,7 +116,8 @@ export function useCustomers(searchQuery?: string) {
         setCustomers((prev) => [...prev, ...newDocs]);
         setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
         setHasMore(snapshot.docs.length === PAGE_SIZE);
-    }, [shopId, lastDoc, hasMore]);
+        setLoadingMore(false);
+    }, [shopId, lastDoc, hasMore, loadingMore]);
 
     // Create customer with validation, normalization, and unique-phone check
     const createCustomer = useCallback(async (data: Partial<Customer>): Promise<Customer | null> => {
@@ -268,6 +275,7 @@ export function useCustomers(searchQuery?: string) {
         customers: filteredCustomers,
         loading,
         hasMore,
+        loadingMore,
         loadMore,
         createCustomer,
         updateCustomer,

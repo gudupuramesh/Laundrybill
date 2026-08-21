@@ -7,6 +7,8 @@
 import { useState, type CSSProperties } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LSpinner, LEmptyState } from "@/components/laundry";
+import { MRow, MHeader, MIconBtn } from "@/components/laundry/LMobileRows";
+import { MobileCustomerDetail } from "./MobileCustomerDetail";
 import { useCustomer, useCustomers } from "@/hooks/use-customers";
 import { useOrders } from "@/hooks/use-orders";
 import { useCurrency } from "@/hooks/use-currency";
@@ -89,10 +91,35 @@ export function CustomerDetailPage() {
     const handleUpdate = async (data: Parameters<typeof updateCustomer>[1]) => { await updateCustomer(customer.id, data); setEditOpen(false); };
     const iconBtn = (color: string, soft: string): CSSProperties => ({ cursor: "pointer", width: 38, height: 38, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: `var(--${color})`, background: `var(--${soft})`, border: 0, borderRadius: 9 });
 
+    // MOBILE: render the owner app's CustomerDetailScreen clone.
+    if (isMobile) return (
+        <>
+            <MobileCustomerDetail
+                customer={customer}
+                orders={orders}
+                basePath={basePath}
+                onBack={() => navigate(`${basePath}/customers`)}
+                onEdit={() => setEditOpen(true)}
+            />
+            <CustomerFormSheet open={editOpen} onClose={() => setEditOpen(false)} customer={customer} onSubmit={handleUpdate} />
+        </>
+    );
+
     return (
         <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
             {/* header */}
-            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "0 16px" : "0 22px" }}>
+            {/* header — on mobile, the owner app's header bar (breadcrumbs are a website thing) */}
+            {isMobile ? (
+                <div style={{ position: "sticky", top: 0, zIndex: 5 }}>
+                    <MHeader
+                        onBack={() => navigate(`${basePath}/customers`)}
+                        title={customer.name}
+                        sub={customer.phone}
+                        right={<MIconBtn aria-label={t("customers.newOrder", "New Order")} tint="c-primary" onClick={() => navigate(`${basePath}/new-order?customerId=${customer.id}`)}><Plus size={20} /></MIconBtn>}
+                    />
+                </div>
+            ) : (
+            <header style={{ position: "sticky", top: 0, zIndex: 5, flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12, padding: "0 22px" }}>
                 <button onClick={() => navigate(`${basePath}/customers`)} aria-label="Back" style={{ cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "transparent", border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>
                 <nav style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--c-text-3)", minWidth: 0 }}>
                     <button onClick={() => navigate(`${basePath}/customers`)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, color: "var(--c-text-2)", background: "transparent", border: 0 }}>{t("customers.title", "Customers")}</button><span>/</span>
@@ -101,6 +128,7 @@ export function CustomerDetailPage() {
                 <div style={{ flex: 1 }} />
                 <button onClick={() => navigate(`${basePath}/new-order?customerId=${customer.id}`)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><Plus size={15} />{t("customers.newOrder", "New Order")}</button>
             </header>
+            )}
 
             <div style={{ padding: isMobile ? "16px 16px 40px" : "20px 22px 40px" }}>
                 {/* profile header */}
@@ -144,6 +172,24 @@ export function CustomerDetailPage() {
                                 <div style={{ padding: 30, display: "flex", justifyContent: "center" }}><LSpinner /></div>
                             ) : orders.length === 0 ? (
                                 <div style={{ padding: 24 }}><LEmptyState icon={<ClipboardList className="h-8 w-8" />} title={t("customers.noOrders", "No orders yet")} description={t("customers.noOrdersDesc", "This customer hasn't placed an order.")} /></div>
+                            ) : isMobile ? (
+                                /* App-style rows — the desktop table reads as a website on a phone */
+                                <div>
+                                    {orders.slice(0, 8).map((o, i, arr) => {
+                                        const stRef = STATUS_TINT[o.status] || "c-slate";
+                                        return (
+                                            <MRow key={o.id}
+                                                left={<span style={{ width: 38, height: 38, borderRadius: 11, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: MONO, fontSize: 10, fontWeight: 700 }}>#{String(o.publicId).slice(-4)}</span>}
+                                                title={`#${o.publicId}`}
+                                                titleRight={<span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})` }}>{STATUS_LABELS[o.status]}</span>}
+                                                sub={`${format(o.createdAt.toDate(), "MMM d, yyyy")} · ${o.items.length} ${t("pos.items", "pcs")}`}
+                                                right={<span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13.5 }}>{formatAmount(o.financials.total)}</span>}
+                                                last={i === arr.length - 1}
+                                                onClick={() => navigate(`${basePath}/orders/${o.id}`)}
+                                            />
+                                        );
+                                    })}
+                                </div>
                             ) : (
                                 <div className="lb-scroll" style={{ overflowX: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 520 }}>

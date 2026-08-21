@@ -182,6 +182,44 @@ export async function shareReceiptViaWhatsApp({
 
 
 /**
+ * Share the actual PDF bill to WhatsApp.
+ * Phones/tablets (Web Share API with file support): the system share sheet
+ * opens — the owner picks WhatsApp and the chat, and the PDF lands as a real
+ * attachment. Desktop browsers can't hand a file to WhatsApp, so there the
+ * PDF downloads and the customer's chat opens ready for a one-click attach.
+ */
+export async function shareReceiptPdfViaWhatsApp(opts: {
+    order: Order;
+    shop?: Shop;
+    blob: Blob;
+    fileName: string;
+}): Promise<"shared" | "downloaded"> {
+    const { order, shop, blob, fileName } = opts;
+    const file = new File([blob], fileName, { type: "application/pdf" });
+    const shareData: ShareData = { files: [file], title: `Order ${order.publicId}` };
+    if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
+        try {
+            await navigator.share(shareData);
+            return "shared";
+        } catch (e) {
+            if ((e as DOMException)?.name === "AbortError") return "shared"; // owner closed the sheet
+            // fall through to the download path
+        }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const fullPhone = buildWaPhone(order.customerPhone, shop);
+    if (fullPhone) window.open(`https://wa.me/${fullPhone}`, "_blank");
+    return "downloaded";
+}
+
+/**
  * Open WhatsApp with text message only (no PDF)
  */
 export function openWhatsAppTextOnly(order: Order, shop?: Shop, currencySymbol: string = "₹"): void {

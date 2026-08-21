@@ -21,6 +21,8 @@ export interface ShopBankDetails {
     bankName?: string;
     accountHolderName?: string;
     upiId?: string;
+    /** Payment page URL (e.g. Razorpay link) — the receipt pay-QR fallback when no UPI ID. */
+    paymentLink?: string;
 }
 
 /**
@@ -144,6 +146,10 @@ export interface ShopSettings {
 
     // Terms & Conditions printed at the bottom of the customer's receipt (owner-configured).
     receiptTerms?: string;
+    /** false hides the shop logo on printed/PDF receipts (default: shown when a logo exists). */
+    receiptShowLogo?: boolean;
+    /** false hides the scan-to-pay QR (UPI/payment link) on receipts with a balance due. */
+    receiptPaymentQr?: boolean;
 
     // WhatsApp share message customization (owner-configured; all fields optional —
     // undefined means the default text/blocks). Used by web + both apps.

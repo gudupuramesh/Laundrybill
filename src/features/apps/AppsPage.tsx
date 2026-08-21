@@ -12,6 +12,9 @@ import { useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNavigate } from "react-router-dom";
+import { MPageShell } from "@/components/laundry/LMobileRows";
+import { GOOGLE_PLAY_URL, APP_STORE_URL, detectMobileOS } from "@/config/app-links";
 import { Smartphone, Truck, Factory, Share2, ExternalLink, Check, Copy, Apple, Globe, MonitorSmartphone, ClipboardList, Users, Clock, Tag, Scan, Camera, MapPin, Boxes } from "lucide-react";
 
 const MONO = "'IBM Plex Mono'";
@@ -77,6 +80,7 @@ export function AppsPage() {
     const { addToast } = useLToast();
     const { staffCount, agentCount, plantCount } = useTeamMembers();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const [selectedId, setSelectedId] = useState("staff");
     const [copied, setCopied] = useState(false);
 
@@ -93,6 +97,47 @@ export function AppsPage() {
     };
 
     const ghostBtn: CSSProperties = { flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: 9 };
+
+    // MOBILE: app-style page, led by the owner-app store links — a phone user
+    // should be pushed to the real app before the team-app invite links.
+    if (isMobile) return (
+        <MPageShell title={t("apps.title", "Apps")} sub={`${t("apps.suite", "LaundryBill app suite")} · ${APPS.length} ${t("apps.apps", "apps")}`} onBack={() => navigate("/settings")}>
+            <div style={{ background: "linear-gradient(135deg, #1B61E5, #124BB8)", color: "#fff", borderRadius: 18, padding: 16, marginBottom: 14, boxShadow: "var(--sh-md, var(--sh-sm))" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", color: "rgba(255,255,255,.75)" }}>{t("apps.ownerApp", "Owner app")}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>{t("appPromo.title", "Get the Laundrybill app")}</div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.85)", marginTop: 4, lineHeight: 1.45 }}>{t("appPromo.body", "Run your shop from your phone — orders, billing and instant notifications.")}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                    {(detectMobileOS() === "ios"
+                        ? [{ id: "appstore", label: "App Store", url: APP_STORE_URL }, { id: "play", label: "Google Play", url: GOOGLE_PLAY_URL }]
+                        : [{ id: "play", label: "Google Play", url: GOOGLE_PLAY_URL }, { id: "appstore", label: "App Store", url: APP_STORE_URL }]
+                    ).map((st, i) => (
+                        <a key={st.id} href={st.url} target="_blank" rel="noopener noreferrer"
+                            style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 8px", borderRadius: 11, textDecoration: "none", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                                color: i === 0 ? "var(--c-primary)" : "#fff", background: i === 0 ? "#fff" : "rgba(255,255,255,.18)", border: i === 0 ? "0" : "1px solid rgba(255,255,255,.35)" }}>
+                            {st.label}
+                        </a>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--c-text-2)", textTransform: "uppercase", letterSpacing: ".5px", margin: "4px 4px 8px" }}>{t("apps.teamApps", "Team apps")}</div>
+            <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 18, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
+                {APPS.map((a, i) => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < APPS.length - 1 ? "1px solid var(--c-border)" : "none" }}>
+                        <span style={{ width: 38, height: 38, flex: "none", borderRadius: 11, background: `var(--${a.tint}-soft)`, color: `var(--${a.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{a.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{a.name}</div>
+                            <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{counts[a.id] ?? 0} {t("apps.logins", "logins")}</div>
+                        </div>
+                        <button onClick={() => { setSelectedId(a.id); window.open(`${window.location.origin}${a.path}`, "_blank"); }}
+                            style={{ cursor: "pointer", flex: "none", font: "inherit", fontSize: 12.5, fontWeight: 700, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 9, padding: "8px 12px" }}>
+                            {t("apps.open", "Open")}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </MPageShell>
+    );
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>

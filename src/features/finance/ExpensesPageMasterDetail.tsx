@@ -7,6 +7,8 @@
 
 import { useState, useMemo, type CSSProperties } from "react";
 import { useExpenses } from "@/hooks/use-finance";
+import { MRow, MHeader, MIconBtn } from "@/components/laundry/LMobileRows";
+import { MobileFinances } from "./MobileFinances";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ExpenseFormSheet } from "./ExpenseFormSheet";
@@ -76,10 +78,36 @@ export function ExpensesPageMasterDetail() {
 
     const filterChips = ["all", ...breakdown.entries.slice(0, 6).map((e) => e.cat)];
 
+    // MOBILE: render the owner app's ExpensesScreen (Finance) clone.
+    if (isMobile) return (
+        <>
+            <MobileFinances onAddExpense={openAdd} onEditExpense={openEdit} />
+            <ExpenseFormSheet open={formOpen} onClose={() => setFormOpen(false)} expense={editExpense} />
+        </>
+    );
+
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar + a compact controls row */}
+            {isMobile ? (
+                <>
+                    <MHeader
+                        title={t("expenses.title", "Expenses")}
+                        sub={format(viewMonth, "MMMM yyyy")}
+                        right={<MIconBtn aria-label={t("expenses.add", "Add Expense")} tint="c-primary" onClick={openAdd}><Plus size={20} /></MIconBtn>}
+                    />
+                    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 6, padding: "2px 10px 8px", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)" }}>
+                        {([{ id: "overview", label: t("expenses.overview", "Overview") }, { id: "list", label: t("expenses.all", "All expenses") }] as const).map((tb) => {
+                            const on = tab === tb.id;
+                            return <button key={tb.id} role="tab" aria-selected={on} onClick={() => setTab(tb.id)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: on ? "var(--c-primary)" : "var(--c-text-2)", background: on ? "var(--c-primary-soft)" : "transparent", border: 0, borderRadius: 9, padding: "7px 13px" }}>{tb.label}</button>;
+                        })}
+                        <div style={{ flex: 1 }} />
+                        <button onClick={prevMonth} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
+                        <button onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month" style={{ ...navBtn, opacity: atCurrentMonth ? 0.4 : 1, cursor: atCurrentMonth ? "not-allowed" : "pointer" }}><ChevronRight size={16} /></button>
+                    </div>
+                </>
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("expenses.title", "Expenses")}</span>
                 <div role="tablist" style={{ display: "flex", gap: 2, marginLeft: 4 }}>
                     {([{ id: "overview", label: t("expenses.overview", "Overview") }, { id: "list", label: t("expenses.all", "All expenses") }] as const).map((tb) => {
@@ -95,6 +123,7 @@ export function ExpensesPageMasterDetail() {
                 </div>
                 <button onClick={openAdd} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><Plus size={15} />{t("expenses.add", "Add Expense")}</button>
             </header>
+            )}
 
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPI row */}
@@ -148,6 +177,24 @@ export function ExpensesPageMasterDetail() {
                     </div>
                     {rows.length === 0 ? (
                         <div style={{ padding: 40, textAlign: "center", color: "var(--c-text-3)", fontSize: 13.5 }}>{t("expenses.noneThisMonth", "No expenses recorded this month.")}</div>
+                    ) : isMobile ? (
+                        /* App-style rows — the desktop table reads as a website on a phone */
+                        <div>
+                            {rows.map((e, i) => {
+                                const tint = tintFor(e.category);
+                                return (
+                                    <MRow key={e.id}
+                                        left={<span style={{ width: 38, height: 38, borderRadius: 11, background: `var(--${tint}-soft)`, color: `var(--${tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}><Receipt size={17} /></span>}
+                                        title={e.vendor || e.description || catLabel(e.category, e.customCategoryName)}
+                                        titleRight={e.isRecurring ? <span style={{ flex: "none", fontSize: 9.5, fontWeight: 700, color: "var(--c-info)", background: "var(--c-info-soft)", padding: "2px 6px", borderRadius: 5 }}>{t("expenses.recurring", "RECURRING")}</span> : undefined}
+                                        sub={`${catLabel(e.category, e.customCategoryName)} · ${format(e.date.toDate(), "MMM d")}`}
+                                        right={<span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13.5 }}>{formatAmount(e.amount)}</span>}
+                                        last={i === rows.length - 1}
+                                        onClick={() => openEdit(e)}
+                                    />
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 640 }}>

@@ -14,6 +14,8 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useFinancialReports } from "@/hooks/use-finance";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNavigate } from "react-router-dom";
+import { MobileReports } from "./MobileReports";
 import { format, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import {
     FileDown, Printer, TrendingUp, Wallet, Receipt, Banknote, Shirt, Hourglass,
@@ -86,6 +88,7 @@ export function ReportsPage() {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const { ownedShops, shopName } = useAuth();
     const [rangeOption, setRangeOption] = useState<DateRangeOption>("thisMonth");
     const [customStart, setCustomStart] = useState<string>(format(startOfMonth(new Date()), "yyyy-MM-dd"));
@@ -224,6 +227,52 @@ export function ReportsPage() {
     const hdrBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 13px" };
     const colHead: CSSProperties = { fontSize: 10.5, fontWeight: 600, color: "var(--c-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 10 };
     const barTrack: CSSProperties = { height: 6, background: "var(--c-surface-2)", borderRadius: 6, overflow: "hidden" };
+
+    // MOBILE: the owner app's ReportsScreen.
+    if (isMobile) {
+        const os = r.orderStats;
+        return (
+            <MobileReports
+                loading={showLoading}
+                periodLabel={periodLabel}
+                // The app's period sheet maps onto the same three ranges the web has.
+                onPickPeriod={() => setRangeOption(rangeOption === "thisMonth" ? "lastMonth" : rangeOption === "lastMonth" ? "custom" : "thisMonth")}
+                onExport={handleDownloadPDF}
+                exporting={generatingPDF}
+                onBack={() => navigate("/settings")}
+                formatAmount={formatAmount}
+                data={{
+                    revenue: Math.round(r.revenue || 0),
+                    collections: Math.round(r.collections || 0),
+                    outstanding: Math.round(r.outstanding || 0),
+                    totalExpenses: Math.round(r.totalExpenses || 0),
+                    netProfit: Math.round(r.profit || 0),
+                    orderCount: r.orderCount || 0,
+                    avgOrderValue: Math.round(r.avgOrderValue || 0),
+                    newCustomers: r.customerStats?.newCustomers || 0,
+                    byStatus: [
+                        { label: statusLabel("pending"), n: os.orderPlaced, tint: "c-primary" },
+                        { label: statusLabel("processing"), n: os.inProgress, tint: "c-info" },
+                        { label: statusLabel("ready"), n: os.readyForDelivery, tint: "c-primary" },
+                        { label: statusLabel("out_for_delivery"), n: os.outForDelivery, tint: "c-cyan" },
+                        { label: statusLabel("delivered"), n: os.delivered, tint: "c-success" },
+                        { label: statusLabel("cancelled"), n: os.cancelled, tint: "c-error" },
+                    ],
+                    byDeliveryType: [
+                        { label: t("reports.dtPickupStore", "Store pickup"), n: os.pickupStore },
+                        { label: t("reports.dtPickupHome", "Home pickup"), n: os.pickupHome },
+                        { label: t("reports.dtDeliveryHome", "Home delivery"), n: os.deliveryHome },
+                    ],
+                    bySource: [
+                        { label: t("mobile.repSourceOnline", "Online"), n: r.ordersBySource?.online || 0, color: "#0369a1" },
+                        { label: t("mobile.repSourceDirect", "In-store / Direct"), n: r.ordersBySource?.pos || 0, color: "var(--c-text-3)" },
+                    ],
+                    topServices: r.topServices || [],
+                    expensesByCategory: Object.entries(r.expensesByCategory || {}).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a),
+                }}
+            />
+        );
+    }
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>

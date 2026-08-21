@@ -47,7 +47,7 @@ import { useTranslation } from "react-i18next";
 import { generateOrderReceipt } from "@/lib/generateReceipt";
 import { isAndroidPrintEnv } from "@/lib/receipt-print";
 import { useReceiptPrint } from "@/context/ReceiptPrintContext";
-import { openWhatsAppTextOnly } from "@/lib/whatsappShare";
+import { openWhatsAppTextOnly, shareReceiptPdfViaWhatsApp } from "@/lib/whatsappShare";
 import { useShop } from "@/hooks/use-shop";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { getCountryByCurrency } from "@/config/countries";
@@ -166,27 +166,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         openWhatsAppTextOnly(order, shop || undefined, currencySymbol);
     };
 
-    // Print receipt handler
-    // Download receipt handler
-    const handleDownloadReceipt = () => {
-        if (order && shop) {
-            const location = shop.location;
-            generateOrderReceipt(order, {
-                name: shop.name || "LaundryBill",
-                phone: shop.phone,
-                address: location?.address ? `${location.address}, ${location.city || ''} ${location.pincode || ''}` : undefined,
-                gstNumber: shop.gstNumber,
-                countryCode: shop.settings?.countryCode,
-                currencySymbol,
-                currencyCode: shop.settings?.currency,
-                receiptTerms: shop.settings?.receiptTerms,
-                showTracking: shop.settings?.trackingEnabled !== false,
-            });
-        }
-    };
-
-    // Print/Preview receipt handler (Android: window.print() for native dialog; else PDF in new tab)
-    const handlePrintPreview = async () => {
+    // Share the actual PDF bill to WhatsApp (share sheet on phones; download + chat on desktop)
+    const handleWhatsAppPdf = async () => {
         if (!order || !shop) return;
         const location = shop.location;
         const shopInfo = {
@@ -199,16 +180,76 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             currencyCode: shop.settings?.currency,
             receiptTerms: shop.settings?.receiptTerms,
             showTracking: shop.settings?.trackingEnabled !== false,
+            logoUrl: shop.settings?.receiptShowLogo === false ? undefined : shop.logo,
+            upiId: shop.bankDetails?.upiId,
+            paymentLink: shop.bankDetails?.paymentLink,
+            showPaymentQr: shop.settings?.receiptPaymentQr !== false,
         };
-        if (isAndroidPrintEnv()) {
+        try {
+            const m = await import("@/lib/generateReceipt");
+            const blob = await m.getReceiptBlob(order, shopInfo);
+            await shareReceiptPdfViaWhatsApp({ order, shop, blob, fileName: m.getReceiptFileName(order) });
+        } catch (e) {
+            console.error("WhatsApp PDF share failed:", e);
+        }
+    };
+
+    // Print receipt handler
+    // Download receipt handler
+    const handleDownloadReceipt = async () => {
+        if (order && shop) {
+            const location = shop.location;
+            await generateOrderReceipt(order, {
+                name: shop.name || "LaundryBill",
+                phone: shop.phone,
+                address: location?.address ? `${location.address}, ${location.city || ''} ${location.pincode || ''}` : undefined,
+                gstNumber: shop.gstNumber,
+                countryCode: shop.settings?.countryCode,
+                currencySymbol,
+                currencyCode: shop.settings?.currency,
+                receiptTerms: shop.settings?.receiptTerms,
+                showTracking: shop.settings?.trackingEnabled !== false,
+                logoUrl: shop.settings?.receiptShowLogo === false ? undefined : shop.logo,
+                upiId: shop.bankDetails?.upiId,
+                paymentLink: shop.bankDetails?.paymentLink,
+                showPaymentQr: shop.settings?.receiptPaymentQr !== false,
+            });
+        }
+    };
+
+    // Print/Preview receipt handler (Android: window.print() for native dialog; else PDF in new tab).
+    // format: "a4" for a full-page bill, "thermal" for the 80mm POS-roll layout.
+    const handlePrintPreview = async (format: "a4" | "thermal" = "a4") => {
+        if (!order || !shop) return;
+        const location = shop.location;
+        const shopInfo = {
+            name: shop.name || "LaundryBill",
+            phone: shop.phone,
+            address: location?.address ? `${location.address}, ${location.city || ""} ${location.pincode || ""}` : undefined,
+            gstNumber: shop.gstNumber,
+            countryCode: shop.settings?.countryCode,
+            currencySymbol,
+            currencyCode: shop.settings?.currency,
+            receiptTerms: shop.settings?.receiptTerms,
+            showTracking: shop.settings?.trackingEnabled !== false,
+            logoUrl: shop.settings?.receiptShowLogo === false ? undefined : shop.logo,
+            upiId: shop.bankDetails?.upiId,
+            paymentLink: shop.bankDetails?.paymentLink,
+            showPaymentQr: shop.settings?.receiptPaymentQr !== false,
+        };
+        if (format === "a4" && isAndroidPrintEnv()) {
             triggerReceiptPrint(order, shopInfo);
             return;
         }
+        // Open the tab synchronously (before any await) so popup blockers allow it.
+        const win = window.open("", "_blank");
         try {
-            const blob = await import("@/lib/generateReceipt").then(m => m.getReceiptBlob(order, shopInfo));
+            const blob = await import("@/lib/generateReceipt").then(m =>
+                format === "thermal" ? m.getThermalReceiptBlob(order, shopInfo) : m.getReceiptBlob(order, shopInfo));
             const url = URL.createObjectURL(blob);
-            window.open(url, "_blank");
+            if (win) win.location.href = url; else window.open(url, "_blank");
         } catch (error) {
+            win?.close();
             console.error("Failed to generate receipt preview", error);
         }
     };
@@ -393,8 +434,10 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     <div className="lb-thin" style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto' }}>
                         {hasFeature('qrScans') && <button onClick={() => setTagModalOpen(true)} style={hdrBtn}><Tag size={15} />{t('orders.printTags', 'Print Tag')}</button>}
                         <button onClick={handleWhatsAppChat} style={{ ...hdrBtn, color: 'var(--c-success)', background: 'var(--c-success-soft)', borderColor: 'var(--c-success-soft)' }}><MessageCircle size={15} />{t('orders.whatsapp', 'Share')}</button>
+                        <button onClick={handleWhatsAppPdf} title={t('orders.whatsappPdfHint', 'Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach')} style={{ ...hdrBtn, color: 'var(--c-success)', background: 'var(--c-success-soft)', borderColor: 'var(--c-success-soft)' }}><MessageCircle size={15} />{t('orders.whatsappPdf', 'PDF bill')}</button>
                         {canEdit && <button onClick={handleEdit} style={hdrBtn}><Edit size={15} />{t('common.edit', 'Edit')}</button>}
-                        <button onClick={handlePrintPreview} style={hdrBtn}><Printer size={15} />{t('orders.printReceipt', 'Print Bill')}</button>
+                        <button onClick={() => handlePrintPreview("a4")} style={hdrBtn}><Printer size={15} />{t('orders.printA4', 'Print A4')}</button>
+                        <button onClick={() => handlePrintPreview("thermal")} title={t('orders.printThermalHint', 'POS thermal printer receipt (80mm roll)')} style={hdrBtn}><Printer size={15} />{t('orders.printThermal', 'Print 80mm')}</button>
                         {canUpdateStatus && <button onClick={() => setStatusSheetOpen(true)} style={{ ...hdrBtn, color: '#fff', background: 'var(--c-primary)', border: 0, boxShadow: 'var(--sh-sm)' }}><RefreshCw size={15} />{t('orders.updateStatus', 'Update Status')}</button>}
                         <button onClick={() => setActionSheetOpen(true)} aria-label="More actions" style={{ cursor: 'pointer', width: 34, height: 34, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'var(--c-surface)', border: '1px solid var(--c-border-strong)', borderRadius: 8 }}><MoreVertical size={16} /></button>
                     </div>
@@ -710,8 +753,10 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                         ? [{ id: "email", label: t('orders.emailCustomer', 'Email customer'), icon: <Mail className="h-5 w-5" />, onClick: () => window.open(`mailto:${order.customerEmail}`) }]
                         : []),
                     ...(order.customerPhone ? [{ id: "whatsapp", label: t('orders.whatsapp'), icon: <MessageCircle className="h-5 w-5" />, onClick: handleWhatsAppChat }] : []),
+                    { id: "whatsapp-pdf", label: t('orders.whatsappPdf', 'WhatsApp PDF bill'), icon: <MessageCircle className="h-5 w-5" />, onClick: handleWhatsAppPdf },
                     { id: "download", label: t('orders.downloadReceipt'), icon: <Download className="h-5 w-5" />, onClick: handleDownloadReceipt },
-                    { id: "print", label: t('orders.printReceipt'), icon: <Printer className="h-5 w-5" />, onClick: handlePrintPreview },
+                    { id: "print", label: t('orders.printA4', 'Print A4'), icon: <Printer className="h-5 w-5" />, onClick: () => handlePrintPreview("a4") },
+                    { id: "print-thermal", label: t('orders.printThermal', 'Print 80mm (POS)'), icon: <Printer className="h-5 w-5" />, onClick: () => handlePrintPreview("thermal") },
                     ...(hasFeature("qrScans") ? [{ id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } }] : []),
                     ...(canEdit ? [{ id: "edit", label: t('orders.editOrder'), icon: <Edit className="h-5 w-5" />, onClick: handleEdit }] : []),
                     ...(canCancel ? [{ id: "cancel", label: t('orders.cancelOrder'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setCancelSheetOpen(true); } }] : []),

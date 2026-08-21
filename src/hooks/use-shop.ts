@@ -171,14 +171,16 @@ export function useShopMutations() {
     );
 
     const updateBankDetails = useCallback(
-        async (bankDetails: ShopBankDetails) => {
+        async (bankDetails: ShopBankDetails, receiptPaymentQr?: boolean) => {
             if (!shopId) throw new Error("No shop ID");
 
             const shopRef = doc(db, "shops", shopId);
-            await updateDoc(shopRef, {
+            const flat: Record<string, unknown> = {
                 bankDetails,
                 updatedAt: serverTimestamp(),
-            });
+            };
+            if (receiptPaymentQr !== undefined) flat["settings.receiptPaymentQr"] = receiptPaymentQr;
+            await updateDoc(shopRef, flat);
         },
         [shopId]
     );
@@ -214,15 +216,17 @@ export function useShopMutations() {
         [shopId]
     );
 
-    /** Terms & Conditions shown on the customer's receipt. */
+    /** Terms & Conditions shown on the customer's receipt (+ the print-logo toggle). */
     const updateReceiptTerms = useCallback(
-        async (terms: string) => {
+        async (terms: string, showLogo?: boolean) => {
             if (!shopId) throw new Error("No shop ID");
             const shopRef = doc(db, "shops", shopId);
-            await updateDoc(shopRef, {
+            const flat: Record<string, unknown> = {
                 "settings.receiptTerms": terms,
                 updatedAt: serverTimestamp(),
-            });
+            };
+            if (showLogo !== undefined) flat["settings.receiptShowLogo"] = showLogo;
+            await updateDoc(shopRef, flat);
         },
         [shopId]
     );

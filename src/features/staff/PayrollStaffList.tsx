@@ -6,6 +6,9 @@
 
 import { useState, type CSSProperties } from "react";
 import { LEmptyState, LSpinner } from "@/components/laundry";
+import { MRow, MAvatar, MHeader, MIconBtn, MSearch } from "@/components/laundry/LMobileRows";
+import { MobilePayroll } from "./MobileStaff";
+import { useNavigate } from "react-router-dom";
 import { useStaff, usePayroll } from "@/hooks/use-staff";
 import { useCurrency } from "@/hooks/use-currency";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -38,6 +41,7 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const monthString = format(currentMonth, "yyyy-MM");
     const atCurrentMonth = isSameMonth(currentMonth, new Date());
@@ -60,9 +64,53 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
         { label: t("staff.staff", "Staff"), value: String(activeStaff.length), tint: "c-info", icon: <Users size={16} /> },
     ];
 
+    // MOBILE: the owner app's payroll list.
+    if (isMobile) return (
+        <MobilePayroll
+            monthLabel={format(currentMonth, "MMMM yyyy")}
+            canNext={!atCurrentMonth}
+            onPrevMonth={() => onMonthChange(subMonths(currentMonth, 1))}
+            onNextMonth={() => { if (!atCurrentMonth) onMonthChange(addMonths(currentMonth, 1)); }}
+            rows={filtered.map((s) => {
+                const e = entryFor(s.id);
+                const meta = e ? STATUS_META[e.status] : null;
+                return {
+                    id: s.id, name: s.name,
+                    daysWorked: e?.daysWorked,
+                    netSalary: e?.netSalary,
+                    paid: e?.totalPaid,
+                    remaining: e?.remainingAmount,
+                    statusLabel: meta?.label,
+                    statusTint: meta?.tint,
+                };
+            })}
+            onOpen={(id) => onSelect?.(id)}
+            onBack={() => navigate("/settings")}
+            formatAmount={formatAmount}
+        />
+    );
+
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar (month arrows as round buttons) */}
+            {isMobile ? (
+                <>
+                    <MHeader
+                        title={t("staff.payroll", "Payroll")}
+                        sub={format(currentMonth, "MMMM yyyy")}
+                        right={
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <MIconBtn aria-label="Previous month" onClick={() => onMonthChange(subMonths(currentMonth, 1))}><ChevronLeft size={19} /></MIconBtn>
+                                <MIconBtn aria-label="Next month" onClick={() => { if (!atCurrentMonth) onMonthChange(addMonths(currentMonth, 1)); }}><ChevronRight size={19} style={{ opacity: atCurrentMonth ? 0.35 : 1 }} /></MIconBtn>
+                            </div>
+                        }
+                    />
+                    <div style={{ flex: "none", padding: "2px 14px 10px", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)" }}>
+                        <MSearch value={searchQuery} onChange={setSearchQuery} placeholder={t("common.search", "Search staff…")} />
+                    </div>
+                </>
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("staff.payroll", "Payroll")}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button onClick={() => onMonthChange(subMonths(currentMonth, 1))} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
@@ -70,12 +118,13 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
                     <button onClick={() => { if (!atCurrentMonth) onMonthChange(addMonths(currentMonth, 1)); }} disabled={atCurrentMonth} aria-label="Next month" style={{ ...navBtn, opacity: atCurrentMonth ? 0.4 : 1, cursor: atCurrentMonth ? "not-allowed" : "pointer" }}><ChevronRight size={16} /></button>
                 </div>
                 <div style={{ flex: 1 }} />
-                <div style={{ position: "relative", ...(isMobile ? { flex: "1 1 100%" } : null) }}>
+                <div style={{ position: "relative" }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("common.search", "Search staff…")}
-                        style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                        style={{ width: 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
             </header>
+            )}
 
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 12 : 14, marginBottom: 18 }}>
@@ -96,6 +145,33 @@ export function PayrollStaffList({ selectedId, onSelect, currentMonth, onMonthCh
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
                     ) : filtered.length === 0 ? (
                         <LEmptyState icon={<Users className="h-8 w-8" />} title={t("staff.noStaff", "No staff")} description={t("staff.addStaffFirst", "Add staff to run payroll.")} />
+                    ) : isMobile ? (
+                        /* App-style rows — the desktop table reads as a website on a phone */
+                        <div>
+                            {filtered.map((s, i) => {
+                                const e = entryFor(s.id);
+                                const meta = e ? STATUS_META[e.status] : null;
+                                return (
+                                    <MRow key={s.id}
+                                        left={<MAvatar name={s.name} tint={AV[i % AV.length]} />}
+                                        title={s.name}
+                                        titleRight={meta ? <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 20, background: meta.tint === "c-text-3" ? "var(--c-surface-2)" : `var(--${meta.tint}-soft)`, color: `var(--${meta.tint})` }}>{meta.label}</span> : undefined}
+                                        sub={e
+                                            ? `${e.daysWorked ?? 0} ${t("staff.daysWorked", "days")} · ${t("staff.paid", "Paid")} ${formatAmount(e.totalPaid || 0)}`
+                                            : t("staff.notGenerated", "Not generated")}
+                                        right={
+                                            <div style={{ textAlign: "right" }}>
+                                                <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13.5 }}>{e ? formatAmount(e.netSalary) : "—"}</div>
+                                                {e && e.remainingAmount > 0 && <div style={{ fontSize: 11, fontFamily: MONO, color: "var(--c-warning)", fontWeight: 600 }}>{formatAmount(e.remainingAmount || 0)} {t("staff.due", "due")}</div>}
+                                            </div>
+                                        }
+                                        selected={selectedId === s.id}
+                                        last={i === filtered.length - 1}
+                                        onClick={() => onSelect?.(s.id)}
+                                    />
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 760 }}>

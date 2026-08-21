@@ -108,7 +108,7 @@ export function PublicReceiptPage() {
     };
 
     // Handle PDF download
-    const handleDownload = () => {
+    const handleDownload = async () => {
         const order = buildOrderForReceipt();
         if (!order) return;
 
@@ -125,9 +125,12 @@ export function PublicReceiptPage() {
                 showTracking: data?.trackingEnabled !== false,
                 currencySymbol,
                 currencyCode,
+                logoUrl: data?.shopLogo,
+                upiId: data?.shopUpiId,
+                paymentLink: data?.shopPaymentLink,
             };
 
-            const blob = getReceiptBlob(order, shopInfo);
+            const blob = await getReceiptBlob(order, shopInfo);
             const fileName = getReceiptFileName(order);
 
             // Create download link
@@ -149,10 +152,12 @@ export function PublicReceiptPage() {
     };
 
     // Handle view in browser
-    const handleView = () => {
+    const handleView = async () => {
         const order = buildOrderForReceipt();
         if (!order) return;
 
+        // Open the tab synchronously (before any await) so popup blockers allow it.
+        const win = window.open("", "_blank");
         try {
             const shopInfo = {
                 name: data?.shopName || "LaundryBill",
@@ -164,15 +169,19 @@ export function PublicReceiptPage() {
                 showTracking: data?.trackingEnabled !== false,
                 currencySymbol,
                 currencyCode,
+                logoUrl: data?.shopLogo,
+                upiId: data?.shopUpiId,
+                paymentLink: data?.shopPaymentLink,
             };
 
-            const blob = getReceiptBlob(order, shopInfo);
+            const blob = await getReceiptBlob(order, shopInfo);
             const url = URL.createObjectURL(blob);
-            window.open(url, "_blank");
+            if (win) win.location.href = url; else window.open(url, "_blank");
 
             // Clean up after delay
             setTimeout(() => URL.revokeObjectURL(url), 60000);
         } catch (err) {
+            win?.close();
             console.error("Failed to generate receipt:", err);
         }
     };

@@ -5,9 +5,9 @@
  *           Store Health + Revenue Analytics · Schedule + Needs attention + Channels.
  */
 
-import { useState, useEffect, type CSSProperties, type ReactNode } from "react";
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useDashboard } from "@/hooks/use-dashboard";
@@ -15,6 +15,10 @@ import { useOrderSummary } from "@/hooks/use-order-summary";
 import { useStoreHealth } from "@/hooks/use-store-health";
 import { useCurrency } from "@/hooks/use-currency";
 import { LPageLoader, LEmptyState } from "@/components/laundry";
+import { MRow } from "@/components/laundry/LMobileRows";
+import { AppDownloadBanner } from "@/components/AppDownloadBanner";
+import { MobileDashboard } from "./MobileDashboard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
     Search, ScanLine, Package, DollarSign, PackageCheck, Clock, CreditCard,
     Activity, TrendingUp, AlertTriangle, FileWarning, ArrowRight, CalendarClock,
@@ -30,6 +34,7 @@ const card: CSSProperties = {
 
 export function DashboardPage() {
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const { shopId } = useAuth();
     const { stats, recentOrders, staffAttendance, loading, error } = useDashboard();
     const fin = useOrderSummary();
@@ -39,9 +44,60 @@ export function DashboardPage() {
     const [searchQ, setSearchQ] = useState("");
     const [series, setSeries] = useState<{ day: string; value: number }[]>([]);
 
-    // 14-day daily revenue series
+    // ── Quick-search dropdown (desktop): live order + customer matches ──
+    interface QsCustomer { id: string; name: string; phone: string; email?: string }
+    interface QsOrder { id: string; publicId: string; customerName: string; status: string; total: number }
+    const [dq, setDq] = useState("");
+    const [drop, setDrop] = useState<{ customers: QsCustomer[]; orders: QsOrder[] } | null>(null);
+    const [dropOpen, setDropOpen] = useState(false);
+    // One customers fetch per dashboard visit, then filtered per keystroke.
+    const custCacheRef = useRef<QsCustomer[] | null>(null);
+
     useEffect(() => {
-        if (!shopId) return;
+        const id = window.setTimeout(() => setDq(searchQ), 250);
+        return () => window.clearTimeout(id);
+    }, [searchQ]);
+
+    useEffect(() => {
+        const raw = dq.trim();
+        const term = raw.toLowerCase();
+        if (isMobile || !term || !shopId) { setDrop(null); return; }
+        let dead = false;
+        (async () => {
+            try {
+                if (!custCacheRef.current) {
+                    const snap = await getDocs(query(collection(db, "shops", shopId, "customers"), limit(1000)));
+                    custCacheRef.current = snap.docs.map((d) => {
+                        const c = d.data() as { name?: string; phone?: string; email?: string };
+                        return { id: d.id, name: c.name || "", phone: c.phone || "", email: c.email || "" };
+                    });
+                }
+                const customers = custCacheRef.current.filter((c) =>
+                    c.name.toLowerCase().includes(term) || c.phone.includes(raw) || (c.email || "").toLowerCase().includes(term)
+                ).slice(0, 5);
+                // Orders: publicId prefix match on the server + recent orders by name/phone.
+                const up = raw.toUpperCase();
+                const idSnap = await getDocs(query(
+                    collection(db, "shops", shopId, "orders"),
+                    where("publicId", ">=", up), where("publicId", "<=", up + "\uf8ff"), limit(5),
+                ));
+                const byId = idSnap.docs.map((d) => ({ id: d.id, ...(d.data() as object) })) as Order[];
+                const byRecent = recentOrders.filter((o) =>
+                    o.publicId?.toLowerCase().includes(term) || o.customerName?.toLowerCase().includes(term) || o.customerPhone?.includes(raw));
+                const seen = new Set<string>();
+                const orders = [...byId, ...byRecent]
+                    .filter((o) => !seen.has(o.id) && !!seen.add(o.id))
+                    .slice(0, 5)
+                    .map((o) => ({ id: o.id, publicId: o.publicId, customerName: o.customerName, status: o.status, total: o.financials?.total || 0 }));
+                if (!dead) { setDrop({ customers, orders }); setDropOpen(true); }
+            } catch { if (!dead) setDrop(null); }
+        })();
+        return () => { dead = true; };
+    }, [dq, shopId, isMobile, recentOrders]);
+
+    // 14-day daily revenue series (desktop chart only — mobile renders MobileDashboard)
+    useEffect(() => {
+        if (!shopId || isMobile) return;
         let cancelled = false;
         (async () => {
             try {
@@ -65,6 +121,10 @@ export function DashboardPage() {
         })();
         return () => { cancelled = true; };
     }, [shopId]);
+
+    // MOBILE: render the owner app's HomeScreen clone instead of the desktop
+    // dashboard — the user wants the mobile web to BE the app, screen for screen.
+    if (isMobile) return <MobileDashboard />; // the layout renders the app promo
 
     if (loading) return <div className="h-full"><LPageLoader variant="machine" message="Loading dashboard…" /></div>;
     if (error) return (
@@ -155,9 +215,13 @@ export function DashboardPage() {
 
     return (
         <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px" }}>
+            {/* Landing promo: download the iOS/Android app (fixed-position, self-dismissing) */}
+            <AppDownloadBanner />
 
             {/* ===== Quick Scan & Search ===== */}
-            <div style={{ ...card, overflow: "hidden", marginBottom: 16 }}>
+            {/* overflow must stay visible (not hidden) or the search dropdown gets
+                clipped at the card edge; zIndex lifts it above the KPI cards below. */}
+            <div style={{ ...card, marginBottom: 16, position: "relative", zIndex: 5 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "14px 20px", borderBottom: "1px solid var(--c-border)" }}>
                     <ChipIcon soft="c-primary-soft" refColor="c-primary"><Search size={17} /></ChipIcon>
                     <div><div style={{ fontSize: 14, fontWeight: 600 }}>Quick Scan &amp; Search</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>Find an order or customer</div></div>
@@ -166,8 +230,54 @@ export function DashboardPage() {
                     style={{ padding: "16px 20px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                     <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
                         <Search size={16} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
-                        <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search orders, customers…"
+                        <input value={searchQ} placeholder="Search orders, customers…"
+                            onChange={(e) => { setSearchQ(e.target.value); if (!e.target.value.trim()) setDropOpen(false); }}
+                            onFocus={() => { if (drop) setDropOpen(true); }}
+                            onBlur={() => window.setTimeout(() => setDropOpen(false), 150)}
+                            onKeyDown={(e) => { if (e.key === "Escape") setDropOpen(false); }}
                             style={{ width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 9, padding: "11px 13px 11px 38px", outline: "none" }} />
+                        {dropOpen && drop && searchQ.trim() && (
+                            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 60, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-lg, 0 12px 32px rgba(15,23,42,.16))", overflow: "hidden auto", maxHeight: 400 }}>
+                                <style>{`.lb-qsrow { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 14px; border: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; } .lb-qsrow:hover { background: var(--c-surface-2); }`}</style>
+                                {drop.orders.length > 0 && (
+                                    <>
+                                        <div style={{ padding: "9px 14px 3px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".5px", color: "var(--c-text-3)" }}>ORDERS</div>
+                                        {drop.orders.map((o) => (
+                                            <button key={o.id} type="button" className="lb-qsrow" onMouseDown={() => navigate(`/orders/${o.id}`)}>
+                                                <span style={{ width: 30, height: 30, flex: "none", borderRadius: 8, background: "var(--c-primary-soft)", color: "var(--c-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={15} /></span>
+                                                <span style={{ flex: 1, minWidth: 0 }}>
+                                                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, fontFamily: MONO }}>#{o.publicId}</span>
+                                                    <span style={{ display: "block", fontSize: 11.5, color: "var(--c-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.customerName}</span>
+                                                </span>
+                                                <span style={{ flex: "none", fontSize: 11, fontWeight: 600, color: "var(--c-text-2)", textTransform: "capitalize" }}>{o.status.replace(/_/g, " ")}</span>
+                                                <span style={{ flex: "none", fontSize: 12.5, fontWeight: 700, fontFamily: MONO }}>{formatAmount(o.total)}</span>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                                {drop.customers.length > 0 && (
+                                    <>
+                                        <div style={{ padding: "9px 14px 3px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".5px", color: "var(--c-text-3)", borderTop: drop.orders.length ? "1px solid var(--c-border)" : "none" }}>CUSTOMERS</div>
+                                        {drop.customers.map((c) => (
+                                            <button key={c.id} type="button" className="lb-qsrow" onMouseDown={() => navigate(`/customers/${c.id}`)}>
+                                                <span style={{ width: 30, height: 30, flex: "none", borderRadius: 15, background: "var(--c-info-soft, var(--c-surface-2))", color: "var(--c-info, var(--c-text-2))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 700 }}>{(c.name || "?").charAt(0).toUpperCase()}</span>
+                                                <span style={{ flex: 1, minWidth: 0 }}>
+                                                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                                                    <span style={{ display: "block", fontSize: 11.5, color: "var(--c-text-3)" }}>{c.phone || c.email}</span>
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                                {drop.orders.length === 0 && drop.customers.length === 0 && (
+                                    <div style={{ padding: "14px", fontSize: 12.5, color: "var(--c-text-3)" }}>No matches — press Enter to search all orders</div>
+                                )}
+                                <button type="button" className="lb-qsrow" style={{ borderTop: "1px solid var(--c-border)", color: "var(--c-primary)", fontSize: 12.5, fontWeight: 600 }}
+                                    onMouseDown={() => navigate(`/orders?search=${encodeURIComponent(searchQ.trim())}`)}>
+                                    <ArrowRight size={14} />See all orders matching “{searchQ.trim()}”
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <button type="submit" style={btnPrimary}><Search size={16} />Search</button>
                     <button type="button" onClick={() => navigate("/scan")} style={btnOutline}><ScanLine size={16} />Scan Order</button>
@@ -330,6 +440,27 @@ export function DashboardPage() {
                         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 8px", borderRadius: 20 }}>{recentOrders.length}</span>
                         <a onClick={() => navigate("/orders")} style={{ ...linkStyle, fontSize: 12.5 }}>View all</a>
                     </div>
+                    {isMobile ? (
+                        /* App-style rows — the table reads as a website on a phone */
+                        <div>
+                            {recentOrders.slice(0, 6).map((o, i, arr) => {
+                                const st = ST[o.status] || { bg: "var(--c-surface-2)", fg: "var(--c-text-2)", label: o.status };
+                                const tm = typeMeta(o.deliveryType);
+                                const paid = o.total > 0 && o.balance <= 0;
+                                return (
+                                    <MRow key={o.id}
+                                        left={<span style={{ width: 38, height: 38, borderRadius: 11, background: st.bg, color: st.fg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: MONO, fontSize: 10, fontWeight: 700 }}>#{String(o.publicId).slice(-4)}</span>}
+                                        title={o.customerName}
+                                        titleRight={<span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 20, background: st.bg, color: st.fg }}>{st.label}</span>}
+                                        sub={<><span style={{ color: tm.c }}>{tm.l}</span>{" · "}{format(o.createdAt, "HH:mm")} · <span style={{ color: paid ? "var(--c-success)" : "var(--c-error)", fontWeight: 600 }}>{paid ? "Paid" : "Unpaid"}</span></>}
+                                        last={i === arr.length - 1}
+                                        onClick={() => navigate(`/orders/${o.id}`)}
+                                    />
+                                );
+                            })}
+                            {recentOrders.length === 0 && <div style={{ padding: 28, textAlign: "center", color: "var(--c-text-3)", fontSize: 13 }}>No recent orders</div>}
+                        </div>
+                    ) : (
                     <div style={{ overflowX: "auto" }}>
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                             <thead><tr style={{ background: "var(--c-surface-2)" }}>
@@ -355,6 +486,7 @@ export function DashboardPage() {
                             </tbody>
                         </table>
                     </div>
+                    )}
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>

@@ -31,6 +31,9 @@ interface TrackingData {
     shopName?: string;
     shopPhone?: string;
     shopAddress?: string;
+    shopLogo?: string;
+    shopUpiId?: string;
+    shopPaymentLink?: string;
     shopEmail?: string;
     /** Shop tax registration number (GSTIN/TRN) — printed on the public receipt PDF. */
     gstNumber?: string;
@@ -139,6 +142,9 @@ export function useOrderTracking(code: string, phone: string) {
                     shopName: r.shopName || undefined,
                     shopPhone: r.shopPhone || undefined,
                     shopAddress: r.shopAddress || undefined,
+                    shopLogo: r.shopLogo || undefined,
+                    shopUpiId: r.shopUpiId || undefined,
+                    shopPaymentLink: r.shopPaymentLink || undefined,
                     shopEmail: r.shopEmail || undefined,
                     gstNumber: r.gstNumber || undefined,
                     countryCode: r.countryCode || undefined,

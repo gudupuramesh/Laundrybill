@@ -5,6 +5,9 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MPageShell, MSectionCard } from "@/components/laundry/LMobileRows";
 import { useTranslation } from "react-i18next";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import {
@@ -822,6 +825,25 @@ export function DeliverySlotsList() {
 
 // Backward compatibility or default export if needed
 export function ServiceAreasSettings() {
+    const isMobile = useIsMobile();
+    const navigate = useNavigate();
+
+    // MOBILE: the owner app's ServiceAreasScreen shape — back header + one
+    // section card per area/slot group (the app keeps slots on this screen too).
+    if (isMobile) return (
+        <MPageShell title="Service Areas" sub="Delivery areas & time slots" onBack={() => navigate("/settings")}>
+            <MSectionCard icon={<MapPin size={18} />} tint="c-primary" title="Service Areas" sub="Limit delivery to selected areas and assign agents.">
+                <ServiceAreasList />
+            </MSectionCard>
+            <MSectionCard icon={<Clock size={18} />} tint="c-success" title="Pickup Time Slots" sub="When customers can book a pickup.">
+                <PickupSlotsList />
+            </MSectionCard>
+            <MSectionCard icon={<Truck size={18} />} tint="c-warning" title="Delivery Time Slots" sub="When you deliver back to customers.">
+                <DeliverySlotsList />
+            </MSectionCard>
+        </MPageShell>
+    );
+
     return (
         <div className="space-y-8">
             <LCard variant="outlined" padding="lg">

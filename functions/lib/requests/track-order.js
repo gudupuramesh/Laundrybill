@@ -28,7 +28,7 @@ function tsToMillis(v) {
     return isNaN(d.getTime()) ? null : d.getTime();
 }
 exports.trackOrder = (0, https_1.onCall)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     const { code, phone } = (request.data || {});
     if (!code || !code.trim()) {
         throw new https_1.HttpsError("invalid-argument", "Order number is required.");
@@ -54,7 +54,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         try {
             snap = await db.collectionGroup("orders").where(field, "==", value).limit(10).get();
         }
-        catch (_j) {
+        catch (_o) {
             continue; // missing index for a field — try the next
         }
         if (!snap.empty) {
@@ -76,6 +76,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
     let shopName = "", shopPhone = "", shopAddress = "", shopEmail = "";
     let shopGstNumber = "", shopCountryCode = "", shopReceiptTerms = "";
     let shopTrackingEnabled = true;
+    let shopLogo = "", shopUpiId = "", shopPaymentLink = "";
     try {
         const shopDoc = await db.collection("shops").doc(shopId).get();
         if (shopDoc.exists) {
@@ -91,9 +92,16 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
             // Owner-configured Terms & Conditions shown on the customer's receipt.
             shopReceiptTerms = ((_b = s.settings) === null || _b === void 0 ? void 0 : _b.receiptTerms) || "";
             shopTrackingEnabled = ((_c = s.settings) === null || _c === void 0 ? void 0 : _c.trackingEnabled) !== false;
+            // Receipt branding + scan-to-pay QR (both owner-toggleable; filtered here
+            // so the public payload only ever carries what the shop chose to show).
+            shopLogo = ((_d = s.settings) === null || _d === void 0 ? void 0 : _d.receiptShowLogo) === false ? "" : (s.logo || "");
+            if (((_e = s.settings) === null || _e === void 0 ? void 0 : _e.receiptPaymentQr) !== false) {
+                shopUpiId = ((_f = s.bankDetails) === null || _f === void 0 ? void 0 : _f.upiId) || "";
+                shopPaymentLink = ((_g = s.bankDetails) === null || _g === void 0 ? void 0 : _g.paymentLink) || "";
+            }
         }
     }
-    catch ( /* ignore */_k) { /* ignore */ }
+    catch ( /* ignore */_p) { /* ignore */ }
     // Assigned agent phone (for customer to contact the driver)
     let agentPhone = "";
     if (o.assignedAgentId) {
@@ -107,7 +115,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
                     agentPhone = tmDoc.data().phone || "";
             }
         }
-        catch ( /* ignore */_l) { /* ignore */ }
+        catch ( /* ignore */_q) { /* ignore */ }
     }
     const timeline = Array.isArray(o.timeline)
         ? o.timeline.map((e) => ({ status: e.status, timestamp: tsToMillis(e.timestamp), note: e.note || e.notes || null }))
@@ -134,9 +142,9 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         customerPhone: o.customerPhone || "",
         deliveryAddress: o.deliveryAddress || o.pickupAddress || null,
         items,
-        total: (_e = (_d = f.total) !== null && _d !== void 0 ? _d : o.totalAmount) !== null && _e !== void 0 ? _e : 0,
-        amountPaid: (_g = (_f = f.amountPaid) !== null && _f !== void 0 ? _f : o.paidAmount) !== null && _g !== void 0 ? _g : 0,
-        balance: (_h = f.balance) !== null && _h !== void 0 ? _h : ((f.total || 0) - (f.amountPaid || 0)),
+        total: (_j = (_h = f.total) !== null && _h !== void 0 ? _h : o.totalAmount) !== null && _j !== void 0 ? _j : 0,
+        amountPaid: (_l = (_k = f.amountPaid) !== null && _k !== void 0 ? _k : o.paidAmount) !== null && _l !== void 0 ? _l : 0,
+        balance: (_m = f.balance) !== null && _m !== void 0 ? _m : ((f.total || 0) - (f.amountPaid || 0)),
         expectedDelivery: tsToMillis(o.expectedDelivery),
         deliveredAt: tsToMillis(o.deliveredAt),
         deliveryType: o.deliveryType || "pickup_store",
@@ -151,6 +159,9 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
         countryCode: shopCountryCode || null,
         receiptTerms: shopReceiptTerms || null,
         trackingEnabled: shopTrackingEnabled,
+        shopLogo: shopLogo || null,
+        shopUpiId: shopUpiId || null,
+        shopPaymentLink: shopPaymentLink || null,
         assignedAgentId: o.assignedAgentId || null,
         assignedAgentName: o.assignedAgentName || null,
         assignedAgentPhone: agentPhone || o.assignedAgentPhone || null,

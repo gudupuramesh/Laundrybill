@@ -28,6 +28,8 @@ import { reverseGeocode } from "@/lib/geocoding";
 import { useTranslation } from "react-i18next";
 import {
     Store,
+    Camera,
+    Loader2,
     Receipt,
     Landmark,
     SlidersHorizontal,
@@ -44,13 +46,16 @@ import {
     HelpCircle,
     LogOut,
     ChevronRight,
+    ChevronLeft,
     Check,
     Plus,
     Trash2,
     Route,
     MessageCircle,
 } from "lucide-react";
+import { MobileSettings } from "./MobileSettings";
 import { formatOrderId } from "@/lib/generateShopCode";
+import { smartUploadToR2, deleteFromR2 } from "@/lib/storage";
 import {
     toTitleCase,
     isValidEmail,
@@ -137,6 +142,8 @@ export function SettingsPageMasterDetail() {
     const [bankName, setBankName] = useState("");
     const [accountHolderName, setAccountHolderName] = useState("");
     const [upiId, setUpiId] = useState("");
+    const [paymentLink, setPaymentLink] = useState("");
+    const [receiptPaymentQr, setReceiptPaymentQr] = useState(true);
     // Tax
     const [taxEnabled, setTaxEnabled] = useState(false);
     const [taxName, setTaxName] = useState("GST");
@@ -149,6 +156,33 @@ export function SettingsPageMasterDetail() {
     const [distanceFeeEnabled, setDistanceFeeEnabled] = useState(false);
     const [distanceBands, setDistanceBands] = useState<{ id: string; label: string; fee: number }[]>([]);
     const [receiptTerms, setReceiptTerms] = useState("");
+    const [receiptShowLogo, setReceiptShowLogo] = useState(true);
+
+    // Shop logo upload (Business profile tile) — R2 upload + shop doc update.
+    const logoInputRef = useRef<HTMLInputElement | null>(null);
+    const [logoUploading, setLogoUploading] = useState(false);
+    const handleLogoFile = async (file: File | null) => {
+        if (!file || !shop || !user) return;
+        if (!file.type.startsWith("image/")) {
+            addToast({ type: "error", title: t("settings.logoNotImage", "Please choose an image file") });
+            return;
+        }
+        setLogoUploading(true);
+        try {
+            const oldKey = shop.logoKey;
+            const res = await smartUploadToR2(shop.id, user.uid, "shop-logos", file, { maxWidth: 512, quality: 0.9 });
+            await updateShop({ logo: res.url, logoKey: res.key });
+            if (oldKey && oldKey !== res.key) {
+                try { await deleteFromR2(oldKey); } catch { /* replacing worked — old-file cleanup is best-effort */ }
+            }
+            addToast({ type: "success", title: t("settings.logoUpdated", "Logo updated"), description: t("settings.logoUpdatedDesc", "It now shows in the app and prints on receipts.") });
+        } catch (e) {
+            console.error("logo upload", e);
+            addToast({ type: "error", title: t("settings.logoUploadFailed", "Could not upload the logo") });
+        } finally {
+            setLogoUploading(false);
+        }
+    };
     // Order-number counter — lets a shop continue numbering from previous software.
     const [nextOrderNum, setNextOrderNum] = useState<number>(1);
     // WhatsApp share message customization + shop-wide customer-tracking switch.
@@ -210,6 +244,7 @@ export function SettingsPageMasterDetail() {
                 setBankName(shop.bankDetails.bankName || "");
                 setAccountHolderName(shop.bankDetails.accountHolderName || "");
                 setUpiId(shop.bankDetails.upiId || "");
+                setPaymentLink(shop.bankDetails.paymentLink || "");
             }
             if (shop.settings?.tax) {
                 setTaxEnabled(shop.settings.tax.enabled);
@@ -225,6 +260,8 @@ export function SettingsPageMasterDetail() {
                 setDistanceBands(Array.isArray(d.distanceBands) ? d.distanceBands : []);
             }
             setReceiptTerms(shop.settings?.receiptTerms || "");
+            setReceiptShowLogo(shop.settings?.receiptShowLogo !== false);
+            setReceiptPaymentQr(shop.settings?.receiptPaymentQr !== false);
             setNextOrderNum(shop.settings?.nextOrderNumber || 1);
             const ws = shop.settings?.waShare;
             setWaHeader(ws?.headerText || "");
@@ -396,7 +433,8 @@ export function SettingsPageMasterDetail() {
                 bankName: toTitleCase(bankName),
                 accountHolderName: toTitleCase(accountHolderName),
                 upiId: upiId ? normalizeUPI(upiId) : "",
-            });
+                paymentLink: paymentLink.trim(),
+            }, receiptPaymentQr);
             await updateTaxSettings(taxEnabled, taxName, taxRate);
             addToast({ type: "success", title: t("shop.settingsSaved") });
         } catch {
@@ -432,7 +470,7 @@ export function SettingsPageMasterDetail() {
                     .filter((b) => b.label.trim())
                     .map((b) => ({ id: b.id, label: b.label.trim(), fee: Number(b.fee) || 0 })),
             });
-            await updateReceiptTerms(receiptTerms.trim());
+            await updateReceiptTerms(receiptTerms.trim(), receiptShowLogo);
             if (wantedNext !== storedNext) await updateNextOrderNumber(wantedNext);
             await updateWaShare({
                 headerText: waHeader.trim(),
@@ -519,9 +557,16 @@ export function SettingsPageMasterDetail() {
     // Phone prefix follows the selected country (e.g. UAE → +971).
     const phoneCountry = getCountry(selectedCountryCode);
 
+    // MOBILE: render the owner app's SettingsScreen clone (the hub for every
+    // section — the mobile bottom nav matches the app's five tabs).
+    // The hub is the SETTINGS ROOT on mobile; ?section= opens that section as its
+    // own screen (app model: Settings list → Business Settings screen).
+    const mobileSection = searchParams.get("section");
+    if (isMobile && !mobileSection) return <MobileSettings onEditProfile={() => navigate("/settings?section=business")} />;
+
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
+            {/* header — on mobile this is the app's back-header for the open section */}
             <header
                 style={{
                     flex: "none",
@@ -530,11 +575,17 @@ export function SettingsPageMasterDetail() {
                     borderBottom: "1px solid var(--c-border)",
                     display: "flex",
                     alignItems: "center",
-                    gap: 14,
-                    padding: "0 22px",
+                    gap: isMobile ? 10 : 14,
+                    padding: isMobile ? "0 12px" : "0 22px",
                 }}
             >
-                <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>Settings</div>
+                {isMobile && (
+                    <button onClick={() => navigate("/settings")} aria-label="Back"
+                        style={{ cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: 20, border: 0, background: "var(--c-surface-2)", color: "var(--c-text-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <ChevronLeft size={24} />
+                    </button>
+                )}
+                <div style={{ fontSize: isMobile ? 18 : 17, fontWeight: isMobile ? 700 : 600, letterSpacing: "-.01em" }}>{isMobile ? cur.label : "Settings"}</div>
                 <div style={{ flex: 1 }} />
                 <button
                     onClick={handleSave}
@@ -568,7 +619,8 @@ export function SettingsPageMasterDetail() {
                         borderRight: isMobile ? "none" : "1px solid var(--c-border)",
                         borderBottom: isMobile ? "1px solid var(--c-border)" : "none",
                         padding: isMobile ? "10px 12px" : "14px 12px",
-                        display: "flex",
+                        // Mobile navigates from the Settings hub, so the rail is desktop-only.
+                        display: isMobile ? "none" : "flex",
                         flexDirection: isMobile ? "row" : "column",
                         alignItems: isMobile ? "center" : "stretch",
                         gap: 3,
@@ -685,9 +737,22 @@ export function SettingsPageMasterDetail() {
                                 <>
                                     <div style={card}>
                                         <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20, paddingBottom: 20, borderBottom: "1px solid var(--c-border)" }}>
-                                            <span style={{ width: 64, height: 64, flex: "none", borderRadius: 16, overflow: "hidden", background: "var(--c-primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                {shop?.logo ? <img src={shop.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Store size={30} />}
-                                            </span>
+                                            <button type="button" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
+                                                aria-label={t("settings.uploadLogo", "Upload logo")}
+                                                title={t("settings.uploadLogo", "Upload logo")}
+                                                style={{ position: "relative", width: 64, height: 64, flex: "none", padding: 0, border: 0, cursor: logoUploading ? "wait" : "pointer", background: "transparent" }}>
+                                                <span style={{ display: "flex", width: "100%", height: "100%", borderRadius: 16, overflow: "hidden", background: "var(--c-primary)", color: "#fff", alignItems: "center", justifyContent: "center" }}>
+                                                    {logoUploading
+                                                        ? <Loader2 size={26} style={{ animation: "spin 1s linear infinite" }} />
+                                                        : shop?.logo ? <img src={shop.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Store size={30} />}
+                                                </span>
+                                                <span style={{ position: "absolute", right: -6, bottom: -6, width: 26, height: 26, borderRadius: 13, background: "var(--c-primary)", color: "#fff", border: "2px solid var(--c-surface)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--sh-sm)" }}>
+                                                    <Camera size={13} />
+                                                </span>
+                                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                                            </button>
+                                            <input ref={logoInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                                                onChange={(e) => { void handleLogoFile(e.target.files?.[0] || null); e.target.value = ""; }} />
                                             <Field label={t("shop.shopName", "Business name")}>
                                                 <input style={fld} value={formShopName} onChange={(e) => setFormShopName(e.target.value)} />
                                             </Field>
@@ -829,6 +894,12 @@ export function SettingsPageMasterDetail() {
                                             <Field label={t("shop.bankName", "Bank name")}><input style={fld} value={bankName} onChange={(e) => setBankName(e.target.value)} /></Field>
                                         </div>
                                         <Field label={t("shop.upiId", "UPI ID")}><input style={fldMono} value={upiId} onChange={(e) => setUpiId(e.target.value.toLowerCase())} placeholder="shop@upi" /></Field>
+                                        <Field label={t("shop.paymentLink", "Payment link (optional)")}><input style={fldMono} value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="https://rzp.io/l/yourshop" /></Field>
+                                        <ToggleRow
+                                            label={t("settings.receiptPaymentQr", "Payment QR on receipts")}
+                                            desc={t("settings.receiptPaymentQrDesc", "Bills with a balance due carry a scan-to-pay QR — your UPI ID (or payment link) with the amount pre-filled. A4 and 80mm.")}
+                                            on={receiptPaymentQr} onChange={setReceiptPaymentQr}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -894,6 +965,15 @@ export function SettingsPageMasterDetail() {
                                 <div style={card}>
                                     <div style={cardTitle}><FileText size={16} style={{ color: "var(--c-cyan)" }} />{t("settings.receiptTerms", "Receipt terms & conditions")}</div>
                                     <p style={{ fontSize: 12.5, color: "var(--c-text-2)", margin: "0 0 12px", lineHeight: 1.5 }}>{t("settings.receiptTermsHelp", "Shown at the bottom of every receipt the customer receives (PDF, print and app). Leave blank to hide.")}</p>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <ToggleRow
+                                            label={t("settings.receiptShowLogo", "Shop logo on receipts")}
+                                            desc={shop?.logo
+                                                ? t("settings.receiptShowLogoDesc", "Print your logo at the top of every receipt (A4 and 80mm)")
+                                                : t("settings.receiptShowLogoNoLogo", "Upload a logo in Business profile first — then it prints at the top of every receipt")}
+                                            on={receiptShowLogo} onChange={setReceiptShowLogo}
+                                        />
+                                    </div>
                                     <textarea
                                         value={receiptTerms}
                                         onChange={(e) => setReceiptTerms(e.target.value.slice(0, 1000))}

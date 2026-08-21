@@ -7,6 +7,9 @@
 
 import { useState, useMemo, type CSSProperties } from "react";
 import { LSpinner } from "@/components/laundry";
+import { MHeader } from "@/components/laundry/LMobileRows";
+import { MobileAttendance } from "./MobileStaff";
+import { useNavigate } from "react-router-dom";
 import { useStaff, useAttendance, useAttendanceMutations } from "@/hooks/use-staff";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AttendanceStatus } from "@/types/staff";
@@ -36,6 +39,7 @@ const QUICK: { status: AttendanceStatus; short: string; tint: string }[] = [
 export function AttendancePageMasterDetail() {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const [view, setView] = useState<"day" | "month">("day");
     const now = useMemo(() => new Date(), []);
     const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
@@ -97,10 +101,74 @@ export function AttendancePageMasterDetail() {
     const TD: CSSProperties = { padding: "9px 14px", borderBottom: "1px solid var(--c-border)" };
     const navBtn: CSSProperties = { cursor: "pointer", width: 30, height: 30, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-2)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7 };
 
+    // MOBILE: the owner app's AttendanceScreen (Daily Log / Monthly Overview).
+    if (isMobile) return (
+        <MobileAttendance
+            tab={view === "day" ? "daily" : "monthly"}
+            onTabChange={(tb) => setView(tb === "daily" ? "day" : "month")}
+            dateLabel={format(dayDate, "EEE, MMM d")}
+            canNext={canNextDay}
+            onPrevDate={prevDay}
+            onNextDate={nextDay}
+            staff={activeStaff}
+            statusFor={(id) => todayByStaff.get(id)}
+            onMark={(id, st) => setStatus(id, st as AttendanceStatus)}
+            statusDefs={QUICK.map((q) => ({ key: q.status, short: q.short, label: STATUS[q.status].label, tint: q.tint }))}
+            onBack={() => navigate("/settings")}
+            monthView={
+                <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 18, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid var(--c-border)" }}>
+                        <button onClick={prevMonth} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{format(viewMonth, "MMMM yyyy")}</span>
+                        <button onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month" style={{ ...navBtn, opacity: atCurrentMonth ? 0.4 : 1, cursor: atCurrentMonth ? "not-allowed" : "pointer" }}><ChevronRight size={16} /></button>
+                    </div>
+                    {/* Per-person month totals — the day-by-day grid needs a desktop-width table. */}
+                    {activeStaff.map((s, i) => {
+                        const marks = monthMeta.byStaff.get(s.id);
+                        let present = 0, absent = 0, half = 0, leave = 0;
+                        marks?.forEach((st) => { if (st === "present") present++; else if (st === "absent") absent++; else if (st === "half") half++; else if (st === "leave") leave++; });
+                        return (
+                            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderTop: i > 0 ? "1px solid var(--c-border)" : "none" }}>
+                                <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
+                                {[{ n: present, tint: "c-success" }, { n: half, tint: "c-warning" }, { n: absent, tint: "c-error" }, { n: leave, tint: "c-violet" }].map((b, bi) => (
+                                    <span key={bi} style={{ flex: "none", minWidth: 30, textAlign: "center", fontSize: 12, fontWeight: 700, padding: "3px 7px", borderRadius: 7, background: `var(--${b.tint}-soft)`, color: `var(--${b.tint})` }}>{b.n}</span>
+                                ))}
+                            </div>
+                        );
+                    })}
+                </div>
+            }
+        />
+    );
+
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar + a compact controls row */}
+            {isMobile ? (
+                <>
+                    <MHeader
+                        title={t("attendance.title", "Attendance")}
+                        sub={format(viewMonth, "MMMM yyyy")}
+                        right={
+                            <div role="group" aria-label="View" style={{ display: "flex", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: 2 }}>
+                                {(["day", "month"] as const).map((v) => (
+                                    <button key={v} onClick={() => setView(v)} aria-pressed={view === v} style={{ cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, padding: "7px 13px", border: 0, borderRadius: 8, background: view === v ? "var(--c-surface)" : "transparent", color: view === v ? "var(--c-text)" : "var(--c-text-3)", boxShadow: view === v ? "var(--sh-sm)" : undefined }}>{v === "day" ? t("attendance.day", "Day") : t("attendance.month", "Month")}</button>
+                                ))}
+                            </div>
+                        }
+                    />
+                    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8, padding: "2px 14px 10px", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)" }}>
+                        <button onClick={prevMonth} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{format(viewMonth, "MMM yyyy")}</span>
+                        <button onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month" style={{ ...navBtn, opacity: atCurrentMonth ? 0.4 : 1, cursor: atCurrentMonth ? "not-allowed" : "pointer" }}><ChevronRight size={16} /></button>
+                        <div style={{ flex: 1 }} />
+                        {view === "day" && counts.unmarked > 0 && (
+                            <button onClick={markAllPresent} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "8px 13px", boxShadow: "var(--sh-sm)" }}><CheckCheck size={14} />{t("attendance.markAllPresent", "Mark all present")}</button>
+                        )}
+                    </div>
+                </>
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("attendance.title", "Attendance")}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button onClick={prevMonth} aria-label="Previous month" style={navBtn}><ChevronLeft size={16} /></button>
@@ -117,6 +185,7 @@ export function AttendancePageMasterDetail() {
                     <button onClick={markAllPresent} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}><CheckCheck size={15} />{t("attendance.markAllPresent", "Mark all present")}</button>
                 )}
             </header>
+            )}
 
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
                 {/* KPI row */}
@@ -150,6 +219,38 @@ export function AttendancePageMasterDetail() {
                         <button onClick={nextDay} disabled={!canNextDay} aria-label="Next day" style={{ ...navBtn, opacity: canNextDay ? 1 : 0.4, cursor: canNextDay ? "pointer" : "not-allowed" }}><ChevronRight size={16} /></button>
                     </div>
                     <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
+                        {isMobile ? (
+                            /* App-style marking cards: name + status on top, big touch-size
+                               mark buttons underneath — the table's 30px targets are too small. */
+                            <div>
+                                {activeStaff.map((s, i) => {
+                                    const status = todayByStaff.get(s.id);
+                                    const meta = status ? STATUS[status] : null;
+                                    const initials = s.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                                    const tint = av(i);
+                                    return (
+                                        <div key={s.id} style={{ padding: "12px 14px", borderBottom: i === activeStaff.length - 1 ? "none" : "1px solid var(--c-border)" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+                                                <span style={{ width: 38, height: 38, flex: "none", borderRadius: "50%", background: `var(--${tint}-soft)`, color: `var(--${tint})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600 }}>{initials}</span>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
+                                                    <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{s.role || "Staff"}</div>
+                                                </div>
+                                                {meta
+                                                    ? <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: `var(--${meta.tint}-soft)`, color: `var(--${meta.tint})` }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${meta.tint})` }} />{meta.label}</span>
+                                                    : <span style={{ flex: "none", fontSize: 11, color: "var(--c-text-3)" }}>{t("attendance.unmarked", "Unmarked")}</span>}
+                                            </div>
+                                            <div style={{ display: "flex", gap: 7 }}>
+                                                {QUICK.map((q) => {
+                                                    const on = status === q.status;
+                                                    return <button key={q.status} onClick={() => setStatus(s.id, q.status)} title={STATUS[q.status].label} aria-pressed={on} style={{ cursor: "pointer", flex: 1, height: 38, font: "inherit", fontSize: 13.5, fontWeight: 700, borderRadius: 9, border: `1px solid ${on ? `var(--${q.tint})` : "var(--c-border)"}`, background: on ? `var(--${q.tint})` : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{q.short}</button>;
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 620 }}>
                                 <thead>
@@ -188,6 +289,7 @@ export function AttendancePageMasterDetail() {
                                 </tbody>
                             </table>
                         </div>
+                        )}
                     </div>
                   </>
                 ) : (

@@ -27,7 +27,6 @@ import {
     PlusCircle,
     ClipboardList,
     Users,
-    Menu,
     Package,
     Settings,
     IndianRupee,
@@ -42,6 +41,9 @@ import {
     Globe,
     BadgePercent,
     HelpCircle,
+    Home,
+    ReceiptText,
+    Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useShopLimits } from "@/hooks/use-shop-limits";
@@ -51,6 +53,7 @@ import type { PlanFeatures } from "@/types/plans";
 import { HelpQuickSheet } from "@/features/help";
 import { DashboardHeaderActions } from "@/features/dashboard/DashboardHeaderActions";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
+import { AppDownloadBanner } from "@/components/AppDownloadBanner";
 
 // LaundryBill brand mark — blue rounded square + glyph (design system)
 function BrandMark() {
@@ -132,12 +135,16 @@ export function AppLayout() {
     // Unseen online orders count for Orders badge (sidebar + mobile tab)
     const { onlineOrderIds = [] } = useOrderSummary();
     const { unseenCount, markSeen } = useSeenOnlineOrders(onlineOrderIds);
+    // Same five tabs as the owner app's bottom nav (App.tsx styles.bottomNav):
+    // Home · Orders · Customers · Finances · Settings — no centre "+" button.
+    // Sections that used to live behind "More" are reachable from the Manage
+    // hub on the Settings screen (mirrors the app's Settings sections).
     const mobileTabItems = useMemo(() => [
-        { id: "dashboard", label: t("common.home"), icon: <LayoutDashboard className="h-5 w-5" /> },
-        { id: "new-order", label: t("pos.newOrder").split(" ")[0], icon: <PlusCircle className="h-6 w-6" />, primary: true },
-        { id: "orders", label: t("common.orders"), icon: <ClipboardList className="h-5 w-5" />, badge: unseenCount > 0 ? unseenCount : undefined },
-        { id: "customers", label: t("common.customers"), icon: <Users className="h-5 w-5" /> },
-        { id: "more", label: t("common.more"), icon: <Menu className="h-5 w-5" /> },
+        { id: "dashboard", label: t("common.home"), icon: <Home className="h-[22px] w-[22px]" /> },
+        { id: "orders", label: t("common.orders"), icon: <ReceiptText className="h-[22px] w-[22px]" />, badge: unseenCount > 0 ? unseenCount : undefined },
+        { id: "customers", label: t("common.customers"), icon: <Users className="h-[22px] w-[22px]" /> },
+        { id: "expenses", label: t("common.finances", "Finances"), icon: <Wallet className="h-[22px] w-[22px]" /> },
+        { id: "settings", label: t("common.settings"), icon: <Settings className="h-[22px] w-[22px]" /> },
     ], [t, unseenCount]);
 
     // Translate sidebar items
@@ -198,6 +205,8 @@ export function AppLayout() {
             "new-order": "/new-order",
             orders: "/orders",
             customers: "/customers",
+            expenses: "/expenses",
+            settings: "/settings",
         };
 
         if (routes[tabId]) {
@@ -308,8 +317,9 @@ export function AppLayout() {
 
             {/* Main Content Area - Scrollable */}
             <div className="flex-1 flex flex-col h-screen w-full min-w-0 overflow-hidden">
-                {/* Top Navbar - Hidden on design-system screens that render their own header bar */}
-                {!(/^\/(orders|customers|inventory|manage-staff|attendance|expenses|payroll|reports|apps|scan)(\/|$)/.test(location.pathname) || /^\/staff\/(orders|customers|inventory)(\/|$)/.test(location.pathname) || /^\/settings(\/subscription|\/public-page)?\/?$/.test(location.pathname)) && (
+                {/* Top Navbar - Hidden on design-system screens that render their own header bar.
+                    Mobile dashboard renders the app's own HomeScreen header, so hide it there too. */}
+                {!(isMobile && location.pathname === "/dashboard") && !(/^\/(orders|customers|inventory|manage-staff|attendance|expenses|payroll|reports|apps|scan)(\/|$)/.test(location.pathname) || /^\/staff\/(orders|customers|inventory)(\/|$)/.test(location.pathname) || /^\/settings(\/subscription|\/public-page)?\/?$/.test(location.pathname)) && (
                     <LTopNavbar
                         title={getPageTitle()}
                         showBack={location.pathname !== "/dashboard"}
@@ -333,9 +343,17 @@ export function AppLayout() {
                 {/* Page Content - Scrollable */}
                 <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-4 w-full min-w-0">
                     <SeenOnlineOrdersContext.Provider value={{ unseenCount, markSeen }}>
-                        <Outlet />
+                        {/* Keyed by path so every navigation replays the native push-in
+                            animation on mobile (CSS no-ops the class on desktop). */}
+                        <div key={location.pathname} className="lb-page-enter h-full">
+                            <Outlet />
+                        </div>
                     </SeenOnlineOrdersContext.Provider>
                 </main>
+
+                {/* "Get the app" promo — on mobile it rides along on EVERY screen,
+                    so a phone user is always one tap from the store listing. */}
+                {isMobile && <AppDownloadBanner />}
 
                 {/* Mobile Bottom Tab Bar */}
                 {isMobile && (

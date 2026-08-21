@@ -4,7 +4,7 @@
  * Wired to useCustomers + service areas + shop country dial code.
  */
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useCustomers } from "@/hooks/use-customers";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShop } from "@/hooks/use-shop";
@@ -22,23 +22,24 @@ const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13, color
 const lbl: CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 };
 
 export function CustomerModal({ open, onClose, onSelect }: { open: boolean; onClose: () => void; onSelect: (c: Customer) => void }) {
-    const { customers, createCustomer } = useCustomers();
+    const [tab, setTab] = useState<"existing" | "new">("existing");
+    const [q, setQ] = useState("");
+    // Debounced SERVER-backed search. Without a term useCustomers loads only the
+    // first page (10 docs), so the modal could never find older customers — the
+    // hook widens to a 1000-customer search once a term is passed.
+    const [dq, setDq] = useState("");
+    useEffect(() => { const id = setTimeout(() => setDq(q.trim()), 250); return () => clearTimeout(id); }, [q]);
+    const { customers, loading: searching, createCustomer } = useCustomers(dq || undefined);
     const { settings } = useDeliverySettings();
     const { shop } = useShop();
     const { addToast } = useLToast();
     const country = getCountry(shop?.settings?.countryCode || "IN");
     const areas = (settings.serviceAreas || []).filter((a) => a.isActive).map((a) => a.value);
 
-    const [tab, setTab] = useState<"existing" | "new">("existing");
-    const [q, setQ] = useState("");
     const [nc, setNc] = useState({ name: "", phone: "", email: "", address: "", area: areas[0] || "" });
     const [saving, setSaving] = useState(false);
 
-    const results = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        const list = s ? customers.filter((c) => c.name.toLowerCase().includes(s) || c.phone.includes(s)) : customers;
-        return list.slice(0, 20);
-    }, [q, customers]);
+    const results = useMemo(() => customers.slice(0, 50), [customers]);
 
     if (!open) return null;
 
@@ -90,7 +91,7 @@ export function CustomerModal({ open, onClose, onSelect }: { open: boolean; onCl
                             </div>
                         </div>
                         <div style={{ flex: 1, overflow: "auto", padding: "8px 12px 14px", minHeight: 160, maxHeight: 340 }}>
-                            {results.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: "var(--c-text-3)" }}>No customers found</div>}
+                            {results.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: "var(--c-text-3)" }}>{searching ? "Searching…" : "No customers found"}</div>}
                             {results.map((cu) => {
                                 const ref = tintFor(cu.id);
                                 return (

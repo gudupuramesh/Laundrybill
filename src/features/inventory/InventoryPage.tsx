@@ -10,6 +10,8 @@ import { LEmptyState, LSpinner, LActionSheet, LCard } from "@/components/laundry
 import { useInventory, useInventoryMutations } from "@/hooks/use-inventory";
 import { useCurrency } from "@/hooks/use-currency";
 import { ServiceFormSheet } from "./ServiceFormSheet";
+import { MobileInventory } from "./MobileInventory";
+import { useNavigate } from "react-router-dom";
 import { CategoryFormSheet } from "./CategoryFormSheet";
 import { BulkImportModal } from "./BulkImportModal";
 import { ServiceAreasList, PickupSlotsList, DeliverySlotsList } from "@/features/settings/ServiceAreasSettings";
@@ -29,6 +31,7 @@ const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 3
 export function InventoryPage() {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const { items, allItems, categories, allCategories, loading } = useInventory();
     const { deleteItem, updateItem, deleteCategory, updateCategory } = useInventoryMutations();
     const { formatAmount, currencySymbol } = useCurrency();
@@ -107,6 +110,28 @@ export function InventoryPage() {
 
     const totalItems = allItems.length;
     const cardBox: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
+
+    // MOBILE: the owner app's Services list → Service Items screens.
+    if (isMobile) return (
+        <>
+            <MobileInventory
+                onBack={() => navigate("/settings")}
+                onNewService={() => setCategorySheet({ open: true })}
+                onEditService={(c) => setCategorySheet({ open: true, category: c })}
+                onNewItem={() => setServiceSheet({ open: true })}
+                onEditItem={(i) => setServiceSheet({ open: true, item: i })}
+            />
+            <ServiceFormSheet
+                open={serviceSheet.open}
+                onClose={() => setServiceSheet({ open: false })}
+                item={serviceSheet.item}
+                categories={categories}
+                existingSubcategories={[...new Set(allItems.map((i) => i.subCategory).filter(Boolean))] as string[]}
+                onAddCategory={() => setCategorySheet({ open: true })}
+            />
+            <CategoryFormSheet open={categorySheet.open} onClose={() => setCategorySheet({ open: false })} category={categorySheet.category} />
+        </>
+    );
 
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>

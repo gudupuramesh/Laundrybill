@@ -16,6 +16,9 @@ import { useCurrency } from "@/hooks/use-currency";
 import { StaffFormSheet } from "./StaffFormSheet";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
 import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight, Trash2 } from "lucide-react";
+import { MRow, MAvatar, MHeader, MIconBtn, MStatBar, MSearch } from "@/components/laundry/LMobileRows";
+import { MobileStaffList } from "./MobileStaff";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { TeamMember } from "@/types/staff";
@@ -51,6 +54,7 @@ function roleMeta(staff: { role?: string; memberType?: string }, t: (k: string, 
 export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps) {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { formatAmount } = useCurrency();
     const [searchQuery, setSearchQuery] = useState("");
@@ -120,23 +124,49 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
 
     const ghostBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "6px 11px" };
 
+    // MOBILE: the owner app's StaffListScreen.
+    if (isMobile) return (
+        <>
+            <MobileStaffList
+                staff={displayStaff}
+                activeCount={activeStaff.length}
+                loginCount={teamMembers.length}
+                loginCap={loginLimit.limit > 0 ? loginLimit.limit : 0}
+                agentCount={appAgentCount}
+                hasLogin={(id) => teamMembers.some((tm) => tm.staffId === id)}
+                onBack={() => navigate("/settings")}
+                onOpen={(id) => onSelect?.(id)}
+                onAdd={isRosterAddAllowed ? () => setFormSheetOpen(true) : undefined}
+            />
+            <StaffFormSheet open={formSheetOpen} onClose={() => setFormSheetOpen(false)} />
+        </>
+    );
+
     return (
         <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar (round icon button, big title) */}
+            {isMobile ? (
+                <MHeader
+                    title={t("staff.title", "Staff")}
+                    sub={`${displayStaff.length} ${t("staff.members", "members")}`}
+                    right={isRosterAddAllowed ? <MIconBtn aria-label={t("staff.addStaff", "Add Staff")} tint="c-primary" onClick={() => setFormSheetOpen(true)}><Plus size={20} /></MIconBtn> : undefined}
+                />
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("staff.title", "Staff")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{displayStaff.length} {t("staff.members", "members")}</span>
                 </div>
                 <div style={{ flex: 1 }} />
-                <div style={{ position: "relative", width: isMobile ? "100%" : undefined }}>
+                <div style={{ position: "relative" }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("staff.searchStaff", "Search staff…")}
-                        style={{ width: isMobile ? "100%" : 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
+                        style={{ width: 200, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
                 </div>
                 {/* Standalone "Add App Login" removed — logins are created via Add Staff (toggle) or a staff profile. */}
                 <button onClick={() => { if (isRosterAddAllowed) setFormSheetOpen(true); }} disabled={!isRosterAddAllowed} style={{ cursor: isRosterAddAllowed ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)", opacity: isRosterAddAllowed ? 1 : 0.55 }}><Plus size={15} />{t("staff.addStaff", "Add Staff")}</button>
             </header>
+            )}
 
             {/* tabs */}
             <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: isMobile ? "10px 16px" : "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
@@ -154,17 +184,30 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                 )}
             </div>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
-                {/* KPIs */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 14, marginBottom: 18 }}>
-                    {/* The roster hides inactive staff unless "Show inactive" is ticked, so the
-                        headline number is the ACTIVE count and deactivated people get their own
-                        tile — a total that silently included them read as a broken list. */}
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
+                {/* Search (mobile: app-style full-width field above the stats card) */}
+                {isMobile && (
+                    <MSearch value={searchQuery} onChange={setSearchQuery} placeholder={t("staff.searchStaff", "Search staff…")} style={{ marginBottom: 12 }} />
+                )}
+                {/* KPIs — mobile clones the app's single stats card with dividers */}
+                {/* The roster hides inactive staff unless "Show inactive" is ticked, so the
+                    headline number is the ACTIVE count and deactivated people get their own
+                    stat — a total that silently included them read as a broken list. */}
+                {isMobile ? (
+                    <MStatBar style={{ marginBottom: 14 }} stats={[
+                        { label: t("staff.activeStaff", "Active staff"), value: activeStaff.length },
+                        { label: t("staff.inactiveStaff", "Inactive"), value: inactiveCount, color: inactiveCount > 0 ? "c-warning" : undefined },
+                        { label: t("staff.appLogins", "App logins"), value: loginLimit.limit > 0 ? `${teamMembers.length}/${loginLimit.limit}` : teamMembers.length, color: loginLimit.limit > 0 && teamMembers.length > loginLimit.limit ? "c-error" : "c-primary" },
+                        { label: t("staff.agents", "Delivery agents"), value: appAgentCount },
+                    ]} />
+                ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
                     <Kpi icon={<Users size={18} />} value={activeStaff.length} label={t("staff.activeStaff", "Active staff")} tint="c-primary" />
                     <Kpi icon={<UserCheck size={18} />} value={inactiveCount} label={t("staff.inactiveStaff", "Inactive")} tint={inactiveCount > 0 ? "c-warning" : "c-success"} />
                     <Kpi icon={<Smartphone size={18} />} value={teamMembers.length} label={t("staff.appLogins", "App logins")} tint="c-violet" sub={loginSub} />
                     <Kpi icon={<MapPin size={18} />} value={appAgentCount} label={t("staff.agents", "Delivery agents")} tint="c-info" />
                 </div>
+                )}
 
                 {activeTab === "roster" ? (
                     loading ? (
@@ -174,6 +217,26 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                     ) : (
                         <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
                             <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--c-border)", fontSize: 14, fontWeight: 600 }}>{t("staff.teamRoster", "Team roster")}</div>
+                            {isMobile ? (
+                                /* App-style rows — the roster table reads as a website on a phone */
+                                <div>
+                                    {filteredStaff.map((s, i) => {
+                                        const rm = roleMeta(s, t);
+                                        return (
+                                            <MRow key={s.id}
+                                                left={<MAvatar name={s.name} tint={AV[i % AV.length]} />}
+                                                title={s.name}
+                                                titleRight={<span style={{ flex: "none", fontSize: 10.5, fontWeight: 600, color: `var(--${rm.tint})`, background: `var(--${rm.tint}-soft)`, padding: "2px 8px", borderRadius: 20 }}>{rm.label}</span>}
+                                                sub={`${s.phone || "—"} · ${formatAmount(s.baseSalary || 0)}/${s.payType === "monthly" ? t("staff.month", "mo") : t("staff.day", "day")}`}
+                                                right={<span style={{ width: 8, height: 8, borderRadius: "50%", background: s.isActive ? "var(--c-success)" : "var(--c-text-3)" }} />}
+                                                selected={selectedId === s.id}
+                                                last={i === filteredStaff.length - 1}
+                                                onClick={() => onSelect?.(s.id)}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            ) : (
                             <div className="lb-scroll" style={{ overflowX: "auto" }}>
                                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 700 }}>
                                     <thead>
@@ -214,6 +277,7 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                                     </tbody>
                                 </table>
                             </div>
+                            )}
                         </div>
                     )
                 ) : (

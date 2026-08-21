@@ -38,7 +38,9 @@ export function LBottomTabBar({
                 className
             )}
         >
-            <div className="flex items-center justify-around h-16">
+            {/* Matches the owner app's bottomNav: 10px top / 4px bottom padding,
+                items spaced around, 22px icons + 10px bold labels. */}
+            <div className="flex items-center justify-around pt-2.5 pb-1">
                 {items.map((item) => {
                     const isActive = activeId === item.id;
 
@@ -74,10 +76,8 @@ export function LBottomTabBar({
                                     </div>
                                     <span
                                         className={cn(
-                                            "text-xs mt-1 transition-colors",
-                                            isActive
-                                                ? "text-primary font-medium"
-                                                : "text-muted-foreground"
+                                            "text-[10px] font-bold mt-[3px] transition-colors",
+                                            isActive ? "text-primary" : "text-muted-foreground"
                                         )}
                                     >
                                         {item.label}

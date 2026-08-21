@@ -3,7 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <!-- maximum-scale=1: iOS ignores user-scalable=no, but this stops Safari's
+       auto-zoom when focusing inputs smaller than 16px — the #1 "feels like a
+       website" tell. Android keeps honoring user-scalable=no. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1" />
 
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#1A4FD6" />

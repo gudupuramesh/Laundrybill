@@ -79,6 +79,7 @@ export const trackOrder = onCall(async (request) => {
     let shopName = "", shopPhone = "", shopAddress = "", shopEmail = "";
     let shopGstNumber = "", shopCountryCode = "", shopReceiptTerms = "";
     let shopTrackingEnabled = true;
+    let shopLogo = "", shopUpiId = "", shopPaymentLink = "";
     try {
         const shopDoc = await db.collection("shops").doc(shopId).get();
         if (shopDoc.exists) {
@@ -94,6 +95,13 @@ export const trackOrder = onCall(async (request) => {
             // Owner-configured Terms & Conditions shown on the customer's receipt.
             shopReceiptTerms = s.settings?.receiptTerms || "";
             shopTrackingEnabled = s.settings?.trackingEnabled !== false;
+            // Receipt branding + scan-to-pay QR (both owner-toggleable; filtered here
+            // so the public payload only ever carries what the shop chose to show).
+            shopLogo = s.settings?.receiptShowLogo === false ? "" : (s.logo || "");
+            if (s.settings?.receiptPaymentQr !== false) {
+                shopUpiId = s.bankDetails?.upiId || "";
+                shopPaymentLink = s.bankDetails?.paymentLink || "";
+            }
         }
     } catch { /* ignore */ }
 
@@ -152,6 +160,9 @@ export const trackOrder = onCall(async (request) => {
         countryCode: shopCountryCode || null,
         receiptTerms: shopReceiptTerms || null,
         trackingEnabled: shopTrackingEnabled,
+        shopLogo: shopLogo || null,
+        shopUpiId: shopUpiId || null,
+        shopPaymentLink: shopPaymentLink || null,
         assignedAgentId: o.assignedAgentId || null,
         assignedAgentName: o.assignedAgentName || null,
         assignedAgentPhone: agentPhone || o.assignedAgentPhone || null,

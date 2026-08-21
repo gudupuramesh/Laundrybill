@@ -12,10 +12,10 @@ import { useState } from "react";
 import { LResponsiveDialog } from "@/components/laundry";
 import { useOrder } from "@/hooks/use-orders";
 import { useShop } from "@/hooks/use-shop";
-import { getReceiptBlob, getReceiptFileName } from "@/lib/generateReceipt";
+import { getReceiptBlob, getReceiptFileName, getThermalReceiptBlob } from "@/lib/generateReceipt";
 import { isAndroidPrintEnv } from "@/lib/receipt-print";
 import { useReceiptPrint } from "@/context/ReceiptPrintContext";
-import { shareReceiptViaWhatsApp } from "@/lib/whatsappShare";
+import { shareReceiptViaWhatsApp, shareReceiptPdfViaWhatsApp } from "@/lib/whatsappShare";
 import { useCurrency } from "@/hooks/use-currency";
 import { mapLegacyDeliveryType } from "@/types/order";
 import type { DeliveryType } from "@/types/order";
@@ -62,6 +62,7 @@ export function OrderSuccessSheet({
     const { currencySymbol, formatAmount } = useCurrency();
     const { triggerReceiptPrint } = useReceiptPrint();
     const [sharing, setSharing] = useState(false);
+    const [sharingPdf, setSharingPdf] = useState(false);
 
     // Generate tracking URL (publicId is now globally unique with shopCode prefix)
     const trackingUrl = `${window.location.origin}/track/${order?.publicId || ""}`;
@@ -83,15 +84,19 @@ export function OrderSuccessSheet({
             currencyCode: shop.settings?.currency,
             receiptTerms: shop.settings?.receiptTerms,
             showTracking: shop.settings?.trackingEnabled !== false,
+            logoUrl: shop.settings?.receiptShowLogo === false ? undefined : shop.logo,
+            upiId: shop.bankDetails?.upiId,
+            paymentLink: shop.bankDetails?.paymentLink,
+            showPaymentQr: shop.settings?.receiptPaymentQr !== false,
         };
     };
 
     // Handle print receipt (Android: window.print() for native dialog; else PDF in new tab)
-    const handlePrintReceipt = () => {
+    const handlePrintReceipt = async (format: "a4" | "thermal" = "a4") => {
         if (!order || !shop) return;
 
         const shopInfo = getShopInfo();
-        if (isAndroidPrintEnv()) {
+        if (format === "a4" && isAndroidPrintEnv()) {
             triggerReceiptPrint(order, {
                 name: shopInfo.name,
                 address: shopInfo.address,
@@ -100,19 +105,23 @@ export function OrderSuccessSheet({
                 countryCode: shopInfo.countryCode,
                 receiptTerms: shopInfo.receiptTerms,
                 showTracking: shopInfo.showTracking,
+                logoUrl: shopInfo.logoUrl,
+                upiId: shopInfo.upiId,
+                paymentLink: shopInfo.paymentLink,
+                showPaymentQr: shopInfo.showPaymentQr,
             });
             return;
         }
 
+        // Open the tab synchronously (before any await) so popup blockers allow it.
+        const previewWindow = window.open("", "_blank");
         try {
-            const blob = getReceiptBlob(order, shopInfo);
+            const blob = format === "thermal" ? await getThermalReceiptBlob(order, shopInfo) : await getReceiptBlob(order, shopInfo);
             const url = URL.createObjectURL(blob);
-            const previewWindow = window.open(url, "_blank");
-            if (previewWindow) {
-                previewWindow.document.title = getReceiptFileName(order);
-            }
+            if (previewWindow) previewWindow.location.href = url; else window.open(url, "_blank");
             setTimeout(() => URL.revokeObjectURL(url), 60000);
         } catch (error) {
+            previewWindow?.close();
             console.error("Failed to generate receipt:", error);
         }
     };
@@ -129,6 +138,19 @@ export function OrderSuccessSheet({
             onComplete: () => setSharing(false),
             onError: () => setSharing(false),
         });
+    };
+
+    // Share the actual PDF bill to WhatsApp (share sheet on phones; download + chat on desktop)
+    const handleWhatsAppPdfShare = async () => {
+        if (!order || !shop) return;
+        setSharingPdf(true);
+        try {
+            const blob = await getReceiptBlob(order, getShopInfo());
+            await shareReceiptPdfViaWhatsApp({ order, shop, blob, fileName: getReceiptFileName(order) });
+        } catch (e) {
+            console.error("WhatsApp PDF share failed:", e);
+        }
+        setSharingPdf(false);
     };
 
     // Handle open tracking link
@@ -190,11 +212,14 @@ export function OrderSuccessSheet({
                 <div style={{ padding: "6px 4px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
                     <button onClick={onClose} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14 }}><Plus size={17} />{t("pos.newOrder", "New order")}</button>
                     <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={handlePrintReceipt} style={ghostBtn}><Printer size={16} />{t("orders.printReceipt", "Print")}</button>
+                        <button onClick={() => handlePrintReceipt("a4")} style={ghostBtn}><Printer size={16} />{t("orders.printA4", "Print A4")}</button>
+                        <button onClick={() => handlePrintReceipt("thermal")} title={t("orders.printThermalHint", "POS thermal printer receipt (80mm roll)")} style={ghostBtn}><Printer size={16} />{t("orders.printThermal", "80mm")}</button>
                         <button onClick={onViewOrder} style={ghostBtn}>{t("checkout.viewOrderDetails", "View order")}<ArrowRight size={16} /></button>
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
                         <button onClick={handleWhatsAppShare} disabled={sharing} style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)", opacity: sharing ? 0.6 : 1 }}><MessageCircle size={16} />{t("checkout.shareWhatsApp", "WhatsApp")}</button>
+                        <button onClick={handleWhatsAppPdfShare} disabled={sharingPdf} title={t("checkout.shareWhatsAppPdfHint", "Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach")}
+                            style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)", opacity: sharingPdf ? 0.6 : 1 }}><MessageCircle size={16} />{t("checkout.shareWhatsAppPdf", "PDF bill")}</button>
                         {shop?.settings?.trackingEnabled !== false && (
                             <button onClick={handleOpenTracking} style={ghostBtn}><ExternalLink size={16} />{t("checkout.track", "Track")}</button>
                         )}

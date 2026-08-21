@@ -7,6 +7,8 @@
 
 import type { Order } from "@/types/order";
 import { getTrackingUrl, getQRCodeUrl } from "@/lib/qr-code";
+import { QRCodeSVG } from "qrcode.react";
+import { buildPaymentQrTarget } from "@/lib/payment-qr";
 import { groupOrderItemsByCategory } from "@/lib/order-item-groups";
 import { format } from "date-fns";
 import { useCurrency } from "@/hooks/use-currency";
@@ -25,11 +27,21 @@ interface OrderReceiptProps {
     receiptTerms?: string;
     /** false hides the tracking QR + "Track online" line (shop settings.trackingEnabled). */
     showTracking?: boolean;
+    /** Shop logo URL — printed centered above the shop name. */
+    logoUrl?: string;
+    /** UPI ID — printed as a scan-to-pay QR when a balance is due. */
+    upiId?: string;
+    /** Payment page URL — the pay-QR fallback when no UPI ID is set. */
+    paymentLink?: string;
+    /** false hides the scan-to-pay QR (shop settings.receiptPaymentQr). */
+    showPaymentQr?: boolean;
 }
 
-export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumber, countryCode, receiptTerms, showTracking = true }: OrderReceiptProps) {
+export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumber, countryCode, receiptTerms, showTracking = true, logoUrl, upiId, paymentLink, showPaymentQr }: OrderReceiptProps) {
     const { formatAmount } = useCurrency();
     const qrUrl = getQRCodeUrl(order.trackingId || order.id, 150);
+    // Scan-to-pay QR takes the QR slot when a balance is due (tracking stays as the link line).
+    const payTarget = buildPaymentQrTarget({ shopName, upiId, paymentLink, showPaymentQr }, order.financials?.balance || 0, order.publicId);
 
     // UAE FTA: a VAT-registered shop's invoice must be titled "Tax Invoice".
     const isTaxInvoice = (countryCode || "").toUpperCase() === "AE" && !!gstNumber;
@@ -43,6 +55,9 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumbe
         <div className="bg-white p-6 max-w-[300px] font-mono text-sm text-black" id="receipt">
             {/* Header */}
             <div className="text-center mb-4">
+                {logoUrl && (
+                    <img src={logoUrl} alt="" className="mx-auto mb-2 max-h-16 max-w-[140px] object-contain" />
+                )}
                 <h1 className="font-bold text-lg">{shopName}</h1>
                 <p className="text-xs text-gray-600">{shopAddress}</p>
                 <p className="text-xs text-gray-600">Tel: {shopPhone}</p>
@@ -161,8 +176,15 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumbe
                 </p>
             </div>
 
-            {/* QR Code (hidden when the shop disables customer tracking) */}
-            {showTracking && (
+            {/* Scan-to-pay QR when a balance is due; else the tracking QR (if enabled) */}
+            {payTarget ? (
+                <div className="text-center mb-3">
+                    <p className="text-xs font-bold mb-1">SCAN TO PAY</p>
+                    <QRCodeSVG value={payTarget} size={110} className="mx-auto" />
+                    <p className="text-xs font-bold mt-1">Pay balance: {formatAmount(order.financials.balance)}</p>
+                    {(upiId || "").trim() && <p className="text-[10px] text-gray-600">UPI: {(upiId || "").trim()}</p>}
+                </div>
+            ) : showTracking && (
                 <div className="text-center mb-3">
                     <img src={qrUrl} alt="Track Order QR" className="mx-auto" />
                     <p className="text-xs text-gray-600 mt-1">Scan to track your order</p>

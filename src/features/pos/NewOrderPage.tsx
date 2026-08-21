@@ -7,12 +7,13 @@
  * Confirm opens the quick checkout step (payment / date / address) then success.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { LSkeleton, LEmptyState } from "@/components/laundry";
 import { useCart } from "./useCart";
 import { useInventory } from "@/hooks/use-inventory";
 import { useOrder } from "@/hooks/use-orders";
+import { useCustomer } from "@/hooks/use-customers";
 import { useShop } from "@/hooks/use-shop";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDriverAuthOptional } from "@/features/driver-app/DriverAuthContext";
@@ -28,7 +29,7 @@ import type { InventoryItem } from "@/types/inventory";
 import type { Customer } from "@/types/customer";
 import { isWeightUnit } from "@/lib/inventory-translations";
 import { getTranslatedCategoryName } from "@/lib/inventory-translations";
-import { AlertTriangle, Search, Package } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Search, Package } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LButton, useLToast } from "@/components/laundry";
 
@@ -45,6 +46,10 @@ export function NewOrderPage() {
     const [searchParams] = useSearchParams();
     const editOrderId = searchParams.get('edit');
     const isEditMode = !!editOrderId && editOrderId !== 'true';
+    // "New order for this customer" deep link — the customer pages navigate to
+    // /new-order?customerId=X. The param was emitted for ages but never read,
+    // so the POS landed with a walk-in cart.
+    const prefillCustomerId = !isEditMode ? searchParams.get('customerId') : null;
     // Persist the new-order draft so the cart survives navigating to other screens.
     // Edit mode hydrates from Firestore instead, so it does not persist a draft.
     const cart = useCart(isEditMode ? undefined : "pos:new-order:draft");
@@ -123,6 +128,18 @@ export function NewOrderPage() {
         cart.setCustomer(customer.id, customer.name, customer.phone, customer.email || undefined, false, addressesForCart);
     };
 
+    // Prefill from ?customerId= once the customer doc loads. Runs once per visit;
+    // an explicit deep link wins over whatever customer a leftover draft carried.
+    const { customer: prefillCustomer } = useCustomer(prefillCustomerId || '');
+    const [prefillDone, setPrefillDone] = useState(false);
+    useEffect(() => {
+        if (prefillCustomerId && prefillCustomer && !prefillDone) {
+            handleSelectCustomer(prefillCustomer);
+            setPrefillDone(true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [prefillCustomerId, prefillCustomer, prefillDone]);
+
     const handleCheckout = () => {
         if (!cart.customerId && !cart.customerPhone) {
             addToast({ type: "error", title: t('customer.selectCustomerFirst', 'Please select a customer first') });
@@ -165,6 +182,37 @@ export function NewOrderPage() {
         .sort((a, b) => a.order - b.order)
         .map((c) => ({ id: c.id, label: getTranslatedCategoryName(c.name, c.id) }));
 
+    // Category strip scrolling: scrollbars are hidden app-wide, so with many
+    // services a mouse user had no way to reach the clipped chips. Show chevron
+    // buttons while there's hidden content and let the wheel scroll the strip.
+    const chipsRef = useRef<HTMLDivElement | null>(null);
+    const [chipScroll, setChipScroll] = useState({ left: false, right: false });
+    const updateChipScroll = useCallback(() => {
+        const el = chipsRef.current;
+        if (!el) return;
+        setChipScroll({
+            left: el.scrollLeft > 4,
+            right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+        });
+    }, []);
+    useEffect(() => {
+        updateChipScroll();
+        const el = chipsRef.current;
+        if (!el) return;
+        const onWheel = (e: WheelEvent) => {
+            if (el.scrollWidth > el.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                el.scrollLeft += e.deltaY;
+                e.preventDefault();
+            }
+        };
+        el.addEventListener("wheel", onWheel, { passive: false });
+        window.addEventListener("resize", updateChipScroll);
+        return () => {
+            el.removeEventListener("wheel", onWheel);
+            window.removeEventListener("resize", updateChipScroll);
+        };
+    }, [updateChipScroll, categories.length]);
+
     // Full-page checkout view (replaces the modal popup)
     if (view === "checkout") {
         return (
@@ -197,14 +245,28 @@ export function NewOrderPage() {
                             <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('pos.searchCatalog', 'Search items or scan a tag…')}
                                 style={{ width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px 11px 38px", outline: "none" }} />
                         </div>
-                        <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
-                            {[{ id: "", label: t('common.all', 'All') }, ...categoryOptions].map((c) => {
-                                const on = selectedCategory === c.id;
-                                return (
-                                    <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)}
-                                        style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.label}</button>
-                                );
-                            })}
+                        <div style={{ position: "relative", minWidth: 0 }}>
+                            {chipScroll.left && (
+                                <button onClick={() => chipsRef.current?.scrollBy({ left: -280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesLeft', 'Scroll categories left')}
+                                    style={{ position: "absolute", left: -4, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 28, height: 28, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--c-surface)", color: "var(--c-text)", border: "1px solid var(--c-border)", boxShadow: "var(--sh-md, 0 4px 12px rgba(15,23,42,.14))" }}>
+                                    <ChevronLeft size={16} />
+                                </button>
+                            )}
+                            <div ref={chipsRef} onScroll={updateChipScroll} style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+                                {[{ id: "", label: t('common.all', 'All') }, ...categoryOptions].map((c) => {
+                                    const on = selectedCategory === c.id;
+                                    return (
+                                        <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)}
+                                            style={{ flex: "none", cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.label}</button>
+                                    );
+                                })}
+                            </div>
+                            {chipScroll.right && (
+                                <button onClick={() => chipsRef.current?.scrollBy({ left: 280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesRight', 'Scroll categories right')}
+                                    style={{ position: "absolute", right: -4, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 28, height: 28, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--c-surface)", color: "var(--c-text)", border: "1px solid var(--c-border)", boxShadow: "var(--sh-md, 0 4px 12px rgba(15,23,42,.14))" }}>
+                                    <ChevronRight size={16} />
+                                </button>
+                            )}
                         </div>
                     </div>
                     <div style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 14px 156px" : "16px 18px 24px" }}>

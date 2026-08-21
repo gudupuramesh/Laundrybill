@@ -8,7 +8,7 @@
  * - Storage analytics for the entire shop
  */
 
-const R2_WORKER_URL = import.meta.env.VITE_R2_WORKER_URL || '';
+const R2_WORKER_URL = import.meta.env.VITE_R2_WORKER_URL || 'https://laundryboss-r2.gudupuramesh.workers.dev';
 
 // ============================================
 // TYPES
@@ -21,6 +21,7 @@ export type UploadFolder =
     | 'delivery-photos'
     | 'receipts'
     | 'shop-assets'
+    | 'shop-logos'
     | 'payment-proofs'
     | 'profile-photos'
     /** Platform default catalog (Super Admin Items List); use with shopId "platform". */
@@ -247,10 +248,13 @@ export async function compressImage(
             canvas.height = height;
             ctx?.drawImage(img, 0, 0, width, height);
 
+            // PNG/WebP (logos) often carry transparency — JPEG would flatten it
+            // onto a black box. Keep those as PNG; photos stay JPEG.
+            const outType = file.type === 'image/png' || file.type === 'image/webp' ? 'image/png' : 'image/jpeg';
             canvas.toBlob(
                 (blob) => {
                     if (blob) {
-                        const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
+                        const compressedFile = new File([blob], file.name, { type: outType });
                         resolve({
                             file: compressedFile,
                             originalSize,
@@ -260,7 +264,7 @@ export async function compressImage(
                         reject(new Error('Compression failed'));
                     }
                 },
-                'image/jpeg',
+                outType,
                 quality
             );
         };
@@ -350,28 +354,23 @@ export async function smartUploadToR2(
         compressedSize = result.compressedSize;
     }
 
-    // Get signed upload URL from worker
-    const response = await fetch(`${R2_WORKER_URL}/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            shopId,
-            folder,
-            filename: file.name,
-            contentType: fileToUpload.type,
-            size: fileToUpload.size,
-        }),
-    });
+    // Upload straight to the R2 worker (multipart form-data — see doc/R2-WORKER-CODE.js:
+    // POST /upload with file, shopId, folder → { key, publicUrl })
+    const form = new FormData();
+    form.append('file', fileToUpload, file.name);
+    form.append('shopId', shopId);
+    form.append('folder', folder);
+
+    const response = await fetch(`${R2_WORKER_URL}/upload`, { method: 'POST', body: form });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to get upload URL');
+        let message = 'Upload failed';
+        try { message = (await response.json()).error || message; } catch { /* non-JSON error body */ }
+        throw new Error(message);
     }
 
-    const { uploadUrl, key, publicUrl } = await response.json();
-
-    // Upload with progress
-    await uploadWithProgress(uploadUrl, fileToUpload, onProgress);
+    const { key, publicUrl } = await response.json() as { key: string; publicUrl: string };
+    onProgress?.(100);
 
     // Track the upload
     storageTracker.trackUpload({

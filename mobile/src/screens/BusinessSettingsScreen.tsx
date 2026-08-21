@@ -43,6 +43,10 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
   const [bands, setBands] = useState<Band[]>([]);
   // Receipt terms
   const [receiptTerms, setReceiptTerms] = useState('');
+  const [receiptShowLogo, setReceiptShowLogo] = useState(true);
+  const [receiptPaymentQr, setReceiptPaymentQr] = useState(true);
+  const [upiId, setUpiId] = useState('');
+  const [payLink, setPayLink] = useState('');
   // WhatsApp + tracking
   const [waHeader, setWaHeader] = useState('');
   const [waFooter, setWaFooter] = useState('');
@@ -79,6 +83,11 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
       setDistEnabled(!!d.distanceFeeEnabled);
       setBands(Array.isArray(d.distanceBands) ? d.distanceBands : []);
       setReceiptTerms(s.receiptTerms || '');
+      setReceiptShowLogo(s.receiptShowLogo !== false);
+      setReceiptPaymentQr(s.receiptPaymentQr !== false);
+      const bd = snap.data()?.bankDetails || {};
+      setUpiId(bd.upiId || '');
+      setPayLink(bd.paymentLink || '');
       const ws = s.waShare || {};
       setWaHeader(ws.headerText || ''); setWaFooter(ws.footerText || '');
       setWaItems(ws.showItems !== false); setWaPayment(ws.showPayment !== false);
@@ -123,7 +132,23 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
     distanceBands: bands.filter((b) => b.label.trim()).map((b) => ({ id: b.id, label: b.label.trim(), fee: Number(b.fee) || 0 })),
   }, 'dist');
 
-  const saveReceipt = () => patch('', { receiptTerms: receiptTerms.trim() }, 'receipt');
+  const saveReceipt = async () => {
+    if (!shopId) return;
+    setSaving('receipt');
+    try {
+      await firestore().collection('shops').doc(shopId).update({
+        'settings.receiptTerms': receiptTerms.trim(),
+        'settings.receiptShowLogo': receiptShowLogo,
+        'settings.receiptPaymentQr': receiptPaymentQr,
+        'bankDetails.upiId': upiId.trim(),
+        'bankDetails.paymentLink': payLink.trim(),
+      });
+    } catch (e: any) {
+      Alert.alert(t('mobile.errorTitle', 'Error'), e.message || 'Save failed');
+    } finally {
+      setSaving(null);
+    }
+  };
 
   const saveWa = () => patch('', {
     waShare: { headerText: waHeader.trim(), footerText: waFooter.trim(), showItems: waItems, showPayment: waPayment, showExpectedDate: waDate, showReceiptLink: waReceipt },
@@ -239,6 +264,30 @@ export default function BusinessSettingsScreen({ onBack }: { onBack: () => void 
             <TextInput style={[styles.input, { minHeight: 90, textAlignVertical: 'top', marginTop: 10 }]} value={receiptTerms} onChangeText={(v) => setReceiptTerms(v.slice(0, 1000))} multiline
               placeholder={t('mobile.receiptTermsPlaceholder', 'e.g. Goods not collected within 30 days are not our responsibility.')} placeholderTextColor={colors.textMuted} />
             <Text style={styles.counter}>{receiptTerms.length}/1000</Text>
+
+            <View style={[styles.rowBetween, { marginTop: 12 }]}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.label}>{t('mobile.receiptShowLogoTitle', 'Shop logo on receipts')}</Text>
+                <Text style={styles.help}>{t('mobile.receiptShowLogoHelp', 'Prints your logo at the top of every receipt (A4 and 80mm).')}</Text>
+              </View>
+              <Switch value={receiptShowLogo} onValueChange={setReceiptShowLogo} trackColor={{ true: colors.primary }} />
+            </View>
+
+            <View style={[styles.rowBetween, { marginTop: 12 }]}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.label}>{t('mobile.receiptPaymentQrTitle', 'Payment QR on receipts')}</Text>
+                <Text style={styles.help}>{t('mobile.receiptPaymentQrHelp', 'Bills with a balance due carry a scan-to-pay UPI QR with the amount pre-filled.')}</Text>
+              </View>
+              <Switch value={receiptPaymentQr} onValueChange={setReceiptPaymentQr} trackColor={{ true: colors.primary }} />
+            </View>
+
+            <Text style={[styles.label, { marginTop: 12 }]}>{t('mobile.upiIdLabel', 'UPI ID')}</Text>
+            <TextInput style={styles.input} value={upiId} onChangeText={(v) => setUpiId(v.toLowerCase().trim())}
+              autoCapitalize="none" placeholder="shop@upi" placeholderTextColor={colors.textMuted} />
+            <Text style={[styles.label, { marginTop: 10 }]}>{t('mobile.payLinkLabel', 'Payment link (optional)')}</Text>
+            <TextInput style={styles.input} value={payLink} onChangeText={setPayLink}
+              autoCapitalize="none" placeholder="https://rzp.io/l/yourshop" placeholderTextColor={colors.textMuted} />
+
             <SaveBtn onPress={saveReceipt} busy={saving === 'receipt'} t={t} />
           </View>
 

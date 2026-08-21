@@ -154,7 +154,7 @@ function findStatusIndex(currentStatus: string, flow: string[]): number {
 
 // ─── Receipt HTML Generator ──────────────────────────────────────────
 
-function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: string, currencySymbol: string): string {
+function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: string, currencySymbol: string, thermal = false): string {
   const fin = order.financials || {};
   const shopName = shopData?.name || 'LaundryBill';
   const shopPhone = shopData?.phone || '';
@@ -176,6 +176,17 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   const deliveryType = order.deliveryType || 'pickup_store';
   const deliveryLabel = t(deliveryLabelKey(deliveryType));
   const qrUrl = getQRImageUrl(getTrackingUrl(publicId), 150);
+  // Scan-to-pay QR — UPI deep link (or the shop's payment link) with the balance
+  // pre-filled. Owner-toggleable via settings.receiptPaymentQr; only prints when
+  // something is still due, and takes the QR slot in place of the tracking QR.
+  const payUpi = String(shopData?.bankDetails?.upiId || '').trim();
+  const payLink = String(shopData?.bankDetails?.paymentLink || '').trim();
+  const payBalance = Number(fin.balance || 0);
+  const showPayQr = shopData?.settings?.receiptPaymentQr !== false && payBalance > 0 && !!(payUpi || payLink);
+  const payTarget = payUpi
+    ? `upi://pay?pa=${encodeURIComponent(payUpi)}&pn=${encodeURIComponent(shopData?.name || 'Shop')}&am=${payBalance.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Order ${publicId}`)}`
+    : payLink;
+  const payQrUrl = showPayQr ? getQRImageUrl(payTarget, 150) : '';
   const taxName = fin.taxName || t('mobile.taxFallback');
   const fmt = (v: number) => `${currencySymbol}${Math.round(v || 0).toLocaleString(locale || 'en-US')}`;
 
@@ -230,9 +241,20 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
   .qr-section img { width:120px; height:120px; }
   .track-link { text-align:center; font-size:11px; color:#00408f; word-break:break-all; }
   .footer { text-align:center; font-size:10px; color:#999; margin-top:20px; }
+  ${thermal ? `
+  body { max-width:none; padding:10px 8px; }
+  .shop-name { font-size:15px; } .shop-info { font-size:10px; }
+  .order-id { font-size:14px; }
+  .divider { border-top:1px dashed #999; }
+  .section-title { margin:10px 0 6px; }
+  .customer { font-size:12px; } .fin-table td { font-size:12px; }
+  .total-row td { font-size:14px; }
+  .qr-section img { width:100px; height:100px; }
+  ` : ''}
 </style></head>
 <body>
   <div class="header">
+    ${shopData?.logo && shopData?.settings?.receiptShowLogo !== false ? `<img src="${shopData.logo}" alt="" style="max-height:60px;max-width:150px;object-fit:contain;display:block;margin:0 auto 8px;"/>` : ''}
     <div class="shop-name">${escHtml(shopName)}</div>
     ${shopPhone ? `<div class="shop-info">${escHtml(t('mobile.receiptHtmlTel'))} ${escHtml(shopPhone)}</div>` : ''}
     ${shopAddress ? `<div class="shop-info">${escHtml(shopAddress)}</div>` : ''}
@@ -274,7 +296,14 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
     </div>
   ` : ''}
 
-  <div class="qr-section"><img src="${qrUrl}" alt="QR"/></div>
+  ${showPayQr ? `
+  <div class="qr-section">
+    <div style="font-size:12px;font-weight:800;letter-spacing:1px;">${escHtml(t('mobile.receiptScanToPay', 'SCAN TO PAY'))}</div>
+    <img src="${payQrUrl}" alt="Pay QR"/>
+    <div style="font-size:12px;font-weight:700;margin-top:2px;">${escHtml(t('mobile.receiptPayBalance', 'Pay balance:'))} ${fmt(payBalance)}</div>
+    ${payUpi ? `<div style="font-size:10px;color:#666;">UPI: ${escHtml(payUpi)}</div>` : ''}
+  </div>` : `
+  <div class="qr-section"><img src="${qrUrl}" alt="QR"/></div>`}
   <div class="track-link">${getTrackingUrl(publicId)}</div>
 
   ${(shopData?.settings?.receiptTerms || '').trim() ? `
@@ -789,13 +818,27 @@ export default function OrderDetailsScreen({
     setSaving(false);
   };
 
-  const handlePrintReceipt = async () => {
+  // A4 bill or 80mm till-roll — the same choice the web print buttons offer.
+  const printReceipt = async (thermal: boolean) => {
     try {
-      const html = generateReceiptHtml(order, shopData, t, countrySettings.locale || i18n.language, countrySettings.currencySymbol || '₹');
-      await Print.printAsync({ html });
+      const html = generateReceiptHtml(order, shopData, t, countrySettings.locale || i18n.language, countrySettings.currencySymbol || '₹', thermal);
+      // 80mm ≈ 227pt page width; the print dialog fits it to the roll.
+      await Print.printAsync(thermal ? { html, width: 227 } : { html });
     } catch (e: any) {
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedPrintReceipt'));
     }
+  };
+
+  const handlePrintReceipt = () => {
+    Alert.alert(
+      t('mobile.printSizeTitle', 'Print receipt'),
+      t('mobile.printSizeMsg', 'Choose the paper size'),
+      [
+        { text: t('mobile.printA4', 'A4 bill'), onPress: () => { void printReceipt(false); } },
+        { text: t('mobile.print80mm', '80mm thermal'), onPress: () => { void printReceipt(true); } },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+      ],
+    );
   };
 
   const handleShareReceiptPdf = async () => {

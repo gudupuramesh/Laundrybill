@@ -5,9 +5,11 @@
  * useCustomerStats + CustomerFormSheet (+ plan limit guard).
  */
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LEmptyState, LSpinner, useLToast } from "@/components/laundry";
+import { MRow, MAvatar, MHeader, MIconBtn, MStatBar, MSearch } from "@/components/laundry/LMobileRows";
+import { MobileCustomers } from "./MobileCustomers";
 import { useCustomers, useCustomerStats } from "@/hooks/use-customers";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShopLimits } from "@/hooks/use-shop-limits";
@@ -62,7 +64,17 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [formSheetOpen, setFormSheetOpen] = useState(false);
 
-    const { customers, loading, hasMore, loadMore, createCustomer } = useCustomers(searchQuery);
+    const { customers, loading, hasMore, loadingMore, loadMore, createCustomer } = useCustomers(searchQuery);
+
+    // Infinite scroll: fetch the next 50 as the sentinel nears the viewport.
+    const loadMoreRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = loadMoreRef.current;
+        if (!el || !hasMore) return;
+        const obs = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) void loadMore(); }, { rootMargin: "300px" });
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, [hasMore, loadMore]);
     const stats = useCustomerStats();
     const { checkLimit } = useShopLimits();
     const { addToast } = useLToast();
@@ -92,10 +104,25 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
 
     const handleOpen = (id: string) => { if (onSelect) onSelect(id); else navigate(`${basePath}/${id}`); };
 
+    // MOBILE: render the owner app's CustomerListScreen clone instead of the web list.
+    if (isMobile) return (
+        <>
+            <MobileCustomers basePath={basePath.replace(/\/customers$/, "")} onAdd={handleAddCustomer} />
+            <CustomerFormSheet open={formSheetOpen} onClose={() => setFormSheetOpen(false)} onSubmit={handleCreateCustomer} />
+        </>
+    );
+
     return (
         <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
-            {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 16px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar */}
+            {isMobile ? (
+                <MHeader
+                    title={t("customers.title", "Customers")}
+                    sub={`${stats.totalCustomers} ${t("customers.total", "total")}`}
+                    right={<MIconBtn aria-label={t("customers.add", "Add Customer")} tint="c-primary" onClick={handleAddCustomer}><Plus size={20} /></MIconBtn>}
+                />
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("customers.title", "Customers")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{stats.totalCustomers} {t("customers.total", "total")}</span>
@@ -111,15 +138,27 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                     <Plus size={15} />{t("customers.add", "Add Customer")}
                 </button>
             </header>
+            )}
 
             {/* body */}
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
-                {/* KPIs */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 14, marginBottom: 18 }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px", minHeight: 0 }}>
+                {/* Search (mobile: app-style full-width field) + stats card with dividers */}
+                {isMobile && (
+                    <MSearch value={searchQuery} onChange={setSearchQuery} placeholder={t("customers.searchPlaceholder", "Search name or phone…")} style={{ marginBottom: 12 }} />
+                )}
+                {isMobile ? (
+                    <MStatBar style={{ marginBottom: 14 }} stats={[
+                        { label: t("customers.total", "Total customers"), value: stats.totalCustomers },
+                        { label: t("customers.active", "Active customers"), value: stats.activeCustomers, color: "c-success" },
+                        { label: t("customers.newMonth", "New this month"), value: stats.newThisMonth, color: "c-violet" },
+                    ]} />
+                ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 18 }}>
                     <Kpi icon={<Users size={18} />} value={stats.totalCustomers} label={t("customers.total", "Total customers")} tint="c-primary" />
                     <Kpi icon={<UserCheck size={18} />} value={stats.activeCustomers} label={t("customers.active", "Active customers")} tint="c-success" />
                     <Kpi icon={<UserPlus size={18} />} value={stats.newThisMonth} label={t("customers.newMonth", "New this month")} tint="c-violet" />
                 </div>
+                )}
 
                 {/* table */}
                 <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
@@ -130,6 +169,31 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
                     ) : customers.length === 0 ? (
                         <LEmptyState icon={<Users className="h-8 w-8" />} title={searchQuery ? t("customers.noResults", "No matches") : t("customers.empty", "No customers yet")} description={searchQuery ? t("customers.tryDifferentSearch", "Try another name or number.") : t("customers.addFirst", "Add your first customer to get started.")} />
+                    ) : isMobile ? (
+                        /* App-style rows — the desktop table reads as a website on a phone */
+                        <div>
+                            {customers.map((c, i) => (
+                                <MRow key={c.id}
+                                    left={<MAvatar name={c.name || "?"} tint={AV[i % AV.length]} />}
+                                    title={c.name}
+                                    sub={`${c.phone}${c.area ? ` · ${c.area}` : ""}`}
+                                    right={
+                                        <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontFamily: MONO, fontWeight: 600, fontSize: 13 }}>{formatAmount(c.totalSpent || 0)}</div>
+                                            <div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{c.totalOrders} {t("customers.orders", "Orders")}</div>
+                                        </div>
+                                    }
+                                    selected={selectedId === c.id}
+                                    last={i === customers.length - 1 && !hasMore}
+                                    onClick={() => handleOpen(c.id)}
+                                />
+                            ))}
+                            {hasMore && (
+                                <div style={{ display: "flex", justifyContent: "center", padding: "12px 18px" }}>
+                                    <button onClick={loadMore} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 8, padding: "10px 18px" }}>{t("common.loadMore", "Load more")}</button>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 760 }}>
@@ -168,11 +232,10 @@ export function CustomersList({ selectedId, onSelect }: CustomersListProps) {
                                     })}
                                 </tbody>
                             </table>
-                            {hasMore && (
-                                <div style={{ display: "flex", justifyContent: "center", padding: "12px 18px", borderTop: "1px solid var(--c-border)" }}>
-                                    <button onClick={loadMore} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 8, padding: "8px 16px" }}>{t("common.loadMore", "Load more")}</button>
-                                </div>
-                            )}
+                            <div ref={loadMoreRef} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-3)" }}>
+                                <span>{t("customers.showing", "Showing")} {customers.length}{hasMore ? "+" : ""}</span>
+                                <span style={{ marginLeft: "auto" }}>{loadingMore ? t("common.loading", "Loading…") : !hasMore ? t("customers.endOfList", "End of list") : ""}</span>
+                            </div>
                         </div>
                     )}
                 </div>

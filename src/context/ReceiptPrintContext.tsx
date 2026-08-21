@@ -21,6 +21,14 @@ export interface ReceiptShopInfo {
     receiptTerms?: string;
     /** false hides the tracking QR + link (shop settings.trackingEnabled). */
     showTracking?: boolean;
+    /** Shop logo URL — printed centered at the top of the receipt. */
+    logoUrl?: string;
+    /** UPI ID — printed as a scan-to-pay QR when a balance is due. */
+    upiId?: string;
+    /** Payment page URL — the pay-QR fallback when no UPI ID is set. */
+    paymentLink?: string;
+    /** false hides the scan-to-pay QR (shop settings.receiptPaymentQr). */
+    showPaymentQr?: boolean;
 }
 
 interface ReceiptPrintState {
@@ -85,6 +93,10 @@ export function ReceiptPrintProvider({ children }: { children: React.ReactNode }
                         countryCode={state.shopInfo.countryCode}
                         receiptTerms={state.shopInfo.receiptTerms}
                         showTracking={state.shopInfo.showTracking}
+                        logoUrl={state.shopInfo.logoUrl}
+                        upiId={state.shopInfo.upiId}
+                        paymentLink={state.shopInfo.paymentLink}
+                        showPaymentQr={state.shopInfo.showPaymentQr}
                     />
                 )}
             </div>,

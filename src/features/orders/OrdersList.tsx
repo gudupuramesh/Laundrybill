@@ -9,6 +9,8 @@ import { useState, useEffect, useRef, useMemo, useContext, type CSSProperties } 
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import { LEmptyState, LSpinner } from "@/components/laundry";
+import { MRow, MHeader, MIconBtn, MSearch } from "@/components/laundry/LMobileRows";
+import { MobileOrders } from "./MobileOrders";
 import { useOrdersPaginated, upcomingAt, type OrderSourceFilter } from "@/hooks/use-orders-paginated";
 import { useCurrency } from "@/hooks/use-currency";
 import type { Order, OrderStatus, DeliveryType } from "@/types/order";
@@ -99,6 +101,8 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const { formatAmount } = useCurrency();
 
     const basePath = location.pathname.startsWith("/staff") ? "/staff/orders" : "/orders";
+    // The owner portal's POS lives at /new-order — /orders/new only exists for staff.
+    const newOrderPath = location.pathname.startsWith("/staff") ? "/staff/orders/new" : "/new-order";
 
     const [selectedDeliveryType, setSelectedDeliveryType] = useState<DeliveryType | "all">("all");
     const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "all">("all");
@@ -127,7 +131,10 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (attention === "overdue") setSpecialFilter("pending_overdue");
         else if (attention === "due") setSpecialFilter("payment_due");
         else if (attention === "scheduled") setSpecialFilter("scheduled_upcoming");
-        if (attention) setSearchParams({}, { replace: true });
+        // ?search= from the dashboard quick-search: prefill the list's search box.
+        const search = searchParams.get("search");
+        if (search) setSearchQuery(search);
+        if (attention || search) setSearchParams({}, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -204,10 +211,25 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
 
     const handleOpen = (id: string) => { if (onSelect) onSelect(id); else navigate(`${basePath}/${id}`); };
 
+    // MOBILE: render the owner app's OrdersScreen clone instead of the web list.
+    if (isMobile) return <MobileOrders basePath={basePath} />;
+
     return (
         <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
-            {/* header */}
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: isMobile ? "10px 14px" : "10px 22px" }}>
+            {/* header — on mobile, the owner app's header bar (filter + new order as round icon buttons) */}
+            {isMobile ? (
+                <MHeader
+                    title={t("orders.title", "Orders")}
+                    sub={`${visibleOrders.length}${hasMore ? "+" : ""} ${t("orders.stats.total", "total")}`}
+                    right={
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <MIconBtn aria-label={t("orders.filters.title", "Filters")} tint={activeFiltersCount ? "c-primary" : undefined} onClick={() => setFilterSheetOpen(true)}><SlidersHorizontal size={18} /></MIconBtn>
+                            <MIconBtn aria-label={t("orders.newOrder", "New Order")} tint="c-primary" onClick={() => navigate(newOrderPath)}><Plus size={20} /></MIconBtn>
+                        </div>
+                    }
+                />
+            ) : (
+            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
                     <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("orders.title", "Orders")}</span>
                     <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{visibleOrders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
@@ -230,10 +252,26 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     <SlidersHorizontal size={15} />{t("orders.filters.title", "Filters")}{activeFiltersCount ? ` · ${activeFiltersCount}` : ""}
                 </button>
                 <ExportDataButton onExport={exportOrders} kind={t("orders.title", "Orders").toLowerCase()} label={t("export.button", "Export")} />
-                <button onClick={() => navigate(`${basePath}/new`)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
+                <button onClick={() => navigate(newOrderPath)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
                     <Plus size={15} />{t("orders.newOrder", "New Order")}
                 </button>
             </header>
+            )}
+
+            {/* search + period (mobile: app-style row attached under the header) */}
+            {isMobile && (
+                <div style={{ flex: "none", display: "flex", gap: 8, padding: "2px 14px 10px", background: "var(--c-surface)" }}>
+                    <MSearch value={searchQuery} onChange={setSearchQuery} placeholder={t("orders.searchOrders", "Search order, customer, phone…")} style={{ flex: 1 }} />
+                    <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}
+                        style={{ cursor: "pointer", flex: "none", font: "inherit", fontSize: 13, fontWeight: 600, height: 42, color: period !== "all" ? "var(--c-primary)" : "var(--c-text-2)", background: period !== "all" ? "var(--c-primary-soft)" : "var(--c-surface-2)", border: `1px solid ${period !== "all" ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 12, padding: "0 10px", outline: "none" }}>
+                        <option value="all">{t("reports.periodAllTime", "All time")}</option>
+                        <option value="today">{t("reports.periodToday", "Today")}</option>
+                        <option value="week">{t("reports.periodThisWeek", "This Week")}</option>
+                        <option value="month">{t("reports.periodThisMonth", "This Month")}</option>
+                        <option value="lastMonth">{t("reports.periodLastMonth", "Last Month")}</option>
+                    </select>
+                </div>
+            )}
 
             {/* pipeline tabs */}
             <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: isMobile ? "10px 14px" : "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
@@ -269,6 +307,40 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
                     ) : visibleOrders.length === 0 ? (
                         <LEmptyState icon={<ClipboardList className="h-8 w-8" />} title={t("orders.empty", "No orders found")} description={t("orders.tryDifferentFilter", "Try another tab, filter, or search.")} />
+                    ) : isMobile ? (
+                        /* App-style order rows — the 880px table reads as a website on a phone */
+                        <div>
+                            {rows.map(({ order, dtype, total, pay, payRef }, i) => {
+                                const stRef = STATUS_TINT[order.status] || "c-slate";
+                                const tyRef = TYPE_TINT[dtype];
+                                return (
+                                    <MRow key={order.id}
+                                        left={
+                                            <span style={{ width: 38, height: 38, borderRadius: 11, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: MONO, fontSize: 10, fontWeight: 700 }}>
+                                                #{String(order.publicId).slice(-4)}
+                                            </span>
+                                        }
+                                        title={<>{order.customerName || t("customer.guest", "Guest")}{order.orderSource === "online" && <Globe size={12} style={{ marginLeft: 5, color: "var(--c-cyan)", verticalAlign: -1 }} />}</>}
+                                        titleRight={
+                                            <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, whiteSpace: "nowrap" }}>
+                                                <span style={{ width: 4, height: 4, borderRadius: "50%", background: `var(--${stRef})` }} />{STATUS_LABELS[order.status]}
+                                            </span>
+                                        }
+                                        sub={
+                                            <>
+                                                <span style={{ color: `var(--${tyRef})` }}>{t(`orders.deliveryTypes.${dtype}`, dtype.replace("_", " "))}</span>
+                                                {" · "}{order.items.length} {t("pos.items", "pcs")} · <span style={{ color: `var(--${payRef})`, fontWeight: 600 }}>{pay}</span>
+                                                {scheduledLabel(order) && <span style={{ color: "var(--c-primary)", fontWeight: 600 }}> · {scheduledLabel(order)}</span>}
+                                            </>
+                                        }
+                                        right={<span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13.5 }}>{formatAmount(total)}</span>}
+                                        selected={selectedId === order.id}
+                                        last={i === rows.length - 1}
+                                        onClick={() => handleOpen(order.id)}
+                                    />
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="lb-scroll" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 880 }}>
