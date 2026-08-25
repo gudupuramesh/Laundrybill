@@ -14,8 +14,18 @@ import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
-function normalizePhone(p: string): string {
-    return (p || "").replace(/\D/g, "").slice(-10);
+/**
+ * International-safe phone check. Stored numbers may be full international
+ * (+9715…), bare local, or local with a leading 0 — and customers type any of
+ * those forms too. Match when one number ends with the other (≥8 digits), so
+ * a local-format entry verifies against the stored international number and
+ * vice versa. 8 digits covers the shortest national numbers (e.g. Singapore).
+ */
+function phoneMatches(stored: string, entered: string): boolean {
+    const s = (stored || "").replace(/\D/g, "").replace(/^0+/, "");
+    const e = (entered || "").replace(/\D/g, "").replace(/^0+/, "");
+    if (s.length < 8 || e.length < 8) return false;
+    return s.endsWith(e) || e.endsWith(s);
 }
 
 function tsToMillis(v: any): number | null {
@@ -32,9 +42,9 @@ export const trackOrder = onCall(async (request) => {
     if (!code || !code.trim()) {
         throw new HttpsError("invalid-argument", "Order number is required.");
     }
-    const phoneNorm = normalizePhone(phone || "");
-    if (phoneNorm.length < 10) {
-        throw new HttpsError("invalid-argument", "Enter the 10-digit mobile number used on the order.");
+    const phoneEntered = (phone || "").replace(/\D/g, "").replace(/^0+/, "");
+    if (phoneEntered.length < 8) {
+        throw new HttpsError("invalid-argument", "Enter the mobile number used on the order.");
     }
 
     const cleanId = code.trim().toUpperCase();
@@ -59,7 +69,7 @@ export const trackOrder = onCall(async (request) => {
         }
         if (!snap.empty) {
             // Only return an order whose phone matches the verifier.
-            const match = snap.docs.find((d: any) => normalizePhone((d.data().customerPhone as string) || "") === phoneNorm);
+            const match = snap.docs.find((d: any) => phoneMatches((d.data().customerPhone as string) || "", phone || ""));
             if (match) {
                 orderDoc = match;
                 break;

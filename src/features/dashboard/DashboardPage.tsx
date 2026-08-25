@@ -147,18 +147,18 @@ export function DashboardPage() {
     const trendRef = (n: number | null) => (n == null ? "c-text-3" : n >= 0 ? "c-success" : "c-error");
 
     const kpis = [
-        { label: "Orders today", value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <Package size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: "vs yesterday" },
-        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs yesterday" },
-        { label: "Ready for pickup", value: String(stats.readyOrders), ref: "c-info", soft: "c-info-soft", icon: <PackageCheck size={15} />, delta: "● live", deltaRef: "c-info", sub: "in queue" },
-        { label: "Overdue", value: String(fin.pendingCount), ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, delta: "needs action", deltaRef: "c-warning", sub: "" },
-        { label: "Customers", value: String(stats.totalCustomers), ref: "c-violet", soft: "c-violet-soft", icon: <CreditCard size={15} />, delta: stats.newCustomersToday > 0 ? `+${stats.newCustomersToday}` : "—", deltaRef: "c-success", sub: "new today" },
+        { label: "Orders today", value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <Package size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: "vs yesterday", to: "/orders" },
+        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs yesterday", to: "/reports" },
+        { label: "Ready for pickup", value: String(stats.readyOrders), ref: "c-info", soft: "c-info-soft", icon: <PackageCheck size={15} />, delta: "● live", deltaRef: "c-info", sub: "in queue", to: "/orders?status=ready" },
+        { label: "Overdue", value: String(fin.pendingCount), ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, delta: "needs action", deltaRef: "c-warning", sub: "", to: "/orders?attention=overdue" },
+        { label: "Customers", value: String(stats.totalCustomers), ref: "c-violet", soft: "c-violet-soft", icon: <CreditCard size={15} />, delta: stats.newCustomersToday > 0 ? `+${stats.newCustomersToday}` : "—", deltaRef: "c-success", sub: "new today", to: "/customers" },
     ];
 
     const pipeline = [
-        { label: "Received", count: stats.pendingOrders, color: "var(--c-text-3)" },
-        { label: "Processing", count: stats.processingOrders, color: "var(--c-info)" },
-        { label: "Ready", count: stats.readyOrders, color: "var(--c-success)" },
-        { label: "Out for delivery", count: stats.outForDeliveryOrders, color: "var(--c-cyan)" },
+        { label: "Received", count: stats.pendingOrders, color: "var(--c-text-3)", status: "pending" },
+        { label: "Processing", count: stats.processingOrders, color: "var(--c-info)", status: "processing" },
+        { label: "Ready", count: stats.readyOrders, color: "var(--c-success)", status: "ready" },
+        { label: "Out for delivery", count: stats.outForDeliveryOrders, color: "var(--c-cyan)", status: "out_for_delivery" },
     ];
     const pipeTotal = pipeline.reduce((s, p) => s + p.count, 0);
     const pipeMax = Math.max(1, ...pipeline.map((p) => p.count));
@@ -198,9 +198,9 @@ export function DashboardPage() {
 
     const alerts = [
         { title: "Scheduled ahead", sub: "Booked for a later day", count: fin.scheduledAheadCount, ref: "c-primary", soft: "c-primary-soft", icon: <CalendarClock size={15} />, to: "/orders?attention=scheduled" },
-        { title: "Overdue orders", sub: "Past scheduled window", count: fin.pendingCount, ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, to: "/orders?filter=overdue" },
-        { title: "Unpaid invoices", sub: `${formatAmount(fin.due)} outstanding`, count: fin.unpaidCount, ref: "c-error", soft: "c-error-soft", icon: <FileWarning size={15} />, to: "/orders?filter=unpaid" },
-        { title: "Online orders", sub: "From public page", count: fin.onlineOrdersCount, ref: "c-info", soft: "c-info-soft", icon: <Package size={15} />, to: "/orders" },
+        { title: "Overdue orders", sub: "Past scheduled window", count: fin.pendingCount, ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, to: "/orders?attention=overdue" },
+        { title: "Unpaid invoices", sub: `${formatAmount(fin.due)} outstanding`, count: fin.unpaidCount, ref: "c-error", soft: "c-error-soft", icon: <FileWarning size={15} />, to: "/orders?attention=due" },
+        { title: "Online orders", sub: "From public page", count: fin.onlineOrdersCount, ref: "c-info", soft: "c-info-soft", icon: <Package size={15} />, to: "/orders?source=online" },
     ];
 
     const channels = [
@@ -287,7 +287,9 @@ export function DashboardPage() {
             {/* ===== KPI ROW ===== */}
             <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 16 }}>
                 {kpis.map((k) => (
-                    <div key={k.label} style={{ ...card, padding: "15px 16px" }}>
+                    <div key={k.label} role="button" tabIndex={0} onClick={() => navigate(k.to)}
+                        onKeyDown={(e) => { if (e.key === "Enter") navigate(k.to); }}
+                        style={{ ...card, padding: "15px 16px", cursor: "pointer" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <ChipIcon soft={k.soft} refColor={k.ref}>{k.icon}</ChipIcon>
                             <span style={{ fontSize: 11.5, color: "var(--c-text-3)", fontWeight: 500 }}>{k.label}</span>
@@ -340,7 +342,9 @@ export function DashboardPage() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                         {pipeline.map((p) => (
-                            <div key={p.label}>
+                            <div key={p.label} role="button" tabIndex={0} onClick={() => navigate(`/orders?status=${p.status}`)}
+                                onKeyDown={(e) => { if (e.key === "Enter") navigate(`/orders?status=${p.status}`); }}
+                                style={{ cursor: "pointer" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.color }} />
                                     <span style={{ fontSize: 12.5, color: "var(--c-text-2)" }}>{p.label}</span>

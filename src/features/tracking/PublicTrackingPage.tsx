@@ -101,7 +101,7 @@ export function PublicTrackingPage() {
     const handleSearch = () => {
         const code = searchQuery.trim();
         const ph = phoneInput.replace(/\D/g, "");
-        if (code && ph.length >= 10) {
+        if (code && ph.replace(/^0+/, "").length >= 8) {
             setPhoneVerified(ph);
             if (code !== effectiveTrackingId) navigate(`/track/${code}`);
         }
@@ -152,14 +152,14 @@ export function PublicTrackingPage() {
                         <LTextInput
                             label={t('tracking.phoneVerify', 'Mobile number on the order')}
                             value={phoneInput}
-                            onChange={(e) => setPhoneInput(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
-                            placeholder={t('tracking.phoneVerifyPlaceholder', 'e.g. 9876543210')}
+                            onChange={(e) => setPhoneInput(e.target.value.replace(/[^\d+]/g, "").slice(0, 16))}
+                            placeholder={t('tracking.phoneVerifyPlaceholder', 'Mobile number')}
                             inputMode="tel"
                             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                         />
                         <LSpacer size="xs" />
                         <p className="text-xs text-muted-foreground">
-                            {t('tracking.phoneVerifyHint', 'For your privacy, we confirm the mobile number used on the order.')}
+                            {t('tracking.phoneVerifyHint', 'For your privacy, we confirm the mobile number used on the order — with or without the country code.')}
                         </p>
                         <LSpacer size="md" />
                         <LButton

@@ -15,7 +15,9 @@ import {
     LButton,
     LPageLoader,
     LSpacer,
+    LTextInput,
 } from "@/components/laundry";
+import { useTranslation } from "react-i18next";
 import { useOrderTracking } from "@/hooks/use-tracking";
 import { getReceiptBlob, getReceiptFileName } from "@/lib/generateReceipt";
 import {
@@ -33,9 +35,15 @@ export function PublicReceiptPage() {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    // Phone verifier — passed from the tracking page via router state.
+    const { t } = useTranslation();
+    // Phone verifier — passed from the tracking page via router state. A customer
+    // opening a receipt link directly (e.g. from WhatsApp) has no state, so the
+    // page asks for the number itself instead of dead-ending.
     const phoneFromState = (location.state as { phone?: string } | null)?.phone || "";
-    const { data, loading, error } = useOrderTracking(orderId || "", phoneFromState);
+    const [phoneEntry, setPhoneEntry] = useState("");
+    const [phoneVerifier, setPhoneVerifier] = useState(phoneFromState);
+    const { data, loading, error } = useOrderTracking(orderId || "", phoneVerifier);
+    const canVerify = phoneEntry.replace(/\D/g, "").replace(/^0+/, "").length >= 8;
     const { formatAmount, currencySymbol, currencyCode } = useCurrencyByShopId(data?.shopId || null);
     const [downloading, setDownloading] = useState(false);
 
@@ -195,29 +203,46 @@ export function PublicReceiptPage() {
         );
     }
 
-    // Error state
+    // No data yet — either the phone still needs verifying (direct link / wrong
+    // number) or the order genuinely can't be found.
     if (error || !data) {
         return (
             <div className="min-h-screen bg-background p-4">
                 <LCard variant="elevated" padding="lg" className="max-w-md mx-auto mt-20">
                     <div className="text-center">
-                        <div className="w-16 h-16 rounded-full bg-destructive-muted flex items-center justify-center mx-auto mb-4">
-                            <XCircle className="h-8 w-8 text-destructive" />
+                        <div className="w-16 h-16 rounded-full bg-primary-muted flex items-center justify-center mx-auto mb-4">
+                            <FileText className="h-8 w-8 text-primary" />
                         </div>
                         <h2 className="text-xl font-bold text-foreground mb-2">
-                            Receipt Not Found
+                            {t("receipt.verifyTitle", "View your receipt")}
                         </h2>
-                        <p className="text-muted-foreground mb-6">
-                            {error || "We couldn't find this order. Please check the link."}
+                        <p className="text-muted-foreground mb-4">
+                            {t("receipt.verifyHint", "For your privacy, enter the mobile number used on the order — with or without the country code.")}
                         </p>
-                        <LButton
-                            variant="primary"
-                            onClick={() => navigate("/track")}
-                            leftIcon={<ArrowLeft className="h-4 w-4" />}
-                        >
-                            Track Order
-                        </LButton>
                     </div>
+                    <LTextInput
+                        label={t("tracking.phoneVerify", "Mobile number on the order")}
+                        value={phoneEntry}
+                        onChange={(e) => setPhoneEntry(e.target.value.replace(/[^\d+]/g, "").slice(0, 16))}
+                        placeholder={t("tracking.phoneVerifyPlaceholder", "Mobile number")}
+                        inputMode="tel"
+                        onKeyDown={(e) => e.key === "Enter" && canVerify && setPhoneVerifier(phoneEntry)}
+                    />
+                    {error && (
+                        <>
+                            <LSpacer size="xs" />
+                            <p className="text-sm text-destructive flex items-center gap-1.5"><XCircle className="h-4 w-4 flex-none" />{error}</p>
+                        </>
+                    )}
+                    <LSpacer size="md" />
+                    <LButton variant="primary" size="lg" fullWidth disabled={!canVerify}
+                        onClick={() => setPhoneVerifier(phoneEntry)}>
+                        {t("receipt.viewReceipt", "View receipt")}
+                    </LButton>
+                    <LSpacer size="sm" />
+                    <LButton variant="ghost" size="sm" fullWidth onClick={() => navigate("/track")} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                        {t("receipt.trackInstead", "Track order instead")}
+                    </LButton>
                 </LCard>
             </div>
         );

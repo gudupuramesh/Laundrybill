@@ -11,7 +11,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { LSkeleton, LEmptyState } from "@/components/laundry";
 import { useCart } from "./useCart";
-import { useInventory } from "@/hooks/use-inventory";
+import { useInventory, useInventoryMutations } from "@/hooks/use-inventory";
 import { useOrder } from "@/hooks/use-orders";
 import { useCustomer } from "@/hooks/use-customers";
 import { useShop } from "@/hooks/use-shop";
@@ -27,11 +27,11 @@ import { CheckoutSheet } from "./CheckoutSheet";
 import { OrderSuccessSheet } from "./OrderSuccessSheet";
 import type { InventoryItem } from "@/types/inventory";
 import type { Customer } from "@/types/customer";
-import { isWeightUnit } from "@/lib/inventory-translations";
-import { getTranslatedCategoryName } from "@/lib/inventory-translations";
+import { isWeightUnit, getTranslatedCategoryName, getTranslatedItemName, getTranslatedUnit } from "@/lib/inventory-translations";
+import { useCurrency } from "@/hooks/use-currency";
 import { ChevronLeft, ChevronRight, AlertTriangle, Search, Package } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LButton, useLToast } from "@/components/laundry";
+import { LButton, LResponsiveDialog, useLToast } from "@/components/laundry";
 
 export function NewOrderPage() {
     const { t } = useTranslation();
@@ -54,8 +54,37 @@ export function NewOrderPage() {
     // Edit mode hydrates from Firestore instead, so it does not persist a draft.
     const cart = useCart(isEditMode ? undefined : "pos:new-order:draft");
     const { categories, items, loading: inventoryLoading } = useInventory();
+    const { updateItem: updateInventoryItem } = useInventoryMutations();
+
+    // Catalog price editor (the card's pencil) — permanently updates the item's
+    // basePrice, exactly like the pencil in the owner/Team apps. The live
+    // inventory listener refreshes every card the moment it saves.
+    const [priceEditItem, setPriceEditItem] = useState<InventoryItem | null>(null);
+    const [priceValue, setPriceValue] = useState("");
+    const [priceSaving, setPriceSaving] = useState(false);
+    const openPriceEdit = (it: InventoryItem) => { setPriceEditItem(it); setPriceValue(String(it.basePrice ?? 0)); };
+    const savePriceEdit = async () => {
+        if (!priceEditItem) return;
+        const n = parseFloat(priceValue);
+        if (Number.isNaN(n) || n < 0) {
+            addToast({ type: "error", title: t("pos.enterValidPrice", "Enter a valid price") });
+            return;
+        }
+        setPriceSaving(true);
+        try {
+            await updateInventoryItem(priceEditItem.id, { basePrice: n });
+            addToast({ type: "success", title: t("pos.priceUpdated", "Price updated"), description: `${getTranslatedItemName(priceEditItem.name)} · ${n}` });
+            setPriceEditItem(null);
+        } catch (e) {
+            console.error("price update", e);
+            addToast({ type: "error", title: t("pos.priceUpdateFailed", "Could not update the price") });
+        } finally {
+            setPriceSaving(false);
+        }
+    };
     const { shop } = useShop();
     const { addToast } = useLToast();
+    const { currencySymbol } = useCurrency();
     const isMobile = useIsMobile();
 
     const { order: editOrder, loading: orderLoading } = useOrder(isEditMode ? editOrderId : '');
@@ -279,7 +308,8 @@ export function NewOrderPage() {
                                 {filteredItems.map((item) => (
                                     <POSItemCard key={item.id} item={item} cartItems={cart.items} onAdd={handleAddItem}
                                         onUpdateQuantity={(itemId, newQty) => cart.updateItem(itemId, { quantity: newQty })}
-                                        onRemoveItem={cart.removeItem} onToggleExpress={cart.toggleItemExpress} />
+                                        onRemoveItem={cart.removeItem} onToggleExpress={cart.toggleItemExpress}
+                                        onEditPrice={openPriceEdit} />
                                 ))}
                             </div>
                         ) : (
@@ -290,6 +320,36 @@ export function NewOrderPage() {
 
                 {/* cart */}
                 <POSCart cart={cart} onCheckout={handleCheckout} onOpenCustomer={() => setCustOpen(true)} />
+
+                {/* Catalog price editor — opened by the pencil on an item card */}
+                <LResponsiveDialog open={!!priceEditItem} onClose={() => !priceSaving && setPriceEditItem(null)} title={t("pos.editPrice", "Edit price")} size="sm">
+                    {priceEditItem && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            <div>
+                                <div style={{ fontSize: 15, fontWeight: 700 }}>{getTranslatedItemName(priceEditItem.name)}</div>
+                                <div style={{ fontSize: 12, color: "var(--c-text-3)", marginTop: 2 }}>
+                                    {t("pos.editPriceHelp", "Changes the catalog price for every future order. Items already in the cart keep their price.")}
+                                </div>
+                            </div>
+                            <div style={{ position: "relative" }}>
+                                <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "var(--c-text-3)" }}>{currencySymbol}</span>
+                                <input autoFocus value={priceValue} inputMode="decimal"
+                                    onChange={(e) => setPriceValue(e.target.value.replace(/[^0-9.]/g, ""))}
+                                    onKeyDown={(e) => { if (e.key === "Enter") void savePriceEdit(); }}
+                                    style={{ width: "100%", font: "inherit", fontFamily: "'IBM Plex Mono'", fontSize: 16, fontWeight: 700, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px 11px 32px", outline: "none" }} />
+                                <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 11.5, color: "var(--c-text-3)" }}>
+                                    {t("pos.per", "per")} {getTranslatedUnit(priceEditItem.pricingType === "piece" ? "piece" : priceEditItem.pricingType)}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                                <button type="button" onClick={() => setPriceEditItem(null)} disabled={priceSaving}
+                                    style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "10px 18px" }}>{t("common.cancel", "Cancel")}</button>
+                                <button type="button" onClick={() => void savePriceEdit()} disabled={priceSaving}
+                                    style={{ cursor: priceSaving ? "wait" : "pointer", font: "inherit", fontSize: 13.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: "10px 18px", boxShadow: "var(--sh-sm)", opacity: priceSaving ? 0.6 : 1 }}>{priceSaving ? t("common.loading", "Loading...") : t("common.save", "Save")}</button>
+                            </div>
+                        </div>
+                    )}
+                </LResponsiveDialog>
             </div>
 
             <CustomerModal open={custOpen} onClose={() => setCustOpen(false)} onSelect={(c) => { handleSelectCustomer(c); }} />

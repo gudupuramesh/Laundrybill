@@ -101,8 +101,10 @@ export function useOrderTracking(code: string, phone: string) {
             setError(null);
             return;
         }
-        if (cleanPhone.length < 10) {
+        if (cleanPhone.replace(/^0+/, "").length < 8) {
             // Waiting for the phone verifier — not an error, just not ready.
+            // 8 significant digits covers the shortest national numbers (e.g. SG);
+            // the server accepts local or international forms.
             setData(null);
             setLoading(false);
             setError(null);

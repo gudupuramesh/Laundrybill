@@ -19,6 +19,8 @@ interface POSItemCardProps {
     onUpdateQuantity: (itemId: string, newQty: number) => void;
     onRemoveItem: (itemId: string) => void;
     onToggleExpress: (itemId: string) => void;
+    /** Pencil beside the price — opens the catalog price editor (same as the apps). */
+    onEditPrice?: (item: InventoryItem) => void;
 }
 
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
@@ -28,7 +30,7 @@ function tintFor(categoryId?: string): string {
     return TINTS[h % TINTS.length];
 }
 
-export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemoveItem, onToggleExpress }: POSItemCardProps) {
+export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemoveItem, onToggleExpress, onEditPrice }: POSItemCardProps) {
     const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const [pendingExpress, setPendingExpress] = useState(false);
@@ -72,9 +74,17 @@ export function POSItemCard({ item, cartItems, onAdd, onUpdateQuantity, onRemove
             <div style={{ padding: "10px 11px 11px", display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
                 <div>
                     <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 4 }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono'", fontWeight: 700, fontSize: 15, color: "var(--c-primary)" }}>{formatAmount(item.basePrice)}</span>
-                        <span style={{ fontSize: 10.5, color: "var(--c-text-3)" }}>{t("pos.per", "per")} {unitLabel}</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                            <span style={{ fontFamily: "'IBM Plex Mono'", fontWeight: 700, fontSize: 15, color: "var(--c-primary)" }}>{formatAmount(item.basePrice)}</span>
+                            {onEditPrice && (
+                                <button type="button" onClick={() => onEditPrice(item)} aria-label={t("pos.editPrice", "Edit price")} title={t("pos.editPrice", "Edit price")}
+                                    style={{ cursor: "pointer", flex: "none", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-3)", background: "var(--c-surface-2)", border: 0, borderRadius: 6, padding: 0 }}>
+                                    <Pencil size={11} />
+                                </button>
+                            )}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: "var(--c-text-3)", flex: "none" }}>{t("pos.per", "per")} {unitLabel}</span>
                     </div>
                 </div>
 

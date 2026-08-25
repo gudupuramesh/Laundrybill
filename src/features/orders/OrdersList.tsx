@@ -134,7 +134,15 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         // ?search= from the dashboard quick-search: prefill the list's search box.
         const search = searchParams.get("search");
         if (search) setSearchQuery(search);
-        if (attention || search) setSearchParams({}, { replace: true });
+        // ?source=online — the dashboard's "Online orders" tile.
+        const source = searchParams.get("source");
+        if (source === "online" || source === "pos") setSelectedOrderSource(source);
+        // ?status= — the dashboard's pipeline rows and "Ready for pickup" KPI.
+        const status = searchParams.get("status");
+        if (status && ["pending", "processing", "ready", "out_for_delivery", "delivered", "picked_up", "cancelled"].includes(status)) {
+            setSelectedStatus(status as OrderStatus);
+        }
+        if (attention || search || source || status) setSearchParams({}, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 

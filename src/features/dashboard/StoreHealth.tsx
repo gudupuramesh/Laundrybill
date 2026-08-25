@@ -69,7 +69,7 @@ export function StoreHealth() {
                 </div>
                 {h.overdueCount > 0 ? (
                     <button
-                        onClick={() => navigate("/orders?filter=overdue")}
+                        onClick={() => navigate("/orders?attention=overdue")}
                         className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"
                         style={{ background: TINT.red, color: TEXT.red }}
                     >

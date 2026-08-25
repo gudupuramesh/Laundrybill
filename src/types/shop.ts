@@ -150,6 +150,8 @@ export interface ShopSettings {
     receiptShowLogo?: boolean;
     /** false hides the scan-to-pay QR (UPI/payment link) on receipts with a balance due. */
     receiptPaymentQr?: boolean;
+    /** Order-tag code style — QR (default) or Code128 barcode. Shared with the apps. */
+    tagStyle?: "qr" | "barcode";
 
     // WhatsApp share message customization (owner-configured; all fields optional —
     // undefined means the default text/blocks). Used by web + both apps.
