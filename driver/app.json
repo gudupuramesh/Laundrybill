@@ -3,7 +3,7 @@
     "name": "Laundrybill Team",
     "slug": "laundrybill-driver",
     "scheme": "laundrybilldriver",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -31,7 +31,7 @@
     "android": {
       "package": "in.laundrybill.driver",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 21,
+      "versionCode": 22,
       "adaptiveIcon": {
         "backgroundColor": "#0F1E36",
         "foregroundImage": "./assets/android-icon-foreground.png",
