@@ -656,7 +656,7 @@ export default function RegisterShopScreen({
               </TouchableOpacity>
               <TextInput
                 style={styles.phoneInput}
-                placeholder={`${selectedCountry.phoneDigits} digits`}
+                placeholder={selectedCountry.phoneMinDigits && selectedCountry.phoneMinDigits !== selectedCountry.phoneDigits ? `${selectedCountry.phoneMinDigits}–${selectedCountry.phoneDigits} digits` : `${selectedCountry.phoneDigits} digits`}
                 keyboardType="phone-pad"
                 value={formData.phone}
                 maxLength={selectedCountry.phoneDigits}

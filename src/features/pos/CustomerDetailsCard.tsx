@@ -73,7 +73,7 @@ export function CustomerDetailsCard({
     const selectedCustomer = customers.find((c) => c.id === customerId);
 
     // Name + at least one contact (full phone OR valid email). Phone optional.
-    const phoneComplete = form.phone.length === country.phoneDigits;
+    const phoneComplete = form.phone.length >= (country.phoneMinDigits ?? country.phoneDigits);
     const custHasContact = phoneComplete || (!!form.email.trim() && isValidEmail(form.email.trim()));
     const canCreateCustomer = !!form.name.trim() && custHasContact && (form.phone.length === 0 || phoneComplete);
 

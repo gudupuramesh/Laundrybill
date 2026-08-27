@@ -357,7 +357,7 @@ export function ShopSettingsPage() {
             // Only allow phone update if not already locked — store international
             // under the SHOP's country (+971… for UAE, +91… for India), never hardcode +91.
             const shopCountry = getCountry(shop?.settings?.countryCode || "IN");
-            if (!isPhoneLocked && phone.replace(/\D/g, "").length === shopCountry.phoneDigits) {
+            if (!isPhoneLocked && phone.replace(/\D/g, "").length >= (shopCountry.phoneMinDigits ?? shopCountry.phoneDigits)) {
                 updatePayload.phone = `${shopCountry.phoneCode}${phone.replace(/\D/g, "")}`;
             }
 

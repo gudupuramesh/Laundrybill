@@ -26,6 +26,7 @@ export type ShopCountrySettings = {
   locale?: string;
   phoneCountryCode?: string;
   phoneDigits?: number;
+  phoneMinDigits?: number;
   timezone?: string;
 };
 
@@ -38,6 +39,7 @@ export function resolveShopCountrySettings(raw?: ShopCountrySettings): Required<
     locale: raw?.locale || country.locale,
     phoneCountryCode: raw?.phoneCountryCode || country.phoneCode,
     phoneDigits: raw?.phoneDigits || country.phoneDigits,
+    phoneMinDigits: raw?.phoneMinDigits || country.phoneMinDigits || raw?.phoneDigits || country.phoneDigits,
     timezone: raw?.timezone || country.timezone,
   };
 }

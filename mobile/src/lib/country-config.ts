@@ -8,7 +8,9 @@ export interface CountryConfig {
   phoneCode: string;
   locale: string;
   timezone: string;
+  /** Max local digits (input cap). Valid length is phoneMinDigits..phoneDigits. */
   phoneDigits: number;
+  phoneMinDigits: number;
   taxName: string;
   supportedUnits: PricingType[];
   defaultUnit: PricingType;
@@ -67,12 +69,37 @@ const OVERRIDES: Record<string, Partial<CountryConfig>> = {
   CA: { currencyCode: "CAD", currencySymbol: "C$", locale: "en-CA", timezone: "America/Toronto", phoneDigits: 10, taxName: "GST/HST" },
 };
 
-function inferPhoneDigits(c: TelCountry): number {
-  const dots = (c.format?.match(/\./g) || []).length;
-  const dialLen = String(c.dialCode || "").length;
-  const inferred = dots > dialLen ? dots - dialLen : 10;
-  return Math.min(12, Math.max(6, inferred));
-}
+/**
+ * National MOBILE number length per country — digits after the dial code, no
+ * trunk "0". [min, max]; exact-length countries have min === max. Unlisted
+ * countries fall back to a permissive 7–12 so no legitimate number is ever
+ * blocked. (Replaces the old format-string heuristic, which guessed badly —
+ * e.g. the Philippines got capped at 7 digits.)
+ */
+const PHONE_LEN: Record<string, readonly [number, number]> = {
+  // South Asia
+  IN: [10, 10], NP: [10, 10], LK: [9, 9], BD: [10, 10], PK: [10, 10], AF: [9, 9], MV: [7, 7], BT: [8, 8],
+  // Middle East
+  AE: [9, 9], SA: [9, 9], QA: [8, 8], KW: [8, 8], BH: [8, 8], OM: [8, 8], JO: [9, 9], LB: [7, 8],
+  IQ: [10, 10], IL: [9, 9], TR: [10, 10], IR: [10, 10], YE: [9, 9], SY: [9, 9],
+  // Southeast + East Asia
+  SG: [8, 8], MY: [9, 10], ID: [9, 12], TH: [9, 9], PH: [10, 10], VN: [9, 9], MM: [8, 10], KH: [8, 9],
+  LA: [8, 10], BN: [7, 7], HK: [8, 8], MO: [8, 8], TW: [9, 9], CN: [11, 11], JP: [10, 10], KR: [9, 10],
+  // Americas
+  US: [10, 10], CA: [10, 10], MX: [10, 10], BR: [10, 11], AR: [10, 10], CL: [9, 9], CO: [10, 10], PE: [9, 9],
+  // Europe
+  GB: [10, 10], IE: [9, 9], DE: [10, 11], FR: [9, 9], NL: [9, 9], BE: [9, 9], ES: [9, 9], PT: [9, 9],
+  IT: [9, 10], CH: [9, 9], AT: [10, 13], PL: [9, 9], RO: [9, 9], GR: [10, 10], SE: [9, 9], NO: [8, 8],
+  DK: [8, 8], FI: [9, 10], RU: [10, 10], UA: [9, 9], CZ: [9, 9], HU: [9, 9],
+  // Oceania
+  AU: [9, 9], NZ: [8, 10], FJ: [7, 7], PG: [7, 8],
+  // Africa
+  ZA: [9, 9], KE: [9, 9], NG: [10, 10], GH: [9, 9], TZ: [9, 9], UG: [9, 9], RW: [9, 9], ET: [9, 9],
+  ZM: [9, 9], ZW: [9, 9], MW: [9, 9], MZ: [9, 9], BW: [8, 8], NA: [9, 9], EG: [10, 10], MA: [9, 9],
+  DZ: [9, 9], TN: [8, 8], LY: [9, 9], SD: [9, 9], SN: [9, 9], CI: [10, 10], CM: [9, 9],
+};
+const PHONE_LEN_DEFAULT: readonly [number, number] = [7, 12];
+
 
 function resolveCurrencyCode(countryCode: string): string {
   return String(countryToCurrency[countryCode] || 'USD').toUpperCase();
@@ -90,6 +117,7 @@ export const COUNTRIES: CountryConfig[] = Array.from(
 )
   .map((c) => {
     const code = String(c.iso2 || "").toUpperCase();
+    const [phoneMin, phoneMax] = PHONE_LEN[code] || PHONE_LEN_DEFAULT;
     const mappedCurrency = resolveCurrencyCode(code);
     const unitConfig = UNIT_OVERRIDES[code] || DEFAULT_UNITS;
     const base: CountryConfig = {
@@ -100,7 +128,8 @@ export const COUNTRIES: CountryConfig[] = Array.from(
       phoneCode: `+${c.dialCode}`,
       locale: `en-${code}`,
       timezone: "UTC",
-      phoneDigits: inferPhoneDigits(c),
+      phoneDigits: phoneMax,
+      phoneMinDigits: phoneMin,
       taxName: "Tax",
       supportedUnits: unitConfig.supportedUnits,
       defaultUnit: unitConfig.defaultUnit,

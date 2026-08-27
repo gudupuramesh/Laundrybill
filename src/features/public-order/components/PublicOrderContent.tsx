@@ -92,6 +92,7 @@ export function PublicOrderContent({ shop, brandShop, initialArea, onOrderingAct
     const phoneCountry = getCountry(phoneCountryIso);
     const dialCode = phoneCountry.phoneCode;
     const localPhoneDigits = phoneCountry.phoneDigits || 10;
+    const localPhoneMin = phoneCountry.phoneMinDigits ?? localPhoneDigits;
     const deliverySettings = shop.settings?.delivery;
     const areas = (deliverySettings?.serviceAreas || []).filter((a) => a.isActive);
     const hasAreas = areas.length > 0;
@@ -148,7 +149,7 @@ export function PublicOrderContent({ shop, brandShop, initialArea, onOrderingAct
     );
 
     const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
-    const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= localPhoneDigits;
+    const canPlaceOrder = cart.customerName.trim().length > 0 && cart.customerPhone.replace(/\D/g, "").length >= localPhoneMin;
 
     const placeOrder = async (isQuick: boolean) => {
         if (!canPlaceOrder) {

@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { reverseGeocode } from "@/lib/geocoding";
-import { COUNTRIES, getCountry, DEFAULT_COUNTRY, detectCountryByTimezone, getStateLabel } from "@/config/countries";
+import { phoneLenOk, phoneLenLabel, COUNTRIES, getCountry, DEFAULT_COUNTRY, detectCountryByTimezone, getStateLabel } from "@/config/countries";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { consumeEvictionFlag } from "@/lib/session-guard";
@@ -334,7 +334,7 @@ export function LoginPage() {
     };
 
     const handleMsg91Click = () => {
-        if (phone.length !== selectedCountry.phoneDigits) {
+        if (!phoneLenOk(selectedCountry, phone)) {
             addToast({ type: "error", title: t('auth.invalidPhone') });
             return;
         }
@@ -445,8 +445,8 @@ export function LoginPage() {
 
         if (!isPhoneLocked) {
             const digits = phone.replace(/\D/g, "");
-            if (digits.length !== selectedCountry.phoneDigits) {
-                setPhoneError(t("auth.phoneDigitsRequired", { count: selectedCountry.phoneDigits, defaultValue: `Please enter a ${selectedCountry.phoneDigits}-digit phone number` }));
+            if (!phoneLenOk(selectedCountry, digits)) {
+                setPhoneError(t("auth.phoneDigitsRequired", { count: phoneLenLabel(selectedCountry), defaultValue: `Please enter a ${phoneLenLabel(selectedCountry)}-digit phone number` }));
                 hasErrors = true;
             }
         }
@@ -524,7 +524,7 @@ export function LoginPage() {
             // Add phone (normalize to country code + digits)
             if (phone) {
                 const digits = phone.replace(/\D/g, "").slice(-selectedCountry.phoneDigits);
-                if (digits.length === selectedCountry.phoneDigits) {
+                if (phoneLenOk(selectedCountry, digits)) {
                     additionalData.phone = `${selectedCountry.phoneCode}${digits}`;
                 }
             }

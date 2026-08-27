@@ -17,9 +17,11 @@ function normalizePhone(phone: string, countryCode: string): string {
   return normalizePhoneForCountry(phone, { countryCode });
 }
 
-function isValidPhoneByCountry(phone: string, countryCode: string, digits: number): boolean {
+function isValidPhoneByCountry(phone: string, countryCode: string, digits: number, minDigits?: number): boolean {
   const local = normalizePhone(phone, countryCode);
-  return local.length === Math.max(6, digits || 10);
+  const max = Math.max(6, digits || 10);
+  const min = Math.max(6, minDigits || max);
+  return local.length >= min && local.length <= max;
 }
 
 export default function AddCustomerScreen({
@@ -39,6 +41,7 @@ export default function AddCustomerScreen({
   const phoneCountryCode = pickedCountry || countrySettings.countryCode || 'IN';
   const selectedCountry = getCountry(phoneCountryCode);
   const phoneDigits = Math.max(6, selectedCountry.phoneDigits || 10);
+  const phoneMinDigits = Math.max(6, selectedCountry.phoneMinDigits || selectedCountry.phoneDigits || 10);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const filteredCountries = COUNTRIES.filter((c) => {
@@ -65,7 +68,7 @@ export default function AddCustomerScreen({
     // customers now give only an email, so phone is no longer mandatory.
     const trimmedEmail = email.trim();
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
-    const hasPhone = !!phone.trim() && isValidPhoneByCountry(trimmedPhone, phoneCountryCode, phoneDigits);
+    const hasPhone = !!phone.trim() && isValidPhoneByCountry(trimmedPhone, phoneCountryCode, phoneDigits, phoneMinDigits);
     const hasEmail = !!trimmedEmail && emailValid;
 
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }

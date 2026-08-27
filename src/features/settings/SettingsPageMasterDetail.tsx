@@ -23,7 +23,7 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { useCurrency } from "@/hooks/use-currency";
 import { useShop, useShopMutations } from "@/hooks/use-shop";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { COUNTRIES, getCountry, splitInternationalPhone, getStateLabel } from "@/config/countries";
+import { phoneLenOk, COUNTRIES, getCountry, splitInternationalPhone, getStateLabel } from "@/config/countries";
 import { reverseGeocode } from "@/lib/geocoding";
 import { useTranslation } from "react-i18next";
 import {
@@ -358,11 +358,11 @@ export function SettingsPageMasterDetail() {
         // Validate against the shop's COUNTRY (9 digits for UAE, 10 for India, …), not
         // an India-only rule — a UAE shop must be able to save its business profile.
         const country = getCountry(selectedCountryCode);
-        if (!isPhoneLocked && phone && phone.replace(/\D/g, "").length !== country.phoneDigits) {
+        if (!isPhoneLocked && phone && !phoneLenOk(country, phone)) {
             addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDigitsDesc", { count: country.phoneDigits, defaultValue: `Phone must be ${country.phoneDigits} digits` }) });
             return;
         }
-        if (whatsappNumber && whatsappNumber.replace(/\D/g, "").length !== country.phoneDigits) {
+        if (whatsappNumber && !phoneLenOk(country, whatsappNumber)) {
             addToast({ type: "error", title: t("validation.invalidPhone"), description: t("validation.phoneDigitsDesc", { count: country.phoneDigits, defaultValue: `WhatsApp number must be ${country.phoneDigits} digits` }) });
             return;
         }

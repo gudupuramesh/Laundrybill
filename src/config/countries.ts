@@ -11,7 +11,9 @@ export interface CountryConfig {
     phoneCode: string;      // Dial code with + (e.g. "+91")
     locale: string;         // BCP 47 (e.g. "en-IN", "en-US")
     timezone: string;       // IANA timezone (e.g. "Asia/Kolkata")
-    phoneDigits: number;    // Expected digits after country code
+    phoneDigits: number;    // Max local digits after the country code (input cap)
+    /** When set, valid length is phoneMinDigits..phoneDigits (variable-length countries like MY/ID/DE). */
+    phoneMinDigits?: number;
     pinLabel: string;       // Label for postal code field
     taxName: string;        // Default tax name for this country
 }
@@ -33,8 +35,8 @@ export const COUNTRIES: CountryConfig[] = [
 
     // Southeast Asia
     { code: "SG", name: "Singapore", currencyCode: "SGD", currencySymbol: "S$", phoneCode: "+65", locale: "en-SG", timezone: "Asia/Singapore", phoneDigits: 8, pinLabel: "Postal Code", taxName: "GST" },
-    { code: "MY", name: "Malaysia", currencyCode: "MYR", currencySymbol: "RM", phoneCode: "+60", locale: "en-MY", timezone: "Asia/Kuala_Lumpur", phoneDigits: 10, pinLabel: "Postcode", taxName: "SST" },
-    { code: "ID", name: "Indonesia", currencyCode: "IDR", currencySymbol: "Rp", phoneCode: "+62", locale: "id-ID", timezone: "Asia/Jakarta", phoneDigits: 12, pinLabel: "Postal Code", taxName: "PPN" },
+    { code: "MY", name: "Malaysia", currencyCode: "MYR", currencySymbol: "RM", phoneCode: "+60", locale: "en-MY", timezone: "Asia/Kuala_Lumpur", phoneDigits: 10, phoneMinDigits: 9, pinLabel: "Postcode", taxName: "SST" },
+    { code: "ID", name: "Indonesia", currencyCode: "IDR", currencySymbol: "Rp", phoneCode: "+62", locale: "id-ID", timezone: "Asia/Jakarta", phoneDigits: 12, phoneMinDigits: 9, pinLabel: "Postal Code", taxName: "PPN" },
     { code: "TH", name: "Thailand", currencyCode: "THB", currencySymbol: "฿", phoneCode: "+66", locale: "th-TH", timezone: "Asia/Bangkok", phoneDigits: 9, pinLabel: "Postal Code", taxName: "VAT" },
     { code: "PH", name: "Philippines", currencyCode: "PHP", currencySymbol: "₱", phoneCode: "+63", locale: "en-PH", timezone: "Asia/Manila", phoneDigits: 10, pinLabel: "ZIP Code", taxName: "VAT" },
 
@@ -44,7 +46,7 @@ export const COUNTRIES: CountryConfig[] = [
 
     // Europe
     { code: "GB", name: "United Kingdom", currencyCode: "GBP", currencySymbol: "£", phoneCode: "+44", locale: "en-GB", timezone: "Europe/London", phoneDigits: 10, pinLabel: "Postcode", taxName: "VAT" },
-    { code: "DE", name: "Germany", currencyCode: "EUR", currencySymbol: "€", phoneCode: "+49", locale: "de-DE", timezone: "Europe/Berlin", phoneDigits: 11, pinLabel: "Postcode", taxName: "VAT" },
+    { code: "DE", name: "Germany", currencyCode: "EUR", currencySymbol: "€", phoneCode: "+49", locale: "de-DE", timezone: "Europe/Berlin", phoneDigits: 11, phoneMinDigits: 10, pinLabel: "Postcode", taxName: "VAT" },
     { code: "FR", name: "France", currencyCode: "EUR", currencySymbol: "€", phoneCode: "+33", locale: "fr-FR", timezone: "Europe/Paris", phoneDigits: 9, pinLabel: "Code Postal", taxName: "VAT" },
     { code: "NL", name: "Netherlands", currencyCode: "EUR", currencySymbol: "€", phoneCode: "+31", locale: "nl-NL", timezone: "Europe/Amsterdam", phoneDigits: 9, pinLabel: "Postcode", taxName: "VAT" },
 
@@ -60,6 +62,18 @@ export const COUNTRIES: CountryConfig[] = [
 /** Get country config by ISO code. Falls back to India. */
 export function getCountry(code: string): CountryConfig {
     return COUNTRIES.find((c) => c.code === code) || COUNTRIES[0]; // India fallback
+}
+
+/** Valid local-number length range: phoneMinDigits..phoneDigits (exact when no min is set). */
+export function phoneLenOk(c: CountryConfig, localDigits: string): boolean {
+    const len = localDigits.replace(/\D/g, "").length;
+    return len >= (c.phoneMinDigits ?? c.phoneDigits) && len <= c.phoneDigits;
+}
+
+/** "10" or "9–10" — for placeholders and error messages. */
+export function phoneLenLabel(c: CountryConfig): string {
+    const min = c.phoneMinDigits ?? c.phoneDigits;
+    return min === c.phoneDigits ? String(c.phoneDigits) : `${min}–${c.phoneDigits}`;
 }
 
 /**

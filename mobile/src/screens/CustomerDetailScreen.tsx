@@ -95,6 +95,7 @@ export default function CustomerDetailScreen({
   const countrySettings = useShopCountrySettings(shopId);
   const withCurrencySymbol = (text: string) => text.replace(/₹/g, countrySettings.currencySymbol || '₹');
   const phoneDigitsLimit = Math.max(6, countrySettings.phoneDigits || 10);
+  const phoneMinLimit = Math.max(6, countrySettings.phoneMinDigits || countrySettings.phoneDigits || 10);
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,7 +209,7 @@ export default function CustomerDetailScreen({
     const trimmedName = editName.trim();
     const phoneDigits = normalizePhoneForCountry(editPhone, countrySettings);
     if (!trimmedName) { Alert.alert(t('mobile.nameRequiredTitle'), t('mobile.nameRequiredMsg')); return; }
-    if (phoneDigits.length !== phoneDigitsLimit) {
+    if (phoneDigits.length < phoneMinLimit || phoneDigits.length > phoneDigitsLimit) {
       Alert.alert(t('mobile.invalidPhoneTitle'), t('mobile.invalidPhoneMsg'));
       return;
     }

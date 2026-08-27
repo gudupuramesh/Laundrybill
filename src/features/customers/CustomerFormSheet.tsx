@@ -48,6 +48,7 @@ export function CustomerFormSheet({
     const { shop } = useShop();
     const country = getCountry(shop?.settings?.countryCode || "IN");
     const phoneDigits = country.phoneDigits;
+    const phoneMin = country.phoneMinDigits ?? country.phoneDigits;
     const areaOptions = (settings.serviceAreas || []).filter((a) => a.isActive);
     const useAreaDropdown = settings.enableServiceAreas && areaOptions.length > 0;
     const [form, setForm] = useState({
@@ -163,7 +164,7 @@ export function CustomerFormSheet({
     // phone IS entered it must be a full number. The "at least one contact"
     // rule is enforced in handleSubmit.
     const validatePhone = () => {
-        if (form.phone && form.phone.length < phoneDigits) {
+        if (form.phone && form.phone.length < phoneMin) {
             setErrors((prev) => ({ ...prev, phone: t("validation.digitsEntered", { count: form.phone.length }) }));
             return false;
         }
@@ -271,17 +272,17 @@ export function CustomerFormSheet({
     // Compute phone error/helper text
     const getPhoneHelperText = () => {
         if (errors.phone) return errors.phone;
-        if (phoneTouched && form.phone.length > 0 && form.phone.length < phoneDigits) {
-            return `${form.phone.length}/${phoneDigits} digits`;
+        if (phoneTouched && form.phone.length > 0 && form.phone.length < phoneMin) {
+            return `${form.phone.length}/${phoneMin} digits`;
         }
         return "";
     };
 
-    const phoneHasError = phoneTouched && form.phone.length > 0 && form.phone.length < phoneDigits;
+    const phoneHasError = phoneTouched && form.phone.length > 0 && form.phone.length < phoneMin;
 
     // Valid when: name ok, at least one contact present, and if a phone/email is
     // entered it's well-formed. A full phone OR a non-empty email satisfies contact.
-    const phoneComplete = form.phone.length === phoneDigits;
+    const phoneComplete = form.phone.length >= phoneMin;
     const hasContact = phoneComplete || (!!form.email && isValidEmail(form.email));
     const isValid =
         form.name.trim() &&
