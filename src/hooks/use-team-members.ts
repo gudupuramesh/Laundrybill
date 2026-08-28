@@ -20,7 +20,8 @@ import {
     where,
     serverTimestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, functions } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import { useAuth } from "@/features/auth";
 import { useShop } from "@/hooks/use-shop";
 import { generateRandomInviteCode } from "@/lib/invite-code";
@@ -98,6 +99,17 @@ export function useTeamMemberMutations() {
         const tmSnapshot = await getDocs(tmQuery);
         if (!tmSnapshot.empty) {
             throw new Error("EMAIL_ALREADY_USED");
+        }
+
+        // The Team app's sign-up CREATES a Firebase Auth account — an email that
+        // already has one (owner signup / another team login) can never complete
+        // sign-up. Fail-open if the check itself is unavailable.
+        try {
+            const res = await httpsCallable<{ email: string }, { inUse: boolean }>(functions, "checkTeamEmail")({ email: emailLower });
+            if (res.data?.inUse) throw new Error("EMAIL_HAS_ACCOUNT");
+        } catch (e) {
+            if (e instanceof Error && e.message === "EMAIL_HAS_ACCOUNT") throw e;
+            // check unavailable — proceed; the member's sign-up will still error
         }
 
         // Check the staff roster for the same email — but EXCLUDE the roster row this

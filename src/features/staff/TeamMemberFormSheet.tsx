@@ -136,6 +136,9 @@ export function TeamMemberFormSheet({ open, onClose, onSuccess, prefill }: TeamM
             if (err instanceof Error && err.message === "EMAIL_ALREADY_USED") {
                 const msg = t("staff.emailAlreadyUsed", "This email address is already used. Please try another email.");
                 setErrors({ email: msg, submit: msg });
+            } else if (err instanceof Error && err.message === "EMAIL_HAS_ACCOUNT") {
+                const msg = t("staff.emailHasAccount", "This email already has a Laundrybill account (owner or team). The Team app sign-up creates a new account, so use a different email address.");
+                setErrors({ email: msg, submit: msg });
             } else {
                 setErrors({ submit: t("staff.createFailedGeneric", "Failed to create app login. Please try again.") });
             }

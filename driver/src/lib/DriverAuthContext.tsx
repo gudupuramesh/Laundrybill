@@ -341,7 +341,12 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           if (tmData.email.toLowerCase() !== normEmail) {
             throw new Error("Email doesn't match the invite. Use the email your admin registered.");
           }
-          const cred = await auth().createUserWithEmailAndPassword(normEmail, password);
+          const cred = await auth().createUserWithEmailAndPassword(normEmail, password).catch((e: any) => {
+            if (e?.code === 'auth/email-already-in-use') {
+              throw new Error('This email already has a Laundrybill account (it may be the owner app account). Ask your shop admin to create your login with a different email.');
+            }
+            throw e;
+          });
           const uid = cred.user.uid;
           const sId = shopIdFromPath(tmDoc.ref.path);
           if (!sId) throw new Error('Shop not found');
@@ -383,7 +388,12 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           if (staffData.email && staffData.email.toLowerCase() !== normEmail) {
             throw new Error("Email doesn't match the invite. Use the email your admin registered.");
           }
-          const cred = await auth().createUserWithEmailAndPassword(normEmail, password);
+          const cred = await auth().createUserWithEmailAndPassword(normEmail, password).catch((e: any) => {
+            if (e?.code === 'auth/email-already-in-use') {
+              throw new Error('This email already has a Laundrybill account (it may be the owner app account). Ask your shop admin to create your login with a different email.');
+            }
+            throw e;
+          });
           const uid = cred.user.uid;
           const sId = shopIdFromPath(staffDoc.ref.path);
           if (!sId) throw new Error('Shop not found');

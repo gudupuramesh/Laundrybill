@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Share,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Share, Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,10 @@ import { colors, fonts, radii, shadows } from '../theme';
 // Login type. Manager is a Staff-app login with the manager role (memberType
 // 'staff' + role 'manager') — it shares the staff plan slot.
 type MemberType = 'staff' | 'manager' | 'agent' | 'plant';
+
+// Live Play Store listing for the Team app — shown and shared so the owner can
+// hand their member everything needed to sign in.
+const TEAM_APP_PLAY_URL = 'https://play.google.com/store/apps/details?id=in.laundrybill.driver';
 
 const MEMBER_TYPES: { key: MemberType; label: string; desc: string; icon: string; color: string; bg: string }[] = [
   { key: 'staff', label: 'Staff App', desc: 'Order management & basic access', icon: 'badge', color: colors.primary, bg: colors.primaryTint },
@@ -151,8 +155,10 @@ export default function CreateStaffLoginScreen({
     } catch (e: any) {
       const msg = e?.message === 'EMAIL_ALREADY_USED'
         ? 'A team member with this email already exists'
-        : e?.message;
-      Alert.alert('Error', msg || 'Failed to create login');
+        : e?.message === 'EMAIL_HAS_ACCOUNT'
+          ? 'This email already has a Laundrybill account (owner or team, maybe on another shop). The Team app sign-up creates a NEW account, so this email cannot be used — enter a different email address.'
+          : e?.message;
+      Alert.alert(e?.message === 'EMAIL_HAS_ACCOUNT' ? 'Email already registered' : 'Error', msg || 'Failed to create login');
     }
     setSaving(false);
   };
@@ -169,7 +175,17 @@ export default function CreateStaffLoginScreen({
     if (!createdInviteCode) return;
     const typeLabel = MEMBER_TYPES.find(m => m.key === memberType)?.label || 'Staff';
     await Share.share({
-      message: `Hi ${createdName}, your Laundrybill ${typeLabel} login invite code is: ${createdInviteCode}\n\nDownload the app and use this code to login.`,
+      message: [
+        `Hi ${createdName}! You've been added as ${typeLabel} on Laundrybill Team.`,
+        '',
+        `1. Install the Laundrybill Team app: ${TEAM_APP_PLAY_URL}`,
+        `2. Open it and tap "Sign Up"`,
+        `3. Email: ${email.trim().toLowerCase()} (use exactly this email)`,
+        '4. Create your own password',
+        `5. Invite code: ${createdInviteCode}`,
+        '',
+        'Note: sign UP (not sign in) the first time. If it says the email is already registered, tell your shop owner — the email may already have a Laundrybill account.',
+      ].join('\n'),
     });
   };
 
@@ -195,6 +211,15 @@ export default function CreateStaffLoginScreen({
             <Text style={s.codeValue}>{createdInviteCode}</Text>
             <Text style={s.codeHint}>Share this code with the staff member to login</Text>
           </View>
+
+          <TouchableOpacity style={s.playCard} onPress={() => Linking.openURL(TEAM_APP_PLAY_URL).catch(() => {})} activeOpacity={0.8}>
+            <MaterialIcons name="shop" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.playTitle}>Laundrybill Team on Google Play</Text>
+              <Text style={s.playSub}>They sign UP with the email above, a new password and this invite code. Tap "Share" to send everything.</Text>
+            </View>
+            <MaterialIcons name="open-in-new" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
 
           <View style={s.successActions}>
             <TouchableOpacity style={s.copyBtn} onPress={handleCopyCode}>
@@ -273,6 +298,22 @@ export default function CreateStaffLoginScreen({
 
             <Text style={s.fieldLabel}>PHONE</Text>
             <TextInput style={s.input} placeholder="Phone number (optional)" placeholderTextColor={colors.textMuted} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          </View>
+
+          {/* How the member gets in — Team app on Google Play + sign-up steps */}
+          <View style={s.howCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialIcons name="smartphone" size={18} color={colors.primary} />
+              <Text style={s.howTitle}>How your member signs in</Text>
+            </View>
+            <Text style={s.howStep}>1. They install the Laundrybill Team app from Google Play</Text>
+            <Text style={s.howStep}>2. Tap "Sign Up" with the email you enter above + a new password</Text>
+            <Text style={s.howStep}>3. Enter the invite code you'll get on the next screen</Text>
+            <Text style={s.howNote}>The email must NOT already have a Laundrybill account (owner or team) — sign-up creates a new account. We check this for you when you create the login.</Text>
+            <TouchableOpacity style={s.howLink} onPress={() => Linking.openURL(TEAM_APP_PLAY_URL).catch(() => {})} activeOpacity={0.8}>
+              <MaterialIcons name="shop" size={16} color={colors.primary} />
+              <Text style={s.howLinkText}>Open Laundrybill Team on Google Play</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Upgrade note when the plan can't create any login type */}
@@ -386,6 +427,15 @@ const s = StyleSheet.create({
   codeLabel: { fontSize: 11, fontFamily: fonts.bold, color: colors.textMuted, letterSpacing: 1 },
   codeValue: { fontSize: 32, fontFamily: fonts.bold, color: colors.primary, marginTop: 8, letterSpacing: 2 },
   codeHint: { fontSize: 12, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 8, textAlign: 'center' },
+  playCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, marginTop: 14, width: '100%' },
+  playTitle: { fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text },
+  playSub: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.textMuted, marginTop: 2, lineHeight: 16 },
+  howCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, marginTop: 16, gap: 8 },
+  howTitle: { fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text },
+  howStep: { fontSize: 12.5, fontFamily: fonts.medium, color: colors.textSecondary, lineHeight: 18 },
+  howNote: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.warning || '#b45309', lineHeight: 16 },
+  howLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  howLinkText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.primary },
   successActions: { flexDirection: 'row', gap: 12, marginTop: 24, width: '100%' },
   copyBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

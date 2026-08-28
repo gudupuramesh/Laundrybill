@@ -147,7 +147,7 @@ export function StaffFormSheet({ open, onClose, staff, onSubmit }: StaffFormShee
                         const { inviteCode } = await createTeamMember({ email: form.email.trim().toLowerCase(), memberType: memberTypeForLogin(loginType), role: roleForLogin(loginType), name: form.name, staffId: newStaffId });
                         onSubmit?.(data); setCreatedName(form.name); setCreatedInviteCode(inviteCode); return;
                     } catch (err) {
-                        setErrors({ email: err instanceof Error && err.message === "EMAIL_ALREADY_USED" ? t("staff.emailAlreadyUsed", "That email already has a login.") : t("staff.loginCreateFailed", "Staff added, but the login could not be created.") });
+                        setErrors({ email: err instanceof Error && err.message === "EMAIL_ALREADY_USED" ? t("staff.emailAlreadyUsed", "That email already has a login.") : err instanceof Error && err.message === "EMAIL_HAS_ACCOUNT" ? t("staff.emailHasAccount", "This email already has a Laundrybill account (owner or team). The Team app sign-up creates a new account, so use a different email address.") : t("staff.loginCreateFailed", "Staff added, but the login could not be created.") });
                         return;
                     }
                 }

@@ -118,6 +118,8 @@ export default function StaffListScreen({
           // Roster row is saved; surface why the login part failed.
           const msg = e?.message === 'EMAIL_ALREADY_USED'
             ? 'That email already has a login. The staff member was still added.'
+            : e?.message === 'EMAIL_HAS_ACCOUNT'
+            ? 'Staff added, but no app login: This email already has a Laundrybill account (owner or team, maybe on another shop). The Team app sign-up creates a NEW account, so this email cannot be used — enter a different email address.'
             : e?.message
               ? `Staff added, but the login could not be created. ${e.message}`
               : 'Staff added, but the login could not be created.';

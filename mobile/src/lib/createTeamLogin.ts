@@ -6,6 +6,7 @@
  */
 import { firestore } from './db';
 import { teamLoginCapFromLimits } from './usePlanLimits';
+import { createNamedHttpsCallable, callableData } from './httpsCallable';
 
 export type LoginMemberType = 'staff' | 'agent' | 'plant';
 
@@ -64,6 +65,18 @@ export async function createTeamLogin(params: {
     .limit(1)
     .get();
   if (!existing.empty) throw new Error('EMAIL_ALREADY_USED');
+
+  // The Team app's sign-up CREATES a Firebase Auth account — an email that
+  // already has one (an owner signup, or a team login on any shop) can never
+  // complete sign-up. Catch it now instead of frustrating the member later.
+  // Fail-open on network/function errors: sign-up still errors clearly there.
+  try {
+    const res = await createNamedHttpsCallable('checkTeamEmail')(callableData({ email: emailLower }));
+    if ((res?.data as { inUse?: boolean })?.inUse) throw new Error('EMAIL_HAS_ACCOUNT');
+  } catch (e: any) {
+    if (e?.message === 'EMAIL_HAS_ACCOUNT') throw e;
+    // check unavailable — proceed
+  }
 
   // Enforce the plan's TOTAL login cap — logins are capped in number, not by
   // role, so the owner can use their slots in any mix (e.g. 4 managers).

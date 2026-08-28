@@ -856,6 +856,7 @@ export * from "./auth";
 export { cleanupOrderImagesDaily } from "./scheduled/cleanup-order-images";
 
 export * from "./requests/create-public-order";
+export { checkTeamEmail } from "./requests/check-team-email";
 export * from "./requests/track-order";
 export * from "./requests/check-login-email";
 export * from "./requests/get-public-order-slot-availability";

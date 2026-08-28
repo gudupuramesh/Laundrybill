@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runOrderRemindersNow = exports.sendOrderReminders = exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.meterTrialOrderOnCreate = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
+exports.runOrderRemindersNow = exports.sendOrderReminders = exports.checkTeamEmail = exports.cleanupOrderImagesDaily = exports.syncSubscriptionToShop = exports.applyScheduledDowngrades = exports.checkCancelledSubscriptionEnd = exports.checkGracePeriodExpiry = exports.checkTrialExpiry = exports.meterTrialOrderOnCreate = exports.createTrialSubscriptionOnShopCreate = exports.checkSubscriptionExpiration = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
@@ -754,6 +754,8 @@ __exportStar(require("./auth"), exports);
 var cleanup_order_images_1 = require("./scheduled/cleanup-order-images");
 Object.defineProperty(exports, "cleanupOrderImagesDaily", { enumerable: true, get: function () { return cleanup_order_images_1.cleanupOrderImagesDaily; } });
 __exportStar(require("./requests/create-public-order"), exports);
+var check_team_email_1 = require("./requests/check-team-email");
+Object.defineProperty(exports, "checkTeamEmail", { enumerable: true, get: function () { return check_team_email_1.checkTeamEmail; } });
 __exportStar(require("./requests/track-order"), exports);
 __exportStar(require("./requests/check-login-email"), exports);
 __exportStar(require("./requests/get-public-order-slot-availability"), exports);
