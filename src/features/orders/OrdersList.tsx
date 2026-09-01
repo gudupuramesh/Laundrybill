@@ -180,19 +180,13 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         orderSource: OrderSourceFilter = "all",
         serviceId: string = "all"
     ) => {
-        if (newSpecialFilter) {
-            setSpecialFilter(newSpecialFilter);
-            setSelectedDeliveryType("all");
-            setSelectedStatus("all");
-            setSelectedOrderSource("all");
-            setSelectedServiceId("all");
-        } else {
-            setSelectedDeliveryType(type);
-            setSelectedStatus(status);
-            setSelectedOrderSource(orderSource);
-            setSelectedServiceId(serviceId);
-            setSpecialFilter(null);
-        }
+        // Special views COMBINE with type/source/service (Unpaid + Online etc.);
+        // only status is exclusive — the special views own their status logic.
+        setSpecialFilter(newSpecialFilter);
+        setSelectedDeliveryType(type);
+        setSelectedOrderSource(orderSource);
+        setSelectedServiceId(serviceId);
+        setSelectedStatus(newSpecialFilter ? "all" : status);
     };
 
     // mark online order as seen on open
