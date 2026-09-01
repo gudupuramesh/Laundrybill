@@ -64,16 +64,39 @@ function scheduledLabel(o: Order): string | null {
 }
 
 
-type TimePeriod = "today" | "week" | "month" | "year" | "all_time";
+// "today" | "week" | "month" | "last_month" | "6months" | "year" | "year_YYYY" | "custom" | "all_time"
+type TimePeriod = string;
 
-/** Same quick ranges as the app's date sheet. */
+/** Same quick ranges as the app's date sheet ("custom" is resolved by the caller). */
 function rangeFor(p: TimePeriod): { dateStart: Date | null; dateEnd: Date | null } {
     const now = new Date();
     if (p === "today") { const s = new Date(now); s.setHours(0, 0, 0, 0); return { dateStart: s, dateEnd: null }; }
     if (p === "week") { const s = new Date(now); s.setDate(s.getDate() - s.getDay()); s.setHours(0, 0, 0, 0); return { dateStart: s, dateEnd: null }; }
     if (p === "month") return { dateStart: new Date(now.getFullYear(), now.getMonth(), 1), dateEnd: null };
+    if (p === "last_month") return { dateStart: new Date(now.getFullYear(), now.getMonth() - 1, 1), dateEnd: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999) };
+    if (p === "6months") return { dateStart: new Date(now.getFullYear(), now.getMonth() - 5, 1), dateEnd: null };
     if (p === "year") return { dateStart: new Date(now.getFullYear(), 0, 1), dateEnd: null };
+    if (p.startsWith("year_")) {
+        const y = Number(p.slice(5));
+        if (y > 2000) return { dateStart: new Date(y, 0, 1), dateEnd: new Date(y, 11, 31, 23, 59, 59, 999) };
+    }
     return { dateStart: null, dateEnd: null };
+}
+
+/** Chips shown in the date sheet — mirrors the owner app's quick periods. */
+function periodChips(t: (k: string, d: string) => string): { key: TimePeriod; label: string }[] {
+    const y = new Date().getFullYear();
+    return [
+        { key: "today", label: t("mobile.timeFilterToday", "Today") },
+        { key: "week", label: t("mobile.timeFilterWeek", "This Week") },
+        { key: "month", label: t("mobile.timeFilterMonth", "This Month") },
+        { key: "last_month", label: t("mobile.timeFilterLastMonth", "Last Month") },
+        { key: "6months", label: t("mobile.timeFilter6Months", "Last 6 Months") },
+        { key: "year", label: t("mobile.timeFilterYear", "This Year") },
+        { key: `year_${y - 1}`, label: String(y - 1) },
+        { key: `year_${y - 2}`, label: String(y - 2) },
+        { key: "all_time", label: t("mobile.timeFilterAll", "All Time") },
+    ];
 }
 
 const DELIVERY_TYPES: (DeliveryType | "all")[] = ["all", "pickup_store", "delivery_home", "pickup_home"];
@@ -106,6 +129,8 @@ export function MobileOrders({ basePath = "/orders" }: { basePath?: string }) {
     const [busyId, setBusyId] = useState<string | null>(null);
     // The app's three dropdown chips that sit before the status chips.
     const [timePeriod, setTimePeriod] = useState<TimePeriod>("all_time");
+    const [customFrom, setCustomFrom] = useState("");
+    const [customTo, setCustomTo] = useState("");
     const [dateBasis, setDateBasis] = useState<"created" | "scheduled">("created");
     const [orderType, setOrderType] = useState<DeliveryType | "all">("all");
     const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -127,7 +152,13 @@ export function MobileOrders({ basePath = "/orders" }: { basePath?: string }) {
 
     // Date-range for the period chip. "Pickup / delivery" basis is applied
     // client-side below, because the query filters on createdAt.
-    const { dateStart, dateEnd } = useMemo(() => rangeFor(timePeriod), [timePeriod]);
+    const { dateStart, dateEnd } = useMemo(() => {
+        if (timePeriod === "custom") return {
+            dateStart: customFrom ? new Date(customFrom + "T00:00:00") : null,
+            dateEnd: customTo ? new Date(customTo + "T23:59:59.999") : null,
+        };
+        return rangeFor(timePeriod);
+    }, [timePeriod, customFrom, customTo]);
 
     const { orders: rawOrders, loading } = useOrdersPaginated({
         status: specialFilter ? "all" : statusArg,
@@ -183,11 +214,11 @@ export function MobileOrders({ basePath = "/orders" }: { basePath?: string }) {
         return { todayCollected: Math.round(todayCollected), active, pending, dueAmount };
     }, [orders]);
 
-    const dateChipLabel = timePeriod === "today" ? t("mobile.timeFilterToday", "Today")
-        : timePeriod === "week" ? t("mobile.timeFilterWeek", "This Week")
-            : timePeriod === "month" ? t("mobile.timeFilterMonth", "This Month")
-                : timePeriod === "year" ? t("mobile.timeFilterYear", "This Year")
-                    : t("mobile.timeFilterAll", "All Time");
+    const dateChipLabel = timePeriod === "custom"
+        ? (customFrom || customTo
+            ? `${customFrom ? new Date(customFrom + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "…"} – ${customTo ? new Date(customTo + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "…"}`
+            : t("mobile.timeFilterCustom", "Date Range"))
+        : (periodChips(t).find((c) => c.key === timePeriod)?.label ?? t("mobile.timeFilterAll", "All Time"));
 
     const quickStatus = async (o: Order, next: OrderStatus, label: string) => {
         setBusyId(o.id);
@@ -420,15 +451,29 @@ export function MobileOrders({ basePath = "/orders" }: { basePath?: string }) {
                                     ))}
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                    {(["today", "week", "month", "year", "all_time"] as TimePeriod[]).map((k) => (
-                                        <button key={k} onClick={() => { setTimePeriod(k); setSheet(null); }} style={{ ...dropChip(timePeriod === k), flex: "1 1 45%", justifyContent: "center" }}>
-                                            {k === "today" ? t("mobile.timeFilterToday", "Today")
-                                                : k === "week" ? t("mobile.timeFilterWeek", "This Week")
-                                                    : k === "month" ? t("mobile.timeFilterMonth", "This Month")
-                                                        : k === "year" ? t("mobile.timeFilterYear", "This Year")
-                                                            : t("mobile.timeFilterAll", "All Time")}
+                                    {periodChips(t).map(({ key: k, label }) => (
+                                        <button key={k} onClick={() => { setTimePeriod(k); setSheet(null); }} style={{ ...dropChip(timePeriod === k), flex: "1 1 30%", justifyContent: "center" }}>
+                                            {label}
                                         </button>
                                     ))}
+                                </div>
+                                {/* Custom from–to range — native date pickers */}
+                                <div style={{ marginTop: 12 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".4px", color: "var(--c-text-3)", marginBottom: 8 }}>{t("mobile.customDateRange", "CUSTOM DATE RANGE")}</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <input type="date" value={customFrom} max={customTo || undefined}
+                                            onChange={(e) => { setCustomFrom(e.target.value); setTimePeriod("custom"); }}
+                                            style={{ flex: 1, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: `1px solid ${timePeriod === "custom" && customFrom ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 10, padding: "9px 10px", outline: "none" }} />
+                                        <span style={{ color: "var(--c-text-3)" }}>→</span>
+                                        <input type="date" value={customTo} min={customFrom || undefined}
+                                            onChange={(e) => { setCustomTo(e.target.value); setTimePeriod("custom"); }}
+                                            style={{ flex: 1, font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: `1px solid ${timePeriod === "custom" && customTo ? "var(--c-primary)" : "var(--c-border)"}`, borderRadius: 10, padding: "9px 10px", outline: "none" }} />
+                                    </div>
+                                    {timePeriod === "custom" && (
+                                        <button onClick={() => setSheet(null)} style={{ marginTop: 10, width: "100%", cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: "10px 0" }}>
+                                            {t("common.apply", "Apply")}
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}

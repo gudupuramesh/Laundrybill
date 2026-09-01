@@ -63,6 +63,7 @@ export { LSkeleton } from "./LSkeleton";
 
 // Dialogs & Sheets
 export { LResponsiveDialog } from "./LResponsiveDialog";
+export { LDrawer } from "./LDrawer";
 export { LActionSheet } from "./LActionSheet";
 export { LConfirmDialog } from "./LConfirmDialog";
 

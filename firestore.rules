@@ -134,7 +134,9 @@ service cloud.firestore {
         allow read: if isShopMember(shopId) || isShopOwner(shopId) || isSuperAdmin();
         allow create: if isShopMember(shopId) || isShopOwner(shopId);
         allow update: if isShopMember(shopId) || isShopOwner(shopId);
-        allow delete: if isShopAdmin(shopId) || isShopOwner(shopId);
+        // Managers delete too (mistake/test orders) — the owner app and the Team
+        // app's manager surface both expose it behind a confirmation.
+        allow delete: if isShopAdmin(shopId) || isShopManager(shopId) || isShopOwner(shopId);
       }
       
       // Customers subcollection

@@ -28,3 +28,30 @@ export function isInAppWebView(): boolean {
 
 /** Team app (staff / delivery agent / plant) Google Play listing. */
 export const TEAM_GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=in.laundrybill.driver";
+
+/**
+ * Team-app onboarding message shared by every place that hands a login to a
+ * member. Always carries the Play Store link — an invite code alone leaves the
+ * member guessing which app to install.
+ */
+export function buildTeamInviteMessage(opts: {
+    name?: string;
+    email: string;
+    inviteCode: string;
+    /** Optional browser alternative (the /staff|/driver|/plant signup page). */
+    webSignupUrl?: string;
+}): string {
+    const who = opts.name?.trim() || "there";
+    const lines = [
+        `Hi ${who}! You've been added on Laundrybill Team.`,
+        "",
+        `1. Install the Laundrybill Team app: ${TEAM_GOOGLE_PLAY_URL}`,
+        '2. Open it and tap "Sign Up"',
+        `3. Email: ${opts.email.trim().toLowerCase()} (use exactly this email)`,
+        "4. Create your own password",
+        `5. Invite code: ${opts.inviteCode}`,
+    ];
+    if (opts.webSignupUrl) lines.push("", `Prefer a browser? ${opts.webSignupUrl}`);
+    lines.push("", "Note: sign UP (not sign in) the first time. If it says the email is already registered, tell your shop owner — that email may already have a Laundrybill account.");
+    return lines.join("\n");
+}

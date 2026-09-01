@@ -129,9 +129,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
     const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
     const [tagModalOpen, setTagModalOpen] = useState(false);
-    // Permanent delete is OWNER-ONLY (not manager/staff/agent portals).
+    // Permanent delete: shop owner or manager (see canDeleteOrder below).
     const { role } = useAuth();
     const isOwner = role === "admin" && !location.pathname.startsWith("/staff") && !location.pathname.startsWith("/agent");
+    // Permanent delete: the shop owner, plus a MANAGER in the staff portal —
+    // same pair the owner/Team apps expose and the Firestore rules allow.
+    const canDeleteOrder = isOwner || (role === "manager" && !location.pathname.startsWith("/agent"));
     const [reassigning, setReassigning] = useState(false);
 
     if (loading) {
@@ -760,11 +763,11 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     ...(hasFeature("qrScans") ? [{ id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } }] : []),
                     ...(canEdit ? [{ id: "edit", label: t('orders.editOrder'), icon: <Edit className="h-5 w-5" />, onClick: handleEdit }] : []),
                     ...(canCancel ? [{ id: "cancel", label: t('orders.cancelOrder'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setCancelSheetOpen(true); } }] : []),
-                    ...(isOwner ? [{ id: "delete", label: t('orders.deleteOrder', 'Delete Order Permanently'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setDeleteSheetOpen(true); } }] : []),
+                    ...(canDeleteOrder ? [{ id: "delete", label: t('orders.deleteOrder', 'Delete Order Permanently'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setDeleteSheetOpen(true); } }] : []),
                 ]}
             />
             <CancelOrderSheet open={cancelSheetOpen} onClose={() => setCancelSheetOpen(false)} order={order} />
-            {isOwner && (
+            {canDeleteOrder && (
                 <DeleteOrderSheet
                     open={deleteSheetOpen}
                     onClose={() => setDeleteSheetOpen(false)}

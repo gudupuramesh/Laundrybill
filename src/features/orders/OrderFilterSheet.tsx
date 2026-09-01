@@ -5,18 +5,18 @@
  * Works for both mobile (bottom sheet) and desktop (modal)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import {
     LResponsiveDialog,
+    LDrawer,
     LButton,
-    LRadioGroup,
-    LDivider,
 } from "@/components/laundry";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { STATUS_FLOW } from "@/types/order";
 import type { DeliveryType, OrderStatus } from "@/types/order";
 import type { OrderSourceFilter } from "@/hooks/use-orders-paginated";
 import { useInventory } from "@/hooks/use-inventory";
-import { Filter, Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag, Shirt } from "lucide-react";
+import { Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface OrderFilterSheetProps {
@@ -73,6 +73,7 @@ export function OrderFilterSheet({
     onApply,
 }: OrderFilterSheetProps) {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     // Filter by SERVICE TYPE (category: Wash & Fold, Iron, Dry Clean…), not individual items.
     const { categories: services } = useInventory();
     const [tempDeliveryType, setTempDeliveryType] = useState<DeliveryType | "all">(selectedDeliveryType);
@@ -126,22 +127,21 @@ export function OrderFilterSheet({
     }, [tempDeliveryType, tempStatus]);
 
     // When special filter is selected, clear others
+    // Special views COMBINE with source / type / service ("Unpaid + Online",
+    // "Overdue + Shop Pickup"). Only status is exclusive — the special views
+    // carry their own status semantics.
     const handleSpecialFilterSelect = (filter: 'pending_overdue' | 'payment_due') => {
         if (tempSpecialFilter === filter) {
             setTempSpecialFilter(null);
         } else {
             setTempSpecialFilter(filter);
-            setTempDeliveryType("all");
             setTempStatus("all");
-            setTempOrderSource("all");
-            setTempServiceId("all");
         }
     };
 
     // When regular filters are touched, clear special filter
     const handleRegularFilterChange = (type: DeliveryType | "all") => {
         setTempDeliveryType(type);
-        setTempSpecialFilter(null);
     };
 
     const handleStatusChange = (status: OrderStatus | "all") => {
@@ -194,7 +194,86 @@ export function OrderFilterSheet({
 
     const hasActiveFilters = tempDeliveryType !== "all" || tempStatus !== "all" || tempOrderSource !== "all" || tempServiceId !== "all" || tempSpecialFilter !== null;
 
-    return (
+    // Compact chip styling — the old two-line option cards made the panel huge;
+    // descriptions live on as hover tooltips (title attributes).
+    const chip = (on: boolean, color = "var(--c-primary)", soft = "var(--c-primary-soft)"): CSSProperties => ({
+        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+        font: "inherit", fontSize: 12.5, fontWeight: 600, padding: "7px 12px", borderRadius: 999,
+        border: `1.5px solid ${on ? color : "var(--c-border)"}`,
+        background: on ? soft : "var(--c-surface)",
+        color: on ? color : "var(--c-text-2)", whiteSpace: "nowrap",
+    });
+    const sect: CSSProperties = { fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", marginBottom: 8 };
+    const dim = (off: boolean): CSSProperties => (off ? { opacity: 0.45, pointerEvents: "none", filter: "grayscale(1)" } : {});
+
+    // One body, two containers: bottom sheet on phones, right-edge slide-in
+    // drawer on desktop (the left edge belongs to the navigation sidebar).
+    const body = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <div>
+                <div style={sect}>{t('orders.filters.attentionNeeded')}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button type="button" onClick={() => handleSpecialFilterSelect('pending_overdue')} title={t('orders.filters.overdueDesc', 'Past expected delivery')}
+                        style={chip(tempSpecialFilter === 'pending_overdue', "var(--c-error)", "var(--c-error-soft)")}>
+                        <AlertTriangle size={13} />{t('orders.filters.overdueOrders')}
+                    </button>
+                    <button type="button" onClick={() => handleSpecialFilterSelect('payment_due')} title={t('orders.filters.unpaidDuesDesc', 'Balance not collected')}
+                        style={chip(tempSpecialFilter === 'payment_due', "var(--c-warning)", "var(--c-warning-soft)")}>
+                        <Wallet size={13} />{t('orders.filters.unpaidDues')}
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <div style={sect}>{t('orders.orderSource')}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {ORDER_SOURCE_OPTIONS.map((o) => { const Icon = o.icon; return (
+                        <button key={o.id} type="button" onClick={() => setTempOrderSource(o.id)} title={t(o.descKey)} style={chip(tempOrderSource === o.id)}>
+                            {Icon && <Icon size={13} />}{t(o.labelKey)}
+                        </button>
+                    ); })}
+                </div>
+            </div>
+
+            <div>
+                <div style={sect}>{t('orders.orderType')}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {DELIVERY_TYPE_OPTIONS.map((o) => { const Icon = o.icon; return (
+                        <button key={o.id} type="button" onClick={() => handleRegularFilterChange(o.id)} title={t(o.descriptionKey)} style={chip(tempDeliveryType === o.id)}>
+                            {Icon && <Icon size={13} />}{t(o.labelKey)}
+                        </button>
+                    ); })}
+                </div>
+            </div>
+
+            <div>
+                <div style={sect}>{t('orders.serviceFilter', 'Service type')}</div>
+                <select value={tempServiceId} onChange={(e) => setTempServiceId(e.target.value)}
+                    style={{ width: "100%", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 9, padding: "9px 11px", outline: "none" }}>
+                    <option value="all">{t('orders.allServices', 'All service types')}</option>
+                    {services.map((sv) => (<option key={sv.id} value={sv.id}>{sv.name}</option>))}
+                </select>
+            </div>
+
+            <div style={dim(!!tempSpecialFilter)}>
+                <div style={sect}>{t('orders.status')}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {getStatusOptions().map((o) => (
+                        <button key={o.value} type="button" onClick={() => handleStatusChange(o.value as OrderStatus | "all")} style={chip(tempStatus === o.value)}>
+                            {o.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, paddingTop: 2 }}>
+                <LButton variant="outline" fullWidth onClick={handleReset} disabled={!hasActiveFilters}>{t('common.reset')}</LButton>
+                <LButton variant="primary" fullWidth onClick={handleApply}>{t('orders.applyFilters')}</LButton>
+            </div>
+        </div>
+    );
+
+    return isMobile ? (
         <LResponsiveDialog
             open={open}
             onClose={onClose}
@@ -202,193 +281,12 @@ export function OrderFilterSheet({
             size="sm"
             snapPoints={[0.85]}
         >
-            <div className="space-y-6">
-                {/* Quick Filters (Special) */}
-                <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">
-                        {t('orders.filters.attentionNeeded')}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => handleSpecialFilterSelect('pending_overdue')}
-                            className={`
-                                p-3 rounded-xl text-left transition-all border-2
-                                ${tempSpecialFilter === 'pending_overdue'
-                                    ? "border-destructive bg-destructive/10"
-                                    : "border-border hover:border-destructive/50"
-                                }
-                            `}
-                        >
-                            <div className="flex items-center gap-2 mb-1">
-                                <AlertTriangle className={`h-4 w-4 ${tempSpecialFilter === 'pending_overdue' ? 'text-destructive' : 'text-muted-foreground'}`} />
-                                <span className={`font-medium text-sm ${tempSpecialFilter === 'pending_overdue' ? 'text-destructive' : 'text-foreground'}`}>
-                                    {t('orders.filters.overdueOrders')}
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {t('orders.filters.overdueDesc', 'Past expected delivery')}
-                            </p>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleSpecialFilterSelect('payment_due')}
-                            className={`
-                                p-3 rounded-xl text-left transition-all border-2
-                                ${tempSpecialFilter === 'payment_due'
-                                    ? "border-warning bg-warning/10"
-                                    : "border-border hover:border-warning/50"
-                                }
-                            `}
-                        >
-                            <div className="flex items-center gap-2 mb-1">
-                                <Wallet className={`h-4 w-4 ${tempSpecialFilter === 'payment_due' ? 'text-warning' : 'text-muted-foreground'}`} />
-                                <span className={`font-medium text-sm ${tempSpecialFilter === 'payment_due' ? 'text-warning' : 'text-foreground'}`}>
-                                    {t('orders.filters.unpaidDues')}
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {t('orders.filters.unpaidDuesDesc', 'Balance not collected')}
-                            </p>
-                        </button>
-                    </div>
-                </div>
-
-                <LDivider />
-
-                {/* Order Source */}
-                <div className={`space-y-3 ${tempSpecialFilter ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    <h3 className="text-sm font-semibold text-foreground">
-                        {t('orders.orderSource')}
-                    </h3>
-                    <div className="grid grid-cols-3 gap-2">
-                        {ORDER_SOURCE_OPTIONS.map((option) => {
-                            const isSelected = tempOrderSource === option.id;
-                            const Icon = option.icon;
-                            return (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    onClick={() => setTempOrderSource(option.id)}
-                                    className={`
-                                        p-3 rounded-xl text-left transition-all border-2
-                                        ${isSelected
-                                            ? "border-primary bg-primary/10"
-                                            : "border-border hover:border-primary/50"
-                                        }
-                                    `}
-                                >
-                                    <div className="flex items-center gap-2 mb-1">
-                                        {Icon && <Icon className="h-4 w-4 text-primary" />}
-                                        <span className="font-medium text-sm text-foreground">
-                                            {t(option.labelKey)}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t(option.descKey)}
-                                    </p>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <LDivider />
-
-                {/* Order Type Selection */}
-                <div className={`space-y-3 ${tempSpecialFilter ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    <h3 className="text-sm font-semibold text-foreground">
-                        {t('orders.orderType')}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-2">
-                        {DELIVERY_TYPE_OPTIONS.map((option) => {
-                            const isSelected = tempDeliveryType === option.id;
-                            const Icon = option.icon;
-                            return (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    onClick={() => handleRegularFilterChange(option.id)}
-                                    className={`
-                                        p-3 rounded-xl text-left transition-all border-2
-                                        ${isSelected
-                                            ? "border-primary bg-primary/10"
-                                            : "border-border hover:border-primary/50"
-                                        }
-                                    `}
-                                >
-                                    <div className="flex items-center gap-2 mb-1">
-                                        {Icon && <Icon className="h-4 w-4 text-primary" />}
-                                        <span className="font-medium text-sm text-foreground">
-                                            {t(option.labelKey)}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t(option.descriptionKey)}
-                                    </p>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <LDivider />
-
-                {/* Service filter — orders containing a specific service */}
-                <div className={`space-y-3 ${tempSpecialFilter ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Shirt className="h-4 w-4 text-primary" />
-                        {t('orders.serviceFilter', 'Service type')}
-                    </h3>
-                    <select
-                        value={tempServiceId}
-                        onChange={(e) => { setTempServiceId(e.target.value); if (e.target.value !== 'all') setTempSpecialFilter(null); }}
-                        className="w-full rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary"
-                    >
-                        <option value="all">{t('orders.allServices', 'All service types')}</option>
-                        {services.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <LDivider />
-
-                {/* Status Selection - Changes based on Order Type */}
-                <div className={`space-y-3 ${tempSpecialFilter ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    <h3 className="text-sm font-semibold text-foreground">
-                        {t('orders.status')}
-                    </h3>
-                    <LRadioGroup
-                        name="status"
-                        value={tempStatus}
-                        onChange={(v) => handleStatusChange(v as OrderStatus | "all")}
-                        options={getStatusOptions()}
-                    />
-                </div>
-
-                <LDivider />
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                    <LButton
-                        variant="outline"
-                        fullWidth
-                        onClick={handleReset}
-                        disabled={!hasActiveFilters}
-                    >
-                        {t('common.reset')}
-                    </LButton>
-                    <LButton
-                        variant="primary"
-                        fullWidth
-                        onClick={handleApply}
-                    >
-                        {t('orders.applyFilters')}
-                    </LButton>
-                </div>
-            </div>
+            {body}
         </LResponsiveDialog>
+    ) : (
+        <LDrawer open={open} onClose={onClose} title={t('orders.filterOrders')} width={360}>
+            {body}
+        </LDrawer>
     );
 }
 

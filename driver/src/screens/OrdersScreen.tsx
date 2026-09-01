@@ -18,15 +18,24 @@ function toDate(val: any): Date | null {
   return new Date(val);
 }
 
-function getTimeRange(key: string): Date | null {
+function getPeriodRange(key: string): { start: Date | null; end: Date | null } {
   const now = new Date();
   switch (key) {
-    case 'today': { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; }
-    case 'week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return d; }
-    case 'month': return new Date(now.getFullYear(), now.getMonth(), 1);
-    case '3months': return new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    case 'year': return new Date(now.getFullYear(), 0, 1);
-    default: return null;
+    case 'today': { const d = new Date(now); d.setHours(0, 0, 0, 0); return { start: d, end: null }; }
+    case 'week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return { start: d, end: null }; }
+    case 'month': return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: null };
+    case 'last_month': return { start: new Date(now.getFullYear(), now.getMonth() - 1, 1), end: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999) };
+    case '3months': return { start: new Date(now.getFullYear(), now.getMonth() - 2, 1), end: null };
+    case '6months': return { start: new Date(now.getFullYear(), now.getMonth() - 5, 1), end: null };
+    case 'year': return { start: new Date(now.getFullYear(), 0, 1), end: null };
+    default: {
+      // 'year_2025' style — a specific calendar year, bounded on both ends.
+      if (key.startsWith('year_')) {
+        const y = Number(key.slice(5));
+        if (y > 2000) return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59, 999) };
+      }
+      return { start: null, end: null };
+    }
   }
 }
 
@@ -197,8 +206,9 @@ export default function OrdersScreen({
       if (start) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= start; });
       if (end) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c <= end; });
     } else {
-      const rangeStart = getTimeRange(timePeriod);
+      const { start: rangeStart, end: rangeEnd } = getPeriodRange(timePeriod);
       if (rangeStart) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c >= rangeStart; });
+      if (rangeEnd) list = list.filter((o) => { const c = toDate(o.createdAt); return c && c <= rangeEnd; });
     }
 
     if (orderType !== 'all') list = list.filter((o) => (o.deliveryType || 'pickup_store') === orderType);
@@ -244,12 +254,16 @@ export default function OrdersScreen({
       case 'week': return t('mobile.timeFilterWeek', { defaultValue: 'This Week' });
       case 'month': return t('mobile.timeFilterMonth', { defaultValue: 'This Month' });
       case 'year': return t('mobile.timeFilterYear', { defaultValue: 'This Year' });
+      case 'last_month': return t('mobile.timeFilterLastMonth', { defaultValue: 'Last Month' });
       case '3months': return t('mobile.timeFilter3Months', { defaultValue: '3 Months' });
+      case '6months': return t('mobile.timeFilter6Months', { defaultValue: 'Last 6 Months' });
       case 'custom':
         if (customStart && customEnd) return `${fmt(customStart)} – ${fmt(customEnd)}`;
         if (customStart) return `From ${fmt(customStart)}`;
         return t('mobile.timeFilterCustom', { defaultValue: 'Date Range' });
-      default: return t('mobile.timeFilterAll', { defaultValue: 'All Time' });
+      default:
+        if (timePeriod.startsWith('year_')) return timePeriod.slice(5);
+        return t('mobile.timeFilterAll', { defaultValue: 'All Time' });
     }
   }, [timePeriod, customStart, customEnd, t, i18n.language]);
 
@@ -666,7 +680,11 @@ export default function OrdersScreen({
                 { key: 'today', label: t('mobile.timeFilterToday', { defaultValue: 'Today' }) },
                 { key: 'week', label: t('mobile.timeFilterWeek', { defaultValue: 'This Week' }) },
                 { key: 'month', label: t('mobile.timeFilterMonth', { defaultValue: 'This Month' }) },
+                { key: 'last_month', label: t('mobile.timeFilterLastMonth', { defaultValue: 'Last Month' }) },
+                { key: '6months', label: t('mobile.timeFilter6Months', { defaultValue: 'Last 6 Months' }) },
                 { key: 'year', label: t('mobile.timeFilterYear', { defaultValue: 'This Year' }) },
+                { key: `year_${new Date().getFullYear() - 1}`, label: String(new Date().getFullYear() - 1) },
+                { key: `year_${new Date().getFullYear() - 2}`, label: String(new Date().getFullYear() - 2) },
                 { key: 'all_time', label: t('mobile.timeFilterAll', { defaultValue: 'All Time' }) },
               ].map((opt) => {
                 const active = timePeriod === opt.key;

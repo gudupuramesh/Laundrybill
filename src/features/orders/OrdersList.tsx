@@ -111,7 +111,10 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | "scheduled_upcoming" | null>(null);
-    const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "lastMonth">("all");
+    // "all" | "today" | "week" | "month" | "lastMonth" | "sixMonths" | "year" | "year:YYYY" | "custom"
+    const [period, setPeriod] = useState<string>("all");
+    const [customFrom, setCustomFrom] = useState("");
+    const [customTo, setCustomTo] = useState("");
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Creation-date range for the period selector (Today / This Week / This Month / Last Month).
@@ -121,8 +124,18 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (period === "week") { const s = new Date(now); s.setDate(s.getDate() - s.getDay()); s.setHours(0, 0, 0, 0); return { dateStart: s, dateEnd: null as Date | null }; }
         if (period === "month") return { dateStart: new Date(now.getFullYear(), now.getMonth(), 1), dateEnd: null as Date | null };
         if (period === "lastMonth") return { dateStart: new Date(now.getFullYear(), now.getMonth() - 1, 1), dateEnd: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, -1) };
+        if (period === "sixMonths") return { dateStart: new Date(now.getFullYear(), now.getMonth() - 5, 1), dateEnd: null as Date | null };
+        if (period === "year") return { dateStart: new Date(now.getFullYear(), 0, 1), dateEnd: null as Date | null };
+        if (period.startsWith("year:")) {
+            const y = Number(period.slice(5));
+            return { dateStart: new Date(y, 0, 1), dateEnd: new Date(y, 11, 31, 23, 59, 59, 999) };
+        }
+        if (period === "custom") return {
+            dateStart: customFrom ? new Date(customFrom + "T00:00:00") : null,
+            dateEnd: customTo ? new Date(customTo + "T23:59:59.999") : null,
+        };
         return { dateStart: null as Date | null, dateEnd: null as Date | null };
-    }, [period]);
+    }, [period, customFrom, customTo]);
 
     // Deep-link filters (?attention=overdue|due|scheduled — used by reminder push
     // notifications and the dashboard's "Scheduled ahead" card)
@@ -148,13 +161,16 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
 
     const { orders, loading, loadingMore, hasMore, loadMore } = useOrdersPaginated({
         status: specialFilter ? "all" : selectedStatus,
-        deliveryType: specialFilter ? "all" : selectedDeliveryType,
-        orderSource: specialFilter ? "all" : selectedOrderSource,
+        // Type + source COMBINE with the special views (Unpaid + Online etc.);
+        // only status is exclusive with them.
+        deliveryType: selectedDeliveryType,
+        orderSource: selectedOrderSource,
         searchTerm: searchQuery,
         specialFilter,
-        // Special filters (overdue / dues) are their own views — don't also date-bound them.
-        dateStart: specialFilter ? null : dateStart,
-        dateEnd: specialFilter ? null : dateEnd,
+        // Period chip combines with the special views too: "This Month" + Due
+        // shows only that month's unpaid orders (the hook range-filters them).
+        dateStart,
+        dateEnd,
     });
 
     const handleFilterApply = (
@@ -250,7 +266,21 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     <option value="week">{t("reports.periodThisWeek", "This Week")}</option>
                     <option value="month">{t("reports.periodThisMonth", "This Month")}</option>
                     <option value="lastMonth">{t("reports.periodLastMonth", "Last Month")}</option>
+                    <option value="sixMonths">{t("reports.period6Months", "Last 6 Months")}</option>
+                    <option value="year">{t("reports.periodThisYear", "This Year")}</option>
+                    <option value={`year:${new Date().getFullYear() - 1}`}>{new Date().getFullYear() - 1}</option>
+                    <option value={`year:${new Date().getFullYear() - 2}`}>{new Date().getFullYear() - 2}</option>
+                    <option value="custom">{t("reports.periodCustom", "Custom range…")}</option>
                 </select>
+                {period === "custom" && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} max={customTo || undefined}
+                            style={{ font: "inherit", fontSize: 12.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "7px 9px", outline: "none" }} />
+                        <span style={{ fontSize: 12, color: "var(--c-text-3)" }}>→</span>
+                        <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} min={customFrom || undefined}
+                            style={{ font: "inherit", fontSize: 12.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "7px 9px", outline: "none" }} />
+                    </span>
+                )}
                 <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "none" }}>
                     <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
                     <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("orders.searchOrders", "Search order, customer, phone…")}
@@ -277,6 +307,11 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                         <option value="week">{t("reports.periodThisWeek", "This Week")}</option>
                         <option value="month">{t("reports.periodThisMonth", "This Month")}</option>
                         <option value="lastMonth">{t("reports.periodLastMonth", "Last Month")}</option>
+                        <option value="sixMonths">{t("reports.period6Months", "Last 6 Months")}</option>
+                        <option value="year">{t("reports.periodThisYear", "This Year")}</option>
+                        <option value={`year:${new Date().getFullYear() - 1}`}>{new Date().getFullYear() - 1}</option>
+                        <option value={`year:${new Date().getFullYear() - 2}`}>{new Date().getFullYear() - 2}</option>
+                        <option value="custom">{t("reports.periodCustom", "Custom range…")}</option>
                     </select>
                 </div>
             )}

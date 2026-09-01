@@ -20,7 +20,7 @@ import { MRow, MAvatar, MHeader, MIconBtn, MStatBar, MSearch } from "@/component
 import { MobileStaffList } from "./MobileStaff";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { TEAM_GOOGLE_PLAY_URL } from "@/config/app-links";
+import { TEAM_GOOGLE_PLAY_URL, buildTeamInviteMessage } from "@/config/app-links";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { TeamMember } from "@/types/staff";
 
@@ -97,13 +97,15 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
     const filteredTeamMembers = teamMembers.filter((tm) => tm.email.toLowerCase().includes(searchQuery.toLowerCase()) || (tm.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || tm.inviteCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const handleCopyInvite = (tm: { id: string; email: string; inviteCode: string; name?: string }) => {
-        navigator.clipboard.writeText(`${tm.name || tm.email}\nEmail: ${tm.email}\nInvite Code: ${tm.inviteCode}`);
+        // Copy the FULL onboarding text (app link + steps), not just the code —
+        // owners paste this straight into any chat app.
+        navigator.clipboard.writeText(buildTeamInviteMessage({ name: tm.name, email: tm.email, inviteCode: tm.inviteCode }));
         setCopiedId(tm.id);
         setTimeout(() => setCopiedId(null), 2000);
     };
     const handleWhatsAppShare = (tm: { email: string; inviteCode: string; name?: string; memberType: string }) => {
-        const link = `${window.location.origin}/${tm.memberType === "agent" ? "driver" : tm.memberType === "plant" ? "plant" : "staff"}/signup`;
-        const msg = String(t("staff.whatsappInviteMessage", { name: tm.name || tm.email, code: tm.inviteCode, link }));
+        const webSignupUrl = `${window.location.origin}/${tm.memberType === "agent" ? "driver" : tm.memberType === "plant" ? "plant" : "staff"}/signup`;
+        const msg = buildTeamInviteMessage({ name: tm.name, email: tm.email, inviteCode: tm.inviteCode, webSignupUrl });
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
     // Deleting the login doc also deletes the member's Firebase sign-in account

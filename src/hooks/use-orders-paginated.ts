@@ -71,6 +71,17 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
     const dateStartMs = dateStart ? dateStart.getTime() : null;
     const dateEndMs = dateEnd ? dateEnd.getTime() : null;
 
+    // The period chip (Today / This Week / This Month …) also applies to the
+    // special views (Due / Overdue / Scheduled). Those load their full result
+    // set client-side, so the creation-date range is applied here instead of
+    // in the Firestore query.
+    const inDateRange = (o: Order): boolean => {
+        const ms = o.createdAt?.toMillis?.() || 0;
+        if (dateStartMs && ms < dateStartMs) return false;
+        if (dateEndMs && ms > dateEndMs) return false;
+        return true;
+    };
+
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -168,6 +179,8 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                     } else if (orderSource === 'pos') {
                         results = results.filter((o) => o.orderSource !== 'online');
                     }
+                    if (deliveryType !== 'all') results = results.filter((o) => (o.deliveryType || 'pickup_store') === deliveryType);
+                    results = results.filter(inDateRange);
                     results.sort((a, b) => {
                         const tA = a.createdAt?.toMillis() || 0;
                         const tB = b.createdAt?.toMillis() || 0;
@@ -232,6 +245,8 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                     } else if (orderSource === 'pos') {
                         results = results.filter((o) => o.orderSource !== 'online');
                     }
+                    if (deliveryType !== 'all') results = results.filter((o) => (o.deliveryType || 'pickup_store') === deliveryType);
+                    results = results.filter(inDateRange);
                     // Soonest first — the list reads as a work queue, not creation order.
                     results.sort((a, b) => upcomingAtMillis(a) - upcomingAtMillis(b));
 
@@ -264,12 +279,13 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                     id: doc.id,
                     ...doc.data(),
                 })) as Order[];
-                orderList = orderList.filter((o) => o.status !== 'cancelled');
+                orderList = orderList.filter((o) => o.status !== 'cancelled').filter(inDateRange);
                 if (orderSource === 'online') {
                     orderList = orderList.filter((o) => o.orderSource === 'online');
                 } else if (orderSource === 'pos') {
                     orderList = orderList.filter((o) => o.orderSource !== 'online');
                 }
+                if (deliveryType !== 'all') orderList = orderList.filter((o) => (o.deliveryType || 'pickup_store') === deliveryType);
                 orderList.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setOrders(orderList);
                 setHasMore(false); // full dues list is loaded in one go

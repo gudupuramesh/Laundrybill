@@ -10,8 +10,7 @@ import { createTeamLogin, LoginMemberType } from '../lib/createTeamLogin';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
 import { HelpButton } from '../components/HelpButton';
-
-const TEAM_APP_PLAY_URL = 'https://play.google.com/store/apps/details?id=in.laundrybill.driver';
+import { TEAM_APP_PLAY_URL, buildTeamInviteMessage } from '../lib/teamInvite';
 
 const ROLE_LABELS: Record<string, string> = {
   manager: 'Manager',
@@ -124,7 +123,7 @@ export default function StaffListScreen({
             'Login created',
             `Invite code for ${name}: ${inviteCode}`,
             [
-              { text: 'Share', onPress: () => Share.share({ message: `Your Laundrybill login invite code is: ${inviteCode}\n\nDownload the app and use this code to sign up.` }).catch(() => {}) },
+              { text: 'Share', onPress: () => Share.share({ message: buildTeamInviteMessage({ name, email: formEmail, inviteCode, roleLabel: loginMeta.label }) }).catch(() => {}) },
               { text: 'Done', style: 'cancel' },
             ],
           );

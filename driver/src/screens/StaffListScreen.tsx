@@ -7,6 +7,7 @@ import { firestore } from '../lib/db';
 import { getShopId } from '../lib/auth';
 import { reconcileTeamMembersToRoster } from '../lib/reconcileRoster';
 import { createTeamLogin, LoginMemberType } from '../lib/createTeamLogin';
+import { buildTeamInviteMessage } from '../lib/teamInvite';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
 import { HelpButton } from '../components/HelpButton';
@@ -104,7 +105,7 @@ export default function StaffListScreen({
             'Login created',
             `Invite code for ${name}: ${inviteCode}`,
             [
-              { text: 'Share', onPress: () => Share.share({ message: `Your Laundrybill login invite code is: ${inviteCode}\n\nDownload the app and use this code to sign up.` }).catch(() => {}) },
+              { text: 'Share', onPress: () => Share.share({ message: buildTeamInviteMessage({ name, email: formEmail, inviteCode, roleLabel: loginMeta.label }) }).catch(() => {}) },
               { text: 'Done', style: 'cancel' },
             ],
           );

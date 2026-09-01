@@ -1,5 +1,6 @@
 /**
- * Delete Order Sheet — OWNER-ONLY permanent deletion (for test/mistake orders).
+ * Delete Order Sheet — permanent deletion by the shop OWNER or a MANAGER
+ * (for test/mistake orders); Firestore rules allow exactly that pair.
  *
  * The order is removed completely from the database (not cancelled, not hidden):
  * it disappears from orders, reports and the customer's history, and its tracking

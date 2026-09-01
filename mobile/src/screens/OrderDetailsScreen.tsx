@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { firestore } from '../lib/db';
+import { deleteOrderPermanently } from '../lib/deleteOrder';
 import { getShopId } from '../lib/auth';
 import { formatCurrency, buildWhatsAppNumber } from '../lib/currency-format';
 import { useShopCountrySettings } from '../lib/use-shop-country-settings';
@@ -756,6 +757,52 @@ export default function OrderDetailsScreen({
       Alert.alert(t('mobile.errorTitle'), e.message || t('mobile.failedCollectPayment'));
     }
     setSaving(false);
+  };
+
+
+  // ── Permanent delete (owner / manager) ───────────────────────────────
+  // Confirmation is mandatory: this wipes the order from orders, reports and
+  // the customer's history, and kills its tracking link. Rules also gate it.
+  const [deleting, setDeleting] = useState(false);
+  const runDeleteOrder = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteOrderPermanently(shopId, orderId);
+      Alert.alert(
+        t('mobile.deleteOrderDone', { defaultValue: 'Order deleted' }),
+        `#${publicId} ${t('mobile.deleteOrderDoneMsg', { defaultValue: 'was permanently removed.' })}`,
+      );
+      onBack();
+    } catch (e: any) {
+      const denied = e?.code === 'firestore/permission-denied' || /permission/i.test(String(e?.message || ''));
+      Alert.alert(
+        t('mobile.errorTitle'),
+        denied
+          ? t('mobile.deleteOrderDenied', { defaultValue: 'Only the shop owner or a manager can delete an order.' })
+          : e?.message || t('mobile.deleteOrderFailed', { defaultValue: 'Could not delete the order.' }),
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const confirmDeleteOrder = () => {
+    if (deleting) return;
+    Alert.alert(
+      `${t('mobile.deleteOrderTitle', { defaultValue: 'Delete order' })} #${publicId}?`,
+      t('mobile.deleteOrderMsg', {
+        defaultValue:
+          'This permanently removes the order from orders, reports and the customer history, and its tracking link stops working. This cannot be undone.',
+      }),
+      [
+        { text: t('mobile.cancelBtn', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('mobile.deleteOrderConfirm', { defaultValue: 'Delete permanently' }),
+          style: 'destructive',
+          onPress: () => { void runDeleteOrder(); },
+        },
+      ],
+    );
   };
 
   const handleCancelOrder = async () => {
@@ -1518,6 +1565,14 @@ export default function OrderDetailsScreen({
             <Text style={styles.cancelOrderText}>{t('mobile.cancelOrderChip')}</Text>
           </TouchableOpacity>
         ) : null}
+
+        {/* ─── Delete order — permanent, owner only (this app is the owner's) ─────────────── */}
+        <TouchableOpacity style={[styles.cancelOrderBtn, { marginTop: 10 }]} onPress={confirmDeleteOrder} disabled={deleting}>
+          {deleting
+            ? <ActivityIndicator size="small" color="#c62828" />
+            : <MaterialIcons name="delete-forever" size={16} color="#c62828" />}
+          <Text style={styles.cancelOrderText}>{t('mobile.deleteOrderChip', { defaultValue: 'Delete order' })}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* ═══════════════════════ MODALS ═══════════════════════════════ */}

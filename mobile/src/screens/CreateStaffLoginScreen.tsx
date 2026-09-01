@@ -18,7 +18,7 @@ type MemberType = 'staff' | 'manager' | 'agent' | 'plant';
 
 // Live Play Store listing for the Team app — shown and shared so the owner can
 // hand their member everything needed to sign in.
-const TEAM_APP_PLAY_URL = 'https://play.google.com/store/apps/details?id=in.laundrybill.driver';
+import { TEAM_APP_PLAY_URL, buildTeamInviteMessage } from '../lib/teamInvite';
 
 const MEMBER_TYPES: { key: MemberType; label: string; desc: string; icon: string; color: string; bg: string }[] = [
   { key: 'staff', label: 'Staff App', desc: 'Order management & basic access', icon: 'badge', color: colors.primary, bg: colors.primaryTint },
@@ -175,17 +175,12 @@ export default function CreateStaffLoginScreen({
     if (!createdInviteCode) return;
     const typeLabel = MEMBER_TYPES.find(m => m.key === memberType)?.label || 'Staff';
     await Share.share({
-      message: [
-        `Hi ${createdName}! You've been added as ${typeLabel} on Laundrybill Team.`,
-        '',
-        `1. Install the Laundrybill Team app: ${TEAM_APP_PLAY_URL}`,
-        `2. Open it and tap "Sign Up"`,
-        `3. Email: ${email.trim().toLowerCase()} (use exactly this email)`,
-        '4. Create your own password',
-        `5. Invite code: ${createdInviteCode}`,
-        '',
-        'Note: sign UP (not sign in) the first time. If it says the email is already registered, tell your shop owner — the email may already have a Laundrybill account.',
-      ].join('\n'),
+      message: buildTeamInviteMessage({
+        name: createdName,
+        email,
+        inviteCode: createdInviteCode,
+        roleLabel: typeLabel,
+      }),
     });
   };
 
