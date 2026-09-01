@@ -15,11 +15,12 @@ import { useShopLimits } from "@/hooks/use-shop-limits";
 import { useCurrency } from "@/hooks/use-currency";
 import { StaffFormSheet } from "./StaffFormSheet";
 import { TeamMemberAreasSheet } from "./TeamMemberAreasSheet";
-import { Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight, Trash2 } from "lucide-react";
+import { Play, Users, UserCheck, Smartphone, Copy, MessageCircle, Check, MapPin, Search, Plus, ChevronRight, Trash2 } from "lucide-react";
 import { MRow, MAvatar, MHeader, MIconBtn, MStatBar, MSearch } from "@/components/laundry/LMobileRows";
 import { MobileStaffList } from "./MobileStaff";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { TEAM_GOOGLE_PLAY_URL } from "@/config/app-links";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { TeamMember } from "@/types/staff";
 
@@ -282,7 +283,22 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                     )
                 ) : (
                     /* App Logins */
-                    teamMembersLoading ? (
+                    <>
+                    {/* Team app onboarding — the app these logins sign in to */}
+                    <div style={{ background: "var(--c-primary-soft)", border: "1px solid var(--c-primary)", borderRadius: 12, padding: "14px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                        <span style={{ width: 40, height: 40, flex: "none", borderRadius: 10, background: "var(--c-primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Smartphone size={20} /></span>
+                        <div style={{ flex: 1, minWidth: 230 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700 }}>{t("staff.teamAppCardTitle", "Laundrybill Team app")}</div>
+                            <div style={{ fontSize: 12.5, color: "var(--c-text-2)", marginTop: 2, lineHeight: 1.55 }}>
+                                {t("staff.teamAppCardHow", "Your member installs the Team app, taps Sign up, and enters their email, a password and the invite code below. Use an email that has never been used for any Laundrybill account — owner or team.")}
+                            </div>
+                        </div>
+                        <a href={TEAM_GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer"
+                            style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", borderRadius: 9, padding: "9px 14px", textDecoration: "none", boxShadow: "var(--sh-sm)" }}>
+                            <Play size={14} fill="currentColor" />{t("staff.teamAppGetPlay", "Get it on Google Play")}
+                        </a>
+                    </div>
+                    {teamMembersLoading ? (
                         <LSkeletonList count={4} />
                     ) : teamMembers.length === 0 ? (
                         <LEmptyState icon={<Smartphone className="h-8 w-8" />} title={t("staff.noAppLogins", "No App Logins")} description={canTeamLogins ? t("staff.noAppLoginsDescAddStaff", "Add a staff member and turn on “Create app login”, or open an existing staff profile to create their login.") : t("staff.appLoginsUpgrade", "App logins (Staff, Agent, Plant) are available on the Pro+ and Business plans. Upgrade to add them.")} action={canTeamLogins ? { label: t("staff.addStaff", "Add Staff"), onClick: () => setFormSheetOpen(true) } : undefined} />
@@ -321,7 +337,8 @@ export function StaffList({ selectedId, onSelect, onTabChange }: StaffListProps)
                                 );
                             })}
                         </div>
-                    )
+                    )}
+                    </>
                 )}
             </div>
 

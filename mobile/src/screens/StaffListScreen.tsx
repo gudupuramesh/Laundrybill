@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch, Share } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch, Share, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/db';
@@ -10,6 +10,8 @@ import { createTeamLogin, LoginMemberType } from '../lib/createTeamLogin';
 import { colors, fonts, radii, shadows, spacing } from '../theme';
 import { Avatar } from '../components/ui';
 import { HelpButton } from '../components/HelpButton';
+
+const TEAM_APP_PLAY_URL = 'https://play.google.com/store/apps/details?id=in.laundrybill.driver';
 
 const ROLE_LABELS: Record<string, string> = {
   manager: 'Manager',
@@ -43,6 +45,19 @@ export default function StaffListScreen({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+
+  // Shareable onboarding message for a new team member (mirrors CreateStaffLoginScreen).
+  const shareTeamApp = () => {
+    Share.share({
+      message: [
+        t('mobile.teamAppShareMsg', { defaultValue: 'Join our shop on the Laundrybill Team app:' }),
+        `1. ${t('mobile.teamAppShareStep1', { defaultValue: 'Install' })}: ${TEAM_APP_PLAY_URL}`,
+        `2. ${t('mobile.teamAppShareStep2', { defaultValue: 'Open the app and tap Sign up' })}`,
+        `3. ${t('mobile.teamAppShareStep3', { defaultValue: 'Enter your email, a password and the invite code I sent you' })}`,
+        t('mobile.teamAppShareNote', { defaultValue: 'Note: use an email that has never been used for any Laundrybill account.' }),
+      ].join('\n'),
+    }).catch(() => {});
+  };
   const shopId = getShopId();
   const [staff, setStaff] = useState<any[]>([]);
   const [logins, setLogins] = useState<any[]>([]);
@@ -235,6 +250,29 @@ export default function StaffListScreen({
                 {teamLoginCap > 0 ? `${stats.logins}/${teamLoginCap}` : stats.logins}
               </Text>
             </View>
+          </View>
+        </View>
+
+        {/* Team app — the app these logins sign in to. Play link + shareable how-to. */}
+        <View style={[s.statsCard, { marginTop: 12 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <MaterialIcons name="smartphone" size={20} color={colors.primary} />
+            <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: colors.text, flex: 1 }}>
+              {t('mobile.teamAppCardTitle', { defaultValue: 'Laundrybill Team app' })}
+            </Text>
+          </View>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary, lineHeight: 18, marginTop: 6 }}>
+            {t('mobile.teamAppCardHow', { defaultValue: 'Your member installs the Team app, taps Sign up, and enters their email, a password and the invite code from their login. Use an email never used for any Laundrybill account — owner or team.' })}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <TouchableOpacity onPress={() => Linking.openURL(TEAM_APP_PLAY_URL).catch(() => {})} activeOpacity={0.8}
+              style={{ flex: 1, backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 12.5, color: '#fff' }}>{t('mobile.teamAppGetPlay', { defaultValue: 'Get it on Google Play' })}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={shareTeamApp} activeOpacity={0.8}
+              style={{ flex: 1, borderWidth: 1, borderColor: colors.primary, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 12.5, color: colors.primary }}>{t('mobile.teamAppShare', { defaultValue: 'Share with member' })}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

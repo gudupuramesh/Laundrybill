@@ -25,3 +25,6 @@ export function detectMobileOS(): MobileOS {
 export function isInAppWebView(): boolean {
     return /; wv\)/.test(navigator.userAgent || "") || !!(window as { androidGoogleToken?: unknown }).androidGoogleToken;
 }
+
+/** Team app (staff / delivery agent / plant) Google Play listing. */
+export const TEAM_GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=in.laundrybill.driver";

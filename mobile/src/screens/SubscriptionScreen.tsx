@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -293,7 +293,33 @@ export default function SubscriptionScreen({
   // impossible until the trial runs out. A real store entitlement (isPro) still
   // counts as genuinely paid.
   const isTrial = String(sub?.status || '').toLowerCase().startsWith('trial');
-  const isPaidPlan = isPro || (!isTrial && (currentPlanId === 'pro' || currentPlanId === 'pro_plus' || currentPlanId === 'business'));
+  // Firestore is the AUTHORITY for what this SHOP has paid for. A RevenueCat
+  // entitlement on the device's store account alone must NOT hide the purchase
+  // cards: TestFlight/sandbox testing, a reinstall onto a fresh shop, or a
+  // failed post-purchase sync all leave RC "entitled" while the shop is
+  // actually Free — hiding the upgrade path then dead-ends the owner. When RC
+  // is entitled but Firestore says Free, the auto-heal effect below syncs the
+  // plan doc so the paid banner reappears on its own.
+  const isPaidPlan = !isTrial && (currentPlanId === 'pro' || currentPlanId === 'pro_plus' || currentPlanId === 'business' || currentPlanId === 'franchise');
+
+  // Auto-heal: store entitlement present but the shop's plan doc says Free →
+  // the post-purchase sync never landed (or never ran for this shop). Sync once.
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isPro || isPaidPlan || autoSyncedRef.current || uiState !== 'idle') return;
+    autoSyncedRef.current = true;
+    (async () => {
+      try {
+        setUiState('syncing');
+        await syncEntitlementToFirestore(await getCustomerInfo());
+      } catch {
+        // Leave the purchase cards available — Restore also remains an option.
+      } finally {
+        setUiState('idle');
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPro, isPaidPlan, uiState]);
 
   // ── Purchase ─────────────────────────────────────────────────────────
   const handlePurchase = async (pkg: PurchasesPackage) => {
