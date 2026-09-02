@@ -197,7 +197,11 @@ export async function shareReceiptPdfViaWhatsApp(opts: {
     const { order, shop, blob, fileName } = opts;
     const file = new File([blob], fileName, { type: "application/pdf" });
     const shareData: ShareData = { files: [file], title: `Order ${order.publicId}` };
-    if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
+    // The system share sheet is only the right tool on PHONES (it's how the PDF
+    // gets into WhatsApp there). Desktop browsers also support file sharing now,
+    // but AirDrop/Mail pickers just get in the way — download + open the chat.
+    const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isPhone && typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
         try {
             await navigator.share(shareData);
             return "shared";
