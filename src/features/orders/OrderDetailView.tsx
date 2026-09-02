@@ -541,6 +541,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                                             {(itemTracking || p.processed > 0 || p.delivered > 0) && <span style={{ fontSize: 9.5, fontWeight: 700, color: pill.fg, background: pill.bg, padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: '.03em' }}>{pill.label}</span>}
                                                         </div>
                                                         <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}{it.pieceCount ? ` · ${it.pieceCount} ${t('orders.pieces', 'pcs')}` : ''}</div>
+                                                        {it.notes && <div style={{ fontSize: 11.5, color: 'var(--c-warning)', fontStyle: 'italic', marginTop: 2 }}>✎ {it.notes}</div>}
                                                     </div>
 
                                                     {/* Deliver mode, but this line has no processed-yet-undelivered pieces */}
@@ -701,6 +702,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                     {dtype === 'pickup_home' && order.scheduledPickupDate && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupDate', 'Pickup date')}</span><span style={{ fontWeight: 600 }}>{format(order.scheduledPickupDate.toDate(), 'MMM d, yyyy')}</span></div>}
                                     {order.scheduledPickupTime && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupSlot', 'Pickup slot')}</span><span style={{ fontWeight: 600 }}>{order.scheduledPickupTime}</span></div>}
                                     {order.deliverySlot && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.deliverySlot', 'Delivery slot')}</span><span style={{ fontWeight: 600 }}>{order.deliverySlot}</span></div>}
+                                    {order.deliveryNotes && (
+                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--c-text-3)', marginBottom: 5 }}>{t('orders.orderNotes', 'ORDER NOTES')}</div>
+                                            <div style={{ fontSize: 13, color: 'var(--c-text-2)', whiteSpace: 'pre-line', lineHeight: 1.5 }}>{order.deliveryNotes}</div>
+                                        </div>
+                                    )}
                                     {isHome && (
                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
                                             <div style={{ fontSize: 13, color: 'var(--c-text-2)', marginBottom: 8 }}>{t('orders.assignedAgent', 'Driver')}</div>

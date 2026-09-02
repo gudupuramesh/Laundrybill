@@ -256,6 +256,7 @@ export function MobileOrderDetail({ order, basePath, onBack, onEdit }: {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.serviceName}</div>
                                     <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{it.categoryName || it.unit}{it.pieceCount ? ` · ${it.pieceCount} pcs` : ""}{it.express ? " · Express" : ""}</div>
+                                    {it.notes && <div style={{ fontSize: 11.5, color: "var(--c-warning)", fontStyle: "italic", marginTop: 2 }}>✎ {it.notes}</div>}
                                 </div>
                                 <span style={{ fontSize: 13.5, fontWeight: 700 }}>{formatAmount(it.total || 0)}</span>
                             </div>
@@ -264,6 +265,13 @@ export function MobileOrderDetail({ order, basePath, onBack, onEdit }: {
                 </div>
 
                 {/* Payment */}
+                {order.deliveryNotes && (
+                    <div style={{ ...card, padding: 16 }}>
+                        <div style={secLabel}>{t("orders.orderNotes", "Order Notes")}</div>
+                        <div style={{ fontSize: 13, color: "var(--c-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{order.deliveryNotes}</div>
+                    </div>
+                )}
+
                 <div style={{ ...card, padding: 16 }}>
                     <div style={secLabel}>{t("checkout.payment", "Payment")}</div>
                     {row(t("pos.subtotal", "Subtotal"), formatAmount(order.financials?.subtotal || 0))}

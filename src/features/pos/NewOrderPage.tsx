@@ -180,36 +180,6 @@ export function NewOrderPage() {
     // Plan limit guard
     const { checkLimit } = useShopLimits();
     const { stats, loading: dashboardLoading } = useDashboard();
-    const orderLimit = checkLimit("maxOrders", stats.monthlyOrders);
-
-    if (!dashboardLoading && !orderLimit.allowed) {
-        return (
-            <div className="flex min-h-[70vh] flex-col items-center justify-center p-6 text-center space-y-4">
-                <div className="rounded-full bg-destructive/10 p-4"><AlertTriangle className="h-12 w-12 text-destructive" /></div>
-                <div className="space-y-2">
-                    <h2 className="text-2xl font-bold">{t('subscription.limitReached', 'Order Limit Reached')}</h2>
-                    <p className="max-w-sm text-muted-foreground">
-                        {t('subscription.limitReachedDesc', 'You have reached your monthly order limit of {{limit}}. Please upgrade your plan to accept more orders.', { limit: orderLimit.limit })}
-                    </p>
-                </div>
-                <div className="flex w-full max-w-xs flex-col gap-3 pt-4">
-                    <LButton variant="primary" size="lg" onClick={() => navigate('/settings/subscription')}>{t('subscription.upgradeNow', 'Upgrade Now')}</LButton>
-                    <LButton variant="ghost" onClick={() => navigate(isAgentApp ? '/agent' : isStaffApp ? '/staff' : '/dashboard')}>{t('common.backToDashboard', 'Back to Dashboard')}</LButton>
-                </div>
-            </div>
-        );
-    }
-
-    const existingCartItem = itemDetailSheet.cartItemId
-        ? cart.items.find(i => i.id === itemDetailSheet.cartItemId)
-        : itemDetailSheet.item
-            ? cart.items.find(i => i.service.id === itemDetailSheet.item?.id && i.express === !!itemDetailSheet.express)
-            : undefined;
-
-    const categoryOptions = categories
-        .filter((c) => c.isActive)
-        .sort((a, b) => a.order - b.order)
-        .map((c) => ({ id: c.id, label: getTranslatedCategoryName(c.name, c.id) }));
 
     // Category strip scrolling: scrollbars are hidden app-wide, so with many
     // services a mouse user had no way to reach the clipped chips. Show chevron
@@ -241,6 +211,37 @@ export function NewOrderPage() {
             window.removeEventListener("resize", updateChipScroll);
         };
     }, [updateChipScroll, categories.length]);
+    const orderLimit = checkLimit("maxOrders", stats.monthlyOrders);
+
+    if (!dashboardLoading && !orderLimit.allowed) {
+        return (
+            <div className="flex min-h-[70vh] flex-col items-center justify-center p-6 text-center space-y-4">
+                <div className="rounded-full bg-destructive/10 p-4"><AlertTriangle className="h-12 w-12 text-destructive" /></div>
+                <div className="space-y-2">
+                    <h2 className="text-2xl font-bold">{t('subscription.limitReached', 'Order Limit Reached')}</h2>
+                    <p className="max-w-sm text-muted-foreground">
+                        {t('subscription.limitReachedDesc', 'You have reached your monthly order limit of {{limit}}. Please upgrade your plan to accept more orders.', { limit: orderLimit.limit })}
+                    </p>
+                </div>
+                <div className="flex w-full max-w-xs flex-col gap-3 pt-4">
+                    <LButton variant="primary" size="lg" onClick={() => navigate('/settings/subscription')}>{t('subscription.upgradeNow', 'Upgrade Now')}</LButton>
+                    <LButton variant="ghost" onClick={() => navigate(isAgentApp ? '/agent' : isStaffApp ? '/staff' : '/dashboard')}>{t('common.backToDashboard', 'Back to Dashboard')}</LButton>
+                </div>
+            </div>
+        );
+    }
+
+    const existingCartItem = itemDetailSheet.cartItemId
+        ? cart.items.find(i => i.id === itemDetailSheet.cartItemId)
+        : itemDetailSheet.item
+            ? cart.items.find(i => i.service.id === itemDetailSheet.item?.id && i.express === !!itemDetailSheet.express)
+            : undefined;
+
+    const categoryOptions = categories
+        .filter((c) => c.isActive)
+        .sort((a, b) => a.order - b.order)
+        .map((c) => ({ id: c.id, label: getTranslatedCategoryName(c.name, c.id) }));
+
 
     // Full-page checkout view (replaces the modal popup)
     if (view === "checkout") {
