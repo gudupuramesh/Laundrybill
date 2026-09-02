@@ -250,6 +250,7 @@ export function ReportsPage() {
                     orderCount: r.orderCount || 0,
                     avgOrderValue: Math.round(r.avgOrderValue || 0),
                     newCustomers: r.customerStats?.newCustomers || 0,
+                    paymentsByMethod: payEntries,
                     byStatus: [
                         { label: statusLabel("pending"), n: os.orderPlaced, tint: "c-primary" },
                         { label: statusLabel("processing"), n: os.inProgress, tint: "c-info" },

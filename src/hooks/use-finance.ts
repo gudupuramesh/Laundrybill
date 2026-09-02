@@ -372,9 +372,14 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     if (order.orderSource === "online") sourceMap.online++;
                     else sourceMap.pos++;
 
-                    // Collected amounts by method from the payments array
+                    // Payments mix: STAMPED payments are tallied by their own
+                    // collectedAt in the dedicated pass below (period-accurate —
+                    // delivery-day collections on older orders count too). Only
+                    // legacy unstamped entries fall back to the order's creation
+                    // period here.
                     if (!isCancelled) {
-                        (order.payments || []).forEach((p: { amount?: number; method?: string }) => {
+                        (order.payments || []).forEach((p: { amount?: number; method?: string; collectedAt?: { toDate?: () => Date } }) => {
+                            if (p.collectedAt?.toDate) return;
                             const method = p.method || "cash";
                             payMethodMap[method] = (payMethodMap[method] || 0) + (p.amount || 0);
                         });
@@ -450,6 +455,28 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 const revenueByDay = Array.from(dailyMap.entries())
                     .map(([date, d]) => ({ date, ...d }))
                     .sort((a, b) => a.date.localeCompare(b.date));
+
+                // 1b. Payments RECEIVED in the period, any order age: a payment
+                // write bumps updatedAt past its own stamp, so updatedAt >= start
+                // is a correct superset; each entry then filters by collectedAt.
+                try {
+                    const paySnapshot = await getDocs(query(
+                        collection(db, `shops/${shopId}/orders`),
+                        where("updatedAt", ">=", Timestamp.fromDate(startDate))
+                    ));
+                    paySnapshot.docs.forEach((d) => {
+                        const o = d.data() as { status?: string; payments?: { amount?: number; method?: string; collectedAt?: { toDate?: () => Date } }[] };
+                        if (o.status === "cancelled") return;
+                        (o.payments || []).forEach((pmt) => {
+                            const at = pmt.collectedAt?.toDate?.();
+                            if (!at || at < startDate || at > endDate) return;
+                            const method = pmt.method || "cash";
+                            payMethodMap[method] = (payMethodMap[method] || 0) + (pmt.amount || 0);
+                        });
+                    });
+                } catch (payErr) {
+                    console.error("Payments-mix fetch error (non-fatal):", payErr);
+                }
 
                 // 2. Fetch Expenses
                 const expensesQuery = query(

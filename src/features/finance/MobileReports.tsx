@@ -25,6 +25,7 @@ export interface MobileReportsData {
     bySource: { label: string; n: number; color: string }[];
     topServices: { name: string; orders: number; revenue: number }[];
     expensesByCategory: [string, number][];
+    paymentsByMethod: [string, number][];
 }
 
 export function MobileReports({ data, periodLabel, onPickPeriod, onExport, exporting, loading, onBack, formatAmount }: {
@@ -129,6 +130,19 @@ export function MobileReports({ data, periodLabel, onPickPeriod, onExport, expor
                                         <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{sv.orders} {t("mobile.repOrdersLower", "orders")}</div>
                                     </div>
                                     <span style={{ fontSize: 14, fontWeight: 700 }}>{formatAmount(sv.revenue)}</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {/* Collections by payment method */}
+                    <div style={sectionTitle}>{t("mobile.repPaymentsMix", "Collected by payment method")}</div>
+                    <div style={{ ...card, padding: 0 }}>
+                        {data.paymentsByMethod.length === 0 ? <div style={{ padding: 16 }}>{emptyBox(<Wallet size={32} style={{ color: "var(--c-text-3)" }} />, t("mobile.repNoPayments", "No payments recorded in this period"))}</div> : (
+                            data.paymentsByMethod.map(([m, amt], i) => (
+                                <div key={m} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderTop: i > 0 ? "1px solid var(--c-border)" : "none" }}>
+                                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>{m.replace(/_/g, " ")}</span>
+                                    <span style={{ fontSize: 14, fontWeight: 700 }}>{formatAmount(Math.round(amt))}</span>
                                 </div>
                             ))
                         )}

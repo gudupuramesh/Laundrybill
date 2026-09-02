@@ -147,8 +147,9 @@ export function DashboardPage() {
     const trendRef = (n: number | null) => (n == null ? "c-text-3" : n >= 0 ? "c-success" : "c-error");
 
     const kpis = [
-        { label: "Orders today", value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <Package size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: "vs yesterday", to: "/orders" },
-        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs yesterday", to: "/reports" },
+        { label: "Orders today", value: String(stats.todayOrders), ref: "c-primary", soft: "c-primary-soft", icon: <Package size={15} />, delta: trendStr(stats.ordersTrend), deltaRef: trendRef(stats.ordersTrend), sub: "vs yesterday", to: "/orders?period=today" },
+        { label: "Revenue today", value: formatAmount(stats.todayRevenue), ref: "c-success", soft: "c-success-soft", icon: <DollarSign size={15} />, delta: trendStr(stats.revenueTrend), deltaRef: trendRef(stats.revenueTrend), sub: "vs yesterday", to: "/orders?period=today" },
+        { label: "Collected today", value: `${formatAmount(stats.todayCollected)} / ${stats.todayCollectedOrders}`, ref: "c-cyan", soft: "c-cyan-soft", icon: <CreditCard size={15} />, delta: "● live", deltaRef: "c-cyan", sub: `${stats.todayCollectedOrders} ${stats.todayCollectedOrders === 1 ? "order" : "orders"} paid`, to: "/orders?attention=collected" },
         { label: "Ready for pickup", value: String(stats.readyOrders), ref: "c-info", soft: "c-info-soft", icon: <PackageCheck size={15} />, delta: "● live", deltaRef: "c-info", sub: "in queue", to: "/orders?status=ready" },
         { label: "Overdue", value: String(fin.pendingCount), ref: "c-warning", soft: "c-warning-soft", icon: <Clock size={15} />, delta: "needs action", deltaRef: "c-warning", sub: "", to: "/orders?attention=overdue" },
         { label: "Customers", value: String(stats.totalCustomers), ref: "c-violet", soft: "c-violet-soft", icon: <CreditCard size={15} />, delta: stats.newCustomersToday > 0 ? `+${stats.newCustomersToday}` : "—", deltaRef: "c-success", sub: "new today", to: "/customers" },
@@ -285,7 +286,7 @@ export function DashboardPage() {
             </div>
 
             {/* ===== KPI ROW ===== */}
-            <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 16 }}>
+            <div className="lb-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14, marginBottom: 16 }}>
                 {kpis.map((k) => (
                     <div key={k.label} role="button" tabIndex={0} onClick={() => navigate(k.to)}
                         onKeyDown={(e) => { if (e.key === "Enter") navigate(k.to); }}

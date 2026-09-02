@@ -24,6 +24,8 @@ interface DashboardStats {
     // Today's stats
     todayRevenue: number;
     todayCollected: number;
+    /** How many distinct orders received a payment today. */
+    todayCollectedOrders: number;
     todayOrders: number;
 
     // Order status counts
@@ -90,6 +92,11 @@ export function useDashboard(): UseDashboardReturn {
     // Orders state
     const [allOrders, setAllOrders] = useState<Order[]>([]);
     const [todayOrders, setTodayOrders] = useState<Order[]>([]);
+    // Money actually RECEIVED today: every payments[] entry stamped today (advance
+    // at order placement + balances collected on delivery), minus refunds issued
+    // today. Independent of when the order was created.
+    const [todayCollectedCash, setTodayCollectedCash] = useState(0);
+    const [todayCollectedCount, setTodayCollectedCount] = useState(0);
 
     // Customer count
     const [totalCustomers, setTotalCustomers] = useState(0);
@@ -146,6 +153,44 @@ export function useDashboard(): UseDashboardReturn {
                 console.error("Error fetching today's orders:", err);
                 setError("Failed to load today's orders");
             }
+        );
+
+        return () => unsubscribe();
+    }, [shopId, todayStart.getTime(), todayEnd.getTime()]);
+
+    // Collected today — every payment write bumps updatedAt (web + both apps),
+    // so orders touched today form a reliable superset; each payment/refund is
+    // then filtered by its own timestamp.
+    useEffect(() => {
+        if (!shopId) return;
+
+        const touchedTodayQuery = query(
+            collection(db, `shops/${shopId}/orders`),
+            where("updatedAt", ">=", Timestamp.fromDate(todayStart))
+        );
+
+        const unsubscribe = onSnapshot(
+            touchedTodayQuery,
+            (snapshot) => {
+                let collected = 0;
+                let paidOrderCount = 0;
+                snapshot.docs.forEach((d) => {
+                    const o = d.data() as Order;
+                    let orderGotPaymentToday = false;
+                    (o.payments || []).forEach((pmt) => {
+                        const at = pmt.collectedAt?.toDate?.();
+                        if (at && at >= todayStart && at <= todayEnd) { collected += pmt.amount || 0; orderGotPaymentToday = true; }
+                    });
+                    if (orderGotPaymentToday) paidOrderCount += 1;
+                    ((o as unknown as { refunds?: { amount?: number; refundedAt?: Timestamp }[] }).refunds || []).forEach((r) => {
+                        const at = r.refundedAt?.toDate?.();
+                        if (at && at >= todayStart && at <= todayEnd) collected -= r.amount || 0;
+                    });
+                });
+                setTodayCollectedCash(Math.max(0, collected));
+                setTodayCollectedCount(paidOrderCount);
+            },
+            (err) => console.error("Error computing today's collections:", err)
         );
 
         return () => unsubscribe();
@@ -352,9 +397,10 @@ export function useDashboard(): UseDashboardReturn {
             return sum + (order.financials?.total || 0);
         }, 0);
 
-        const todayCollected = nonCancelledToday.reduce((sum, order) => {
-            return sum + (order.financials?.amountPaid || 0);
-        }, 0);
+        // Payment-timestamp based (see the updatedAt listener) — NOT limited to
+        // orders created today, so delivery-day balance collections count too.
+        const todayCollected = todayCollectedCash;
+        const todayCollectedOrders = todayCollectedCount;
 
         // Status counts from recent orders
         const pendingOrders = allOrders.filter(o => o.status === "pending").length;
@@ -416,6 +462,7 @@ export function useDashboard(): UseDashboardReturn {
         return {
             todayRevenue,
             todayCollected,
+            todayCollectedOrders,
             todayOrders: nonCancelledToday.length,
             monthlyOrders: monthlyOrdersCount, // Updated to use accurate usage
             pendingOrders,
@@ -433,7 +480,7 @@ export function useDashboard(): UseDashboardReturn {
             revenueTrend,
             ordersTrend,
         };
-    }, [todayOrders, allOrders, totalCustomers, newCustomersToday, monthlyExpenses, previousRevenue, previousOrderCount, monthlyOrdersCount]);
+    }, [todayOrders, allOrders, totalCustomers, newCustomersToday, monthlyExpenses, previousRevenue, previousOrderCount, monthlyOrdersCount, todayCollectedCash, todayCollectedCount]);
 
     // Transform orders for display
     const recentOrders = useMemo<RecentOrder[]>(() => {

@@ -25,13 +25,13 @@ interface OrderFilterSheetProps {
     selectedDeliveryType: DeliveryType | "all";
     selectedStatus: OrderStatus | "all";
     selectedOrderSource?: OrderSourceFilter;
-    selectedSpecialFilter?: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | null;
+    selectedSpecialFilter?: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | 'collected_today' | null;
     /** Service (inventory item) filter — orders containing this service. "all" = no filter. */
     selectedServiceId?: string;
     onApply: (
         deliveryType: DeliveryType | "all",
         status: OrderStatus | "all",
-        specialFilter: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | null,
+        specialFilter: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | 'collected_today' | null,
         orderSource?: OrderSourceFilter,
         serviceId?: string
     ) => void;
@@ -80,7 +80,7 @@ export function OrderFilterSheet({
     const [tempStatus, setTempStatus] = useState<OrderStatus | "all">(selectedStatus);
     const [tempOrderSource, setTempOrderSource] = useState<OrderSourceFilter>(selectedOrderSource);
     const [tempServiceId, setTempServiceId] = useState<string>(selectedServiceId);
-    const [tempSpecialFilter, setTempSpecialFilter] = useState<'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | null>(selectedSpecialFilter || null);
+    const [tempSpecialFilter, setTempSpecialFilter] = useState<'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | 'collected_today' | null>(selectedSpecialFilter || null);
 
     // Helper for status labels
     const getStatusLabel = (status: OrderStatus) => {

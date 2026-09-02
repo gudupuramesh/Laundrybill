@@ -110,7 +110,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-    const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | "scheduled_upcoming" | null>(null);
+    const [specialFilter, setSpecialFilter] = useState<"pending_overdue" | "payment_due" | "scheduled_upcoming" | "collected_today" | null>(null);
     // "all" | "today" | "week" | "month" | "lastMonth" | "sixMonths" | "year" | "year:YYYY" | "custom"
     const [period, setPeriod] = useState<string>("all");
     const [customFrom, setCustomFrom] = useState("");
@@ -144,6 +144,10 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (attention === "overdue") setSpecialFilter("pending_overdue");
         else if (attention === "due") setSpecialFilter("payment_due");
         else if (attention === "scheduled") setSpecialFilter("scheduled_upcoming");
+        else if (attention === "collected") setSpecialFilter("collected_today");
+        // ?period= — the dashboard's Revenue/Orders today tiles.
+        const periodParam = searchParams.get("period");
+        if (periodParam && ["today", "week", "month", "lastMonth", "sixMonths", "year"].includes(periodParam)) setPeriod(periodParam);
         // ?search= from the dashboard quick-search: prefill the list's search box.
         const search = searchParams.get("search");
         if (search) setSearchQuery(search);
@@ -155,7 +159,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (status && ["pending", "processing", "ready", "out_for_delivery", "delivered", "picked_up", "cancelled"].includes(status)) {
             setSelectedStatus(status as OrderStatus);
         }
-        if (attention || search || source || status) setSearchParams({}, { replace: true });
+        if (attention || search || source || status || periodParam) setSearchParams({}, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -176,7 +180,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const handleFilterApply = (
         type: DeliveryType | "all",
         status: OrderStatus | "all",
-        newSpecialFilter: "pending_overdue" | "payment_due" | "scheduled_upcoming" | null = null,
+        newSpecialFilter: "pending_overdue" | "payment_due" | "scheduled_upcoming" | "collected_today" | null = null,
         orderSource: OrderSourceFilter = "all",
         serviceId: string = "all"
     ) => {
@@ -215,6 +219,24 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
         if (selectedServiceId === "all") return orders;
         return orders.filter((o) => (o.items || []).some((i) => i.categoryId === selectedServiceId));
     }, [orders, selectedServiceId]);
+
+    // Per-method mix for the Collected Today view — sums each payments[] entry
+    // stamped today across the loaded (already service-filtered) orders.
+    const collectedMix = useMemo(() => {
+        if (specialFilter !== "collected_today") return null;
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+        const map: Record<string, number> = {};
+        let total = 0;
+        visibleOrders.forEach((o) => (o.payments || []).forEach((pmt) => {
+            const at = pmt.collectedAt?.toDate?.();
+            if (!at || at < dayStart) return;
+            const m = pmt.method || "cash";
+            map[m] = (map[m] || 0) + (pmt.amount || 0);
+            total += pmt.amount || 0;
+        }));
+        return { entries: Object.entries(map).sort((a, b) => b[1] - a[1]), total };
+    }, [specialFilter, visibleOrders]);
+
 
     const rows = useMemo(() => visibleOrders.map((order, i) => {
         const dtype = mapLegacyDeliveryType(order.deliveryType);
@@ -335,7 +357,25 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-border)"}`, background: specialFilter === "payment_due" ? "var(--c-warning-soft)" : "var(--c-surface)", color: specialFilter === "payment_due" ? "var(--c-warning)" : "var(--c-text-2)" }}>
                     <Wallet size={13} />{t("orders.filters.unpaidDues", "Unpaid dues")}
                 </button>
+                <button onClick={() => { setSpecialFilter(specialFilter === "collected_today" ? null : "collected_today"); }}
+                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 9, border: `1px solid ${specialFilter === "collected_today" ? "var(--c-success)" : "var(--c-border)"}`, background: specialFilter === "collected_today" ? "var(--c-success-soft)" : "var(--c-surface)", color: specialFilter === "collected_today" ? "var(--c-success)" : "var(--c-text-2)" }}>
+                    <Wallet size={14} />{t("orders.collectedToday", "Collected Today")}
+                </button>
             </div>
+
+            {/* Collected-today mix — how today's money arrived, per method */}
+            {collectedMix && collectedMix.total > 0 && (
+                <div style={{ flex: "none", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "10px 22px", background: "var(--c-success-soft)", borderBottom: "1px solid var(--c-border)" }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--c-success)" }}>
+                        {t("orders.collectedTodayTotal", "Collected today")}: {formatAmount(collectedMix.total)}
+                    </span>
+                    {collectedMix.entries.map(([m, amt]) => (
+                        <span key={m} style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 999, padding: "4px 11px", textTransform: "capitalize" }}>
+                            {m.replace(/_/g, " ")} · {formatAmount(amt)}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* table */}
             <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "18px 22px 40px", minHeight: 0 }}>

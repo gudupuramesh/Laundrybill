@@ -32,7 +32,7 @@ interface UseOrdersOptions {
     deliveryType?: DeliveryType | 'all';
     orderSource?: OrderSourceFilter;
     searchTerm?: string;
-    specialFilter?: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | null;
+    specialFilter?: 'pending_overdue' | 'payment_due' | 'scheduled_upcoming' | 'collected_today' | null;
     /** Filter by order creation date. Reuses the createdAt ordering, so no new index needed. */
     dateStart?: Date | null;
     dateEnd?: Date | null;
@@ -261,6 +261,44 @@ export function useOrdersPaginated(options: UseOrdersOptions = {}): UseOrdersRet
                 }
             };
             fetchUpcoming();
+            return;
+        }
+
+        if (specialFilter === 'collected_today') {
+            // Orders with money RECEIVED today (advance at placement or balance on
+            // delivery). Every payment write bumps updatedAt, so orders touched
+            // today form the superset; each payments[] entry filters by its own
+            // collectedAt stamp. Newest collection first.
+            const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(); dayEnd.setHours(23, 59, 59, 999);
+            const qToday = query(
+                collection(db, 'shops', shopId, 'orders'),
+                where("updatedAt", ">=", Timestamp.fromDate(dayStart))
+            );
+            const unsubscribe = onSnapshot(qToday, (snapshot) => {
+                const paidToday = (o: Order) => (o.payments || []).some((pmt) => {
+                    const at = pmt.collectedAt?.toDate?.();
+                    return !!at && at >= dayStart && at <= dayEnd;
+                });
+                const lastPaidAt = (o: Order) => Math.max(0, ...(o.payments || []).map((pmt) => pmt.collectedAt?.toMillis?.() || 0));
+                let orderList = (snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Order[]).filter(paidToday);
+                if (orderSource === 'online') {
+                    orderList = orderList.filter((o) => o.orderSource === 'online');
+                } else if (orderSource === 'pos') {
+                    orderList = orderList.filter((o) => o.orderSource !== 'online');
+                }
+                if (deliveryType !== 'all') orderList = orderList.filter((o) => (o.deliveryType || 'pickup_store') === deliveryType);
+                orderList.sort((a, b) => lastPaidAt(b) - lastPaidAt(a));
+                setOrders(orderList);
+                setHasMore(false);
+                setTotalCount(orderList.length);
+                setLoading(false);
+            }, (err) => {
+                console.error("Collected-today fetch error:", err);
+                setError(err.message);
+                setLoading(false);
+            });
+            unsubscribeRef.current = unsubscribe;
             return;
         }
 
