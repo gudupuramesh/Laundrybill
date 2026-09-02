@@ -132,6 +132,8 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [cart, setCart] = useState<Record<string, CartState>>({});
   const [weightText, setWeightText] = useState<Record<string, string>>({});
+  // Garments inside the weighed bag, per kg-priced item (optional, informational).
+  const [pieceText, setPieceText] = useState<Record<string, string>>({});
 
   const [showEditItemModal, setShowEditItemModal] = useState(false);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
@@ -512,6 +514,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
           basePrice: item.basePrice || 0,
           total: unitPrice * c.quantity,
           express: c.express,
+          ...(parseInt(pieceText[itemId] || '', 10) > 0 ? { pieceCount: parseInt(pieceText[itemId], 10) } : {}),
           expressMultiplier: item.expressMultiplier || 1.5,
           imageUrl: item.imageUrl,
         };
@@ -751,6 +754,13 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                         placeholder={`Enter ${pricingTypeToUnit(item.pricingType)}`}
                         value={weightText[item.id] !== undefined ? weightText[item.id] : (state.quantity > 0 ? String(state.quantity) : '')}
                         onChangeText={(val) => setQtyFromText(item.id, val)}
+                      />
+                      <TextInput
+                        style={[styles.weightInput, { marginTop: 6 }]}
+                        keyboardType="number-pad"
+                        placeholder={t('mobile.pieceCountPh', { defaultValue: 'No. of items (optional)' })}
+                        value={pieceText[item.id] || ''}
+                        onChangeText={(val) => setPieceText((prev) => ({ ...prev, [item.id]: val.replace(/\D/g, '').slice(0, 4) }))}
                       />
                     </View>
                   ) : (

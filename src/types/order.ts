@@ -95,6 +95,9 @@ export type PaymentStatus = "unpaid" | "partial" | "paid";
 // ============================================
 
 export interface OrderItem {
+    /** For weight-priced lines (kg/lb): how many garments were inside the weighed
+     *  bag — purely informational, so shop and customer agree on the count. */
+    pieceCount?: number;
     id: string;
     serviceId: string;
     serviceName: string;

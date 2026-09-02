@@ -20,7 +20,7 @@ interface TrackingData {
     customerPhone: string;
     customerName: string;
     deliveryAddress?: string;
-    items: { name: string; quantity: number; price?: number; express?: boolean; categoryName?: string }[];
+    items: { name: string; quantity: number; price?: number; express?: boolean; categoryName?: string; pieceCount?: number | null }[];
     total: number;
     amountPaid: number;
     balance: number;

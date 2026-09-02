@@ -26,12 +26,14 @@ interface ItemDetailSheetProps {
         item: InventoryItem,
         quantity: number,
         express: boolean,
-        notes?: string
+        notes?: string,
+        pieceCount?: number
     ) => void;
     initialValues?: {
         quantity: number;
         express: boolean;
         notes?: string;
+        pieceCount?: number;
     };
 }
 
@@ -48,6 +50,8 @@ export function ItemDetailSheet({
     const [weightText, setWeightText] = useState("1");
     const [express, setExpress] = useState(false);
     const [notes, setNotes] = useState("");
+    // Garments inside the weighed bag — only shown for weight-priced items.
+    const [pieceText, setPieceText] = useState("");
 
     // Reset state when item changes
     useEffect(() => {
@@ -57,6 +61,7 @@ export function ItemDetailSheet({
             setWeightText(String(q));
             setExpress(initialValues?.express || false);
             setNotes(initialValues?.notes || "");
+            setPieceText(initialValues?.pieceCount ? String(initialValues.pieceCount) : "");
         }
     }, [open, item?.id, initialValues]);
 
@@ -80,7 +85,8 @@ export function ItemDetailSheet({
     const turnaroundDays = express ? 1 : item.turnaroundDays;
 
     const handleAdd = () => {
-        onAdd(item, quantity, express, notes || undefined);
+        const pieces = parseInt(pieceText, 10);
+        onAdd(item, quantity, express, notes || undefined, weighed && pieces > 0 ? pieces : undefined);
     };
 
     const expressPct = Math.round((item.expressMultiplier - 1) * 100);
@@ -130,6 +136,23 @@ export function ItemDetailSheet({
                         <LQuantityStepper value={quantity} onChange={setQuantity} min={1} max={99} size="lg" />
                     )}
                 </div>
+
+                {/* Garments inside the weighed bag — shop & customer agree on the count */}
+                {weighed && (
+                    <div style={{ background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 11, padding: "14px 16px" }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", marginBottom: 11 }}>
+                            {t("pos.pieceCount", "No. of items in this weight")} <span style={{ textTransform: "none", fontWeight: 500 }}>({t("common.optional", "optional")})</span>
+                        </label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={pieceText}
+                            onChange={(e) => setPieceText(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                            placeholder={t("pos.pieceCountPh", "e.g. 23")}
+                            style={{ width: "100%", height: 44, fontFamily: MONO, fontSize: 17, fontWeight: 700, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "0 14px", outline: "none" }}
+                        />
+                    </div>
+                )}
 
                 {/* express toggle */}
                 <button type="button" onClick={() => setExpress((v) => !v)} aria-pressed={express}

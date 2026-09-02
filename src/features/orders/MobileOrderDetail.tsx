@@ -255,7 +255,7 @@ export function MobileOrderDetail({ order, basePath, onBack, onEdit }: {
                                 <span style={{ width: 28, height: 28, flex: "none", borderRadius: 8, background: "var(--c-surface-2)", color: "var(--c-text-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{it.quantity || 1}</span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.serviceName}</div>
-                                    <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{it.categoryName || it.unit}{it.express ? " · Express" : ""}</div>
+                                    <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{it.categoryName || it.unit}{it.pieceCount ? ` · ${it.pieceCount} pcs` : ""}{it.express ? " · Express" : ""}</div>
                                 </div>
                                 <span style={{ fontSize: 13.5, fontWeight: 700 }}>{formatAmount(it.total || 0)}</span>
                             </div>

@@ -540,7 +540,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                                             {it.express && <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 5px', borderRadius: 4 }}>⚡ EXP</span>}
                                                             {(itemTracking || p.processed > 0 || p.delivered > 0) && <span style={{ fontSize: 9.5, fontWeight: 700, color: pill.fg, background: pill.bg, padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: '.03em' }}>{pill.label}</span>}
                                                         </div>
-                                                        <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}</div>
+                                                        <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}{it.pieceCount ? ` · ${it.pieceCount} ${t('orders.pieces', 'pcs')}` : ''}</div>
                                                     </div>
 
                                                     {/* Deliver mode, but this line has no processed-yet-undelivered pieces */}

@@ -139,6 +139,7 @@ export const trackOrder = onCall(async (request) => {
             price: it.total ?? it.price ?? 0,
             express: it.express || false,
             categoryName: it.categoryName || null,
+            pieceCount: it.pieceCount || null,
         }))
         : [];
 

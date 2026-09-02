@@ -19,6 +19,8 @@ export interface DraftOrderItem {
   basePrice: number;
   total: number;
   express: boolean;
+  /** Garments inside a weight-priced line (kg/lb) — informational. */
+  pieceCount?: number;
   expressMultiplier: number;
   imageUrl?: string;
 }

@@ -125,7 +125,7 @@ export function POSCart({ cart, onCheckout, onOpenCustomer }: { cart: CartApi; o
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getTranslatedItemName(l.service.name)}</div>
                                                     <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 3 }}>
-                                                        <span style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{formatAmount(l.service.basePrice)} {isKg ? "/ kg" : "/ pc"}</span>
+                                                        <span style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{formatAmount(l.service.basePrice)} {isKg ? "/ kg" : "/ pc"}{l.pieceCount ? ` · ${l.pieceCount} pcs` : ""}</span>
                                                         <button onClick={() => cart.toggleItemExpress(l.id)} aria-pressed={l.express} title={l.express ? "Express priority on" : "Make express"}
                                                             style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8.5, fontWeight: 700, letterSpacing: ".02em", lineHeight: 1, padding: "2px 5px", borderRadius: 4, border: 0, background: l.express ? "var(--c-warning-soft)" : "var(--c-surface-2)", color: l.express ? "var(--c-warning)" : "var(--c-text-3)", opacity: l.express ? 1 : 0.8 }}>⚡ EXP</button>
                                                     </div>

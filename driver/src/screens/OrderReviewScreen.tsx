@@ -454,6 +454,7 @@ export default function OrderReviewScreen({
           unitPrice: item.unitPrice || 0,
           total: item.total || 0,
           express: item.express ?? false,
+          ...(item.pieceCount ? { pieceCount: item.pieceCount } : {}),
           notes: null,
           damages: null,
         })),

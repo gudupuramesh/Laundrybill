@@ -298,6 +298,7 @@ const drawReceipt = (doc: jsPDF, order: Order, shopInfo: ShopInfo, logo?: LogoIm
         doc.setTextColor(0, 0, 0);
 
         let detailText = `${item.quantity} x ${cur}${item.unitPrice}`;
+        if (item.pieceCount) detailText += ` (${item.pieceCount} pcs)`;
         doc.text(detailText, MARGIN, y);
 
         // Express charge line
@@ -614,7 +615,7 @@ const drawThermal = (doc: jsPDF, order: Order, shopInfo: ShopInfo, logo?: LogoIm
 
         doc.setFont(FONT_NORMAL, "normal");
         doc.setFontSize(8);
-        doc.text(`${item.quantity} x ${cur}${item.unitPrice}`, M + 1, y);
+        doc.text(`${item.quantity} x ${cur}${item.unitPrice}${item.pieceCount ? ` (${item.pieceCount} pcs)` : ''}`, M + 1, y);
         y += lh(8);
 
         const mult = (item as { expressMultiplier?: number }).expressMultiplier;

@@ -19,6 +19,8 @@ export interface CartItem {
     service: InventoryItem;
     quantity: number;
     express: boolean;
+    /** Garments inside a weight-priced line (informational). */
+    pieceCount?: number;
     notes?: string;
     damages?: { description: string; photoUrl: string }[];
     unitPrice: number;
@@ -154,7 +156,7 @@ export function useCart(persistKey?: string) {
         setState((prev) => ({ ...prev, deliveryBandId: bandId }));
     }, []);
 
-    const addItem = useCallback((service: InventoryItem, quantity: number = 1, express: boolean = false, notes?: string) => {
+    const addItem = useCallback((service: InventoryItem, quantity: number = 1, express: boolean = false, notes?: string, pieceCount?: number) => {
         setState((prev) => {
             // One line per item (design system): adding the same item again just
             // increments its quantity. Express is a per-line toggle (see toggleItemExpress).
@@ -180,6 +182,7 @@ export function useCart(persistKey?: string) {
                 quantity,
                 express,
                 notes,
+                pieceCount,
                 unitPrice,
                 total: quantity * unitPrice,
             };

@@ -75,6 +75,7 @@ export function PublicReceiptPage() {
                 unitPrice: item.price || 0,
                 total: (item.price || 0) * item.quantity,
                 express: item.express ?? false,
+                pieceCount: item.pieceCount || undefined,
                 notes: undefined,
             })),
             financials: {

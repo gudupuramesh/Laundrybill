@@ -289,6 +289,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                         unitPrice: item.unitPrice,
                         total: item.total,
                         express: item.express,
+                        ...(item.pieceCount ? { pieceCount: item.pieceCount } : {}),
                         notes: item.notes,
                         damages: item.damages,
                         expressMultiplier: item.service.expressMultiplier,
@@ -352,6 +353,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                 unitPrice: item.unitPrice,
                 total: item.total,
                 express: item.express,
+                ...(item.pieceCount ? { pieceCount: item.pieceCount } : {}),
                 notes: item.notes,
                 damages: item.damages,
                 expressMultiplier: item.service.expressMultiplier,
@@ -614,7 +616,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                                                             <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getTranslatedItemName(item.service.name)}</span>
                                                             {item.express && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".03em", color: "var(--c-warning)", background: "var(--c-warning-soft)", padding: "2px 5px", borderRadius: 4, whiteSpace: "nowrap" }}>⚡ EXP</span>}
                                                         </div>
-                                                        <div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO, marginTop: 1 }}>{qty} × {formatAmount(item.unitPrice)}</div>
+                                                        <div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO, marginTop: 1 }}>{qty} × {formatAmount(item.unitPrice)}{item.pieceCount ? ` · ${item.pieceCount} pcs` : ""}</div>
                                                     </div>
                                                     <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13 }}>{formatAmount(item.total)}</span>
                                                 </div>

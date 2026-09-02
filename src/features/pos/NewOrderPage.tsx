@@ -360,16 +360,16 @@ export function NewOrderPage() {
                 onClose={() => setItemDetailSheet({ open: false })}
                 item={itemDetailSheet.item}
                 initialValues={existingCartItem 
-                    ? { quantity: existingCartItem.quantity, express: existingCartItem.express, notes: existingCartItem.notes } 
+                    ? { quantity: existingCartItem.quantity, express: existingCartItem.express, notes: existingCartItem.notes, pieceCount: existingCartItem.pieceCount } 
                     : itemDetailSheet.express !== undefined 
                         ? { quantity: 1, express: itemDetailSheet.express, notes: undefined }
                         : undefined
                 }
-                onAdd={(item, quantity, expressFlag, notesText) => {
+                onAdd={(item, quantity, expressFlag, notesText, pieces) => {
                     if (existingCartItem) {
-                        cart.updateItem(existingCartItem.id, { quantity, express: expressFlag, notes: notesText });
+                        cart.updateItem(existingCartItem.id, { quantity, express: expressFlag, notes: notesText, pieceCount: pieces });
                     } else {
-                        cart.addItem(item, quantity, expressFlag, notesText);
+                        cart.addItem(item, quantity, expressFlag, notesText, pieces);
                     }
                     setItemDetailSheet({ open: false });
                 }}

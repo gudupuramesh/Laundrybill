@@ -103,7 +103,7 @@ export function OrderReceipt({ order, shopName, shopAddress, shopPhone, gstNumbe
                         {groupItems.map((item, index) => (
                             <div key={index} className="flex justify-between mb-1">
                                 <span>
-                                    {item.serviceName} x{item.quantity}
+                                    {item.serviceName} x{item.quantity}{item.pieceCount ? ` (${item.pieceCount} pcs)` : ""}
                                 </span>
                                 <span>{formatAmount(item.total)}</span>
                             </div>

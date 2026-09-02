@@ -140,6 +140,7 @@ exports.trackOrder = (0, https_1.onCall)(async (request) => {
                 price: (_b = (_a = it.total) !== null && _a !== void 0 ? _a : it.price) !== null && _b !== void 0 ? _b : 0,
                 express: it.express || false,
                 categoryName: it.categoryName || null,
+                pieceCount: it.pieceCount || null,
             });
         })
         : [];
