@@ -169,9 +169,25 @@ export function NewOrderPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [prefillCustomerId, prefillCustomer, prefillDone]);
 
+    // A fresh order starts with the customer: pop the picker as soon as the POS
+    // opens (once — closing it keeps it closed), and again on Checkout if none
+    // was added. The "Walk-in customer" placeholder otherwise hides the fact
+    // that checkout needs a customer.
+    const customerPromptedRef = useRef(false);
+    useEffect(() => {
+        if (customerPromptedRef.current || isEditMode || prefillCustomerId) return;
+        if (cart.customerId || cart.customerPhone || cart.customerName) return;
+        customerPromptedRef.current = true;
+        setCustOpen(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditMode, prefillCustomerId, cart.customerId, cart.customerPhone, cart.customerName]);
+
     const handleCheckout = () => {
         if (!cart.customerId && !cart.customerPhone) {
-            addToast({ type: "error", title: t('customer.selectCustomerFirst', 'Please select a customer first') });
+            // Open the picker right where the owner needs it — a toast alone
+            // left them hunting for where to add the customer.
+            setCustOpen(true);
+            addToast({ type: "info", title: t('customer.addCustomerToCheckout', 'Add the customer to complete checkout') });
             return;
         }
         setView("checkout");
