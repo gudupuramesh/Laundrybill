@@ -34,6 +34,7 @@ interface ReportData {
   deliveryTypeCounts: Record<string, number>;
   sourceCounts: { online: number; direct: number };
   topServices: { name: string; orders: number; revenue: number }[];
+  paymentsByMethod: [string, number][];
   expensesByCategory: Record<string, number>;
   attendance: { present: number; absent: number; half: number; leave: number };
   staffDays: { staffId: string; staffName: string; presentDays: number }[];
@@ -46,7 +47,8 @@ const EMPTY_REPORT: ReportData = {
   expensesOnly: 0, salariesPaid: 0, totalExpenses: 0, netProfit: 0,
   orderCount: 0, cancelledCount: 0, avgOrderValue: 0,
   statusCounts: {}, deliveryTypeCounts: {}, sourceCounts: { online: 0, direct: 0 },
-  topServices: [], expensesByCategory: {},
+  topServices: [],
+  paymentsByMethod: [], expensesByCategory: {},
   attendance: { present: 0, absent: 0, half: 0, leave: 0 },
   staffDays: [], newCustomers: 0, totalCustomers: 0,
 };
@@ -391,6 +393,7 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
         const deliveryTypeCounts: Record<string, number> = {};
         const sourceCounts = { online: 0, direct: 0 };
         const serviceMap = new Map<string, { orders: number; revenue: number }>();
+        const payMethodMap: Record<string, number> = {};
 
         ordersSnap.forEach((docSnap: any) => {
           const o = docSnap.data();
@@ -412,6 +415,11 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
           // Non-cancelled: revenue / collections / outstanding — same as web
           revenue += total;
           collections += paid;
+          // Collected by method, from the payments array (mirrors the web card)
+          (o.payments || []).forEach((pmt: any) => {
+            const m = pmt.method || 'cash';
+            payMethodMap[m] = (payMethodMap[m] || 0) + (pmt.amount || 0);
+          });
           outstanding += balance > 0 ? balance : 0;
 
           (o.items || []).forEach((it: any) => {
@@ -428,6 +436,7 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
           .map(([name, v]) => ({ name, ...v }))
           .sort((a, b) => b.revenue - a.revenue)
           .slice(0, 5);
+        const paymentsByMethod = Object.entries(payMethodMap).sort((a, b) => b[1] - a[1]) as [string, number][];
 
         // 2. Expenses in period (by `date` field — same as web)
         const expSnap = await fs
@@ -516,7 +525,8 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
           orderCount, cancelledCount,
           avgOrderValue: orderCount > 0 ? revenue / orderCount : 0,
           statusCounts, deliveryTypeCounts, sourceCounts,
-          topServices, expensesByCategory,
+          topServices,
+          paymentsByMethod, expensesByCategory,
           attendance,
           staffDays: Array.from(staffMap.values())
             .filter((sm) => sm.presentDays > 0)
@@ -750,6 +760,26 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
                       <Text style={s.listRowSub}>{sv.orders} {t('mobile.repOrdersLower', { defaultValue: 'orders' })}</Text>
                     </View>
                     <Text style={s.listRowValue}>{fmtMoney(sv.revenue)}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* ── Collected by payment method ── */}
+            <Text style={s.sectionTitle}>{t('mobile.repPaymentsMix', { defaultValue: 'COLLECTED BY PAYMENT METHOD' })}</Text>
+            <View style={s.card}>
+              {data.paymentsByMethod.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <MaterialIcons name="payments" size={32} color={colors.textMuted} />
+                  <Text style={s.emptyText}>{t('mobile.repNoPayments', { defaultValue: 'No payments recorded in this period' })}</Text>
+                </View>
+              ) : (
+                data.paymentsByMethod.map(([m, amt], i) => (
+                  <View key={m} style={[s.listRow, i === data.paymentsByMethod.length - 1 && s.listRowLast]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.listRowTitle, { textTransform: 'capitalize' }]} numberOfLines={1}>{m.replace(/_/g, ' ')}</Text>
+                    </View>
+                    <Text style={s.listRowValue}>{fmtMoney(Math.round(amt))}</Text>
                   </View>
                 ))
               )}

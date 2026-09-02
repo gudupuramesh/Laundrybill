@@ -196,7 +196,7 @@ function generateReceiptHtml(order: any, shopData: any, t: TFunction, locale: st
     <tr>
       <td style="padding:6px 0;font-size:13px;">
         <strong>${escHtml(item.serviceName)}</strong>${item.express ? ` <span style="color:#e65100;font-size:10px;">${escHtml(t('mobile.receiptHtmlExpressBadge'))}</span>` : ''}
-        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity}${item.pieceCount ? ` (${item.pieceCount} pcs)` : ''} · ${fmt(item.unitPrice)}${escHtml(t('mobile.receiptHtmlItemEa'))}</span>
+        <br/><span style="color:#666;font-size:11px;">${escHtml(item.categoryName || '')} · x${item.quantity}${item.pieceCount ? ` (${item.pieceCount} pcs)` : ''} · ${fmt(item.unitPrice)}${escHtml(t('mobile.receiptHtmlItemEa'))}</span>${item.notes ? `<br/><span style="color:#8a6d00;font-size:10px;font-style:italic;">${escHtml(String(item.notes))}</span>` : ''}
       </td>
       <td style="padding:6px 0;text-align:right;font-weight:600;font-size:13px;">${fmt(item.total || 0)}</td>
     </tr>
@@ -1368,6 +1368,7 @@ export default function OrderDetailsScreen({
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemName}>{item.serviceName}</Text>
                       <Text style={styles.itemMeta}>x{item.quantity}{item.pieceCount ? ` · ${item.pieceCount} pcs` : ''} · {formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.{item.express ? t('mobile.expressSuffixShort') : ''}</Text>
+                      {item.notes ? <Text style={[styles.itemMeta, { fontStyle: 'italic', color: colors.warning }]}>✎ {item.notes}</Text> : null}
                       {(itemTracking || p.processed > 0 || p.delivered > 0) ? (
                         <View style={{ flexDirection: 'row', marginTop: 3 }}>
                           <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: pill.bg }}>
