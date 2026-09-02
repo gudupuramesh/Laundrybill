@@ -136,8 +136,10 @@ export function SubscriptionPage() {
                 : (subscription.activeUntil as Date)) > new Date());
 
     const currentPlanId: PlanType = isActiveSub ? normalizePlanId(subscription?.planId) : "free";
+    // NO fallback to visiblePlans[0]: an expired/free shop must show "Free",
+    // not the first paid card with its price and a stale renew date.
     const currentPlan =
-        visiblePlans.find((p) => normalizePlanId(p.id) === currentPlanId) || visiblePlans[0];
+        visiblePlans.find((p) => normalizePlanId(p.id) === currentPlanId) || null;
 
     if (isLoading) {
         return (
@@ -367,7 +369,7 @@ export function SubscriptionPage() {
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
                                     <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em" }}>
-                                        {currentPlan?.name || subscription?.planName || "Free Plan"}
+                                        {currentPlan?.name || (currentPlanId === "free" ? "Free Plan" : subscription?.planName || "Free Plan")}
                                     </span>
                                     <span
                                         style={{
@@ -398,7 +400,7 @@ export function SubscriptionPage() {
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 22 }}>
                                 {subscription?.expiresAt && (
                                     <BannerStat
-                                        label={status === "cancelled" ? "Access until" : "Renews on"}
+                                        label={status === "cancelled" ? "Access until" : status === "expired" ? "Expired on" : "Renews on"}
                                         value={format(subscription.expiresAt, "MMM d, yyyy")}
                                     />
                                 )}

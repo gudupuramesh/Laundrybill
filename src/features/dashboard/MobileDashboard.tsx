@@ -66,6 +66,7 @@ export interface MobileHomeData {
     logoUrl?: string;
     planPaid: boolean;
     planLabel: string;
+    planExpired: boolean;
     loading: boolean;
     pendingCount: number;
     collected: number;
@@ -116,6 +117,16 @@ export function MobileHomeView({ data, formatAmount, onNav }: {
             </div>
 
             <div style={{ flex: 1, padding: 16, paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 24 }}>
+                {/* Expired-plan notice — matches the desktop banner */}
+                {data.planExpired && (
+                    <button onClick={() => onNav("/settings/subscription")} style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", borderRadius: 14, background: "var(--c-error-soft)", border: "1px solid var(--c-error)" }}>
+                        <span style={{ fontSize: 20 }}>⚠️</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--c-error)" }}>{t("dashboard.planExpiredTitle", "Your subscription has expired")}</span>
+                            <span style={{ display: "block", fontSize: 12, color: "var(--c-text-2)", marginTop: 2 }}>{t("dashboard.planExpiredMobile", "Now on the Free plan (10 orders/mo). Tap to renew.")}</span>
+                        </span>
+                    </button>
+                )}
                 {/* Card 1: search + actions (app s.card) */}
                 <div style={{ ...card, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                     {/* Typing here lands on Orders with the query already applied */}
@@ -278,7 +289,8 @@ export function MobileDashboard() {
         shopCity: (shop?.location as { city?: string } | undefined)?.city,
         logoUrl: shop?.logo,
         planPaid: isPro,
-        planLabel: isPro ? plan.name : subStatus === "trial" ? "FREE TRIAL" : "FREE PLAN",
+        planLabel: subStatus === "expired" ? "EXPIRED" : isPro ? plan.name : subStatus === "trial" ? "FREE TRIAL" : "FREE PLAN",
+        planExpired: subStatus === "expired",
         loading,
         pendingCount: stats.pending + stats.inProgress,
         collected: stats.collected,

@@ -7,6 +7,7 @@
  */
 
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { TEAM_GOOGLE_PLAY_URL } from "@/config/app-links";
 import { useTranslation } from "react-i18next";
 import { useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -91,7 +92,7 @@ export function AppsPage() {
     const copyLink = () => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
     const openApp = () => window.open(url, "_blank");
     const share = () => {
-        const msg = `${shopName || "Our shop"} is using LaundryBill!\n\n${d.name}: ${url}\n\n1. Open the link\n2. Sign in with your invite code\n3. Start working`;
+        const msg = `${shopName || "Our shop"} is using LaundryBill!\n\n${d.name} — get the Android app:\n${TEAM_GOOGLE_PLAY_URL}\n\nOr use it in the browser: ${url}\n\n1. Install the app (or open the link)\n2. Sign up with your email + invite code\n3. Start working`;
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
         addToast({ type: "success", title: t("apps.opening", "Opening WhatsApp…") });
     };
@@ -194,7 +195,12 @@ export function AppsPage() {
                                 <div key={p.key} style={{ border: "1px solid var(--c-border)", borderRadius: 11, padding: 14, display: "flex", alignItems: "center", gap: 12, opacity: p.detail ? 1 : 0.45 }}>
                                     <span style={{ width: 38, height: 38, flex: "none", borderRadius: 10, background: "var(--c-surface-2)", color: "var(--c-text)", display: "flex", alignItems: "center", justifyContent: "center" }}>{platIcon(p.key)}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{p.detail || t("apps.notAvailable", "Not available")}</div></div>
-                                    {p.detail && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 600, color: "var(--c-success)" }}><Check size={13} />{t("apps.on", "On")}</span>}
+                                    {p.key === "android" ? (
+                                        <a href={TEAM_GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer"
+                                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#fff", background: "var(--c-success)", borderRadius: 8, padding: "6px 11px", textDecoration: "none" }}>
+                                            {t("apps.getOnPlay", "Google Play")} <ExternalLink size={12} />
+                                        </a>
+                                    ) : p.detail && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 600, color: "var(--c-success)" }}><Check size={13} />{t("apps.on", "On")}</span>}
                                 </div>
                             ))}
                         </div>
@@ -226,6 +232,10 @@ export function AppsPage() {
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.currentVersion", "Current version")}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{d.version}</span></div>
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 14 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.lastUpdated", "Last updated")}</span><span style={{ fontWeight: 600 }}>{d.updated}</span></div>
                                 <button onClick={share} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: 12, boxShadow: "var(--sh-sm)", marginBottom: 10 }}><Share2 size={16} />{t("apps.shareWhatsApp", "Share via WhatsApp")}</button>
+                                <a href={TEAM_GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer"
+                                    style={{ width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, fontWeight: 700, color: "var(--c-success)", background: "var(--c-success-soft)", border: "1px solid var(--c-success)", borderRadius: 10, padding: 11, textDecoration: "none", marginBottom: 10 }}>
+                                    {t("apps.getOnPlayFull", "Get the Android app on Google Play")} <ExternalLink size={14} />
+                                </a>
                                 <div style={{ display: "flex", gap: 9 }}>
                                     <button onClick={copyLink} style={ghostBtn}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? t("apps.copied", "Copied") : t("apps.copyLink", "Copy link")}</button>
                                     <button onClick={openApp} style={ghostBtn}><ExternalLink size={15} />{t("apps.open", "Open")}</button>

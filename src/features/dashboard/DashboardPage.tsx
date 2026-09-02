@@ -11,6 +11,7 @@ import { collection, query, where, getDocs, limit, Timestamp } from "firebase/fi
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useDashboard } from "@/hooks/use-dashboard";
+import { useShopSubscription } from "@/hooks/use-shop-subscription";
 import { useOrderSummary } from "@/hooks/use-order-summary";
 import { useStoreHealth } from "@/hooks/use-store-health";
 import { useCurrency } from "@/hooks/use-currency";
@@ -37,6 +38,8 @@ export function DashboardPage() {
     const isMobile = useIsMobile();
     const { shopId } = useAuth();
     const { stats, recentOrders, staffAttendance, loading, error } = useDashboard();
+    const { subscription } = useShopSubscription();
+    const planExpired = String(subscription?.status || "").toLowerCase() === "expired";
     const fin = useOrderSummary();
     const health = useStoreHealth();
     const { formatAmount } = useCurrency();
@@ -218,6 +221,24 @@ export function DashboardPage() {
         <div style={{ color: "var(--c-text)", fontSize: 14, lineHeight: 1.45, padding: "20px 22px 40px" }}>
             {/* Landing promo: download the iOS/Android app (fixed-position, self-dismissing) */}
             <AppDownloadBanner />
+
+            {/* Expired-plan notice — the shop silently fell back to Free limits;
+                say so loudly instead of letting features just "stop working". */}
+            {planExpired && (
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16, padding: "13px 18px", borderRadius: 12, background: "var(--c-error-soft)", border: "1px solid var(--c-error)" }}>
+                    <AlertTriangle size={19} style={{ color: "var(--c-error)", flex: "none" }} />
+                    <div style={{ flex: 1, minWidth: 240 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--c-error)" }}>Your subscription has expired</div>
+                        <div style={{ fontSize: 12.5, color: "var(--c-text-2)", marginTop: 2 }}>
+                            The shop is now on the Free plan — 10 orders/month, no team logins. Renew to restore your features.
+                        </div>
+                    </div>
+                    <button onClick={() => navigate("/settings/subscription")}
+                        style={{ flex: "none", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--c-error)", border: 0, borderRadius: 9, padding: "9px 16px", boxShadow: "var(--sh-sm)" }}>
+                        Renew plan
+                    </button>
+                </div>
+            )}
 
             {/* ===== Quick Scan & Search ===== */}
             {/* overflow must stay visible (not hidden) or the search dropdown gets

@@ -50,7 +50,11 @@ export const PLANS: Record<PlanType, Plan> = {
         name: "Free",
         description: "Perfect for getting started with basic order management",
         prices: { monthly: 0, yearly: 0 },
-        features: { ...BASE_FEATURES },
+        // Record-keeping stays available on Free (and after a plan expires):
+        // roster, attendance, payroll and expenses keep working with already-
+        // added members — only team LOGINS/apps are paid (staffApp etc. false).
+        // The Firestore plans/free doc carries the same flags (authoritative).
+        features: { ...BASE_FEATURES, staffManagement: true, attendance: true, payroll: true, expenses: true, reports: true },
         limits: {
             maxOrders: 50,
             maxCustomers: 100,
