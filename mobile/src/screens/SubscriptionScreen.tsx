@@ -490,7 +490,7 @@ export default function SubscriptionScreen({
         <TouchableOpacity style={s.headerBackBtn} onPress={onBack}>
           <MaterialIcons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Subscription Plans</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Subscription Plans</Text>
         <HelpButton pageId="mobile_subscription" />
       </View>
 

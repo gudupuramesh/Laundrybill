@@ -719,7 +719,7 @@ export default function ExpensesScreen({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('mobile.tabFinance')}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.tabFinance')}</Text>
         <HelpButton pageId="mobile_expenses" />
       </View>
 

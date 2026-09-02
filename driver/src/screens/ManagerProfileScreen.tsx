@@ -48,7 +48,7 @@ export default function ManagerProfileScreen({
   return (
     <View style={s.container}>
       <View style={s.header}>
-        <Text style={s.headerTitle}>Profile</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Profile</Text>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 24 + insets.bottom }} showsVerticalScrollIndicator={false}>
         <View style={s.cards}>

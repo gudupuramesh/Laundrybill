@@ -31,7 +31,7 @@
     "android": {
       "package": "in.laundrybill.driver",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 24,
+      "versionCode": 25,
       "adaptiveIcon": {
         "backgroundColor": "#0F1E36",
         "foregroundImage": "./assets/android-icon-foreground.png",

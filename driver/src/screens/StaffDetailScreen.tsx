@@ -209,7 +209,7 @@ export default function StaffDetailScreen({
     <View style={s.container}>
       <View style={[s.header, { paddingTop: insets.top + 4 }]}>
         <TouchableOpacity style={s.iconBtn} onPress={onBack}><MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} /></TouchableOpacity>
-        <Text style={s.headerTitle}>Staff Profile</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Staff Profile</Text>
         <TouchableOpacity style={s.iconBtn} onPress={openEdit}><MaterialIcons name="edit" size={20} color={colors.textSecondary} /></TouchableOpacity>
       </View>
 

@@ -182,7 +182,7 @@ export default function AddCustomerScreen({
           <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
             <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('mobile.addCustomerTitle')}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.addCustomerTitle')}</Text>
           <View style={{ width: 40 }} />
         </View>
       </View>

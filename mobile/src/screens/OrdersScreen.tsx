@@ -444,7 +444,7 @@ export default function OrdersScreen({
         <TouchableOpacity style={s.iconBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{t('mobile.ordersScreenTitle')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             style={[s.iconBtn, showSearch && { backgroundColor: colors.primaryTint }]}

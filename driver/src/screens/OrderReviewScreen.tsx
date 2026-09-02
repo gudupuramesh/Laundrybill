@@ -653,7 +653,7 @@ export default function OrderReviewScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.orderReviewTitle')}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{editOrderId ? t('mobile.updateOrderTitle') : t('mobile.orderReviewTitle')}</Text>
           </View>
           <TouchableOpacity style={styles.iconBtn}>
             <MaterialIcons name="more-vert" size={20} color={colors.textSecondary} />
@@ -711,7 +711,7 @@ export default function OrderReviewScreen({
                       <View>
                         <Text style={styles.itemName}>{item.serviceName}</Text>
                         <Text style={styles.itemMeta}>
-                          {`x${item.quantity} · ${formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.`}
+                          {`x${item.quantity}${item.pieceCount ? ` · ${item.pieceCount} pcs` : ''} · ${formatCurrency(Math.round(item.unitPrice), countrySettings)} ea.`}
                           {item.express ? t('mobile.expressSuffixShort') : ''}
                         </Text>
                       </View>

@@ -623,7 +623,7 @@ function MainLayout() {
         t('mobile.orderLimitMessage', { limit: appPlanLimits.maxOrders }),
         [
           { text: t('common.cancel'), style: 'cancel' },
-          { text: t('mobile.upgradePlan'), onPress: () => setActiveScreen('SUBSCRIPTION') },
+          { text: t('common.upgradePlan', { defaultValue: 'Upgrade Plan' }), onPress: () => setActiveScreen('SUBSCRIPTION') },
         ]
       );
       return;
@@ -641,7 +641,7 @@ function MainLayout() {
         t('mobile.orderLimitMessage', { limit: appPlanLimits.maxOrders }),
         [
           { text: t('common.cancel'), style: 'cancel' },
-          { text: t('mobile.upgradePlan'), onPress: () => setActiveScreen('SUBSCRIPTION') },
+          { text: t('common.upgradePlan', { defaultValue: 'Upgrade Plan' }), onPress: () => setActiveScreen('SUBSCRIPTION') },
         ]
       );
       return;

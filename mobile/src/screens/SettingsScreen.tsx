@@ -560,7 +560,7 @@ export default function SettingsScreen({
       {/* Header */}
       <View style={styles.header}>
         <View style={{ width: 40 }} />
-        <Text style={styles.headerTitle}>{t('mobile.settingsTitle', { defaultValue: 'Settings' })}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.settingsTitle', { defaultValue: 'Settings' })}</Text>
         <HelpButton pageId="mobile_settings" />
       </View>
 

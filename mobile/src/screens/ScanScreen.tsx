@@ -72,7 +72,7 @@ export default function ScanScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('mobile.scanTitleShort')}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.scanTitleShort')}</Text>
             <HelpButton pageId="mobile_scan" />
           </View>
         </View>
@@ -113,7 +113,7 @@ export default function ScanScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: '#fff' }]}>{t('mobile.scanQrCodeTitle')}</Text>
+            <Text style={[styles.headerTitle, { color: '#fff' }]} numberOfLines={1}>{t('mobile.scanQrCodeTitle')}</Text>
             <View style={{ width: 40 }} />
           </View>
         </View>

@@ -99,7 +99,7 @@ export default function FeedbackScreen({ onBack }: { onBack: () => void }) {
         <TouchableOpacity style={s.backBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Send Feedback</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Send Feedback</Text>
         <View style={{ width: 40 }} />
       </View>
 

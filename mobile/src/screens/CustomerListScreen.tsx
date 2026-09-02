@@ -91,7 +91,7 @@ export default function CustomerListScreen({
     <View style={s.container}>
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.headerTitle}>{t('mobile.customersScreenTitle')}</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{t('mobile.customersScreenTitle')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity style={s.iconBtn} onPress={onAddCustomer} activeOpacity={0.7}>
             <MaterialIcons name="person-add" size={20} color={colors.textSecondary} />

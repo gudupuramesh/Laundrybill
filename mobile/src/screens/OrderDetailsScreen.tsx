@@ -1073,9 +1073,9 @@ export default function OrderDetailsScreen({
             <MaterialIcons name="arrow-back" size={24} color="#00408f" />
           </TouchableOpacity>
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>#{publicId}</Text>
-            <View style={[styles.statusBadgeLg, { backgroundColor: statusColor.bg }]}>
-              <Text style={[styles.statusTextLg, { color: statusColor.text }]}>{odStatusLabel(status, t)}</Text>
+            <Text style={[styles.headerTitle, { flexShrink: 0 }]} numberOfLines={1}>#{publicId}</Text>
+            <View style={[styles.statusBadgeLg, { backgroundColor: statusColor.bg, flexShrink: 1 }]}>
+              <Text style={[styles.statusTextLg, { color: statusColor.text }]} numberOfLines={1}>{odStatusLabel(status, t)}</Text>
             </View>
             {order.orderSource === 'online' ? (
               <View style={styles.onlineTag}>

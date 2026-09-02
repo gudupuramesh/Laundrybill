@@ -606,7 +606,7 @@ export default function RegisterShopScreen({
                 <MaterialIcons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
             )}
-            <Text style={styles.headerTitle}>{isEditMode ? t('mobile.editShopProfile') : t('mobile.registerShop')}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{isEditMode ? t('mobile.editShopProfile') : t('mobile.registerShop')}</Text>
           </View>
           <HelpButton pageId="mobile_shopProfile" />
         </View>

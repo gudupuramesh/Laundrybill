@@ -249,6 +249,9 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
     }
     // Pre-fill cart from order items
     const newCart: Record<string, CartState> = {};
+    // Seed the garment-count inputs too, or editing an order silently wipes the
+    // counts the shop already recorded.
+    const newPieces: Record<string, string> = {};
     (editOrder.items || []).forEach((item: any) => {
       const invMatch = inventory.find((i) => i.id === item.serviceId || i.name === item.serviceName);
       if (invMatch) {
@@ -257,9 +260,11 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
           express: item.express || false,
           unitPriceOverride: item.unitPrice !== invMatch.basePrice ? item.unitPrice : undefined,
         };
+        if (item.pieceCount) newPieces[invMatch.id] = String(item.pieceCount);
       }
     });
     if (Object.keys(newCart).length > 0) setCart(newCart);
+    if (Object.keys(newPieces).length > 0) setPieceText((prev) => ({ ...prev, ...newPieces }));
     setStep('items');
   }, [editOrder, loading, inventory]);
 
@@ -576,7 +581,7 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name={step === 'customer' ? 'close' : 'arrow-back'} size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{editOrder ? t('mobile.editOrderTitle') : t('mobile.newOrderTitle')}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{editOrder ? t('mobile.editOrderTitle') : t('mobile.newOrderTitle')}</Text>
           </View>
           <View style={styles.headerRight}>
             {step === 'items' && Object.keys(cart).length > 0 ? (
@@ -747,21 +752,30 @@ const CreateOrderScreen = forwardRef<CreateOrderScreenRef, {
                 </View>
                 <View style={styles.itemActions}>
                   {DECIMAL_UNITS.includes(item.pricingType || '') ? (
-                    <View style={styles.weightInputWrap}>
-                      <TextInput
-                        style={styles.weightInput}
-                        keyboardType="decimal-pad"
-                        placeholder={`Enter ${pricingTypeToUnit(item.pricingType)}`}
-                        value={weightText[item.id] !== undefined ? weightText[item.id] : (state.quantity > 0 ? String(state.quantity) : '')}
-                        onChangeText={(val) => setQtyFromText(item.id, val)}
-                      />
-                      <TextInput
-                        style={[styles.weightInput, { marginTop: 6 }]}
-                        keyboardType="number-pad"
-                        placeholder={t('mobile.pieceCountPh', { defaultValue: 'No. of items (optional)' })}
-                        value={pieceText[item.id] || ''}
-                        onChangeText={(val) => setPieceText((prev) => ({ ...prev, [item.id]: val.replace(/\D/g, '').slice(0, 4) }))}
-                      />
+                    <View style={styles.weightCol}>
+                      {/* Weight first — its own pill, unchanged size */}
+                      <View style={styles.weightInputWrap}>
+                        <TextInput
+                          style={styles.weightInput}
+                          keyboardType="decimal-pad"
+                          placeholder={`Enter ${pricingTypeToUnit(item.pricingType)}`}
+                          value={weightText[item.id] !== undefined ? weightText[item.id] : (state.quantity > 0 ? String(state.quantity) : '')}
+                          onChangeText={(val) => setQtyFromText(item.id, val)}
+                        />
+                      </View>
+                      {/* Garment count appears only AFTER a weight is entered —
+                          stacking both in the fixed-height pill hid the weight. */}
+                      {state.quantity > 0 ? (
+                        <View style={[styles.weightInputWrap, { marginTop: 6 }]}>
+                          <TextInput
+                            style={styles.weightInput}
+                            keyboardType="number-pad"
+                            placeholder={t('mobile.pieceCountPh', { defaultValue: 'No. of items' })}
+                            value={pieceText[item.id] || ''}
+                            onChangeText={(val) => setPieceText((prev) => ({ ...prev, [item.id]: val.replace(/\D/g, '').slice(0, 4) }))}
+                          />
+                        </View>
+                      ) : null}
                     </View>
                   ) : (
                     <View style={selected ? styles.stepperCompact : styles.stepperUnselectedCompact}>
@@ -1354,6 +1368,9 @@ const styles = StyleSheet.create({
     width: 52,
     alignItems: 'flex-end',
     justifyContent: 'center',
+  },
+  weightCol: {
+    alignItems: 'flex-end',
   },
   weightInputWrap: {
     width: 104,

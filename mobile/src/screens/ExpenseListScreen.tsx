@@ -166,7 +166,7 @@ export default function ExpenseListScreen({
     <View style={s.container}>
       <View style={s.header}>
         <TouchableOpacity style={s.iconBtn} onPress={onBack}><MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} /></TouchableOpacity>
-        <Text style={s.headerTitle}>Expenses</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Expenses</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.primaryTint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
             <MaterialIcons name="add" size={20} color={colors.primary} />

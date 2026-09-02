@@ -76,7 +76,7 @@ export default function TaxSettingsScreen({ onBack }: { onBack: () => void }) {
         <TouchableOpacity onPress={onBack} style={s.iconBtn} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={26} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Tax & GST</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Tax & GST</Text>
         <View style={{ width: 40 }} />
       </View>
       {loading ? (

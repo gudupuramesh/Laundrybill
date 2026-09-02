@@ -191,7 +191,7 @@ export default function CreateStaffLoginScreen({
       <View style={s.container}>
         <View style={s.header}>
           <View style={{ width: 40 }} />
-          <Text style={s.headerTitle}>Login Created</Text>
+          <Text style={s.headerTitle} numberOfLines={1}>Login Created</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={s.successContainer}>
@@ -241,7 +241,7 @@ export default function CreateStaffLoginScreen({
         <TouchableOpacity style={s.iconBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Create Staff Login</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Create Staff Login</Text>
         <View style={{ width: 40 }} />
       </View>
 

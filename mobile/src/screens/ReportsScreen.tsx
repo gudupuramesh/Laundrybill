@@ -647,7 +647,7 @@ export default function ReportsScreen({ onBack }: { onBack?: () => void }) {
         <TouchableOpacity style={s.iconBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('mobile.reportsTitle', { defaultValue: 'Reports' })}</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{t('mobile.reportsTitle', { defaultValue: 'Reports' })}</Text>
         <TouchableOpacity style={s.iconBtn} onPress={handleExportPdf} activeOpacity={0.7} disabled={exporting || loading}>
           {exporting ? (
             <ActivityIndicator size="small" color={colors.primary} />

@@ -255,7 +255,7 @@ export default function AttendanceScreen({ onBack, onAddStaff }: { onBack: () =>
         <TouchableOpacity style={s.backBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Staff Attendance</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>Staff Attendance</Text>
         {/* Spacer balances the back button so the title stays centered (the
             HelpButton is a no-op in the Team app, which would otherwise let
             space-between push the title to the right edge). */}

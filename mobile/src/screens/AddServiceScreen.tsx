@@ -204,7 +204,7 @@ export default function AddServiceScreen({
             <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
               <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('mobile.manageServicesTitle')}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.manageServicesTitle')}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <HelpButton pageId="mobile_services" />

@@ -213,7 +213,7 @@ export default function StaffListScreen({
         <TouchableOpacity style={s.iconBtn} onPress={onBack} activeOpacity={0.7}>
           <MaterialIcons name="chevron-left" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{t('mobile.staffTitle', { defaultValue: 'Staff' })}</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{t('mobile.staffTitle', { defaultValue: 'Staff' })}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity style={s.iconBtn} onPress={() => { resetForm(); setShowAddModal(true); }} activeOpacity={0.7}>
             <MaterialIcons name="person-add" size={20} color={colors.primary} />

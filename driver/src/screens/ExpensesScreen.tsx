@@ -568,7 +568,7 @@ export default function ExpensesScreen({
               <MaterialIcons name="chevron-left" size={26} color={colors.text} />
             </TouchableOpacity>
           ) : null}
-          <Text style={styles.headerTitle}>{t('mobile.tabFinance')}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{t('mobile.tabFinance')}</Text>
         </View>
         <HelpButton pageId="mobile_expenses" />
       </View>

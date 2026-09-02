@@ -400,7 +400,7 @@ export default function OrdersScreen({
           // width so the title stays centered against the right-side actions.
           <View style={s.iconBtn} />
         )}
-        <Text style={s.headerTitle}>{t('mobile.ordersScreenTitle')}</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{t('mobile.ordersScreenTitle')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             style={[s.iconBtn, showSearch && { backgroundColor: colors.primaryTint }]}
