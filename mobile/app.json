@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "in.laundrybill",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "40",
+      "buildNumber": "41",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
