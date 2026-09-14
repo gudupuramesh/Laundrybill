@@ -29,7 +29,7 @@ import type { InventoryItem } from "@/types/inventory";
 import type { Customer } from "@/types/customer";
 import { isWeightUnit, getTranslatedCategoryName, getTranslatedItemName, getTranslatedUnit } from "@/lib/inventory-translations";
 import { useCurrency } from "@/hooks/use-currency";
-import { ChevronLeft, ChevronRight, AlertTriangle, Search, Package } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Search, Package, FilePlus2, ScanLine, Settings, Plus, Archive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LButton, LResponsiveDialog, useLToast } from "@/components/laundry";
 
@@ -98,6 +98,7 @@ export function NewOrderPage() {
     }, [isAgentApp, isEditMode, editOrder, agent, navigate]);
 
     const [searchQuery, setSearchQuery] = useState("");
+    const searchRef = useRef<HTMLInputElement | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [orderLoaded, setOrderLoaded] = useState(false);
 
@@ -197,6 +198,72 @@ export function NewOrderPage() {
     const { checkLimit } = useShopLimits();
     const { stats, loading: dashboardLoading } = useDashboard();
 
+    // "Hold order": park the current draft so the counter can serve someone else.
+    // The cart already persists its whole state under the draft key, so a hold is
+    // that snapshot moved into localStorage and restored by writing it back.
+    const HOLD_KEY = "pos:held-orders";
+    const DRAFT_KEY = "pos:new-order:draft";
+    type Held = { id: string; at: number; name: string; count: number; state: string };
+    const [held, setHeld] = useState<Held[]>(() => {
+        try { return JSON.parse(localStorage.getItem(HOLD_KEY) || "[]"); } catch { return []; }
+    });
+    const [holdOpen, setHoldOpen] = useState(false);
+    const saveHeld = (list: Held[]) => {
+        setHeld(list);
+        try { localStorage.setItem(HOLD_KEY, JSON.stringify(list)); } catch { /* quota */ }
+    };
+    const handleHold = () => {
+        const snapshot = sessionStorage.getItem(DRAFT_KEY);
+        if (!snapshot || cart.items.length === 0) return;
+        saveHeld([{ id: String(Date.now()), at: Date.now(), name: cart.customerName || t("pos.walkIn", "Walk-in customer"), count: cart.items.length, state: snapshot }, ...held]);
+        cart.clearCart();
+        addToast({ type: "success", title: t("pos.orderHeld", "Order held"), description: t("pos.orderHeldDesc", "Resume it from Held orders.") });
+    };
+    const restoreHeld = (h: Held) => {
+        try { sessionStorage.setItem(DRAFT_KEY, h.state); } catch { /* quota */ }
+        saveHeld(held.filter((x) => x.id !== h.id));
+        window.location.reload();
+    };
+
+    // Custom item — a one-off line that is not in the catalog.
+    const [customOpen, setCustomOpen] = useState(false);
+    const [customName, setCustomName] = useState("");
+    const [customPrice, setCustomPrice] = useState("");
+    const [customQty, setCustomQty] = useState("1");
+    const addCustomItem = () => {
+        const price = parseFloat(customPrice);
+        const qty = parseFloat(customQty);
+        if (!customName.trim() || Number.isNaN(price) || price < 0 || Number.isNaN(qty) || qty <= 0) {
+            addToast({ type: "error", title: t("pos.customItemInvalid", "Enter a name, price and quantity") });
+            return;
+        }
+        const custom: InventoryItem = {
+            id: `custom-${Date.now()}`,
+            categoryId: "",
+            categoryName: t("pos.customItem", "Custom item"),
+            name: customName.trim(),
+            basePrice: price,
+            pricingType: "piece",
+            expressMultiplier: 1.5,
+            turnaroundDays: 2,
+            isActive: true,
+        } as InventoryItem;
+        cart.addItem(custom, qty, false);
+        setCustomOpen(false);
+        setCustomName(""); setCustomPrice(""); setCustomQty("1");
+    };
+
+    // ⌘K focuses the catalog search; F3 opens the tag scanner — the shortcuts the
+    // header advertises.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchRef.current?.focus(); }
+            else if (e.key === "F3") { e.preventDefault(); navigate(isStaffApp ? "/staff/scan" : "/scan"); }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [navigate, isStaffApp]);
+
     // Category strip scrolling: scrollbars are hidden app-wide, so with many
     // services a mouse user had no way to reach the clipped chips. Show chevron
     // buttons while there's hidden content and let the wheel scroll the strip.
@@ -260,42 +327,88 @@ export function NewOrderPage() {
 
 
     // Full-page checkout view (replaces the modal popup)
+    // Leaving the "Order placed" modal: the review stays visible behind it until
+    // then, so the cart is cleared only now.
+    const finishSuccess = () => {
+        cart.clearCart();
+        setView("build");
+        setSuccessOrderId(null);
+    };
+    const successSheet = (
+        <OrderSuccessSheet
+            open={!!successOrderId}
+            orderId={successOrderId || ""}
+            onClose={finishSuccess}
+            onViewOrder={() => {
+                const id = successOrderId;
+                finishSuccess();
+                if (id) navigate(isAgentApp ? '/agent' : `${ordersBase}/${id}`);
+            }}
+        />
+    );
+
     if (view === "checkout") {
         return (
-            <CheckoutSheet
-                asPage
-                open
-                cart={cart}
-                editOrderId={isEditMode ? editOrderId || undefined : undefined}
-                onClose={() => setView("build")}
-                onComplete={(orderId) => {
-                    cart.clearCart();
-                    setView("build");
-                    setSuccessOrderId(orderId);
-                }}
-            />
+            <>
+                <CheckoutSheet
+                    asPage
+                    open
+                    cart={cart}
+                    editOrderId={isEditMode ? editOrderId || undefined : undefined}
+                    onClose={() => setView("build")}
+                    onComplete={(orderId) => {
+                        // The order exists now — drop the persisted draft so a reload
+                        // can't bring the same cart back and place it twice.
+                        try { sessionStorage.removeItem("pos:new-order:draft"); } catch { /* ignore */ }
+                        setSuccessOrderId(orderId);
+                    }}
+                />
+                {successSheet}
+            </>
         );
     }
 
     return (
         <>
-            <div className="pos-body" style={{ height: "calc(100vh - 56px)", display: "flex", overflow: "hidden", background: "var(--c-bg)" }}>
+            <div className="pos-body lb-ds" style={{ height: "calc(100vh - 56px)", display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--ds-bg)" }}>
+                {!isMobile && (
+                    <header style={{ flex: "none", display: "flex", alignItems: "center", gap: 14, padding: "14px 22px", background: "var(--ds-card)" }}>
+                        <FilePlus2 size={26} strokeWidth={1.8} />
+                        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-.01em" }}>{t("pos.newOrder", "New Order")}</span>
+                        <div style={{ flex: 1 }} />
+                        {held.length > 0 && (
+                            <button onClick={() => setHoldOpen(true)} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 9, fontSize: 14.5, fontWeight: 600, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "11px 16px" }}>
+                                <Archive size={17} />{t("pos.heldOrders", "Held orders")}
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "var(--ds-blue)", borderRadius: 6, padding: "1px 7px" }}>{held.length}</span>
+                            </button>
+                        )}
+                        <button onClick={() => navigate(isStaffApp ? "/staff/scan" : "/scan")} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14.5, fontWeight: 600, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "11px 16px" }}>
+                            <ScanLine size={18} />{t("pos.scanTag", "Scan a tag")}
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text-3)", background: "var(--ds-table-head)", border: "1px solid var(--ds-border)", borderRadius: 6, padding: "1px 6px" }}>F3</span>
+                        </button>
+                        <button onClick={() => navigate("/settings")} aria-label={t("common.settings", "Settings")} style={{ cursor: "pointer", width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--ds-text-2)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12 }}>
+                            <Settings size={19} />
+                        </button>
+                    </header>
+                )}
+                <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
                 {/* catalog */}
-                <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-                    <div style={{ padding: "14px 18px 12px", display: "flex", flexDirection: "column", gap: 12, borderBottom: "1px solid var(--c-border)", background: "var(--c-surface)" }}>
+                <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", margin: isMobile ? 0 : 16, background: isMobile ? undefined : "var(--ds-card)", border: isMobile ? undefined : "1px solid var(--ds-border)", borderRadius: isMobile ? 0 : 14, overflow: "hidden" }}>
+                    <div style={{ padding: isMobile ? "14px 18px 12px" : "18px 20px 14px", display: "flex", flexDirection: "column", gap: 14, background: "var(--ds-card)" }}>
                         {isEditMode && (
                             <button onClick={() => navigate(ordersBase)} style={{ alignSelf: "flex-start", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0 }}>← {t('common.cancel', 'Cancel edit')}</button>
                         )}
                         <div style={{ position: "relative" }}>
-                            <Search size={17} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
-                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('pos.searchCatalog', 'Search items or scan a tag…')}
-                                style={{ width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px 11px 38px", outline: "none" }} />
+                            <Search size={18} style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "var(--ds-text-3)" }} />
+                            <input ref={searchRef} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('pos.searchItems', 'Search items')}
+                                style={{ width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "13px 62px 13px 44px", outline: "none" }} />
+                            <span style={{ position: "absolute", right: 15, top: "50%", transform: "translateY(-50%)", fontSize: 12.5, color: "var(--ds-text-3)" }}>⌘ K</span>
                         </div>
-                        <div style={{ position: "relative", minWidth: 0 }}>
-                            {chipScroll.left && (
-                                <button onClick={() => chipsRef.current?.scrollBy({ left: -280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesLeft', 'Scroll categories left')}
-                                    style={{ position: "absolute", left: -4, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 28, height: 28, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--c-surface)", color: "var(--c-text)", border: "1px solid var(--c-border)", boxShadow: "var(--sh-md, 0 4px 12px rgba(15,23,42,.14))" }}>
-                                    <ChevronLeft size={16} />
+                        <div style={{ position: "relative", minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                            {(
+                                <button onClick={() => chipsRef.current?.scrollBy({ left: -280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesLeft', 'Scroll categories left')} disabled={!chipScroll.left}
+                                    style={{ flex: "none", width: 34, height: 34, borderRadius: "50%", cursor: chipScroll.left ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ds-card)", color: chipScroll.left ? "var(--ds-text)" : "var(--ds-text-3)", border: "1px solid var(--ds-border)" }}>
+                                    <ChevronLeft size={17} />
                                 </button>
                             )}
                             <div ref={chipsRef} onScroll={updateChipScroll} style={{ display: "flex", gap: 8, overflowX: "auto" }}>
@@ -303,14 +416,14 @@ export function NewOrderPage() {
                                     const on = selectedCategory === c.id;
                                     return (
                                         <button key={c.id || "all"} onClick={() => setSelectedCategory(c.id)}
-                                            style={{ flex: "none", cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary)" : "var(--c-surface)", color: on ? "#fff" : "var(--c-text-2)" }}>{c.label}</button>
+                                            style={{ flex: "none", cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 14, fontWeight: 600, padding: "9px 18px", borderRadius: 9, border: `1px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, background: on ? "var(--ds-blue)" : "var(--ds-card)", color: on ? "#fff" : "var(--ds-text)" }}>{c.label}</button>
                                     );
                                 })}
                             </div>
-                            {chipScroll.right && (
-                                <button onClick={() => chipsRef.current?.scrollBy({ left: 280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesRight', 'Scroll categories right')}
-                                    style={{ position: "absolute", right: -4, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 28, height: 28, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--c-surface)", color: "var(--c-text)", border: "1px solid var(--c-border)", boxShadow: "var(--sh-md, 0 4px 12px rgba(15,23,42,.14))" }}>
-                                    <ChevronRight size={16} />
+                            {(
+                                <button onClick={() => chipsRef.current?.scrollBy({ left: 280, behavior: "smooth" })} aria-label={t('pos.scrollCategoriesRight', 'Scroll categories right')} disabled={!chipScroll.right}
+                                    style={{ flex: "none", width: 34, height: 34, borderRadius: "50%", cursor: chipScroll.right ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ds-card)", color: chipScroll.right ? "var(--ds-text)" : "var(--ds-text-3)", border: "1px solid var(--ds-border)" }}>
+                                    <ChevronRight size={17} />
                                 </button>
                             )}
                         </div>
@@ -321,7 +434,7 @@ export function NewOrderPage() {
                                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <LSkeleton key={i} height={210} className="rounded-xl" />)}
                             </div>
                         ) : filteredItems.length > 0 ? (
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 13 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(196px,1fr))", gap: 16 }}>
                                 {filteredItems.map((item) => (
                                     <POSItemCard key={item.id} item={item} cartItems={cart.items} onAdd={handleAddItem}
                                         onUpdateQuantity={(itemId, newQty) => cart.updateItem(itemId, { quantity: newQty })}
@@ -332,11 +445,18 @@ export function NewOrderPage() {
                         ) : (
                             <LEmptyState icon={<Package className="h-8 w-8" />} title={t('pos.noServicesFound', 'No items found')} description={t('pos.tryChangingFilter', 'Try another category or search.')} />
                         )}
+                        {!loading && (
+                            <button onClick={() => setCustomOpen(true)}
+                                style={{ marginTop: 16, width: "100%", maxWidth: 408, cursor: "pointer", font: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 600, color: "var(--ds-blue)", background: "transparent", border: "1px dashed var(--ds-border)", borderRadius: 14, padding: "26px 18px" }}>
+                                <Plus size={18} />{t("pos.addCustomItem", "Add custom item")}
+                            </button>
+                        )}
                     </div>
                 </section>
 
                 {/* cart */}
-                <POSCart cart={cart} onCheckout={handleCheckout} onOpenCustomer={() => setCustOpen(true)} />
+                <POSCart cart={cart} onCheckout={handleCheckout} onOpenCustomer={() => setCustOpen(true)} onHold={handleHold} />
+                </div>
 
                 {/* Catalog price editor — opened by the pencil on an item card */}
                 <LResponsiveDialog open={!!priceEditItem} onClose={() => !priceSaving && setPriceEditItem(null)} title={t("pos.editPrice", "Edit price")} size="sm">
@@ -369,6 +489,44 @@ export function NewOrderPage() {
                 </LResponsiveDialog>
             </div>
 
+            {/* held orders */}
+            <LResponsiveDialog open={holdOpen} onClose={() => setHoldOpen(false)} title={t("pos.heldOrders", "Held orders")} size="sm">
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {held.length === 0 && <div style={{ fontSize: 13.5, color: "var(--c-text-3)" }}>{t("pos.noHeldOrders", "Nothing on hold.")}</div>}
+                    {held.map((h) => (
+                        <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "1px solid var(--c-border)", borderRadius: 12 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</div>
+                                <div style={{ fontSize: 12.5, color: "var(--c-text-3)", marginTop: 2 }}>{h.count} {t("pos.items", "items")} · {new Date(h.at).toLocaleString()}</div>
+                            </div>
+                            <button onClick={() => restoreHeld(h)} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 9, padding: "8px 14px" }}>{t("pos.resume", "Resume")}</button>
+                            <button onClick={() => saveHeld(held.filter((x) => x.id !== h.id))} aria-label={t("common.delete", "Delete")} style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-error)", background: "transparent", border: 0 }}>{t("common.delete", "Delete")}</button>
+                        </div>
+                    ))}
+                </div>
+            </LResponsiveDialog>
+
+            {/* custom item */}
+            <LResponsiveDialog open={customOpen} onClose={() => setCustomOpen(false)} title={t("pos.addCustomItem", "Add custom item")} size="sm">
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <input autoFocus value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder={t("pos.customItemName", "Item name")}
+                        style={{ font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px", outline: "none" }} />
+                    <div style={{ display: "flex", gap: 12 }}>
+                        <div style={{ position: "relative", flex: 1 }}>
+                            <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "var(--c-text-3)" }}>{currencySymbol}</span>
+                            <input value={customPrice} inputMode="decimal" onChange={(e) => setCustomPrice(e.target.value.replace(/[^0-9.]/g, ""))} placeholder={t("pos.price", "Price")}
+                                style={{ width: "100%", font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px 11px 30px", outline: "none" }} />
+                        </div>
+                        <input value={customQty} inputMode="numeric" onChange={(e) => setCustomQty(e.target.value.replace(/[^0-9.]/g, ""))} aria-label={t("pos.quantity", "Quantity")}
+                            style={{ width: 92, font: "inherit", fontSize: 14, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 10, padding: "11px 13px", outline: "none" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                        <button type="button" onClick={() => setCustomOpen(false)} style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "10px 18px" }}>{t("common.cancel", "Cancel")}</button>
+                        <button type="button" onClick={addCustomItem} style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: "10px 18px" }}>{t("pos.addToList", "Add to List")}</button>
+                    </div>
+                </div>
+            </LResponsiveDialog>
+
             <CustomerModal open={custOpen} onClose={() => setCustOpen(false)} onSelect={(c) => { handleSelectCustomer(c); }} />
 
             {/* Sheets */}
@@ -392,16 +550,7 @@ export function NewOrderPage() {
                 }}
             />
 
-            <OrderSuccessSheet
-                open={!!successOrderId}
-                orderId={successOrderId || ""}
-                onClose={() => setSuccessOrderId(null)}
-                onViewOrder={() => {
-                    const id = successOrderId;
-                    setSuccessOrderId(null);
-                    if (id) navigate(isAgentApp ? '/agent' : `${ordersBase}/${id}`);
-                }}
-            />
+            {successSheet}
         </>
     );
 }

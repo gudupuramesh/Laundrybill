@@ -9,7 +9,7 @@ import { ChevronsUpDown, Check, LayoutGrid, Plus, Store } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 
-export function ShopSwitcher({ className }: { className?: string }) {
+export function ShopSwitcher({ className, direction = "up" }: { className?: string; direction?: "up" | "down" }) {
     const { shopId, shopName, user, ownedShops, switchShop } = useAuth();
     const { plan } = useShopLimits();
     const navigate = useNavigate();
@@ -50,7 +50,7 @@ export function ShopSwitcher({ className }: { className?: string }) {
             </button>
 
             {open && (
-                <div className="absolute bottom-full left-0 z-50 mb-2 w-60 rounded-xl border border-border bg-popover p-1.5 shadow-lg">
+                <div className={`absolute left-0 z-50 w-60 ${direction === "down" ? "top-full mt-2" : "bottom-full mb-2"} rounded-xl border border-border bg-popover p-1.5 shadow-lg`}>
                     <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Your shops
                     </p>

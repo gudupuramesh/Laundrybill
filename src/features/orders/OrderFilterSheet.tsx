@@ -16,7 +16,7 @@ import { STATUS_FLOW } from "@/types/order";
 import type { DeliveryType, OrderStatus } from "@/types/order";
 import type { OrderSourceFilter } from "@/hooks/use-orders-paginated";
 import { useInventory } from "@/hooks/use-inventory";
-import { Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag } from "lucide-react";
+import { Store, Truck, Home, AlertTriangle, Wallet, Globe, ShoppingBag, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface OrderFilterSheetProps {

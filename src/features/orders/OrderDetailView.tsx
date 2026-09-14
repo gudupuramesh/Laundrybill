@@ -7,11 +7,12 @@
  * 2. OrderDetailPanel (Desktop right-pane split view)
  */
 
-import { useState, useEffect, useContext, type CSSProperties } from "react";
+import { useState, useEffect, useContext, type CSSProperties, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import { LSpinner, LActionSheet, LSelect } from "@/components/laundry";
 import { useOrder, useOrderMutations } from "@/hooks/use-orders";
+import { useCustomer } from "@/hooks/use-customers";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { StatusUpdateSheet } from "./StatusUpdateSheet";
 import { PaymentCollectionSheet } from "./PaymentCollectionSheet";
@@ -19,29 +20,7 @@ import { CancelOrderSheet } from "./CancelOrderSheet";
 import { DeleteOrderSheet } from "./DeleteOrderSheet";
 import { useAuth } from "@/features/auth";
 import { TagGeneratorModal } from "@/features/plant-app/components/TagGeneratorModal";
-import {
-    MoreVertical,
-    Phone,
-    Mail,
-    MessageCircle,
-    Printer,
-    Edit,
-    Tag,
-    Trash2,
-    MapPin,
-    Clock,
-    Globe,
-    CheckCircle2,
-    Package,
-    Truck,
-    XCircle,
-    ChevronLeft,
-    RefreshCw,
-    Shirt,
-    Check,
-    Download,
-    Image as ImageIcon,
-} from "lucide-react";
+import { Check, ChevronLeft, CircleCheck, Clock, Download, Edit, Globe, Mail, MapPin, MessageCircle, MoreVertical, Package, Phone, Printer, QrCode, RefreshCw, Shirt, Tag, Trash2, CalendarDays, Image as ImageIcon, ChevronDown, FileText, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { generateOrderReceipt } from "@/lib/generateReceipt";
@@ -60,9 +39,9 @@ import { mapLegacyDeliveryType, STATUS_LABELS, getItemProgress } from "@/types/o
 const MONO = "'IBM Plex Mono'";
 const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
 const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 31 + c.charCodeAt(0)) >>> 0; return TINTS[h % TINTS.length]; };
-const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
-const secLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 14 };
-const hdrBtn: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 12px" };
+const card: CSSProperties = { background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 14, boxShadow: "0 1px 2px rgba(16,24,40,.04)" };
+const secLbl: CSSProperties = { fontSize: 15, fontWeight: 700, letterSpacing: "-.01em", color: "var(--c-text)", marginBottom: 14, textTransform: "none" };
+const hdrBtnOld: CSSProperties = { cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "8px 12px" };
 
 const STATUS_TINT: Record<OrderStatus, string> = {
     pending: "c-slate", processing: "c-info", ready: "c-primary", ready_for_pickup: "c-primary",
@@ -71,19 +50,6 @@ const STATUS_TINT: Record<OrderStatus, string> = {
 };
 const TYPE_TINT: Record<DeliveryType, string> = { delivery_home: "c-success", pickup_store: "c-info", pickup_home: "c-violet" };
 
-const statusIcons: Record<OrderStatus, typeof Clock> = {
-    pending: Clock,
-    processing: Package,
-    ready: CheckCircle2,
-    ready_for_pickup: CheckCircle2,
-    out_for_delivery: Truck,
-    delivered: CheckCircle2,
-    cancelled: XCircle,
-    picked_up: Package,
-    pickup_scheduled: Clock,
-    pickup_completed: Package,
-    partially_delivered: Package,
-};
 
 interface OrderDetailViewProps {
     orderId: string;
@@ -100,6 +66,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const isAgentApp = location.pathname.startsWith('/agent');
     const { markSeen } = useContext(SeenOnlineOrdersContext);
     const { order, loading } = useOrder(orderId);
+    const { customer: custStats } = useCustomer(order?.customerId || "");
     const { shop } = useShop();
     const { currencySymbol, formatAmount } = useCurrency();
     const { reassignAgent, updateItemProgress } = useOrderMutations();
@@ -356,6 +323,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     const steps = getProgressSteps();
     const curStep = getProgressStep();
     const placedAt = order.createdAt?.toDate?.();
+    void tyRef; void placedAt; void tintFor;
     const f = order.financials;
     const taxLabel = f.taxName || shop?.settings?.tax?.name || getCountryByCurrency(shop?.settings?.currency || "INR").taxName;
     const hasPhotos = (order.damagePhotoUrls && order.damagePhotoUrls.length > 0) || !!order.pickupPhoto || !!order.deliveryPhoto || !!order.plantPhoto || !!order.items?.some((i) => i.damages?.length);
@@ -421,41 +389,43 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         return { label: t("orders.itemPending", "Pending"), ...PEND };
     };
     const miniBtn: CSSProperties = { cursor: "pointer", width: 24, height: 24, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: "var(--c-text-2)", background: "var(--c-surface-2)", border: "1px solid var(--c-border-strong)", borderRadius: 6, lineHeight: 1 };
+    const Row = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, marginTop: 10 }}>
+            <span style={{ color: 'var(--ds-text-3)', flex: 'none', display: 'inline-flex' }}>{icon}</span>
+            <span style={{ color: 'var(--ds-text-2)' }}>{label}</span>
+            <span style={{ marginLeft: 'auto', fontWeight: 600, textAlign: 'right' }}>{value}</span>
+        </div>
+    );
+    const hdrBtn: CSSProperties = { cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--ds-text)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10, padding: '9px 14px' };
+    void hdrBtnOld;
     const stepTime = (id: string) => { const ev = order.timeline?.find((e) => e.status === id); return ev ? format(ev.timestamp.toDate(), 'h:mm a') : '—'; };
     const photoThumb: CSSProperties = { display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--c-border)' };
 
     return (
-        <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--c-bg)' }}>
+        <div className="lb-ds" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: 'var(--ds-bg)' }}>
                 {/* header */}
-                <header style={{ position: 'sticky', top: 0, zIndex: 5, flex: 'none', minHeight: 58, background: 'var(--c-surface)', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '0 14px' : '0 22px' }}>
-                    {onBack && <button onClick={onBack} aria-label="Back" style={{ cursor: 'pointer', width: 30, height: 30, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'transparent', border: 0, borderRadius: 7 }}><ChevronLeft size={18} /></button>}
-                    <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--c-text-3)', minWidth: 0 }}>
-                        <button onClick={onBack} style={{ cursor: 'pointer', font: 'inherit', fontSize: 13, color: 'var(--c-text-2)', background: 'transparent', border: 0 }}>{t('orders.title', 'Orders')}</button><span>/</span>
-                        <span style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: MONO }}>#{order.publicId}</span>
-                    </nav>
+                <header className="lb-ds" style={{ position: 'sticky', top: 0, zIndex: 5, flex: 'none', minHeight: 66, background: 'var(--ds-card)', borderBottom: '1px solid var(--ds-border)', display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '10px 14px' : '12px 22px' }}>
+                    {onBack && <button onClick={onBack} aria-label={t('common.back', 'Back')} style={{ cursor: 'pointer', width: 36, height: 36, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text-2)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10 }}><ChevronLeft size={18} /></button>}
+                    <span style={{ fontSize: 21, fontWeight: 700, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>#{order.publicId}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11.5, fontWeight: 600, padding: '4px 11px', borderRadius: 7, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, whiteSpace: 'nowrap' }}>{STATUS_LABELS[order.status]}</span>
                     <div style={{ flex: 1 }} />
                     <div className="lb-thin" style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto' }}>
-                        {hasFeature('qrScans') && <button onClick={() => setTagModalOpen(true)} style={hdrBtn}><Tag size={15} />{t('orders.printTags', 'Print Tag')}</button>}
-                        <button onClick={handleWhatsAppChat} style={{ ...hdrBtn, color: 'var(--c-success)', background: 'var(--c-success-soft)', borderColor: 'var(--c-success-soft)' }}><MessageCircle size={15} />{t('orders.whatsapp', 'Share')}</button>
-                        <button onClick={handleWhatsAppPdf} title={t('orders.whatsappPdfHint', 'Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach')} style={{ ...hdrBtn, color: 'var(--c-success)', background: 'var(--c-success-soft)', borderColor: 'var(--c-success-soft)' }}><MessageCircle size={15} />{t('orders.whatsappPdf', 'PDF bill')}</button>
-                        {canEdit && <button onClick={handleEdit} style={hdrBtn}><Edit size={15} />{t('common.edit', 'Edit')}</button>}
-                        <button onClick={() => handlePrintPreview("a4")} style={hdrBtn}><Printer size={15} />{t('orders.printA4', 'Print A4')}</button>
-                        <button onClick={() => handlePrintPreview("thermal")} title={t('orders.printThermalHint', 'POS thermal printer receipt (80mm roll)')} style={hdrBtn}><Printer size={15} />{t('orders.printThermal', 'Print 80mm')}</button>
-                        {canUpdateStatus && <button onClick={() => setStatusSheetOpen(true)} style={{ ...hdrBtn, color: '#fff', background: 'var(--c-primary)', border: 0, boxShadow: 'var(--sh-sm)' }}><RefreshCw size={15} />{t('orders.updateStatus', 'Update Status')}</button>}
-                        <button onClick={() => setActionSheetOpen(true)} aria-label="More actions" style={{ cursor: 'pointer', width: 34, height: 34, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-text-2)', background: 'var(--c-surface)', border: '1px solid var(--c-border-strong)', borderRadius: 8 }}><MoreVertical size={16} /></button>
+                                                <button onClick={handleWhatsAppChat} style={hdrBtn}><MessageCircle size={16} style={{ color: 'var(--ds-whatsapp)' }} />{t('orders.whatsapp', 'WhatsApp')}</button>
+                        <button onClick={handleWhatsAppPdf} title={t('orders.whatsappPdfHint', 'Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach')} style={hdrBtn}><FileText size={16} />{t('orders.whatsappPdf', 'PDF bill')}</button>
+                        {canEdit && <button onClick={handleEdit} style={hdrBtn}><Edit size={16} />{t('common.edit', 'Edit')}</button>}
+                        <button onClick={() => handlePrintPreview("a4")} style={hdrBtn}><Printer size={16} />{t('orders.printA4', 'Print A4')}</button>
+                        <button onClick={() => handlePrintPreview("thermal")} title={t('orders.printThermalHint', 'POS thermal printer receipt (80mm roll)')} style={hdrBtn}><Printer size={16} />{t('orders.printThermal', 'Print 80 mm')}</button>
+                        {canUpdateStatus && (
+                            <button onClick={() => setStatusSheetOpen(true)} style={{ ...hdrBtn, color: '#fff', background: 'var(--ds-blue)', border: 0, boxShadow: 'var(--ds-shadow)', padding: '9px 0 9px 14px', gap: 0 }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, paddingRight: 12 }}><RefreshCw size={16} />{t('orders.updateStatus', 'Update Status')}</span>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderLeft: '1px solid rgba(255,255,255,.35)', alignSelf: 'stretch' }}><ChevronDown size={16} /></span>
+                            </button>
+                        )}
+                        <button onClick={() => setActionSheetOpen(true)} aria-label="More actions" style={{ cursor: 'pointer', width: 40, height: 40, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text-2)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10 }}><MoreVertical size={17} /></button>
                     </div>
                 </header>
 
                 <div style={{ padding: isMobile ? '16px 14px 40px' : '20px 22px 40px' }}>
-                    {/* title row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.01em', fontFamily: MONO }}>#{order.publicId}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})` }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: `var(--${stRef})` }} />{STATUS_LABELS[order.status]}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: `var(--${tyRef})`, background: `var(--${tyRef}-soft)`, padding: '5px 12px', borderRadius: 20 }}>{t(`orders.deliveryTypes.${dtype}`, dtype.replace('_', ' '))}</span>
-                        {order.orderSource === 'online' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--c-cyan)', background: 'var(--c-cyan-soft)', padding: '5px 10px', borderRadius: 20 }}><Globe size={13} />{t('orders.onlineOrders', 'Online')}</span>}
-                        {placedAt && <span style={{ fontSize: 13, color: 'var(--c-text-3)', marginLeft: 'auto' }}>{t('orders.placed', 'Placed')} {format(placedAt, 'MMM d, h:mm a')}</span>}
-                    </div>
-
                     {/* Online booking estimate — what the customer told us at booking (priced at pickup) */}
                     {order.orderSource === 'online' && (order.estimatedWeight || order.estimatedPieces) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '11px 16px', marginBottom: 16, borderRadius: 12, background: 'var(--c-cyan-soft)' }}>
@@ -467,32 +437,39 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                         </div>
                     )}
 
-                    {/* stepper */}
-                    {order.status !== 'cancelled' && (
-                        <div style={{ ...card, padding: isMobile ? '20px 10px 16px' : '22px 26px 18px', marginBottom: 16 }}>
-                            <div style={{ display: 'flex' }}>
-                                {steps.map((st, i) => {
-                                    const done = i < curStep, cur = i === curStep, active = done || cur;
-                                    return (
-                                        <div key={st.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                                            {i > 0 && <div style={{ position: 'absolute', top: 14, left: 'calc(-50% + 16px)', right: 'calc(50% + 16px)', height: 2, background: i <= curStep ? 'var(--c-primary)' : 'var(--c-border-strong)' }} />}
-                                            <span style={{ position: 'relative', zIndex: 1, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, fontFamily: MONO, background: active ? 'var(--c-primary)' : 'var(--c-surface)', color: active ? '#fff' : 'var(--c-text-3)', border: `2px solid ${active ? 'var(--c-primary)' : 'var(--c-border-strong)'}` }}>{done ? <Check size={15} /> : i + 1}</span>
-                                            <span style={{ marginTop: 9, fontSize: 12.5, fontWeight: cur ? 600 : 500, color: cur ? 'var(--c-primary)' : done ? 'var(--c-text)' : 'var(--c-text-3)' }}>{st.label}</span>
-                                            <span style={{ marginTop: 2, fontSize: 10.5, color: 'var(--c-text-3)', fontFamily: MONO }}>{i <= curStep ? stepTime(st.id) : '—'}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
                     <div className="lb-row" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                         {/* LEFT */}
                         <div style={{ flex: 1.7, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* order progress */}
+                        {order.status !== 'cancelled' && (
+                            <div style={{ ...card, padding: isMobile ? '18px 10px 16px' : '18px 26px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>{t('orders.orderProgress', 'Order progress')}</span>
+                                    {order.expectedDelivery && (
+                                        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--c-text-2)' }}>
+                                            {dtype === 'delivery_home' ? t('orders.expectedDelivery', 'Expected delivery') : t('orders.expectedReady', 'Expected ready')}: <b style={{ color: 'var(--c-text)' }}>{format(order.expectedDelivery.toDate(), 'EEE d MMM')}</b>
+                                        </span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex' }}>
+                                    {steps.map((st, i) => {
+                                        const done = i < curStep, cur = i === curStep, active = done || cur;
+                                        return (
+                                            <div key={st.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                                                {i > 0 && <div style={{ position: 'absolute', top: 19, left: 'calc(-50% + 21px)', right: 'calc(50% + 21px)', height: 3, borderRadius: 2, background: i <= curStep ? 'var(--ds-blue)' : 'var(--ds-border)' }} />}
+                                                <span style={{ position: 'relative', zIndex: 1, width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, background: active ? 'var(--ds-blue)' : 'var(--ds-card)', color: active ? '#fff' : 'var(--ds-text-3)', border: `2px solid ${active ? 'var(--ds-blue)' : 'var(--ds-border)'}` }}>{active ? <Check size={19} strokeWidth={2.6} /> : i + 1}</span>
+                                                <span style={{ marginTop: 12, fontSize: 13.5, fontWeight: 600, color: active ? 'var(--ds-text)' : 'var(--ds-text-3)' }}>{st.label}</span>
+                                                <span style={{ marginTop: 4, fontSize: 12, color: 'var(--ds-text-3)' }}>{i <= curStep ? stepTime(st.id) : '—'}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                             {/* items */}
                             <div style={{ ...card, overflow: 'hidden' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 20px', borderBottom: '1px solid var(--c-border)', flexWrap: 'wrap' }}>
-                                    <div style={{ fontSize: 14, fontWeight: 600 }}>{t('orders.items', 'Items')}</div>
+                                    <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>{t('orders.items', 'Items')}</div>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-primary)', background: 'var(--c-primary-soft)', padding: '2px 8px', borderRadius: 20 }}>{order.items.reduce((a, it) => a + it.quantity, 0)}</span>
                                     {deliveredPieces > 0 && deliveredPieces < totalPieces && (
                                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 8px', borderRadius: 20 }}>{t('orders.piecesDelivered', '{{done}}/{{total}} pieces delivered', { done: deliveredPieces, total: totalPieces })}</span>
@@ -520,9 +497,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                 )}
                                 {groupOrderItemsByCategory(order.items, (it) => it.categoryName || 'Other').map((group) => (
                                     <div key={group.categoryName}>
-                                        <div style={{ padding: '8px 20px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--c-text-3)', background: 'var(--c-surface-2)', borderBottom: '1px solid var(--c-border)' }}>{group.categoryName}</div>
+                                        <div style={{ padding: '10px 20px', fontSize: 13, fontWeight: 600, color: 'var(--ds-text-2)', background: 'var(--ds-table-head)', borderBottom: '1px solid var(--ds-divider)' }}>{group.categoryName}</div>
                                         {group.items.map((it) => {
-                                            const ir = tintFor(it.categoryId || it.serviceName);
                                             const gi = order.items.indexOf(it);
                                             const p = lineProg[gi];
                                             const pill = pillFor(p);
@@ -532,16 +508,14 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                             const draft = deliverDraft[gi] ?? 0;
                                             const stepOpen = procOpen === gi;
                                             return (
-                                                <div key={`${it.id}-${gi}`} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderBottom: '1px solid var(--c-border)', background: deliverMode && draft > 0 ? 'var(--c-primary-soft)' : undefined }}>
-                                                    <span style={{ width: 42, height: 42, flex: 'none', borderRadius: 9, background: `var(--${ir}-soft)`, color: `var(--${ir})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shirt size={20} strokeWidth={1.6} /></span>
+                                                <div key={`${it.id}-${gi}`} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '14px 20px', borderBottom: '1px solid var(--ds-divider)', background: deliverMode && draft > 0 ? 'var(--ds-blue-soft)' : undefined }}>
+                                                    <span style={{ width: 34, height: 34, flex: 'none', borderRadius: 8, background: 'var(--ds-muted-surface)', color: 'var(--ds-text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shirt size={17} strokeWidth={1.6} /></span>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                        <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                                             {it.serviceName}
-                                                            {it.express && <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--c-warning)', background: 'var(--c-warning-soft)', padding: '2px 5px', borderRadius: 4 }}>⚡ EXP</span>}
                                                             {(itemTracking || p.processed > 0 || p.delivered > 0) && <span style={{ fontSize: 9.5, fontWeight: 700, color: pill.fg, background: pill.bg, padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: '.03em' }}>{pill.label}</span>}
                                                         </div>
-                                                        <div style={{ fontSize: 11.5, color: 'var(--c-text-3)' }}>{it.categoryName || ''}{it.pieceCount ? ` · ${it.pieceCount} ${t('orders.pieces', 'pcs')}` : ''}</div>
-                                                        {it.notes && <div style={{ fontSize: 11.5, color: 'var(--c-warning)', fontStyle: 'italic', marginTop: 2 }}>✎ {it.notes}</div>}
+                                                        {it.notes && <div style={{ fontSize: 12.5, color: 'var(--ds-text-2)', fontStyle: 'italic', marginTop: 3 }}>{it.notes}</div>}
                                                     </div>
 
                                                     {/* Deliver mode, but this line has no processed-yet-undelivered pieces */}
@@ -578,21 +552,24 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                                         )
                                                     )}
 
-                                                    <span style={{ fontFamily: MONO, fontSize: 12.5, color: 'var(--c-text-2)', whiteSpace: 'nowrap' }}>{it.quantity} × {formatAmount(it.unitPrice)}</span>
-                                                    <span style={{ width: 72, textAlign: 'right', fontFamily: MONO, fontWeight: 600 }}>{formatAmount(it.total)}</span>
+                                                    <span style={{ fontSize: 13, color: 'var(--ds-text-2)', whiteSpace: 'nowrap' }}>
+                                                        {(() => { const kg = !!it.pieceCount || /kg/i.test(String((it as { pricingType?: string }).pricingType || '')); return kg ? `${it.quantity} kg${it.pieceCount ? ` · ${it.pieceCount} ${t('orders.pieces', 'pcs')}` : ''} × ${formatAmount(it.unitPrice)}` : `${it.quantity} × ${formatAmount(it.unitPrice)}`; })()}
+                                                        {it.express && <span> · {t('pos.express', 'Express')}</span>}
+                                                    </span>
+                                                    <span style={{ width: 84, textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{formatAmount(it.total)}</span>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 ))}
-                                <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.subtotal', 'Subtotal')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.subtotal)}</span></div>
+                                <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 9, fontSize: 13.5, background: 'var(--ds-table-head)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ds-text-2)' }}>{t('pos.subtotal', 'Subtotal')}</span><span>{formatAmount(f.subtotal)}</span></div>
                                     {f.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{f.couponCode ? `${t('checkout.coupon', 'Coupon')} ${f.couponCode}` : t('checkout.discount', 'Discount')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.discountAmount)}</span></div>}
                                     {(f.pointsRedeemed || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-success)' }}><span>{t('orders.pointsRedeemedLabel', 'Points redeemed')}</span><span style={{ fontFamily: MONO }}>−{formatAmount(f.pointsRedeemed || 0)}</span></div>}
                                     {(order.loyalty?.earnedPoints || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--c-warning)' }}><span>{t('orders.pointsEarnedLabel', 'Cashback earned')}</span><span style={{ fontFamily: MONO }}>+{order.loyalty!.earnedPoints} {t('orders.pts', 'pts')}</span></div>}
-                                    {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{taxLabel} ({f.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(f.taxAmount || 0)}</span></div>}
-                                    {(f.deliveryCharge || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.deliveryCharge', 'Delivery')}</span><span style={{ fontFamily: MONO }}>{formatAmount(f.deliveryCharge)}</span></div>}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, fontSize: 15 }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(f.total)}</span></div>
+                                    {(f.taxAmount || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ds-text-2)' }}>{taxLabel} ({f.taxRate}%)</span><span>{formatAmount(f.taxAmount || 0)}</span></div>}
+                                    {(f.deliveryCharge || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ds-text-2)' }}>{t('pos.deliveryCharge', 'Delivery charge')}</span><span>{formatAmount(f.deliveryCharge)}</span></div>}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4, borderTop: '1px solid var(--ds-border)' }}><span style={{ fontWeight: 700, fontSize: 16 }}>{t('pos.total', 'Total')}</span><span style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-.01em' }}>{formatAmount(f.total)}</span></div>
                                 </div>
                             </div>
 
@@ -614,7 +591,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                                 );
                                 return (
                                     <div style={{ ...card, padding: '18px 20px' }}>
-                                        <div style={{ ...secLbl, display: 'flex', alignItems: 'center', gap: 7 }}><ImageIcon size={14} />{t('orders.photos', 'ORDER PHOTOS')}</div>
+                                        <div style={{ ...secLbl, display: 'flex', alignItems: 'center', gap: 7 }}><ImageIcon size={14} />{t('orders.photos', 'Order photos')}</div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                                             {order.damagePhotoUrls?.map((url, i) => (
                                                 <div key={`d${i}`}>
@@ -653,19 +630,21 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
 
                             {/* timeline */}
                             <div style={{ ...card, padding: '18px 20px' }}>
-                                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{t('orders.timeline', 'Activity timeline')}</div>
+                                <div style={{ ...secLbl, marginBottom: 18 }}>{t('orders.timeline', 'Timeline')}</div>
                                 {(order.timeline || []).map((event, index, arr) => {
-                                    const er = STATUS_TINT[event.status] || 'c-slate';
                                     const last = index === arr.length - 1;
-                                    const Ic = statusIcons[event.status] || Clock;
                                     return (
                                         <div key={event.id || index} style={{ display: 'flex', gap: 13 }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
-                                                <span style={{ width: 26, height: 26, borderRadius: '50%', background: `var(--${er}-soft)`, color: `var(--${er})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={13} /></span>
-                                                {!last && <span style={{ width: 2, flex: 1, background: 'var(--c-border)', minHeight: 12 }} />}
+                                                <span style={{ width: 12, height: 12, marginTop: 4, borderRadius: '50%', background: index === 0 ? 'var(--ds-blue)' : 'var(--ds-blue)', opacity: index === 0 ? 1 : .55, flex: 'none' }} />
+                                                {!last && <span style={{ width: 2, flex: 1, background: 'var(--ds-border)', minHeight: 14 }} />}
                                             </div>
                                             <div style={{ flex: 1, paddingBottom: last ? 2 : 16 }}>
-                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}><span style={{ fontSize: 13.5, fontWeight: 500 }}>{getStatusLabel(event.status)}</span><span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--c-text-3)', fontFamily: MONO }}>{format(event.timestamp.toDate(), 'MMM d, h:mm a')}</span></div>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                                                    <span style={{ fontSize: 14, fontWeight: 600, minWidth: 132 }}>{getStatusLabel(event.status)}</span>
+                                                    <span style={{ fontSize: 12.5, color: 'var(--ds-text-2)' }}>{format(event.timestamp.toDate(), 'd MMM, h:mm a')}</span>
+                                                    {event.staffName && <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--ds-text-2)' }}>{t('orders.by', 'by')} {event.staffName}</span>}
+                                                </div>
                                                 {event.notes && <div style={{ fontSize: 12, color: 'var(--c-text-3)', marginTop: 2 }}>{event.notes}</div>}
                                             </div>
                                         </div>
@@ -679,41 +658,71 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
                             {/* customer */}
                             <div style={{ ...card, padding: '18px 20px' }}>
-                                <div style={secLbl}>{t('customer.title', 'CUSTOMER')}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <span style={{ width: 42, height: 42, flex: 'none', borderRadius: '50%', background: 'var(--c-primary-soft)', color: 'var(--c-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>{(order.customerName || '?').trim()[0]?.toUpperCase()}</span>
-                                    {/* Fall back to email when the customer has no phone (email-only customers). */}
-                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{order.customerName || t('customer.guest', 'Guest')}</div><div style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis' }}>{order.customerPhone || order.customerEmail || '—'}</div></div>
-                                    {order.customerPhone
-                                        ? <button onClick={() => window.open(`tel:${order.customerPhone}`)} aria-label="Call" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Phone size={15} /></button>
-                                        : order.customerEmail
-                                        ? <button onClick={() => window.open(`mailto:${order.customerEmail}`)} aria-label="Email" style={{ cursor: 'pointer', width: 32, height: 32, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-primary)', background: 'var(--c-primary-soft)', border: 0, borderRadius: 8 }}><Mail size={15} /></button>
-                                        : null}
+                                <div style={secLbl}>{t('customer.title', 'Customer')}</div>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                                    <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 26, background: 'var(--ds-blue-soft)', color: 'var(--ds-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 19 }}>{(order.customerName || '?').trim()[0]?.toUpperCase()}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em' }}>{order.customerName || t('customer.guest', 'Guest')}</div>
+                                        {/* Fall back to email when the customer has no phone (email-only customers). */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 13, color: 'var(--ds-text-2)' }}>
+                                            {order.customerPhone ? <Phone size={14} style={{ flex: 'none', color: 'var(--ds-text-3)' }} /> : <Mail size={14} style={{ flex: 'none', color: 'var(--ds-text-3)' }} />}
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{order.customerPhone || order.customerEmail || '—'}</span>
+                                        </div>
+                                        {(order.deliveryAddress || order.customerAddress) && (
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6, fontSize: 13, color: 'var(--ds-text-2)' }}>
+                                                <MapPin size={14} style={{ flex: 'none', marginTop: 2, color: 'var(--ds-text-3)' }} />
+                                                <span>{order.deliveryAddress || order.customerAddress}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
+                                        {order.customerPhone && (
+                                            <button onClick={() => window.open(`tel:${order.customerPhone}`)} style={{ cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ds-blue)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10, padding: '9px 16px' }}>
+                                                <Phone size={15} />{t('orders.call', 'Call')}
+                                            </button>
+                                        )}
+                                        {order.customerPhone && (
+                                            <button onClick={handleWhatsAppChat} style={{ cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ds-whatsapp)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10, padding: '9px 16px' }}>
+                                                <MessageCircle size={15} />{t('orders.whatsapp', 'WhatsApp')}
+                                            </button>
+                                        )}
+                                        {!order.customerPhone && order.customerEmail && (
+                                            <button onClick={() => window.open(`mailto:${order.customerEmail}`)} style={{ cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ds-blue)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10, padding: '9px 16px' }}>
+                                                <Mail size={15} />{t('common.email', 'Email')}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+                                {custStats && (custStats.totalOrders > 0 || custStats.totalSpent > 0) && (
+                                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--ds-divider)', fontSize: 12.5, color: 'var(--ds-text-2)' }}>
+                                        <b style={{ color: 'var(--ds-text)' }}>{custStats.totalOrders}</b> {t('orders.ordersLower', 'orders')} · <b style={{ color: 'var(--ds-text)' }}>{formatAmount(custStats.totalSpent)}</b> {t('orders.lifetime', 'lifetime')}
+                                    </div>
+                                )}
                             </div>
 
                             {/* delivery & route */}
                             {(isHome || order.expectedDelivery) && (
                                 <div style={{ ...card, padding: '18px 20px' }}>
-                                    <div style={secLbl}>{isHome ? t('orders.deliveryRoute', 'DELIVERY & ROUTE') : t('orders.fulfilment', 'FULFILMENT')}</div>
+                                    <div style={secLbl}>{isHome ? t('orders.deliveryRoute', 'Delivery & route') : t('orders.fulfilment', 'Fulfilment')}</div>
                                     {isHome && order.deliveryAddress && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}><span style={{ color: 'var(--c-text-3)', flex: 'none', marginTop: 1 }}><MapPin size={16} /></span><span style={{ fontSize: 13, color: 'var(--c-text-2)' }}>{order.deliveryAddress}</span></div>}
-                                    {order.deliveryArea && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 12, paddingTop: 12, borderTop: isHome && order.deliveryAddress ? '1px solid var(--c-border)' : undefined }}><span style={{ color: 'var(--c-text-2)' }}>{t('checkout.serviceArea', 'Area')}</span><span style={{ fontWeight: 600 }}>{order.deliveryArea}</span></div>}
-                                    {order.expectedDelivery && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{dtype === 'delivery_home' ? t('orders.expectedDelivery', 'Expected') : t('orders.expectedReady', 'Ready by')}</span><span style={{ fontWeight: 600 }}>{format(order.expectedDelivery.toDate(), 'MMM d, yyyy')}</span></div>}
-                                    {dtype === 'pickup_home' && order.scheduledPickupDate && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupDate', 'Pickup date')}</span><span style={{ fontWeight: 600 }}>{format(order.scheduledPickupDate.toDate(), 'MMM d, yyyy')}</span></div>}
-                                    {order.scheduledPickupTime && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.pickupSlot', 'Pickup slot')}</span><span style={{ fontWeight: 600 }}>{order.scheduledPickupTime}</span></div>}
-                                    {order.deliverySlot && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 9 }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.deliverySlot', 'Delivery slot')}</span><span style={{ fontWeight: 600 }}>{order.deliverySlot}</span></div>}
+                                    {dtype === 'pickup_home' && order.scheduledPickupDate && <Row icon={<CalendarDays size={16} />} label={t('orders.pickupDate', 'Pickup date')} value={format(order.scheduledPickupDate.toDate(), 'd MMM, yyyy')} />}
+                                    {order.scheduledPickupTime && <Row icon={<Clock size={16} />} label={t('orders.pickupSlot', 'Pickup slot')} value={order.scheduledPickupTime} />}
+                                    {order.expectedDelivery && <Row icon={<CalendarDays size={16} />} label={dtype === 'delivery_home' ? t('orders.expectedDelivery', 'Delivery date') : t('orders.expectedReady', 'Ready by')} value={format(order.expectedDelivery.toDate(), 'd MMM, yyyy')} />}
+                                    {order.deliverySlot && <Row icon={<Clock size={16} />} label={t('orders.deliverySlot', 'Delivery slot')} value={order.deliverySlot} />}
+                                    {order.deliveryArea && <Row icon={<MapPin size={16} />} label={t('checkout.serviceArea', 'Service area')} value={order.deliveryArea} />}
                                     {order.deliveryNotes && (
                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
-                                            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--c-text-3)', marginBottom: 5 }}>{t('orders.orderNotes', 'ORDER NOTES')}</div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)', marginBottom: 5 }}>{t('orders.orderNotes', 'Order notes')}</div>
                                             <div style={{ fontSize: 13, color: 'var(--c-text-2)', whiteSpace: 'pre-line', lineHeight: 1.5 }}>{order.deliveryNotes}</div>
                                         </div>
                                     )}
                                     {isHome && (
                                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-border)' }}>
-                                            <div style={{ fontSize: 13, color: 'var(--c-text-2)', marginBottom: 8 }}>{t('orders.assignedAgent', 'Driver')}</div>
                                             {order.status !== 'delivered' && order.status !== 'cancelled' ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{ color: 'var(--ds-text-3)', display: 'inline-flex' }}><UserRound size={16} /></span>
+                                                    <span style={{ fontSize: 13, color: 'var(--ds-text-2)', whiteSpace: 'nowrap' }}>{t('orders.assignedAgent', 'Assigned agent')}</span>
+                                                    <div style={{ flex: 1, minWidth: 0, marginLeft: 'auto', maxWidth: 260 }}>
                                                         <LSelect value={order.assignedAgentId || ''} onChange={async (value: string) => { if (reassigning) return; setReassigning(true); try { const a = agents.find((x) => x.id === value); await reassignAgent(order.id, value || null, a?.name || null); } catch (e) { console.error(e); } finally { setReassigning(false); } }} options={[{ value: '', label: t('orders.selectAgent', 'Select Agent') }, ...agents.map((a) => ({ value: a.id, label: `${a.name} ${a.isOnline ? '🟢' : '⚪'}` }))]} disabled={reassigning} />
                                                     </div>
                                                     {reassigning && <LSpinner size="sm" />}
@@ -729,16 +738,48 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                             {/* payment */}
                             <div style={{ ...card, padding: '18px 20px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: 13 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: 'var(--c-text-3)' }}>{t('checkout.payment', 'PAYMENT')}</span>
-                                    {(() => { const pr = order.paymentStatus === 'paid' ? 'c-success' : order.paymentStatus === 'partial' ? 'c-warning' : 'c-error'; const pl = order.paymentStatus === 'paid' ? t('orders.paid', 'Paid') : order.paymentStatus === 'partial' ? t('orders.partial', 'Partial') : t('orders.unpaid', 'Unpaid'); return <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: `var(--${pr})`, background: `var(--${pr}-soft)`, padding: '3px 9px', borderRadius: 20 }}>{pl}</span>; })()}
+                                    <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>{t('checkout.payment', 'Payment')}</span>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('pos.total', 'Total')}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{formatAmount(f.total)}</span></div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--c-text-2)' }}>{t('orders.amountPaid', 'Paid')}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{formatAmount(f.amountPaid)}</span></div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--c-border)' }}><span style={{ fontWeight: 700, color: hasBalance ? 'var(--c-error)' : 'var(--c-success)' }}>{t('orders.balanceDue', 'Balance')}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, color: hasBalance ? 'var(--c-error)' : 'var(--c-success)' }}>{formatAmount(f.balance)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ds-text-2)' }}>{t('pos.total', 'Total')}</span><span style={{ fontWeight: 600 }}>{formatAmount(f.total)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ds-text-2)' }}>{t('orders.paid', 'Paid')}</span><span style={{ fontWeight: 600 }}>{formatAmount(f.amountPaid)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 2, borderTop: '1px dashed var(--ds-border)' }}><span style={{ fontWeight: 700, fontSize: 14.5, color: hasBalance ? 'var(--ds-negative)' : 'var(--ds-st-ready)' }}>{t('orders.balanceDue', 'Balance due')}</span><span style={{ fontWeight: 700, fontSize: 17, color: hasBalance ? 'var(--ds-negative)' : 'var(--ds-st-ready)' }}>{formatAmount(f.balance)}</span></div>
                                 </div>
-                                {hasBalance && <button onClick={() => setPaymentSheetOpen(true)} style={{ width: '100%', marginTop: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, font: 'inherit', fontSize: 13.5, fontWeight: 600, color: '#fff', background: 'var(--c-primary)', border: 0, borderRadius: 9, padding: 11 }}>{t('orders.collectPayment', 'Collect payment')}</button>}
+                                {hasBalance && <button onClick={() => setPaymentSheetOpen(true)} style={{ width: '100%', marginTop: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, font: 'inherit', fontSize: 14, fontWeight: 600, color: '#fff', background: 'var(--ds-tile-green)', border: 0, borderRadius: 10, padding: 12, boxShadow: 'var(--ds-shadow)' }}>{t('orders.collectPayment', 'Collect Payment')}</button>}
+                                {(order.payments || []).length > 0 && (
+                                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {(order.payments || []).map((pmt, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, padding: '9px 12px', borderRadius: 10, background: 'var(--ds-st-ready-bg)', color: 'var(--ds-st-ready)' }}>
+                                                <CircleCheck size={15} style={{ flex: 'none' }} />
+                                                <b>{formatAmount(pmt.amount || 0)}</b>
+                                                <span style={{ opacity: .75 }}>· {String(pmt.method || 'cash').toUpperCase()}</span>
+                                                <span style={{ marginLeft: 'auto', opacity: .75 }}>{pmt.collectedAt?.toDate ? format(pmt.collectedAt.toDate(), 'd MMM, h:mm a') : ''}</span>
+                                                <ChevronDown size={15} style={{ opacity: .6 }} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
+
+                            {/* tag — scan it at the counter to open this order */}
+                            {(
+                                <div style={{ ...card, padding: '18px 20px' }}>
+                                    <div style={secLbl}>{t('orders.tag', 'Tag')}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                        <span style={{ width: 80, flex: 'none', borderRadius: 10, border: '1px solid var(--ds-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 6px', background: '#fff' }}>
+                                            <QrCode size={46} strokeWidth={1.2} style={{ color: 'var(--ds-text)' }} />
+                                            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.02em' }}>{order.publicId}</span>
+                                        </span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t('orders.tagTitle', 'Order tag for customer items')}</div>
+                                            <div style={{ fontSize: 12.5, color: 'var(--ds-text-2)', marginTop: 3 }}>{t('orders.tagHint', 'Scan this at your shop to open the order.')}</div>
+                                        </div>
+                                        <button onClick={() => setTagModalOpen(true)} style={{ flex: 'none', cursor: 'pointer', font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ds-blue)', background: 'var(--ds-card)', border: '1px solid var(--ds-border)', borderRadius: 10, padding: '9px 14px' }}>
+                                            <Printer size={16} />{t('orders.printTags', 'Print tag')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -767,7 +808,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     { id: "download", label: t('orders.downloadReceipt'), icon: <Download className="h-5 w-5" />, onClick: handleDownloadReceipt },
                     { id: "print", label: t('orders.printA4', 'Print A4'), icon: <Printer className="h-5 w-5" />, onClick: () => handlePrintPreview("a4") },
                     { id: "print-thermal", label: t('orders.printThermal', 'Print 80mm (POS)'), icon: <Printer className="h-5 w-5" />, onClick: () => handlePrintPreview("thermal") },
-                    ...(hasFeature("qrScans") ? [{ id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } }] : []),
+                    { id: "tags", label: t('orders.printTags'), icon: <Tag className="h-5 w-5" />, onClick: () => { setActionSheetOpen(false); setTagModalOpen(true); } },
                     ...(canEdit ? [{ id: "edit", label: t('orders.editOrder'), icon: <Edit className="h-5 w-5" />, onClick: handleEdit }] : []),
                     ...(canCancel ? [{ id: "cancel", label: t('orders.cancelOrder'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setCancelSheetOpen(true); } }] : []),
                     ...(canDeleteOrder ? [{ id: "delete", label: t('orders.deleteOrder', 'Delete Order Permanently'), icon: <Trash2 className="h-5 w-5" />, destructive: true, onClick: () => { setActionSheetOpen(false); setDeleteSheetOpen(true); } }] : []),

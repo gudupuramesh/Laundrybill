@@ -140,6 +140,7 @@ class StorageTracker {
             'delivery-photos': { count: 0, bytes: 0 },
             'receipts': { count: 0, bytes: 0 },
             'shop-assets': { count: 0, bytes: 0 },
+            'shop-logos': { count: 0, bytes: 0 },
             'payment-proofs': { count: 0, bytes: 0 },
             'profile-photos': { count: 0, bytes: 0 },
             'default-catalog': { count: 0, bytes: 0 },

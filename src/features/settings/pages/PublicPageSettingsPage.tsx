@@ -8,11 +8,13 @@ import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
 import { PublicPageSettings } from "../PublicPageSettings";
 import { useShopLimits } from "@/hooks/use-shop-limits";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-export function PublicPageSettingsPage() {
+export function PublicPageSettingsPage({ embedded, onOpenOffers }: { embedded?: boolean; onOpenOffers?: () => void } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { hasFeature } = useShopLimits();
+  const isMobile = useIsMobile();
   const canAccessPublicPage = hasFeature("publicOrderingPage");
 
   if (!canAccessPublicPage) {
@@ -37,5 +39,5 @@ export function PublicPageSettingsPage() {
     );
   }
 
-  return <PublicPageSettings />;
+  return <PublicPageSettings embedded={embedded} onOpenOffers={onOpenOffers ?? (() => navigate(isMobile ? "/settings/offers" : "/settings?section=offers"))} />;
 }

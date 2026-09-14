@@ -9,8 +9,6 @@
 import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    LTextArea,
-    LSelect,
     LSmartImageUploader,
     type LSmartImageUploaderRef,
 } from "@/components/laundry";
@@ -29,19 +27,16 @@ import type { PublicCoupon } from "@/types/shop";
 import { useAvailableAgents } from "@/hooks/use-available-agents";
 import { Timestamp } from "firebase/firestore";
 import { addDays, format } from "date-fns";
-import { Store, Truck, Home, Calendar, Minus, Plus, FileText, Check, Shirt, Mail, MapPin } from "lucide-react";
+import { Store, Truck, Home, FileText, Check, Shirt, MapPin, Phone, CalendarDays, ChevronDown, ArrowLeft, ScanLine, Settings, Banknote, Smartphone, CreditCard } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { getTranslatedItemName, isWeightUnit } from "@/lib/inventory-translations";
+import { getTranslatedItemName, getTranslatedCategoryName, isWeightUnit } from "@/lib/inventory-translations";
 import { useStaffAuthOptional } from "@/features/staff-app/StaffAuthContext";
 import { useDriverAuthOptional } from "@/features/driver-app/DriverAuthContext";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { useShopLimits } from "@/hooks/use-shop-limits";
 
-const MONO = "'IBM Plex Mono'";
-const TINTS = ["c-primary", "c-violet", "c-info", "c-cyan", "c-success", "c-warning"];
-const tintFor = (s: string) => { let h = 0; for (const c of s || "x") h = (h * 31 + c.charCodeAt(0)) >>> 0; return TINTS[h % TINTS.length]; };
-const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 13, padding: "18px 20px", boxShadow: "var(--sh-sm)" };
-const secLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 14 };
+const card: CSSProperties = { background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 14, padding: "20px 22px", boxShadow: "0 1px 2px rgba(16,24,40,.04)" };
+const cardTitle: CSSProperties = { fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", marginBottom: 18 };
 
 interface CheckoutSheetProps {
     open: boolean;
@@ -56,7 +51,7 @@ interface CheckoutSheetProps {
 export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: CheckoutSheetProps) {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { formatAmount } = useCurrency();
+    const { formatAmount, currencySymbol } = useCurrency();
     const { shopId } = useAuth();
     const { allCategories } = useInventory();
     const isMobile = useIsMobile();
@@ -91,9 +86,16 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
         return y && m && d ? new Date(y, m - 1, d) : new Date();
     }, [pickupDateStr]);
 
-    // Payment: Unpaid / Paid (owner app model)
-    const [paymentStatus, setPaymentStatus] = useState<"unpaid" | "paid">("unpaid");
-    const amountPaid = paymentStatus === "paid" ? cart.total : 0;
+    // Payment: Full / Partial / Pay later + method (Cash · UPI · Card).
+    const [payMode, setPayMode] = useState<"full" | "partial" | "later">("later");
+    const [payNowStr, setPayNowStr] = useState("");
+    const [payMethod, setPayMethod] = useState<"cash" | "upi" | "card">("cash");
+    const [payError, setPayError] = useState<string | null>(null);
+    useEffect(() => { setPayError(null); }, [payMode, payNowStr]);
+    const [addressEditing, setAddressEditing] = useState(false);
+    const [discountMode, setDiscountMode] = useState<"percent" | "flat">(cart.discountType === "flat" ? "flat" : "percent");
+    const payNow = Math.min(cart.total, Math.max(0, parseFloat(payNowStr) || 0));
+    const newAmountPaid = payMode === "full" ? cart.total : payMode === "partial" ? payNow : 0;
 
     const { createOrder, loading } = useCreateOrder();
     const { updateOrder } = useOrderMutations();
@@ -119,6 +121,19 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
 
     // Edit mode: prefill pickup date + slots from the existing order.
     const { order: editingOrder } = useOrder(editOrderId || "");
+    const amountPaid = newAmountPaid;
+    const payPrefilled = useRef(false);
+    useEffect(() => {
+        if (!isEditMode || !editingOrder || payPrefilled.current) return;
+        payPrefilled.current = true;
+        const paid = editingOrder.financials?.amountPaid || 0;
+        const total = editingOrder.financials?.total || 0;
+        if (paid > 0 && paid >= total) setPayMode("full");
+        else if (paid > 0) { setPayMode("partial"); setPayNowStr(String(paid)); }
+        else setPayMode("later");
+        const m = editingOrder.paymentMethod;
+        if (m === "cash" || m === "upi" || m === "card") setPayMethod(m);
+    }, [isEditMode, editingOrder]);
     const slotsPrefilled = useRef(false);
     useEffect(() => {
         if (!isEditMode || !editingOrder || slotsPrefilled.current) return;
@@ -159,6 +174,9 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
         const coupon = coupons.find((c) => c.code?.toUpperCase() === code);
         if (!coupon) { setCouponError(t("pos.couponNotFound", "Coupon not found")); return; }
         if (coupon.active === false) { setCouponError(t("pos.couponInactive", "This coupon is paused")); return; }
+        if (coupon.startsAt && new Date(coupon.startsAt + "T00:00:00") > new Date()) {
+            setCouponError(t("pos.couponNotStarted", "This coupon starts on {{d}}", { d: coupon.startsAt })); return;
+        }
         if (coupon.expiresAt && new Date(coupon.expiresAt + "T23:59:59") < new Date()) {
             setCouponError(t("pos.couponExpired", "This coupon has expired")); return;
         }
@@ -172,13 +190,17 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
     const agentLimit = checkLimit("maxDeliveryAgents", 0).limit;
     const canHaveAgents = !limitsLoading && (agentLimit === -1 || (typeof agentLimit === "number" && agentLimit > 0));
 
-    // Auto-select first service area
+    // Auto-select a service area — only for home pickup / delivery. (Doing it for
+    // shop pickup too made this effect and the "clear when not home" effect below
+    // undo each other every render, so the area kept flickering.) Prefer the
+    // customer's own area when it is one of the shop's service areas.
     useEffect(() => {
-        if (deliverySettings.serviceAreas?.length > 0 && !selectedArea) {
-            const firstActive = deliverySettings.serviceAreas.find((a) => a.isActive);
-            if (firstActive) setSelectedArea(firstActive.value);
-        }
-    }, [deliverySettings.serviceAreas, selectedArea]);
+        if (!isHomeType || selectedArea || !(deliverySettings.serviceAreas?.length > 0)) return;
+        const active = deliverySettings.serviceAreas.filter((a) => a.isActive);
+        const own = posCustomer?.area && active.find((a) => a.value.toLowerCase() === String(posCustomer.area).toLowerCase());
+        const pick = own || active[0];
+        if (pick) setSelectedArea(pick.value);
+    }, [deliverySettings.serviceAreas, selectedArea, isHomeType, posCustomer?.area]);
 
     // Clear area/agent when not a home delivery / pickup-from-home order
     const areaAgentUiActive = isHomeType;
@@ -244,22 +266,13 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
         !cart.customerAddresses?.some((a) => a.address.toLowerCase().trim() === cart.deliveryAddress?.toLowerCase().trim());
     const isFirstAddress = !cart.customerAddresses || cart.customerAddresses.length === 0;
 
-    // Services grouped by category (owner-app style)
-    const categoryGroups = useMemo(() => {
-        const map: Record<string, { name: string; subtotal: number; items: typeof cart.items }> = {};
-        cart.items.forEach((item) => {
-            const key = item.service.categoryId || "other";
-            if (!map[key]) map[key] = { name: item.service.categoryName || t("mobile.categoryOther", "Other"), subtotal: 0, items: [] };
-            map[key].items.push(item);
-            map[key].subtotal += item.total;
-        });
-        return Object.values(map);
-    }, [cart.items, t]);
 
-    const formatDate = (d: Date) =>
-        d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
     const handlePlaceOrder = async () => {
+        if (payMode === "partial" && (payNow <= 0 || payNow >= cart.total)) {
+            setPayError(t("checkout.partialInvalid", "Enter an amount between 0 and the total"));
+            return;
+        }
         // Home orders must carry their pickup/delivery scheduling info.
         if (needsPickupSlot && !pickupSlot) {
             setSlotError(t("checkout.pickupSlotRequired", "Please select a pickup time slot"));
@@ -306,7 +319,9 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
                         taxRate: cart.taxRate,
                         taxName: cart.taxName,
                         total: cart.total,
-                        amountPaid,
+                        // Until the order's collected amount has been loaded into the
+                        // payment card, keep what is stored instead of zeroing it.
+                        amountPaid: payPrefilled.current ? amountPaid : (editingOrder?.financials?.amountPaid ?? 0),
                     },
                     deliveryType: cart.deliveryType,
                     deliveryAddress: cart.deliveryAddress,
@@ -390,7 +405,7 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
             scheduledPickupDate: cart.deliveryType === "pickup_home" ? scheduledPickupDate : undefined,
             pickupSlot: cart.deliveryType === "pickup_home" ? (pickupSlot || undefined) : undefined,
             deliverySlot: isHomeType ? (deliverySlot || undefined) : undefined,
-            paymentMethod: "cash",
+            paymentMethod: amountPaid > 0 ? payMethod : "cash",
             staffId: isAgentRoute ? agent?.id : (isStaffRoute ? staff?.id : undefined),
             staffName: isAgentRoute ? agent?.name : (isStaffRoute ? staff?.name : undefined),
             // An agent who creates the order is the assigned agent (auto-assign to self).
@@ -409,300 +424,421 @@ export function CheckoutSheet({ onClose, cart, onComplete, editOrderId }: Checko
     };
 
     const deliveryTypes: { value: DeliveryType; label: string; Icon: typeof Store; hint: string }[] = [
-        { value: "pickup_store", label: t("pos.shopPickup", "Shop Pickup"), Icon: Store, hint: t("checkout.inStore", "In-store") },
-        { value: "delivery_home", label: t("pos.homeDelivery", "Home Delivery"), Icon: Truck, hint: t("checkout.toAddress", "To address") },
-        { value: "pickup_home", label: t("pos.pickupFromHome", "Pickup from Home"), Icon: Home, hint: t("checkout.fromHome", "From home") },
+        { value: "pickup_store", label: t("checkout.shopPickup", "Shop pickup"), Icon: Store, hint: t("checkout.youPickUp", "You'll pick up") },
+        { value: "pickup_home", label: t("checkout.homePickup", "Home pickup"), Icon: Truck, hint: t("checkout.wePickUp", "We'll pick up") },
+        { value: "delivery_home", label: t("checkout.homeDeliveryShort", "Home delivery"), Icon: Home, hint: t("checkout.weDeliver", "We'll deliver") },
     ];
 
-    const custRef = tintFor(cart.customerName || cart.customerPhone || "?");
-    const custAddress = cart.deliveryAddress || cart.customerAddresses?.find((a) => a.isDefault)?.address || cart.customerAddresses?.[0]?.address || "—";
+    const custAddress = cart.deliveryAddress || cart.customerAddresses?.find((a) => a.isDefault)?.address || cart.customerAddresses?.[0]?.address || "";
+    const custArea = posCustomer?.area || custAddress;
+    const balanceDue = Math.max(0, cart.total - amountPaid);
+    const expectedStr = format(expectedDate, "yyyy-MM-dd");
+    const setExpectedFromStr = (v: string) => {
+        const [y, m, d] = v.split("-").map(Number);
+        if (y && m && d) setExpectedDate(new Date(y, m - 1, d));
+    };
+
+    /** Bordered date box with an invisible native picker on top — opens the OS calendar. */
+    const DateBox = ({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min?: string }) => {
+        const [y, m, d] = value.split("-").map(Number);
+        const shown = y && m && d ? format(new Date(y, m - 1, d), "EEE d MMM") : "—";
+        return (
+            <label style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, padding: "11px 18px", border: "1px solid var(--ds-border)", borderRadius: 12, background: "var(--ds-card)", cursor: "pointer" }}>
+                <CalendarDays size={20} style={{ color: "var(--ds-text-2)", flex: "none" }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ds-text-2)" }}>{label}</span>
+                    <span style={{ display: "block", fontSize: 15, fontWeight: 600, marginTop: 1 }}>{shown}</span>
+                </span>
+                <ChevronDown size={18} style={{ color: "var(--ds-text-2)" }} />
+                <input type="date" value={value} min={min} onChange={(e) => onChange(e.target.value)} aria-label={label}
+                    onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* unsupported */ } }}
+                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }} />
+            </label>
+        );
+    };
+
+    const SlotChips = ({ label, options, value, onChange }: { label: string; options: { value: string }[]; value: string; onChange: (v: string) => void }) => (
+        <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ds-text-2)", marginBottom: 10 }}>{label}</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {options.map((o) => {
+                    const on = value === o.value;
+                    return (
+                        <button key={o.value} type="button" onClick={() => onChange(o.value)}
+                            style={{ cursor: "pointer", font: "inherit", fontSize: 14.5, fontWeight: 600, minWidth: 104, padding: "10px 20px", borderRadius: 10, border: `1px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, background: on ? "var(--ds-blue)" : "var(--ds-card)", color: on ? "#fff" : "var(--ds-text)" }}>{o.value}</button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    const fieldLbl: CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--ds-text-2)", marginBottom: 8 };
+    const selectStyle: CSSProperties = { width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "12px 14px", outline: "none", cursor: "pointer" };
+
+    const methodTiles: { id: "cash" | "upi" | "card"; label: string; icon: React.ReactNode }[] = [
+        { id: "cash", label: t("checkout.cash", "Cash"), icon: <Banknote size={22} style={{ color: "var(--ds-tile-green)" }} /> },
+        { id: "upi", label: "UPI", icon: <Smartphone size={20} style={{ color: "var(--ds-tile-orange)" }} /> },
+        { id: "card", label: t("checkout.card", "Card"), icon: <CreditCard size={20} style={{ color: "var(--ds-text-2)" }} /> },
+    ];
 
     return (
-        <div className="lb-scroll" style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--c-bg)", height: "calc(100vh - 56px)" }}>
-            <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "16px 14px calc(92px + env(safe-area-inset-bottom, 0px))" : 24 }}>
-                <button onClick={onClose} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "var(--c-text-2)", background: "transparent", border: 0, marginBottom: 14 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
-                    {t("checkout.backToItems", "Back to items")}
-                </button>
-                <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-.01em", marginBottom: 16 }}>
-                    {isEditMode ? t("checkout.updateOrderTitle", "Update Order") : t("checkout.checkout", "Checkout")}
-                </div>
+        <div className="lb-ds" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--ds-bg)", height: "calc(100vh - 56px)" }}>
+            {/* header — back · title · step indicator · scan + settings */}
+            <header style={{ flex: "none", display: "flex", alignItems: "center", gap: 16, padding: isMobile ? "12px 14px" : "14px 22px", background: "var(--ds-card)", borderBottom: "1px solid var(--ds-border)" }}>
+                <button onClick={onClose} aria-label={t("checkout.backToItems", "Back to items")} style={{ cursor: "pointer", width: 42, height: 42, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 11 }}><ArrowLeft size={19} /></button>
+                <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-.01em", whiteSpace: "nowrap" }}>{isEditMode ? t("checkout.updateOrderTitle", "Update order") : t("checkout.reviewOrder", "Review order")}</span>
+                {!isMobile && (
+                    <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 14 }}>
+                        {[
+                            { n: 1, label: t("checkout.stepItems", "Items"), state: "done" },
+                            { n: 2, label: t("checkout.stepReview", "Review"), state: "current" },
+                            { n: 3, label: t("checkout.stepDone", "Done"), state: "todo" },
+                        ].map((st, i) => (
+                            <div key={st.n} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                                {i > 0 && <span style={{ width: 28, height: 1, background: "var(--ds-border)" }} />}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                                    <span style={{ width: 34, height: 34, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600, background: st.state === "current" ? "var(--ds-blue)" : "var(--ds-card)", color: st.state === "current" ? "#fff" : "var(--ds-text)", border: `1px solid ${st.state === "current" ? "var(--ds-blue)" : "var(--ds-border)"}` }}>{st.n}</span>
+                                    <span style={{ fontSize: 15, fontWeight: 600, color: st.state === "current" ? "var(--ds-blue)" : "var(--ds-text)" }}>{st.label}</span>
+                                    {st.state === "done" && <Check size={17} strokeWidth={2.6} style={{ color: "var(--ds-tile-green)" }} />}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {isMobile && <div style={{ flex: 1 }} />}
+                {!isMobile && (
+                    <>
+                        <button onClick={() => navigate(isStaffRoute ? "/staff/scan" : "/scan")} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 10, fontSize: 14.5, fontWeight: 600, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "10px 16px" }}>
+                            <ScanLine size={18} />{t("pos.scanTag", "Scan a tag")}
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ds-text-3)", background: "var(--ds-table-head)", border: "1px solid var(--ds-border)", borderRadius: 6, padding: "1px 6px" }}>F3</span>
+                        </button>
+                        <button onClick={() => navigate("/settings")} aria-label={t("common.settings", "Settings")} style={{ cursor: "pointer", width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--ds-text-2)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12 }}><Settings size={19} /></button>
+                    </>
+                )}
+            </header>
 
-                <div className="co-grid" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: isMobile ? "stretch" : "flex-start" }}>
-                    {/* form */}
-                    <div style={{ flex: 1.5, minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="lb-scroll" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                <div style={{ padding: isMobile ? "16px 14px calc(92px + env(safe-area-inset-bottom, 0px))" : "18px 22px 28px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: 18, alignItems: isMobile ? "stretch" : "flex-start" }}>
+                    {/* LEFT */}
+                    <div style={{ flex: 1.45, minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
                         {/* customer */}
                         <div style={card}>
-                            <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)" }}>{t("checkout.customer", "CUSTOMER")}</span>
+                            <div style={cardTitle}>{t("checkout.customerTitle", "Customer")}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                                <span style={{ width: 52, height: 52, flex: "none", borderRadius: "50%", background: "var(--ds-blue-soft)", color: "var(--ds-blue)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 600 }}>{(cart.customerName || "G").trim()[0]?.toUpperCase()}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 17, fontWeight: 600 }}>{cart.customerName || t("customer.guest", "Guest")}</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 6, fontSize: 13.5, color: "var(--ds-text)" }}>
+                                        {(cart.customerPhone || cart.customerEmail) && <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><Phone size={15} style={{ color: "var(--ds-text-2)" }} />{cart.customerPhone || cart.customerEmail}</span>}
+                                        {custArea && <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><MapPin size={15} style={{ color: "var(--ds-text-2)" }} />{custArea}</span>}
+                                    </div>
+                                </div>
                                 {!isEditMode && (
-                                    <button onClick={onClose} style={{ marginLeft: "auto", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 7, padding: "5px 11px" }}>{t("common.change", "Change")}</button>
+                                    <button onClick={onClose} style={{ flex: "none", cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 10, padding: "10px 36px" }}>{t("common.change", "Change")}</button>
                                 )}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: custAddress !== "—" ? 14 : 0 }}>
-                                <span style={{ width: 46, height: 46, flex: "none", borderRadius: 12, background: `var(--${custRef}-soft)`, color: `var(--${custRef})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 600 }}>{(cart.customerName || "G").slice(0, 2).toUpperCase()}</span>
-                                <div><div style={{ fontSize: 16, fontWeight: 700 }}>{cart.customerName || t("customer.guest", "Guest")}</div><div style={{ fontSize: 12.5, color: "var(--c-text-3)", fontFamily: MONO }}>{cart.customerPhone || cart.customerEmail || "—"}</div></div>
-                            </div>
-                            {(custAddress !== "—" || (isHomeType && selectedArea)) && (
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11 }}>
-                                    {isHomeType && selectedArea && (
-                                        <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}><span style={{ color: "var(--c-text-3)", marginTop: 1 }}><MapPin size={15} /></span><div><div style={{ fontSize: 10.5, color: "var(--c-text-3)" }}>{t("checkout.serviceArea", "Service area")}</div><div style={{ fontSize: 12.5 }}>{selectedArea}</div></div></div>
-                                    )}
-                                    {custAddress !== "—" && (
-                                        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 9, alignItems: "flex-start" }}><span style={{ color: "var(--c-text-3)", marginTop: 1 }}><Mail size={15} style={{ display: "none" }} /><Home size={15} /></span><div><div style={{ fontSize: 10.5, color: "var(--c-text-3)" }}>{t("checkout.address", "Address")}</div><div style={{ fontSize: 12.5 }}>{custAddress}</div></div></div>
-                                    )}
-                                </div>
-                            )}
                         </div>
 
-                        {/* fulfilment */}
+                        {/* order type + scheduling */}
                         <div style={card}>
-                            <div style={secLbl}>{t("checkout.fulfilment", "FULFILMENT")}</div>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+                            <div style={cardTitle}>{t("checkout.orderType", "Order type")}</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
                                 {deliveryTypes.map(({ value, label, Icon, hint }) => {
                                     const on = cart.deliveryType === value;
                                     return (
-                                        <button key={value} onClick={() => cart.setDelivery(value)} style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", borderRadius: 11, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
-                                            <Icon size={20} />
-                                            <span style={{ fontSize: 12.5, fontWeight: 600, textAlign: "center" }}>{label}</span>
-                                            <span style={{ fontSize: 11, fontFamily: MONO, color: "var(--c-text-3)" }}>{hint}</span>
+                                        <button key={value} type="button" onClick={() => cart.setDelivery(value)}
+                                            style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "18px 8px 16px", borderRadius: 12, border: `${on ? 2 : 1}px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, background: "var(--ds-card)", margin: on ? 0 : 1 }}>
+                                            <Icon size={26} strokeWidth={1.7} style={{ color: on ? "var(--ds-blue)" : "var(--ds-text-2)" }} />
+                                            <span style={{ fontSize: 15, fontWeight: 600, marginTop: 4, color: on ? "var(--ds-blue)" : "var(--ds-text)" }}>{label}</span>
+                                            <span style={{ fontSize: 13, color: "var(--ds-text-2)" }}>{hint}</span>
                                         </button>
                                     );
                                 })}
                             </div>
-                            {/* ready by (turnaround-driven, ± day) */}
-                            <div style={{ marginTop: 14 }}>
-                                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{cart.deliveryType === "pickup_store" ? t("checkout.expectedReady", "Ready by") : t("checkout.expectedDelivery", "Delivery by")}</label>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "8px 10px", background: "var(--c-surface)" }}>
-                                    <Calendar size={16} style={{ color: "var(--c-text-3)" }} />
-                                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{formatDate(expectedDate)}</span>
-                                    <button type="button" onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() - 1); if (d >= new Date(new Date().toDateString())) setExpectedDate(d); }} aria-label="Earlier" style={stepBtn}><Minus size={15} /></button>
-                                    <button type="button" onClick={() => { const d = new Date(expectedDate); d.setDate(d.getDate() + 1); setExpectedDate(d); }} aria-label="Later" style={stepBtn}><Plus size={15} /></button>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 26 }}>
+                                {/* pickup scheduling (Home pickup) */}
+                                {cart.deliveryType === "pickup_home" && (
+                                    <>
+                                        <DateBox label={t("checkout.pickupDate", "Pickup date")} value={pickupDateStr} min={format(new Date(), "yyyy-MM-dd")} onChange={setPickupDateStr} />
+                                        {pickupSlotOptions.length > 0 && <SlotChips label={t("checkout.pickupSlot", "Pickup slot")} options={pickupSlotOptions} value={pickupSlot} onChange={setPickupSlot} />}
+                                    </>
+                                )}
+
+                                {/* delivery / ready date */}
+                                {isHomeType ? (
+                                    <DateBox label={t("checkout.deliveryDate", "Delivery date")} value={expectedStr} min={format(new Date(), "yyyy-MM-dd")} onChange={setExpectedFromStr} />
+                                ) : (
+                                    <DateBox label={t("checkout.expectedReadyLbl", "Expected ready")} value={expectedStr} min={format(new Date(), "yyyy-MM-dd")} onChange={setExpectedFromStr} />
+                                )}
+                                {isHomeType && deliverySlotOptions.length > 0 && (
+                                    <SlotChips label={t("checkout.deliverySlot", "Delivery slot")} options={deliverySlotOptions} value={deliverySlot} onChange={setDeliverySlot} />
+                                )}
+
+                                {/* address */}
+                                {isHomeType && (
+                                    addressEditing || !cart.deliveryAddress ? (
+                                        <div>
+                                            <label style={fieldLbl}>{cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddressLbl", "Delivery address") : t("checkout.pickupAddressLbl", "Pickup address")}</label>
+                                            <textarea autoFocus={addressEditing} value={cart.deliveryAddress || ""} rows={2}
+                                                onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
+                                                onBlur={() => { if (cart.deliveryAddress) setAddressEditing(false); }}
+                                                placeholder={t("checkout.enterFullAddress", "Enter full delivery address…")}
+                                                style={{ width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "12px 14px", resize: "vertical", outline: "none" }} />
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 18px", border: "1px solid var(--ds-border)", borderRadius: 12 }}>
+                                            <MapPin size={20} style={{ color: "var(--ds-text-2)", flex: "none" }} />
+                                            <span style={{ flex: 1, minWidth: 0 }}>
+                                                <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ds-text-2)" }}>{cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddressLbl", "Delivery address") : t("checkout.pickupAddressLbl", "Pickup address")}</span>
+                                                <span style={{ display: "block", fontSize: 14.5, marginTop: 2 }}>{cart.deliveryAddress}</span>
+                                            </span>
+                                            <button type="button" onClick={() => setAddressEditing(true)} style={{ cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ds-blue)", background: "transparent", border: 0 }}>{t("common.edit", "Edit")}</button>
+                                        </div>
+                                    )
+                                )}
+
+                                {/* distance bands */}
+                                {isHomeType && deliverySettings.distanceFeeEnabled && (deliverySettings.distanceBands?.length ?? 0) > 0 && (
+                                    <div>
+                                        <div style={fieldLbl}>{t("checkout.deliveryDistance", "Delivery distance")}</div>
+                                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                            {(deliverySettings.distanceBands ?? []).map((b) => {
+                                                const on = (cart.deliveryBandId || deliverySettings.distanceBands?.[0]?.id) === b.id;
+                                                return (
+                                                    <button key={b.id} type="button" onClick={() => cart.setDeliveryBand(b.id)}
+                                                        style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "9px 16px", borderRadius: 10, border: `1px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, background: on ? "var(--ds-blue-soft)" : "var(--ds-card)", color: on ? "var(--ds-blue)" : "var(--ds-text)" }}>
+                                                        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{b.label}</span>
+                                                        <span style={{ fontSize: 12.5, color: "var(--ds-text-2)" }}>{formatAmount(b.fee)}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* service area + agent */}
+                                {isHomeType && (deliverySettings.serviceAreas?.length > 0 || canHaveAgents) && (
+                                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+                                        {deliverySettings.serviceAreas?.length > 0 && (
+                                            <div>
+                                                <label style={fieldLbl}>{t("checkout.serviceArea", "Service area")}</label>
+                                                <select value={selectedArea} onChange={(e) => handleAreaChange(e.target.value)} style={selectStyle}>
+                                                    {areaOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        {canHaveAgents && (
+                                            <div>
+                                                <label style={fieldLbl}>{t("checkout.assignedAgent", "Assigned agent")}</label>
+                                                <select value={selectedAgentId} onChange={(e) => handleAgentChange(e.target.value)} disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea} style={selectStyle}>
+                                                    {agentOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {slotError && <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "var(--ds-negative)" }}>{slotError}</p>}
+
+                                {/* notes */}
+                                <div>
+                                    <label style={fieldLbl}>{t("checkout.notesOptional", "Notes for this order (optional)")}</label>
+                                    <textarea value={cart.deliveryNotes || ""} maxLength={200} rows={4}
+                                        onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)}
+                                        placeholder={t("checkout.notesPlaceholder2", "Stain details, folding preference, gate code…")}
+                                        style={{ width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "13px 14px", resize: "vertical", outline: "none" }} />
+                                    <div style={{ textAlign: "right", fontSize: 13, color: "var(--ds-text-2)", marginTop: 6 }}>{(cart.deliveryNotes || "").length} / 200</div>
                                 </div>
                             </div>
-                            {/* Pickup scheduling (Pickup & Delivery orders) */}
-                            {cart.deliveryType === "pickup_home" && (
-                                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-                                    <div>
-                                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{t("checkout.pickupDate", "Pickup date")} *</label>
-                                        <input
-                                            type="date"
-                                            value={pickupDateStr}
-                                            min={format(new Date(), "yyyy-MM-dd")}
-                                            onChange={(e) => setPickupDateStr(e.target.value)}
-                                            style={{ width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "9px 10px", outline: "none" }}
-                                        />
-                                    </div>
-                                    {pickupSlotOptions.length > 0 && (
-                                        <LSelect
-                                            label={`${t("checkout.pickupSlot", "Pickup slot")} *`}
-                                            value={pickupSlot}
-                                            onChange={(v) => setPickupSlot(v)}
-                                            options={[
-                                                { value: "", label: t("checkout.selectSlot", "Select time slot…") },
-                                                ...pickupSlotOptions.map((s) => ({ value: s.value, label: s.value })),
-                                            ]}
-                                        />
-                                    )}
-                                </div>
-                            )}
-                            {/* Delivery slot (all home orders) */}
-                            {isHomeType && deliverySlotOptions.length > 0 && (
-                                <div style={{ marginTop: 14 }}>
-                                    <LSelect
-                                        label={`${t("checkout.deliverySlot", "Delivery slot")} *`}
-                                        value={deliverySlot}
-                                        onChange={(v) => setDeliverySlot(v)}
-                                        options={[
-                                            { value: "", label: t("checkout.selectSlot", "Select time slot…") },
-                                            ...deliverySlotOptions.map((s) => ({ value: s.value, label: s.value })),
-                                        ]}
-                                    />
-                                </div>
-                            )}
-                            {slotError && (
-                                <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5, fontWeight: 600, color: "var(--c-error)" }}>{slotError}</p>
-                            )}
-                            {isHomeType && (
-                                <div style={{ marginTop: 14 }}>
-                                    <LTextArea
-                                        label={cart.deliveryType === "delivery_home" ? t("checkout.deliveryAddress", "Delivery Address") : t("checkout.pickupAddress", "Pickup Address")}
-                                        value={cart.deliveryAddress || ""}
-                                        onChange={(e) => cart.setDelivery(cart.deliveryType, e.target.value, cart.deliveryNotes, cart.deliveryCharge)}
-                                        placeholder={t("checkout.enterFullAddress", "Enter full delivery address…")}
-                                        minRows={2}
-                                    />
-                                </div>
-                            )}
-                            {isHomeType && deliverySettings.distanceFeeEnabled && (deliverySettings.distanceBands?.length ?? 0) > 0 && (
-                                <div style={{ marginTop: 14 }}>
-                                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{t("checkout.deliveryDistance", "Delivery distance")}</label>
-                                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                        {(deliverySettings.distanceBands ?? []).map((b) => {
-                                            const on = (cart.deliveryBandId || deliverySettings.distanceBands?.[0]?.id) === b.id;
-                                            return (
-                                                <button key={b.id} type="button" onClick={() => cart.setDeliveryBand(b.id)} style={{ cursor: "pointer", font: "inherit", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "9px 13px", borderRadius: 10, border: `1.5px solid ${on ? "var(--c-primary)" : "var(--c-border-strong)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", color: on ? "var(--c-primary)" : "var(--c-text-2)" }}>
-                                                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>{b.label}</span>
-                                                    <span style={{ fontSize: 11, fontFamily: MONO }}>{formatAmount(b.fee)}</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                            {isHomeType && deliverySettings.serviceAreas?.length > 0 && (
-                                <div style={{ marginTop: 14 }}>
-                                    <LSelect label={t("checkout.serviceArea", "Service Area")} value={selectedArea} onChange={handleAreaChange} options={areaOptions} />
-                                </div>
-                            )}
-                            {isHomeType && canHaveAgents && (
-                                <div style={{ marginTop: 14 }}>
-                                    <LSelect label={t("checkout.assignAgent", "Assign Delivery Agent")} value={selectedAgentId} onChange={handleAgentChange} options={agentOptions} disabled={deliverySettings.serviceAreas?.length > 0 && !selectedArea} />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* payment */}
-                        <div style={card}>
-                            <div style={secLbl}>{t("checkout.payment", "PAYMENT")}</div>
-                            <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-                                <div><div style={{ fontSize: 13, fontWeight: 600 }}>{t("checkout.collectNow", "Collect payment now")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("checkout.markPaid", "Mark this order as paid")}</div></div>
-                                <button role="switch" aria-checked={paymentStatus === "paid"} onClick={() => setPaymentStatus(paymentStatus === "paid" ? "unpaid" : "paid")} aria-label="Collect payment now" style={{ position: "relative", cursor: "pointer", width: 44, height: 25, border: 0, borderRadius: 20, flex: "none", background: paymentStatus === "paid" ? "var(--c-success)" : "var(--c-border-strong)" }}>
-                                    <span style={{ position: "absolute", top: 3, left: 3, width: 19, height: 19, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.3)", transition: "transform .15s", transform: paymentStatus === "paid" ? "translateX(19px)" : "translateX(0)" }} />
-                                </button>
-                            </label>
-                        </div>
-
-                        {/* notes */}
-                        <div style={card}>
-                            <div style={{ ...secLbl, marginBottom: 12 }}>{t("checkout.orderNotes", "ORDER NOTES")}</div>
-                            <textarea value={cart.deliveryNotes || ""} onChange={(e) => cart.setDelivery(cart.deliveryType, cart.deliveryAddress, e.target.value, cart.deliveryCharge)} rows={3}
-                                placeholder={t("checkout.notesPlaceholder", "Stain details, folding preference, gate code…")}
-                                style={{ width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: "11px 12px", resize: "vertical", outline: "none" }} />
                         </div>
 
                         {/* damage photos (gated paid feature) */}
                         {shopId && canUploadDamagePhotos && (
                             <div style={card}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)" }}><FileText size={14} />{t("checkout.damageStainPhotos", "DAMAGE / STAIN PHOTOS")}</span>
-                                    <span style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("common.optional", "Optional")}</span>
+                                <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+                                    <span style={{ ...cardTitle, marginBottom: 0, display: "inline-flex", alignItems: "center", gap: 8 }}><FileText size={17} />{t("checkout.damagePhotosTitle", "Damage / stain photos")}</span>
+                                    <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--ds-text-2)" }}>{t("common.optional", "Optional")}</span>
                                 </div>
                                 <LSmartImageUploader ref={damagePhotoUploaderRef} folder="damage-photos" shopId={shopId} value={damagePhotoMetadata} onChange={setDamagePhotoMetadata} maxFiles={5} showStats deferUpload />
                             </div>
                         )}
                     </div>
 
-                    {/* summary */}
-                    <div style={{ flex: 1, width: isMobile ? "100%" : undefined, minWidth: 0, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 13, boxShadow: "var(--sh-sm)", position: isMobile ? "static" : "sticky", top: 0 }}>
-                        <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--c-border)", fontSize: 14, fontWeight: 700 }}>{t("checkout.orderSummary", "Order summary")}</div>
-                        <div className="lb-scroll" style={{ maxHeight: isMobile ? "none" : 440, overflow: "auto", padding: "6px 14px" }}>
-                            {categoryGroups.map((group, gi) => {
-                                const gRef = tintFor(group.name);
-                                return (
-                                    <div key={`${group.name}-${gi}`} style={{ padding: "8px 0 4px" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 2px 6px" }}>
-                                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: `var(--${gRef})` }} />
-                                            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--c-text-2)" }}>{group.name}</span>
-                                        </div>
-                                        {group.items.map((item) => {
-                                            const lRef = tintFor(item.service.categoryId || item.service.name);
-                                            const qty = isWeightUnit(item.service.pricingType) ? item.quantity.toFixed(1) : item.quantity;
-                                            return (
-                                                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "7px 2px" }}>
-                                                    <span style={{ width: 34, height: 34, flex: "none", borderRadius: 8, overflow: "hidden", background: `var(--${lRef}-soft)`, color: `var(--${lRef})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.service.imageUrl ? <img src={item.service.imageUrl} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Shirt size={16} />}</span>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                            <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getTranslatedItemName(item.service.name)}</span>
-                                                            {item.express && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".03em", color: "var(--c-warning)", background: "var(--c-warning-soft)", padding: "2px 5px", borderRadius: 4, whiteSpace: "nowrap" }}>⚡ EXP</span>}
-                                                        </div>
-                                                        <div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO, marginTop: 1 }}>{qty} × {formatAmount(item.unitPrice)}{item.pieceCount ? ` · ${item.pieceCount} pcs` : ""}</div>
-                                                    </div>
-                                                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13 }}>{formatAmount(item.total)}</span>
-                                                </div>
-                                            );
-                                        })}
+                    {/* RIGHT */}
+                    <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 18, position: isMobile ? "static" : "sticky", top: 0 }}>
+                        {/* order summary */}
+                        <div style={card}>
+                            <div style={cardTitle}>{t("checkout.orderSummary", "Order summary")}</div>
+                            <div>
+                                {(() => {
+                        const groups: { key: string; name: string; lines: typeof cart.items }[] = [];
+                        cart.items.forEach((x) => {
+                            const key = x.service.categoryId || x.service.categoryName || "other";
+                            let g = groups.find((y) => y.key === key);
+                            if (!g) { g = { key, name: getTranslatedCategoryName(x.service.categoryName || t("pos.otherCategory", "Other"), x.service.categoryId), lines: [] }; groups.push(g); }
+                            g.lines.push(x);
+                        });
+                        return groups;
+                    })().map((grp) => (
+                                <div key={grp.key}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, padding: "7px 12px", background: "var(--ds-table-head)", border: "1px solid var(--ds-divider)", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+                                        <span>{grp.name}</span>
+                                        <span style={{ marginLeft: "auto", fontWeight: 500, color: "var(--ds-text-2)" }}>{formatAmount(grp.lines.reduce((sum, x) => sum + x.total, 0))}</span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                        <div style={{ padding: "14px 18px", borderTop: "1px solid var(--c-border)", display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("pos.subtotal", "Subtotal")}</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.subtotal)}</span></div>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                <span style={{ color: "var(--c-text-2)" }}>{t("pos.applyDiscount", "Discount")}</span>
+                                {grp.lines.map((item, i) => {
+                                    const isKg = isWeightUnit(item.service.pricingType);
+                                    const meta = isKg
+                                        ? `${item.quantity} ${t("pos.kg", "kg")}${item.pieceCount ? `  ·  ${item.pieceCount} ${t("orders.pieces", "pcs")}` : ""}`
+                                        : `× ${item.quantity}`;
+                                    return (
+                                        <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "12px 0", borderTop: i ? "1px solid var(--ds-divider)" : undefined }}>
+                                            <span style={{ width: 42, height: 42, flex: "none", borderRadius: 11, overflow: "hidden", background: "var(--ds-blue-soft)", color: "var(--ds-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                {item.service.imageUrl ? <img src={item.service.imageUrl} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Shirt size={20} strokeWidth={1.7} />}
+                                            </span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getTranslatedItemName(item.service.name, item.service.localizedNames)}</div>
+                                                <div style={{ fontSize: 13.5, color: "var(--ds-text-2)", marginTop: 4 }}>{meta}{item.express ? `  ·  ${t("pos.expressLabel", "Express")}` : ""}</div>
+                                                {item.notes && <div style={{ fontSize: 13.5, color: "var(--ds-text-2)", fontStyle: "italic", marginTop: 6 }}>{item.notes}</div>}
+                                            </div>
+                                            <span style={{ fontSize: 15, flex: "none" }}>{formatAmount(item.total)}</span>
+                                        </div>
+                                    );
+                                })}
+                                </div>
+                                ))}
+                            </div>
+
+                            {/* discount */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "14px 0 18px", borderTop: "1px solid var(--ds-divider)", borderBottom: "1px solid var(--ds-divider)" }}>
+                                <span style={{ fontSize: 14.5, color: "var(--ds-text-2)", width: 64, flex: "none" }}>{t("pos.discount", "Discount")}</span>
                                 {cart.couponCode ? (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--c-success)", background: "var(--c-success-soft)", padding: "3px 9px", borderRadius: 6 }}>{cart.couponCode} · −{formatAmount(cart.discountAmount)}</span>
-                                        <button type="button" onClick={() => cart.removeCoupon()} aria-label="Remove coupon" style={{ cursor: "pointer", border: 0, background: "transparent", color: "var(--c-text-3)", fontSize: 14, lineHeight: 1 }}>×</button>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ds-positive)", background: "var(--ds-st-ready-bg)", padding: "5px 11px", borderRadius: 7 }}>{cart.couponCode} · −{formatAmount(cart.discountAmount)}</span>
+                                        <button type="button" onClick={() => cart.removeCoupon()} aria-label="Remove coupon" style={{ cursor: "pointer", border: 0, background: "transparent", color: "var(--ds-text-3)", fontSize: 18, lineHeight: 1 }}>×</button>
                                     </span>
                                 ) : (
-                                    <input type="number" min={0} value={cart.discountValue || ""} onChange={(e) => { const v = parseFloat(e.target.value); if (!v || v <= 0) cart.setDiscount(undefined, undefined); else cart.setDiscount("flat", v); }} placeholder="0"
-                                        style={{ width: 90, font: "inherit", fontFamily: MONO, fontSize: 13, textAlign: "right", color: "var(--c-success)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
-                                )}
-                            </div>
-                            {/* Coupon code entry (offers feature) */}
-                            {canOffers && !cart.couponCode && (posShop?.settings?.publicCoupons?.length || 0) > 0 && (
-                                <div>
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                        <span style={{ color: "var(--c-text-2)" }}>{t("pos.couponCode", "Coupon code")}</span>
-                                        <span style={{ display: "inline-flex", gap: 6 }}>
-                                            <input value={couponInput} onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }} placeholder="SAVE10"
-                                                style={{ width: 110, font: "inherit", fontFamily: MONO, fontSize: 12.5, textTransform: "uppercase", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
-                                            <button type="button" onClick={applyCouponCode} disabled={!couponInput.trim()}
-                                                style={{ cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 7, padding: "5px 10px", opacity: couponInput.trim() ? 1 : 0.5 }}>
-                                                {t("pos.applyCoupon", "Apply")}
-                                            </button>
+                                    <div style={{ flex: 1, display: "flex", alignItems: "center", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden" }}>
+                                        <input type="number" min={0} value={cart.discountValue || ""} placeholder={t("checkout.enterDiscount", "Enter discount")}
+                                            onChange={(e) => { const v = parseFloat(e.target.value); if (!v || v <= 0) cart.setDiscount(undefined, undefined); else cart.setDiscount(discountMode, discountMode === "percent" ? Math.min(100, v) : v); }}
+                                            style={{ flex: 1, minWidth: 0, font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "transparent", border: 0, padding: "11px 13px", outline: "none" }} />
+                                        <span style={{ display: "flex", gap: 4, padding: 4, borderLeft: "1px solid var(--ds-border)" }}>
+                                            {(["percent", "flat"] as const).map((m) => (
+                                                <button key={m} type="button" onClick={() => { setDiscountMode(m); if (cart.discountValue) cart.setDiscount(m, m === "percent" ? Math.min(100, cart.discountValue) : cart.discountValue); }}
+                                                    style={{ cursor: "pointer", font: "inherit", width: 40, height: 34, fontSize: 14.5, fontWeight: 600, borderRadius: 8, border: `1px solid ${discountMode === m ? "var(--ds-blue)" : "transparent"}`, background: discountMode === m ? "var(--ds-blue-soft)" : "transparent", color: discountMode === m ? "var(--ds-blue)" : "var(--ds-text)" }}>
+                                                    {m === "percent" ? "%" : currencySymbol}
+                                                </button>
+                                            ))}
                                         </span>
                                     </div>
-                                    {couponError && <div style={{ textAlign: "right", fontSize: 11.5, color: "var(--c-error)", marginTop: 3 }}>{couponError}</div>}
+                                )}
+                            </div>
+
+                            {/* coupon (offers) */}
+                            {canOffers && !cart.couponCode && (posShop?.settings?.publicCoupons?.length || 0) > 0 && (
+                                <div style={{ padding: "12px 0", borderBottom: "1px solid var(--ds-divider)" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                                        <span style={{ fontSize: 14.5, color: "var(--ds-text-2)", width: 64, flex: "none" }}>{t("pos.coupon", "Coupon")}</span>
+                                        <input value={couponInput} onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }} placeholder="SAVE10"
+                                            style={{ flex: 1, minWidth: 0, font: "inherit", fontSize: 14, textTransform: "uppercase", border: "1px solid var(--ds-border)", borderRadius: 11, padding: "10px 13px", outline: "none" }} />
+                                        <button type="button" onClick={applyCouponCode} disabled={!couponInput.trim()}
+                                            style={{ cursor: "pointer", font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 10, padding: "10px 16px", opacity: couponInput.trim() ? 1 : 0.5 }}>{t("pos.applyCoupon", "Apply")}</button>
+                                    </div>
+                                    {couponError && <div style={{ textAlign: "right", fontSize: 12.5, color: "var(--ds-negative)", marginTop: 5 }}>{couponError}</div>}
                                 </div>
                             )}
-                            {/* Redeem loyalty points */}
-                            {/* Cashback visibility: show what this order will EARN, even at 0 balance */}
+
+                            {/* loyalty */}
+                            {canLoyalty && !isEditMode && cart.customerId && !cart.isGuest && pointsBalance > 0 && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--ds-divider)", fontSize: 14 }}>
+                                    <span style={{ color: "var(--ds-text-2)" }}>{t("pos.redeemPoints", "Redeem points")} <span style={{ fontSize: 12.5, color: "var(--ds-text-3)" }}>· {t("pos.pointsBalance", "{{n}} available", { n: pointsBalance })}</span></span>
+                                    <input type="number" min={0} max={redeemCap} value={cart.pointsRedeemed || ""} placeholder="0"
+                                        onChange={(e) => { const v = Math.floor(Number(e.target.value) || 0); cart.setPointsRedeemed(Math.min(redeemCap, Math.max(0, v))); }}
+                                        style={{ marginLeft: "auto", width: 96, font: "inherit", fontSize: 14, textAlign: "right", border: "1px solid var(--ds-border)", borderRadius: 10, padding: "8px 11px", outline: "none" }} />
+                                </div>
+                            )}
+
+                            {/* totals */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: 13, fontSize: 14.5, padding: "18px 0 0" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{t("pos.subtotal", "Subtotal")}</span><span>{formatAmount(cart.subtotal)}</span></div>
+                                {cart.discountAmount > 0 && !cart.couponCode && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{t("pos.discount", "Discount")}</span><span style={{ color: "var(--ds-positive)" }}>−{formatAmount(cart.discountAmount)}</span></div>}
+                                {(cart.pointsRedeemed || 0) > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{t("pos.pointsApplied", "Points applied")}</span><span style={{ color: "var(--ds-positive)" }}>−{formatAmount(cart.pointsRedeemed || 0)}</span></div>}
+                                {cart.expressCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{t("checkout.expressSurcharge", "Express surcharge")}</span><span>{formatAmount(cart.expressCharge)}</span></div>}
+                                {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{cart.taxName || "Tax"} ({cart.taxRate}%)</span><span>{formatAmount(cart.taxAmount)}</span></div>}
+                                {cart.deliveryCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--ds-text-2)" }}>{t("pos.deliveryCharge", "Delivery")}</span><span>{formatAmount(cart.deliveryCharge)}</span></div>}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 18, marginTop: 6, borderTop: "1px solid var(--ds-divider)" }}>
+                                    <span style={{ fontWeight: 700, fontSize: 18 }}>{t("pos.total", "Total")}</span>
+                                    <span style={{ fontWeight: 700, fontSize: 28, letterSpacing: "-.02em" }}>{formatAmount(cart.total)}</span>
+                                </div>
+                            </div>
                             {canLoyalty && !isEditMode && cart.customerId && !cart.isGuest && (() => {
                                 const willEarn = loyaltyCfg?.mode === "fixed"
                                     ? Math.max(0, Math.round(loyaltyCfg?.earnFixed || 0))
                                     : Math.max(0, Math.round((cart.total * (loyaltyCfg?.earnPercent || 0)) / 100));
-                                if (willEarn <= 0) return null;
-                                return (
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--c-warning)", fontSize: 12.5 }}>
-                                        <span>🪙 {t("pos.willEarnPoints", "Customer earns {{n}} points when fully paid", { n: willEarn })}</span>
-                                    </div>
-                                );
+                                return willEarn > 0 ? <div style={{ marginTop: 10, fontSize: 13, color: "var(--ds-text-2)" }}>{t("pos.willEarnPoints", "Customer earns {{n}} points when fully paid", { n: willEarn })}</div> : null;
                             })()}
-                            {canLoyalty && !isEditMode && cart.customerId && !cart.isGuest && pointsBalance > 0 && (
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                    <span style={{ color: "var(--c-text-2)" }}>
-                                        {t("pos.redeemPoints", "Redeem points")}
-                                        <span style={{ fontSize: 11, color: "var(--c-text-3)" }}> · {t("pos.pointsBalance", "{{n}} available", { n: pointsBalance })}</span>
-                                    </span>
-                                    <input type="number" min={0} max={redeemCap} value={cart.pointsRedeemed || ""}
-                                        onChange={(e) => { const v = Math.floor(Number(e.target.value) || 0); cart.setPointsRedeemed(Math.min(redeemCap, Math.max(0, v))); }} placeholder="0"
-                                        style={{ width: 90, font: "inherit", fontFamily: MONO, fontSize: 13, textAlign: "right", color: "var(--c-violet)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 7, padding: "5px 9px", outline: "none" }} />
-                                </div>
-                            )}
-                            {(cart.pointsRedeemed || 0) > 0 && (
-                                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--c-violet)" }}>
-                                    <span>{t("pos.pointsApplied", "Points applied")}</span><span style={{ fontFamily: MONO }}>−{formatAmount(cart.pointsRedeemed || 0)}</span>
-                                </div>
-                            )}
-                            {cart.expressCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--c-warning)" }}><span>{t("checkout.expressSurcharge", "Express surcharge")}</span><span style={{ fontFamily: MONO }}>+{formatAmount(cart.expressCharge)}</span></div>}
-                            {cart.taxSettings?.enabled && cart.taxEnabled && cart.taxAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{cart.taxName || "VAT"} ({cart.taxRate}%)</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.taxAmount)}</span></div>}
-                            {cart.deliveryCharge > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--c-text-2)" }}>{t("pos.deliveryCharge", "Delivery")}</span><span style={{ fontFamily: MONO }}>{formatAmount(cart.deliveryCharge)}</span></div>}
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, marginTop: 3, borderTop: "1px solid var(--c-border)" }}><span style={{ fontWeight: 700, fontSize: 15 }}>{t("pos.grandTotal", "Total")}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 20 }}>{formatAmount(cart.total)}</span></div>
                         </div>
-                        <div style={{ padding: "0 18px 18px" }}>
-                            <button onClick={handlePlaceOrder} disabled={placing || cart.items.length === 0}
-                                style={{ width: "100%", cursor: placing ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: placing || cart.items.length === 0 ? 0.6 : 1 }}>
-                                {!placing && <Check size={18} />}
-                                {placing ? t("common.loading", "Please wait…") : (isEditMode ? t("checkout.updateOrder", "Update order") : t("checkout.placeOrder", "Place order"))}
-                            </button>
-                        </div>
+
+                        {/* payment */}
+                        {(
+                            <div style={card}>
+                                <div style={cardTitle}>{t("checkout.payment", "Payment")}</div>
+                                <div style={{ display: "inline-flex", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden" }}>
+                                    {([
+                                        ["full", t("checkout.payFull", "Full")],
+                                        ["partial", t("checkout.payPartial", "Partial")],
+                                        ["later", t("checkout.payLater", "Pay later")],
+                                    ] as const).map(([id, label], i) => (
+                                        <button key={id} type="button" onClick={() => setPayMode(id)}
+                                            style={{ cursor: "pointer", font: "inherit", minWidth: 122, fontSize: 14.5, fontWeight: 600, padding: "11px 20px", border: 0, borderLeft: i ? "1px solid var(--ds-border)" : 0, background: payMode === id ? "var(--ds-blue-soft)" : "var(--ds-card)", color: payMode === id ? "var(--ds-blue)" : "var(--ds-text)", boxShadow: payMode === id ? "inset 0 -2px 0 var(--ds-blue)" : undefined }}>{label}</button>
+                                    ))}
+                                </div>
+
+                                {payMode === "partial" && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <label style={fieldLbl}>{t("checkout.payNow", "Pay now")}</label>
+                                        <div style={{ display: "flex", alignItems: "center", width: 264, maxWidth: "100%", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden" }}>
+                                            <span style={{ padding: "0 14px", alignSelf: "stretch", display: "flex", alignItems: "center", borderRight: "1px solid var(--ds-border)", color: "var(--ds-text-2)", background: "var(--ds-table-head)" }}>{currencySymbol}</span>
+                                            <input autoFocus value={payNowStr} inputMode="decimal" onChange={(e) => setPayNowStr(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0"
+                                                style={{ flex: 1, minWidth: 0, font: "inherit", fontSize: 15, color: "var(--ds-text)", background: "var(--ds-card)", border: 0, padding: "11px 13px", outline: "none" }} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {payMode !== "later" && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <div style={fieldLbl}>{t("checkout.paymentMethod", "Payment method")}</div>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+                                            {methodTiles.map((m) => {
+                                                const on = payMethod === m.id;
+                                                return (
+                                                    <button key={m.id} type="button" onClick={() => setPayMethod(m.id)}
+                                                        style={{ position: "relative", cursor: "pointer", font: "inherit", display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", borderRadius: 11, border: `${on ? 2 : 1}px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, margin: on ? 0 : 1, background: "var(--ds-card)", fontSize: 14.5, fontWeight: 500, color: "var(--ds-text)" }}>
+                                                        {m.icon}{m.label}
+                                                        {on && <span style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", background: "var(--ds-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--ds-card)" }}><Check size={11} strokeWidth={3.2} /></span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {payError && <div style={{ marginTop: 12, fontSize: 13.5, fontWeight: 600, color: "var(--ds-negative)" }}>{payError}</div>}
+
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+                                    <span style={{ fontSize: 14.5, fontWeight: 500, color: balanceDue > 0 ? "var(--ds-negative)" : "var(--ds-positive)" }}>{balanceDue > 0 ? t("orders.balanceDue", "Balance due") : t("checkout.paidInFull", "Paid in full")}</span>
+                                    <span style={{ fontSize: 17, fontWeight: 600, color: balanceDue > 0 ? "var(--ds-negative)" : "var(--ds-positive)" }}>{formatAmount(balanceDue)}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <button onClick={handlePlaceOrder} disabled={placing || cart.items.length === 0}
+                            style={{ width: "100%", cursor: placing ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, font: "inherit", fontSize: 18, fontWeight: 600, color: "#fff", background: "var(--ds-blue)", border: 0, borderRadius: 12, padding: "19px 18px", opacity: placing || cart.items.length === 0 ? 0.6 : 1 }}>
+                            {placing ? t("common.loading", "Please wait…") : <>{isEditMode ? t("checkout.updateOrder", "Update order") : t("checkout.placeOrder", "Place order")}<span>·</span><span>{formatAmount(cart.total)}</span></>}
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
-
-const stepBtn: CSSProperties = { cursor: "pointer", width: 30, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 7 };

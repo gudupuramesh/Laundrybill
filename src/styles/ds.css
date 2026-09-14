@@ -1,0 +1,22 @@
+/* Laundrybill design system tokens — scoped: add class "lb-ds" to a page root to
+   opt in. Mirrors the design-system sheet (design/laundrybill-design-system.html). */
+.lb-ds {
+  --ds-font: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ds-bg: #FFFFFF; --ds-card: #FFFFFF; --ds-muted-surface: #F3F4F6; --ds-row-hover: #F9FAFB;
+  --ds-border: #E5E7EB; --ds-divider: #F3F4F6; --ds-table-head: #F9FAFB;
+  --ds-text: #111827; --ds-text-2: #6B7280; --ds-text-3: #9CA3AF; --ds-nav: #4B5563;
+  --ds-blue: #2563EB; --ds-blue-hover: #1D4ED8; --ds-blue-soft: #EEF2FF; --ds-blue-tint: #DBEAFE;
+  --ds-tile-blue: #2563EB; --ds-tile-green: #059669; --ds-tile-orange: #EA580C; --ds-tile-violet: #7C3AED; --ds-tile-sky: #3B82F6;
+  --ds-att-red: #EF4444; --ds-att-red-bg: #FEE2E2; --ds-att-amber: #F59E0B; --ds-att-amber-bg: #FEF3C7;
+  --ds-att-sky: #3B82F6; --ds-att-sky-bg: #DBEAFE; --ds-att-teal: #10B981; --ds-att-teal-bg: #D1FAE5;
+  --ds-st-pending: #B45309; --ds-st-pending-bg: #FEF3C7; --ds-st-processing: #1D4ED8; --ds-st-processing-bg: #DBEAFE;
+  --ds-st-ready: #047857; --ds-st-ready-bg: #D1FAE5; --ds-st-out: #6D28D9; --ds-st-out-bg: #EDE9FE;
+  --ds-st-delivered: #4B5563; --ds-st-delivered-bg: #F3F4F6; --ds-st-overdue: #B91C1C; --ds-st-overdue-bg: #FEE2E2;
+  --ds-pay-paid: #047857; --ds-pay-paid-bg: #D1FAE5; --ds-pay-partial: #B45309; --ds-pay-partial-bg: #FEF3C7; --ds-pay-unpaid: #B91C1C; --ds-pay-unpaid-bg: #FEE2E2;
+  --ds-positive: #15803D; --ds-negative: #B91C1C; --ds-due-today: #C2410C; --ds-whatsapp: #15803D;
+  --ds-chart-line: #2563EB; --ds-chart-grid: #E5E7EB; --ds-donut-upi: #8B5CF6; --ds-donut-cash: #10B981; --ds-donut-card: #3B82F6; --ds-donut-other: #F97316; --ds-bar-track: #E5E7EB;
+  --ds-r-card: 14px; --ds-r-button: 10px; --ds-r-input: 12px; --ds-r-tile: 11px; --ds-r-chip: 999px;
+  --ds-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  --ds-icon-stroke: 1.75;
+  font-family: var(--ds-font); color: var(--ds-text); font-variant-numeric: tabular-nums;
+}

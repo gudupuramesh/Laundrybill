@@ -50,6 +50,10 @@ export function PublicCheckoutCoupon({
       setError("This coupon is not active");
       return;
     }
+    if (coupon.startsAt && new Date(coupon.startsAt + "T00:00:00") > new Date()) {
+      setError("This coupon isn't active yet");
+      return;
+    }
     if (coupon.expiresAt && new Date(coupon.expiresAt + "T23:59:59") < new Date()) {
       setError("This coupon has expired");
       return;

@@ -100,6 +100,76 @@ export function useExpenses(month: Date) {
     return { expenses, loading, error, byCategory, totals, getExpense };
 }
 
+/**
+ * Salaries paid through Payroll for one month (payroll month = the month shown),
+ * plus the six-month expense trend (manual expenses + salaries paid) ending at
+ * `month`. Mirrors how Reports counts salaries (totalPaid of each payroll doc).
+ */
+export function useExpenseInsights(month: Date, refreshKey: number) {
+    const { shopId } = useAuth();
+    const [state, setState] = useState<{
+        salaries: { total: number; byMode: Record<string, number>; lastPaidAt: Date | null; count: number };
+        trend: { month: string; expenses: number; salaries: number }[];
+        loading: boolean;
+    }>({ salaries: { total: 0, byMode: {}, lastPaidAt: null, count: 0 }, trend: [], loading: true });
+
+    const monthKey = format(month, "yyyy-MM");
+    useEffect(() => {
+        if (!shopId) return;
+        let cancelled = false;
+        (async () => {
+            const months = Array.from({ length: 6 }, (_, i) => format(subMonths(startOfMonth(month), 5 - i), "yyyy-MM"));
+            const start = startOfMonth(subMonths(month, 5));
+            const end = endOfMonth(month);
+            try {
+                const [expSnap, paySnap] = await Promise.all([
+                    getDocs(query(collection(db, `shops/${shopId}/expenses`), where("date", ">=", Timestamp.fromDate(start)), where("date", "<=", Timestamp.fromDate(end)))),
+                    getDocs(query(collection(db, `shops/${shopId}/payroll`), where("month", "in", months))),
+                ]);
+                const expBy: Record<string, number> = {};
+                expSnap.forEach((d) => {
+                    const e = d.data();
+                    const dt = e.date?.toDate?.();
+                    if (!dt) return;
+                    const k = format(dt, "yyyy-MM");
+                    expBy[k] = (expBy[k] || 0) + (e.amount || 0);
+                });
+                const salBy: Record<string, number> = {};
+                const byMode: Record<string, number> = {};
+                let lastPaidAt: Date | null = null;
+                let count = 0;
+                paySnap.forEach((d) => {
+                    const p = d.data() as { month: string; status?: string; totalPaid?: number; payments?: { amount?: number; mode?: string; date?: { toDate?: () => Date } }[] };
+                    const paid = p.totalPaid || 0;
+                    if (paid <= 0) return;
+                    salBy[p.month] = (salBy[p.month] || 0) + paid;
+                    if (p.month === monthKey) {
+                        count++;
+                        (p.payments || []).forEach((pm) => {
+                            byMode[pm.mode || "cash"] = (byMode[pm.mode || "cash"] || 0) + (pm.amount || 0);
+                            const at = pm.date?.toDate?.();
+                            if (at && (!lastPaidAt || at > lastPaidAt)) lastPaidAt = at;
+                        });
+                    }
+                });
+                if (cancelled) return;
+                setState({
+                    salaries: { total: salBy[monthKey] || 0, byMode, lastPaidAt, count },
+                    trend: months.map((m) => ({ month: m, expenses: expBy[m] || 0, salaries: salBy[m] || 0 })),
+                    loading: false,
+                });
+            } catch (err) {
+                console.error("Expense insights error:", err);
+                if (!cancelled) setState((s) => ({ ...s, loading: false }));
+            }
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shopId, monthKey, refreshKey]);
+
+    return state;
+}
+
 export function useExpenseMutations() {
     const { shopId, user } = useAuth();
 
@@ -240,7 +310,11 @@ interface FinancialReportsData {
     // Reports extras (for the DS reports layout)
     topServices: { name: string; orders: number; revenue: number }[];
     peakHours: { hour: number; count: number }[];
-    monthlyTrend: { month: string; revenue: number; expenses: number; newCustomers: number }[];
+    monthlyTrend: { month: string; revenue: number; expenses: number; newCustomers: number; collected: number; outstanding: number }[];
+    /** Item revenue by service category (non-cancelled period orders). */
+    revenueByCategory: Record<string, number>;
+    /** Period orders touched per staff/agent id (creator + assigned agent). */
+    ordersByStaff: Record<string, number>;
 
     // New Metrics
     staffMetrics: StaffMetric[];
@@ -303,6 +377,8 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
         topServices: [],
         peakHours: [],
         monthlyTrend: [],
+        revenueByCategory: {},
+        ordersByStaff: {},
         staffMetrics: [],
         customerStats: {
             newCustomers: 0,
@@ -343,6 +419,8 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 const dailyMap = new Map<string, { amount: number; count: number }>();
                 const serviceMap = new Map<string, { orders: number; revenue: number }>();
                 const hourMap = new Map<number, number>();
+                const categoryRevMap: Record<string, number> = {};
+                const staffOrderMap: Record<string, number> = {};
                 const statusMap: Record<string, number> = {};
                 const typeMap: Record<string, number> = {};
                 const sourceMap = { online: 0, pos: 0 };
@@ -439,13 +517,18 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                         const hr = orderDate.getHours();
                         hourMap.set(hr, (hourMap.get(hr) || 0) + 1);
                         // top services by item revenue
-                        (order.items || []).forEach((it: { serviceName?: string; total?: number; unitPrice?: number; quantity?: number }) => {
+                        (order.items || []).forEach((it: { serviceName?: string; categoryName?: string; total?: number; unitPrice?: number; quantity?: number }) => {
                             const name = it.serviceName || "Other";
                             const rev = it.total ?? (it.unitPrice || 0) * (it.quantity || 0);
                             const m = serviceMap.get(name) || { orders: 0, revenue: 0 };
                             m.revenue += rev; m.orders += 1;
                             serviceMap.set(name, m);
+                            const cat = it.categoryName || "Other";
+                            categoryRevMap[cat] = (categoryRevMap[cat] || 0) + rev;
                         });
+                        // orders handled: whoever created it + the assigned agent
+                        const handlers = new Set<string>([order.staffId, order.assignedAgentId].filter(Boolean));
+                        handlers.forEach((id) => { staffOrderMap[id] = (staffOrderMap[id] || 0) + 1; });
                     }
                 });
 
@@ -630,6 +713,8 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                 const revByMonth: Record<string, number> = {};
                 const expByMonth: Record<string, number> = {};
                 const custByMonth: Record<string, number> = {};
+                const colByMonth: Record<string, number> = {};
+                const outByMonth: Record<string, number> = {};
                 const trendOrdersSnap = await getDocs(query(
                     collection(db, `shops/${shopId}/orders`),
                     where("createdAt", ">=", Timestamp.fromDate(trendStart)),
@@ -642,6 +727,10 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     if (!dt) return;
                     const mk = format(dt, "yyyy-MM");
                     revByMonth[mk] = (revByMonth[mk] || 0) + (o.financials?.total || 0);
+                    const tot = o.financials?.total || 0, pd = o.financials?.amountPaid || 0;
+                    const bal = o.financials?.balance ?? (tot - pd);
+                    colByMonth[mk] = (colByMonth[mk] || 0) + pd;
+                    outByMonth[mk] = (outByMonth[mk] || 0) + (bal > 0 ? bal : 0);
                 });
                 const trendExpSnap = await getDocs(query(
                     collection(db, `shops/${shopId}/expenses`),
@@ -659,7 +748,7 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     const created = d.data().createdAt?.toDate?.();
                     if (created) { const mk = format(created, "yyyy-MM"); custByMonth[mk] = (custByMonth[mk] || 0) + 1; }
                 });
-                const monthlyTrend = trendMonthsList.map((m) => ({ month: m, revenue: revByMonth[m] || 0, expenses: expByMonth[m] || 0, newCustomers: custByMonth[m] || 0 }));
+                const monthlyTrend = trendMonthsList.map((m) => ({ month: m, revenue: revByMonth[m] || 0, expenses: expByMonth[m] || 0, newCustomers: custByMonth[m] || 0, collected: colByMonth[m] || 0, outstanding: outByMonth[m] || 0 }));
 
                 const totalWithSalaries = totalExpenses + totalSalaries;
                 // Net profit is cash-basis (Collected − expenses) to match the apps.
@@ -685,6 +774,8 @@ export function useFinancialReports(startDate: Date, endDate: Date): FinancialRe
                     topServices,
                     peakHours,
                     monthlyTrend,
+                    revenueByCategory: categoryRevMap,
+                    ordersByStaff: staffOrderMap,
                     staffMetrics: Array.from(staffMap.values()),
                     customerStats: {
                         newCustomers,

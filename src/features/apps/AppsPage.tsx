@@ -9,18 +9,15 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { TEAM_GOOGLE_PLAY_URL } from "@/config/app-links";
 import { useTranslation } from "react-i18next";
-import { useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { MPageShell } from "@/components/laundry/LMobileRows";
 import { GOOGLE_PLAY_URL, APP_STORE_URL, detectMobileOS } from "@/config/app-links";
-import { Smartphone, Truck, Factory, Share2, ExternalLink, Check, Copy, Apple, Globe, MonitorSmartphone, ClipboardList, Users, Clock, Tag, Scan, Camera, MapPin, Boxes } from "lucide-react";
+import { Smartphone, Truck, Factory, Share2, ExternalLink, Check, Copy, Apple, ClipboardList, Users, Clock, Tag, Scan, Camera, MapPin, Boxes, BarChart3, Bell, Info } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
-const MONO = "'IBM Plex Mono'";
-const card: CSSProperties = { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 14, boxShadow: "var(--sh-sm)" };
-const secLbl: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: ".05em", color: "var(--c-text-3)", marginBottom: 14 };
 
 type Plat = { key: "ios" | "android" | "web"; name: string; detail: string | null };
 type Feature = { name: string; desc: string; icon: ReactNode; tint: string };
@@ -73,31 +70,16 @@ const APPS: AppDef[] = [
     },
 ];
 
-const platIcon = (k: Plat["key"]): ReactNode => (k === "ios" ? <Apple size={18} /> : k === "android" ? <MonitorSmartphone size={18} /> : <Globe size={18} />);
 
-export function AppsPage() {
+export function AppsPage({ embedded }: { embedded?: boolean } = {}) {
     const { t } = useTranslation();
-    const { shopName } = useAuth();
-    const { addToast } = useLToast();
     const { staffCount, agentCount, plantCount } = useTeamMembers();
     const isMobile = useIsMobile();
     const navigate = useNavigate();
-    const [selectedId, setSelectedId] = useState("staff");
-    const [copied, setCopied] = useState(false);
 
     const counts: Record<string, number> = { staff: staffCount, agent: agentCount, plant: plantCount };
-    const d = APPS.find((a) => a.id === selectedId) || APPS[0];
-    const url = `${window.location.origin}${d.path}`;
 
-    const copyLink = () => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
-    const openApp = () => window.open(url, "_blank");
-    const share = () => {
-        const msg = `${shopName || "Our shop"} is using LaundryBill!\n\n${d.name} — get the Android app:\n${TEAM_GOOGLE_PLAY_URL}\n\nOr use it in the browser: ${url}\n\n1. Install the app (or open the link)\n2. Sign up with your email + invite code\n3. Start working`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-        addToast({ type: "success", title: t("apps.opening", "Opening WhatsApp…") });
-    };
 
-    const ghostBtn: CSSProperties = { flex: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: 9 };
 
     // MOBILE: app-style page, led by the owner-app store links — a phone user
     // should be pushed to the real app before the team-app invite links.
@@ -130,7 +112,7 @@ export function AppsPage() {
                             <div style={{ fontSize: 14, fontWeight: 600 }}>{a.name}</div>
                             <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{counts[a.id] ?? 0} {t("apps.logins", "logins")}</div>
                         </div>
-                        <button onClick={() => { setSelectedId(a.id); window.open(`${window.location.origin}${a.path}`, "_blank"); }}
+                        <button onClick={() => { window.open(`${window.location.origin}${a.path}`, "_blank"); }}
                             style={{ cursor: "pointer", flex: "none", font: "inherit", fontSize: 12.5, fontWeight: 700, color: "var(--c-primary)", background: "var(--c-primary-soft)", border: 0, borderRadius: 9, padding: "8px 12px" }}>
                             {t("apps.open", "Open")}
                         </button>
@@ -140,110 +122,154 @@ export function AppsPage() {
         </MPageShell>
     );
 
+    if (!isMobile) return <AppsSuiteView embedded={embedded} />;
+    return <AppsSuiteView embedded={embedded} />;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Desktop: owner app + Team app cards (reference layout)              */
+/* ------------------------------------------------------------------ */
+
+export function StoreBadge({ store, href }: { store: "apple" | "google"; href: string }) {
     return (
-        <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 14, padding: isMobile ? "0 16px" : "0 22px" }}>
-                <div><div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>{t("apps.title", "Apps")}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{t("apps.suite", "LaundryBill app suite")} · {APPS.length} {t("apps.apps", "apps")}</div></div>
-            </header>
+        <a href={href} target="_blank" rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 9, background: "#000", color: "#fff", borderRadius: 8, padding: "7px 14px 7px 11px", textDecoration: "none", minWidth: 150 }}>
+            {store === "apple" ? <Apple size={26} fill="#fff" /> : (
+                <svg width="24" height="26" viewBox="0 0 24 26" aria-hidden="true"><path d="M1.2.6 13.4 13 1.2 25.4c-.4-.3-.7-.8-.7-1.4V2c0-.6.3-1.1.7-1.4Z" fill="#2196F3" /><path d="M17.5 8.8 13.4 13 1.2.6c.2-.1.5-.2.8-.2.3 0 .6.1.9.2l14.6 8.2Z" fill="#4CAF50" /><path d="M17.5 17.2 2.9 25.4c-.3.2-.6.2-.9.2-.3 0-.6-.1-.8-.2L13.4 13l4.1 4.2Z" fill="#F44336" /><path d="M22.4 13c0 .7-.4 1.3-1 1.6l-3.9 2.6-4.1-4.2 4.1-4.2 3.9 2.6c.6.3 1 .9 1 1.6Z" fill="#FFC107" /></svg>
+            )}
+            <span style={{ lineHeight: 1.05, textAlign: "left" }}>
+                <span style={{ display: "block", fontSize: store === "apple" ? 9.5 : 8.5, letterSpacing: store === "apple" ? 0 : ".05em" }}>{store === "apple" ? "Download on the" : "GET IT ON"}</span>
+                <span style={{ display: "block", fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>{store === "apple" ? "App Store" : "Google Play"}</span>
+            </span>
+        </a>
+    );
+}
 
-            <div className="lb-cols" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden" }}>
-                {/* app list */}
-                <section className="lb-svclist lb-scroll" style={{ width: isMobile ? "100%" : 300, flex: "none", overflow: isMobile ? "visible" : "auto", borderRight: isMobile ? undefined : "1px solid var(--c-border)", borderBottom: isMobile ? "1px solid var(--c-border)" : undefined, background: "var(--c-surface)", padding: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--c-text-3)", padding: "4px 6px 10px" }}>{t("apps.applications", "Applications")}</div>
-                    <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 7, overflowX: isMobile ? "auto" : "visible" }}>
-                        {APPS.map((a) => {
-                            const on = a.id === selectedId;
-                            return (
-                                <button key={a.id} onClick={() => setSelectedId(a.id)} style={{ cursor: "pointer", font: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: 11, borderRadius: 11, border: `1px solid ${on ? "var(--c-primary)" : "var(--c-border)"}`, background: on ? "var(--c-primary-soft)" : "var(--c-surface)", flex: isMobile ? "none" : undefined, minWidth: isMobile ? 220 : undefined }}>
-                                    <span style={{ width: 42, height: 42, flex: "none", borderRadius: 11, background: `var(--${a.tint}-soft)`, color: `var(--${a.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{a.icon}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
-                                        <div style={{ fontSize: 11, color: "var(--c-text-3)", marginTop: 1 }}>{a.role}</div>
-                                        <div style={{ display: "flex", gap: 5, marginTop: 6 }}>{a.platforms.filter((p) => p.detail).map((p) => <span key={p.key} style={{ fontSize: 9, fontWeight: 600, color: "var(--c-text-3)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", padding: "1px 6px", borderRadius: 5 }}>{p.name}</span>)}</div>
-                                    </div>
-                                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-success)", flex: "none" }} />
-                                </button>
-                            );
-                        })}
+function AppsSuiteView({ embedded }: { embedded?: boolean }) {
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const { shopName } = useAuth();
+    const { staffCount, agentCount, plantCount } = useTeamMembers();
+    const [ownerStore, setOwnerStore] = useState<"android" | "ios">(detectMobileOS() === "ios" ? "ios" : "android");
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+    const inviteMsg = [
+        t("apps.inviteLine1", "Hi! Join our laundry team at {{shop}} on Laundrybill.", { shop: shopName || t("apps.ourShop", "our shop") }),
+        "",
+        `1. ${t("apps.inviteStep1", "Install the Laundrybill Team app")}: ${TEAM_GOOGLE_PLAY_URL}`,
+        `2. ${t("apps.inviteStep2", "Tap “Sign up” and use the email and invite code we send you")}`,
+    ].join("\n");
+    const copy = async (text: string, key: string) => {
+        try { await navigator.clipboard.writeText(text); } catch { /* blocked */ }
+        setCopiedKey(key); setTimeout(() => setCopiedKey(null), 2000);
+    };
+
+    const card: CSSProperties = { border: "1px solid var(--ds-border)", borderRadius: 14, background: "var(--ds-card)", padding: "22px 22px" };
+    const divider = (label: string) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 14px", fontSize: 11.5, fontWeight: 500, letterSpacing: ".05em", color: "var(--ds-text-2)" }}>
+            <span style={{ flex: 1, height: 1, background: "var(--ds-divider)" }} />{label}<span style={{ flex: 1, height: 1, background: "var(--ds-divider)" }} />
+        </div>
+    );
+    const qrTile = (value: string) => (
+        <div style={{ width: 136, height: 136, margin: "0 auto", border: "1px solid var(--ds-border)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
+            <QRCodeSVG value={value} size={108} />
+        </div>
+    );
+    const feature = (icon: ReactNode, title: string, desc: string) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <span style={{ width: 48, height: 48, flex: "none", borderRadius: 12, border: "1px solid var(--ds-border)", color: "var(--ds-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</span>
+            <div><div style={{ fontSize: 14, fontWeight: 500 }}>{title}</div><div style={{ fontSize: 13, color: "var(--ds-text-2)", marginTop: 3 }}>{desc}</div></div>
+        </div>
+    );
+
+    const webApps = [
+        { key: "staff", name: t("apps.staffWeb", "Staff"), desc: t("apps.staffWebDesc", "Counter orders, status, customers, attendance"), path: "/staff", count: staffCount, icon: <Smartphone size={18} /> },
+        { key: "agent", name: t("apps.agentWeb", "Delivery agent"), desc: t("apps.agentWebDesc", "Pickups, deliveries, proof photos, cash"), path: "/agent", count: agentCount, icon: <Truck size={18} /> },
+        { key: "plant", name: t("apps.plantWeb", "Plant"), desc: t("apps.plantWebDesc", "Production queue, tag scans, stage updates"), path: "/plant", count: plantCount, icon: <Factory size={18} /> },
+    ];
+
+    return (
+        <div className="lb-ds" style={{ padding: embedded ? "24px 26px 28px" : "24px 26px 32px", background: embedded ? "transparent" : "var(--ds-bg)", minHeight: "100%" }}>
+            <div style={{ fontSize: embedded ? 21 : 27, fontWeight: 600 }}>{t("apps.title", "Apps")}</div>
+            <div style={{ fontSize: 14, color: "var(--ds-text-2)", marginTop: 6, marginBottom: 20 }}>{t("apps.subtitle", "Get our apps for you and your team.")}</div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 18 }}>
+                {/* owner app */}
+                <div style={card}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                        <span style={{ width: 74, height: 74, flex: "none", borderRadius: 16, background: "var(--ds-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}><img src="/icons/icon-192x192.png" alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 74, height: 74, borderRadius: 16 }} /></span>
+                        <div>
+                            <div style={{ fontSize: 19, fontWeight: 600 }}>{t("apps.ownerTitle", "Laundry Bill owner app")}</div>
+                            <div style={{ fontSize: 14.5, color: "var(--ds-text-2)", marginTop: 5, lineHeight: 1.5 }}>{t("apps.ownerDesc", "Manage your shop, orders and business on the go.")}</div>
+                        </div>
                     </div>
-                </section>
+                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 20, justifyContent: "center" }}>
+                        <StoreBadge store="apple" href={APP_STORE_URL} />
+                        <StoreBadge store="google" href={GOOGLE_PLAY_URL} />
+                    </div>
+                    {divider(t("apps.orScan", "OR SCAN TO DOWNLOAD"))}
+                    <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 10 }}>
+                        {(["android", "ios"] as const).map((k) => (
+                            <button key={k} onClick={() => setOwnerStore(k)} style={{ cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20, border: `1px solid ${ownerStore === k ? "var(--ds-blue)" : "var(--ds-border)"}`, background: ownerStore === k ? "var(--ds-blue-soft)" : "var(--ds-card)", color: ownerStore === k ? "var(--ds-blue)" : "var(--ds-text-2)" }}>{k === "android" ? "Android" : "iPhone"}</button>
+                        ))}
+                    </div>
+                    {qrTile(ownerStore === "ios" ? APP_STORE_URL : GOOGLE_PLAY_URL)}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
+                        {feature(<BarChart3 size={22} />, t("apps.fDash", "Dashboard & reports"), t("apps.fDashDesc", "Track revenue, orders and payments."))}
+                        {feature(<ClipboardList size={22} />, t("apps.fOrders", "Create & manage orders"), t("apps.fOrdersDesc", "Add orders, update status and more."))}
+                        {feature(<Bell size={22} />, t("apps.fNotify", "Get notified"), t("apps.fNotifyDesc", "Never miss an update from your shop."))}
+                    </div>
+                </div>
 
-                {/* detail */}
-                <section className="lb-scroll" style={{ flex: 1, minWidth: 0, overflow: isMobile ? "visible" : "auto", padding: isMobile ? "16px 16px calc(88px + env(safe-area-inset-bottom, 0px))" : "20px 22px 40px" }}>
-                    {/* header */}
-                    <div style={{ ...card, padding: isMobile ? "16px" : "20px 22px", display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-                        <span style={{ width: 58, height: 58, flex: "none", borderRadius: 15, background: `var(--${d.tint}-soft)`, color: `var(--${d.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{d.icon}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.01em" }}>{d.name}</span>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "var(--c-success)", background: "var(--c-success-soft)", padding: "3px 10px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--c-success)" }} />{t("apps.live", "Live")}</span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: `var(--${d.tint})`, background: `var(--${d.tint}-soft)`, padding: "3px 10px", borderRadius: 20 }}>{d.role}</span>
+                {/* team app */}
+                <div style={card}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                        <span style={{ width: 74, height: 74, flex: "none", borderRadius: 16, background: "var(--ds-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Users size={38} /></span>
+                        <div>
+                            <div style={{ fontSize: 19, fontWeight: 600 }}>{t("apps.teamTitle", "Laundrybill Team app")}</div>
+                            <div style={{ fontSize: 14.5, color: "var(--ds-text-2)", marginTop: 5, lineHeight: 1.5 }}>{t("apps.teamDesc", "For your staff to manage orders and updates.")}</div>
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 20 }}>
+                        <StoreBadge store="google" href={TEAM_GOOGLE_PLAY_URL} />
+                    </div>
+                    {divider(t("apps.orScan", "OR SCAN TO DOWNLOAD"))}
+                    {qrTile(TEAM_GOOGLE_PLAY_URL)}
+                    <div style={{ fontSize: 14, fontWeight: 500, marginTop: 24, marginBottom: 10 }}>{t("apps.inviteTitle", "Invite your team with this message")}</div>
+                    <div style={{ border: "1px solid var(--ds-border)", background: "var(--ds-table-head)", borderRadius: 10, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{inviteMsg}</div>
+                    <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                        <button onClick={() => void copy(inviteMsg, "invite")} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 9, fontSize: 14.5, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-blue)", borderRadius: 9, padding: "9px 18px" }}>{copiedKey === "invite" ? <Check size={17} /> : <Copy size={17} />}{copiedKey === "invite" ? t("common.copied", "Copied") : t("apps.copyMessage", "Copy message")}</button>
+                        <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(inviteMsg)}`, "_blank")} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 9, fontSize: 14.5, fontWeight: 600, color: "var(--ds-whatsapp)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 9, padding: "9px 18px" }}><Share2 size={17} />WhatsApp</button>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "var(--ds-text-2)", marginTop: 10 }}>{t("apps.inviteCodeNote", "Each person's email and invite code are on the Staff page, under their login.")}</div>
+                </div>
+            </div>
+
+            {/* browser links */}
+            <div style={{ ...card, marginTop: 18, padding: "18px 22px" }}>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{t("apps.browserTitle", "Use the team apps in a browser")}</div>
+                <div style={{ fontSize: 13, color: "var(--ds-text-2)", marginTop: 3, marginBottom: 12 }}>{t("apps.browserDesc", "Same sign-in as the Team app — handy on a counter PC or a tablet.")}</div>
+                {webApps.map((w, i) => {
+                    const url = `${window.location.origin}${w.path}`;
+                    return (
+                        <div key={w.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderTop: i ? "1px solid var(--ds-divider)" : "1px solid var(--ds-divider)", flexWrap: "wrap" }}>
+                            <span style={{ width: 38, height: 38, borderRadius: 10, background: "var(--ds-blue-soft)", color: "var(--ds-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>{w.icon}</span>
+                            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 500 }}>{w.name} <span style={{ fontSize: 12, color: "var(--ds-text-2)", fontWeight: 400 }}>· {t("apps.loginsCount", "{{n}} logins", { n: w.count })}</span></div>
+                                <div style={{ fontSize: 12.5, color: "var(--ds-text-2)", marginTop: 2 }}>{w.desc}</div>
                             </div>
-                            <div style={{ fontSize: 13, color: "var(--c-text-2)", marginTop: 6 }}>{d.tagline}</div>
+                            <span style={{ fontSize: 13, color: "var(--ds-text-2)", fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{window.location.host}{w.path}</span>
+                            <button onClick={() => void copy(url, w.key)} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 8, padding: "7px 12px" }}>{copiedKey === w.key ? <Check size={15} /> : <Copy size={15} />}{copiedKey === w.key ? t("common.copied", "Copied") : t("common.copy", "Copy")}</button>
+                            <button onClick={() => window.open(url, "_blank")} style={{ cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 8, padding: "7px 12px" }}><ExternalLink size={15} />{t("apps.open", "Open")}</button>
                         </div>
-                        <div style={{ display: "flex", gap: isMobile ? 16 : 24, flex: "none" }}>
-                            <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.countKey ? counts[d.countKey] ?? 0 : 0}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.activeLogins", "active logins")}</div></div>
-                            <div style={{ textAlign: "right" }}><div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 18 }}>{d.version}</div><div style={{ fontSize: 11, color: "var(--c-text-3)" }}>{t("apps.version", "version")}</div></div>
-                        </div>
-                    </div>
+                    );
+                })}
+            </div>
 
-                    {/* platforms */}
-                    <div style={{ ...card, padding: "18px 20px", marginBottom: 16 }}>
-                        <div style={secLbl}>{t("apps.platforms", "PLATFORMS & DISTRIBUTION")}</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-                            {d.platforms.map((p) => (
-                                <div key={p.key} style={{ border: "1px solid var(--c-border)", borderRadius: 11, padding: 14, display: "flex", alignItems: "center", gap: 12, opacity: p.detail ? 1 : 0.45 }}>
-                                    <span style={{ width: 38, height: 38, flex: "none", borderRadius: 10, background: "var(--c-surface-2)", color: "var(--c-text)", display: "flex", alignItems: "center", justifyContent: "center" }}>{platIcon(p.key)}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{p.detail || t("apps.notAvailable", "Not available")}</div></div>
-                                    {p.key === "android" ? (
-                                        <a href={TEAM_GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer"
-                                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#fff", background: "var(--c-success)", borderRadius: 8, padding: "6px 11px", textDecoration: "none" }}>
-                                            {t("apps.getOnPlay", "Google Play")} <ExternalLink size={12} />
-                                        </a>
-                                    ) : p.detail && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 600, color: "var(--c-success)" }}><Check size={13} />{t("apps.on", "On")}</span>}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="lb-cols" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: isMobile ? "stretch" : "flex-start" }}>
-                        {/* features */}
-                        <div style={{ ...card, flex: 1.6, minWidth: 0, width: isMobile ? "100%" : undefined, overflow: "hidden" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 20px", borderBottom: "1px solid var(--c-border)" }}><div style={{ fontSize: 14, fontWeight: 600 }}>{t("apps.features", "Features")}</div><span style={{ fontSize: 11, fontWeight: 600, color: "var(--c-primary)", background: "var(--c-primary-soft)", padding: "2px 8px", borderRadius: 20 }}>{d.features.length} {t("apps.included", "included")}</span></div>
-                            {d.features.map((f, i) => (
-                                <div key={f.name} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 20px", borderBottom: i < d.features.length - 1 ? "1px solid var(--c-border)" : undefined }}>
-                                    <span style={{ width: 36, height: 36, flex: "none", borderRadius: 9, background: `var(--${f.tint}-soft)`, color: `var(--${f.tint})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{f.icon}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{f.name}</div><div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>{f.desc}</div></div>
-                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "var(--c-success-soft)", color: "var(--c-success)" }}><Check size={14} /></span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* access + share */}
-                        <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 16 }}>
-                            <div style={{ ...card, padding: "18px 20px" }}>
-                                <div style={secLbl}>{t("apps.accessRoles", "ACCESS & ROLES")}</div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                    {d.access.map((r) => <span key={r} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: `var(--${d.tint})`, background: `var(--${d.tint}-soft)`, padding: "6px 12px", borderRadius: 20 }}><Users size={13} />{r}</span>)}
-                                </div>
-                            </div>
-                            <div style={{ ...card, padding: "18px 20px" }}>
-                                <div style={secLbl}>{t("apps.release", "RELEASE & SHARE")}</div>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.currentVersion", "Current version")}</span><span style={{ fontFamily: MONO, fontWeight: 600 }}>{d.version}</span></div>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 14 }}><span style={{ color: "var(--c-text-2)" }}>{t("apps.lastUpdated", "Last updated")}</span><span style={{ fontWeight: 600 }}>{d.updated}</span></div>
-                                <button onClick={share} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 10, padding: 12, boxShadow: "var(--sh-sm)", marginBottom: 10 }}><Share2 size={16} />{t("apps.shareWhatsApp", "Share via WhatsApp")}</button>
-                                <a href={TEAM_GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer"
-                                    style={{ width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, fontWeight: 700, color: "var(--c-success)", background: "var(--c-success-soft)", border: "1px solid var(--c-success)", borderRadius: 10, padding: 11, textDecoration: "none", marginBottom: 10 }}>
-                                    {t("apps.getOnPlayFull", "Get the Android app on Google Play")} <ExternalLink size={14} />
-                                </a>
-                                <div style={{ display: "flex", gap: 9 }}>
-                                    <button onClick={copyLink} style={ghostBtn}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? t("apps.copied", "Copied") : t("apps.copyLink", "Copy link")}</button>
-                                    <button onClick={openApp} style={ghostBtn}><ExternalLink size={15} />{t("apps.open", "Open")}</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 18, padding: "14px 18px", background: "var(--ds-blue-soft)", border: "1px solid #DBEAFE", borderRadius: 12, fontSize: 14 }}>
+                <Info size={19} style={{ color: "var(--ds-blue)", flex: "none" }} />
+                <span>{t("apps.signInNote", "Team members sign in with the invite code you share from the")} <button onClick={() => navigate("/manage-staff")} style={{ cursor: "pointer", font: "inherit", color: "var(--ds-blue)", background: "transparent", border: 0, padding: 0 }}>{t("apps.staffPage", "Staff page")}</button>.</span>
             </div>
         </div>
     );

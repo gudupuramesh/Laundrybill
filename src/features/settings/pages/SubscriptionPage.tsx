@@ -6,8 +6,10 @@
  * (Google Play / App Store) — the web surface never charges a card.
  */
 
-import { useMemo, useState, useEffect, type CSSProperties } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { useMemo, useState, useEffect, type CSSProperties, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { useTeamMembers } from "@/hooks/use-team-members";
 import { db } from "@/lib/firebase";
 import { usePlans, filterActivePlans } from "@/features/super-admin/hooks/use-plans";
 import { useShopSubscription } from "@/hooks/use-shop-subscription";
@@ -20,29 +22,8 @@ import { LSpinner, useLToast } from "@/components/laundry";
 import { useAuth } from "@/features/auth/AuthContext";
 import { startRazorpaySubscription } from "@/lib/razorpay-checkout";
 import { format } from "date-fns";
-import {
-    CreditCard,
-    Check,
-    Minus,
-    Sparkles,
-    Zap,
-    Building2,
-    Store,
-    Smartphone,
-    CalendarClock,
-} from "lucide-react";
-
-const MONO = "'IBM Plex Mono'";
-
-import { GOOGLE_PLAY_URL, APP_STORE_URL } from "@/config/app-links";
-
-const PLAN_ICON: Record<PlanType, typeof Sparkles> = {
-    free: Sparkles,
-    pro: Zap,
-    pro_plus: Zap,
-    business: Building2,
-    franchise: Store,
-};
+import { Check, Store, Crown, Users, ChevronRight, ShieldCheck } from "lucide-react";
+import { GOOGLE_PLAY_URL, APP_STORE_URL, detectMobileOS } from "@/config/app-links";
 
 type Cycle = "monthly" | "yearly";
 
@@ -55,13 +36,14 @@ const priceOf = (plan: Plan, cycle: Cycle, intl: boolean): number => {
 
 const numLimit = (v: number): string => (v === -1 ? "Unlimited" : String(v));
 
-export function SubscriptionPage() {
+export function SubscriptionPage({ embedded }: { embedded?: boolean } = {}) {
     const { plans, loading: plansLoading } = usePlans();
     const visiblePlans = useMemo(() => filterActivePlans(plans), [plans]);
     const { subscription, loading: subLoading } = useShopSubscription();
     const { formatAmount } = useCurrency();
     const isMobile = useIsMobile();
-    const { user, shopId, primaryShopId } = useAuth();
+    const { user, shopId, primaryShopId, ownedShops } = useAuth();
+    const { teamMembers } = useTeamMembers();
     // Billing always targets the PRIMARY shop (multi-shop owners may be viewing
     // a child shop; child shops never carry their own paid subscription).
     const billingShopId = primaryShopId || shopId;
@@ -151,7 +133,8 @@ export function SubscriptionPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 14,
-                    background: "var(--c-bg)",
+                    background: "transparent",
+                    padding: 40,
                 }}
             >
                 <LSpinner size="lg" />
@@ -160,671 +143,219 @@ export function SubscriptionPage() {
         );
     }
 
-    const daysLeft = Math.max(0, subscription?.daysRemaining ?? 0);
-    const periodDays = (subscription?.billingCycle || cycle) === "yearly" ? 365 : 30;
-    const daysUsed = Math.min(periodDays, Math.max(0, periodDays - daysLeft));
-    const usedPct = Math.round((daysUsed / periodDays) * 100);
-    const showProgress = isActiveSub && currentPlanId !== "free" && subscription?.daysRemaining != null;
-
     const statusLabel =
-        status === "active"
-            ? "Active"
-            : status === "grace_period"
-              ? "Grace period"
-              : status === "cancelled"
-                ? "Cancelled"
-                : status === "expired"
-                  ? "Expired"
-                  : status === "trial"
-                    ? "Free trial"
-                    : "Free";
-    const statusDot =
-        status === "active"
-            ? "var(--c-success)"
-            : status === "expired"
-              ? "var(--c-error)"
-              : status === "cancelled" || status === "grace_period"
-                ? "var(--c-warning)"
-                : status === "trial"
-                  ? "var(--c-info)"
-                  : "var(--c-text-3)";
+        status === "active" ? "Active" : status === "grace_period" ? "Grace period" : status === "cancelled" ? "Cancelled" : status === "expired" ? "Expired" : status === "trial" ? "Free trial" : "Free";
 
-    const th: CSSProperties = {
-        textAlign: "left",
-        fontSize: 11,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: ".04em",
-        color: "var(--c-text-3)",
-        padding: "11px 14px",
-        borderBottom: "1px solid var(--c-border)",
-        whiteSpace: "nowrap",
-    };
-    const td: CSSProperties = {
-        fontSize: 13,
-        color: "var(--c-text)",
-        padding: "11px 14px",
-        borderBottom: "1px solid var(--c-border)",
-        verticalAlign: "middle",
-    };
+    const loginCap = currentPlan ? getTeamLoginCap(currentPlan.limits) : 0;
+    const shopCap = currentPlan?.limits.maxShops ?? 1;
+    const usedLogins = teamMembers.length;
+    const usedShops = Math.max(1, ownedShops.length);
+    const renewLabel = subscription?.expiresAt
+        ? `${status === "cancelled" ? "Access until" : status === "expired" ? "Expired" : "Renews"} ${format(subscription.expiresAt, "d MMM yyyy")}`
+        : "";
 
-    const featureRows: { label: string; kind: "num" | "bool"; get: (p: Plan) => number | boolean }[] = [
-        { label: "Orders / month", kind: "num", get: (p) => p.limits.maxOrders },
-        { label: "Customers", kind: "num", get: (p) => p.limits.maxCustomers },
-        { label: "Team logins (any role)", kind: "num", get: (p) => getTeamLoginCap(p.limits) },
-        { label: "Services", kind: "num", get: (p) => p.limits.maxServices },
-        { label: "Order tracking", kind: "bool", get: (p) => p.features.orderTracking },
-        { label: "WhatsApp receipts", kind: "bool", get: (p) => p.features.whatsappReceipts },
-        { label: "Staff management", kind: "bool", get: (p) => p.features.staffManagement },
-        { label: "Attendance", kind: "bool", get: (p) => p.features.attendance },
-        { label: "Payroll", kind: "bool", get: (p) => p.features.payroll },
-        { label: "Expenses", kind: "bool", get: (p) => p.features.expenses },
-        { label: "Reports & analytics", kind: "bool", get: (p) => p.features.reports },
-        { label: "QR scans", kind: "bool", get: (p) => p.features.qrScans },
-        { label: "Damage photos", kind: "bool", get: (p) => p.features.damagePhotos },
-        { label: "Driver / Agent app", kind: "bool", get: (p) => p.features.driverApp },
-        { label: "Plant dashboard", kind: "bool", get: (p) => p.features.plantApp },
-        { label: "Public ordering page", kind: "bool", get: (p) => p.features.publicOrderingPage },
-        { label: "Web dashboard", kind: "bool", get: (p) => p.features.webDashboard ?? false },
+    const yes = <Check size={18} strokeWidth={2.4} style={{ color: "#16A34A" }} />;
+    const no = <span style={{ color: "var(--ds-text-3)" }}>—</span>;
+    const all = (p: Plan, keys: (keyof Plan["features"])[]) => keys.every((k) => !!p.features[k]);
+    const featureRows: { label: string; cell: (p: Plan) => ReactNode }[] = [
+        { label: "Orders per month", cell: (p) => numLimit(p.limits.maxOrders) },
+        { label: "Customers", cell: (p) => numLimit(p.limits.maxCustomers) },
+        { label: "Receipts, QR/barcode tags, customer tracking", cell: (p) => (all(p, ["orderTracking", "qrScans"]) ? yes : no) },
+        { label: "Expenses, attendance, payroll, reports", cell: (p) => (all(p, ["expenses", "attendance", "payroll", "reports"]) ? yes : no) },
+        { label: "WhatsApp receipts & web dashboard", cell: (p) => (p.features.whatsappReceipts && (p.features.webDashboard ?? false) ? yes : no) },
+        { label: "Team app logins", cell: (p) => { const c = getTeamLoginCap(p.limits); return c === 0 ? no : (p.limits.maxShops ?? 1) > 1 && c !== -1 ? `${c} per shop` : numLimit(c); } },
+        { label: "Online booking page, reminders, offers", cell: (p) => (all(p, ["publicOrderingPage", "orderReminders", "offers"]) ? yes : no) },
+        { label: "Item-level tracking", cell: (p) => (p.features.itemTracking ? yes : no) },
+        { label: "Plant app & damage photos", cell: (p) => (all(p, ["plantApp", "damagePhotos"]) ? yes : no) },
+        { label: "Delivery agent app", cell: (p) => (p.features.driverApp ? yes : no) },
+        { label: "Shops on one subscription", cell: (p) => String(p.limits.maxShops ?? 1) },
     ];
 
-    const boolCell = (on: boolean) =>
-        on ? (
-            <Check size={16} style={{ color: "var(--c-success)" }} />
-        ) : (
-            <Minus size={15} style={{ color: "var(--c-text-3)" }} />
-        );
+    const outBtn: CSSProperties = { width: "100%", cursor: "pointer", font: "inherit", fontSize: 15, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 8, padding: "10px 8px" };
+    const solidBtn: CSSProperties = { ...outBtn, color: "#fff", background: "var(--ds-blue)", border: "1px solid var(--ds-blue)" };
+    const colW = `minmax(150px, 1fr)`;
+    const grid: CSSProperties = { display: "grid", gridTemplateColumns: `minmax(190px, 1.05fr) repeat(${visiblePlans.length}, ${colW})` };
+    const cellBase = (pid: PlanType, extra?: CSSProperties): CSSProperties => {
+        const cur = pid === currentPlanId;
+        return { display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 13.5, padding: "8px 10px", borderTop: "1px solid var(--ds-divider)", borderLeft: cur ? "2px solid var(--ds-blue)" : "1px solid var(--ds-divider)", borderRight: cur ? "2px solid var(--ds-blue)" : undefined, ...extra };
+    };
+    const storeUrl = detectMobileOS() === "ios" ? APP_STORE_URL : GOOGLE_PLAY_URL;
 
     return (
-        <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--c-bg)" }}>
-            {/* header */}
-            <header
-                style={{
-                    flex: "none",
-                    minHeight: 58,
-                    background: "var(--c-surface)",
-                    borderBottom: "1px solid var(--c-border)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    flexWrap: isMobile ? "wrap" : "nowrap",
-                    gap: isMobile ? 10 : 14,
-                    padding: isMobile ? "12px 16px" : "0 22px",
-                }}
-            >
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-                    <span
-                        style={{
-                            width: 30,
-                            height: 30,
-                            flex: "none",
-                            borderRadius: 8,
-                            background: "var(--c-primary-soft)",
-                            color: "var(--c-primary)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <CreditCard size={17} />
-                    </span>
-                    <div>
-                        <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em", lineHeight: 1.1 }}>
-                            Subscription
+        <div className="lb-ds" style={{ minHeight: "100%", background: embedded ? "transparent" : "var(--ds-bg)" }}>
+            <div style={{ padding: isMobile ? 16 : embedded ? "22px 24px 28px" : "22px 26px 32px", display: "flex", flexDirection: "column", gap: 18 }}>
+                {!embedded && <div style={{ fontSize: 27, fontWeight: 700, letterSpacing: "-.02em" }}>Subscription</div>}
+                {embedded && <div style={{ fontSize: 21, fontWeight: 600 }}>Subscription</div>}
+
+                {/* current plan */}
+                <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap", border: "1px solid var(--ds-border)", borderRadius: 14, padding: "18px 22px", background: "var(--ds-card)" }}>
+                    <span style={{ width: 76, height: 76, flex: "none", borderRadius: 14, background: "var(--ds-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Crown size={36} /></span>
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                        <div style={{ fontSize: 13.5, color: "var(--ds-text-2)" }}>Current plan</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
+                            <span style={{ fontSize: 20, fontWeight: 600 }}>
+                                {currentPlan?.name || subscription?.planName || "Free"}
+                                <span style={{ color: "var(--ds-text-2)", fontWeight: 400 }}> · </span>
+                                {currentPlan ? fmtPrice(currentPlan, "monthly") : formatAmount(0)}<span style={{ fontWeight: 400, fontSize: 16 }}>/month</span>
+                                {renewLabel && <><span style={{ color: "var(--ds-text-2)", fontWeight: 400 }}> · </span><span style={{ fontWeight: 400 }}>{renewLabel}</span></>}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: isActiveSub ? "#DCFCE7" : "#F3F4F6", color: isActiveSub ? "#15803D" : "#4B5563" }}>{statusLabel}</span>
                         </div>
-                        <div style={{ fontSize: 11.5, color: "var(--c-text-3)" }}>Plans, billing &amp; usage</div>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 32, marginTop: 14 }}>
+                            {[
+                                { icon: <Users size={16} />, label: "Team logins", used: usedLogins, cap: loginCap },
+                                { icon: <Store size={16} />, label: "Shops", used: usedShops, cap: shopCap },
+                            ].map((u) => (
+                                <div key={u.label}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>{u.icon}{u.label}<span style={{ marginLeft: "auto" }}>{u.cap === -1 ? `${u.used} · Unlimited` : u.cap === 0 ? "Not included" : `${u.used} of ${u.cap}`}</span></div>
+                                    <div style={{ height: 6, borderRadius: 6, background: "#E5E7EB", marginTop: 8, overflow: "hidden" }}>
+                                        <div style={{ height: "100%", width: `${u.cap > 0 ? Math.min(100, (u.used / u.cap) * 100) : u.cap === -1 ? 12 : 0}%`, background: "var(--ds-blue)", borderRadius: 6 }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
+                    <button onClick={() => document.getElementById("lb-invoices")?.scrollIntoView({ behavior: "smooth" })} style={{ cursor: "pointer", font: "inherit", fontSize: 15, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-blue)", borderRadius: 8, padding: "11px 26px" }}>Billing history</button>
                 </div>
 
-                {/* billing-cycle toggle */}
-                <div
-                    role="group"
-                    aria-label="Billing cycle"
-                    style={{
-                        display: "inline-flex",
-                        background: "var(--c-surface-2)",
-                        border: "1px solid var(--c-border)",
-                        borderRadius: 9,
-                        padding: 3,
-                    }}
-                >
-                    {(["monthly", "yearly"] as Cycle[]).map((c) => {
-                        const on = cycle === c;
-                        return (
-                            <button
-                                key={c}
-                                onClick={() => setCycle(c)}
-                                aria-pressed={on}
-                                style={{
-                                    cursor: "pointer",
-                                    font: "inherit",
-                                    fontSize: 12.5,
-                                    fontWeight: 600,
-                                    padding: "6px 14px",
-                                    borderRadius: 7,
-                                    border: 0,
-                                    background: on ? "var(--c-surface)" : "transparent",
-                                    color: on ? "var(--c-text)" : "var(--c-text-3)",
-                                    boxShadow: on ? "var(--sh-sm)" : undefined,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                }}
-                            >
-                                {c === "monthly" ? "Monthly" : "Yearly"}
-                                {c === "yearly" && (
-                                    <span
-                                        style={{
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            color: "var(--c-success)",
-                                            background: "var(--c-success-soft)",
-                                            borderRadius: 5,
-                                            padding: "1px 5px",
-                                        }}
-                                    >
-                                        −20%
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
+                {viewingChildShop && (
+                    <div style={{ fontSize: 13.5, color: "var(--ds-text-2)", background: "var(--ds-table-head)", border: "1px solid var(--ds-border)", borderRadius: 10, padding: "11px 14px" }}>
+                        This shop is covered by your main shop&apos;s subscription — any plan you buy here is billed on your primary shop and applies to all your shops.
+                    </div>
+                )}
+
+                {/* cycle toggle */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <div role="group" aria-label="Billing cycle" style={{ display: "inline-flex", gap: 4, padding: 4, border: "1px solid var(--ds-border)", borderRadius: 10, background: "var(--ds-card)" }}>
+                        {(["monthly", "yearly"] as Cycle[]).map((c) => {
+                            const on = cycle === c;
+                            return (
+                                <button key={c} onClick={() => setCycle(c)} aria-pressed={on} style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, padding: "6px 14px", borderRadius: 7, border: 0, background: on ? "var(--ds-blue)" : "transparent", color: on ? "#fff" : "var(--ds-text)" }}>
+                                    {c === "monthly" ? "Monthly" : <>Yearly <span style={{ fontWeight: 400, fontSize: 12.5, color: on ? "#fff" : "var(--ds-text-2)" }}>(save 20%)</span></>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {cycle === "yearly" && <span style={{ fontSize: 12.5, color: "var(--ds-text-2)" }}>Yearly prices are shown for comparison — web subscriptions bill monthly.</span>}
+                    <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--ds-text-2)" }}>Prices in {isIntl ? "USD" : shop?.settings?.currency || "INR"}</span>
                 </div>
-            </header>
 
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "16px" : "22px", minHeight: 0 }}>
-                <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-                    {/* current plan banner */}
-                    <div
-                        style={{
-                            position: "relative",
-                            borderRadius: 16,
-                            overflow: "hidden",
-                            background: "linear-gradient(120deg,#14213D,#1A4FD6)",
-                            color: "#fff",
-                            padding: "22px 24px",
-                            boxShadow: "var(--sh-md)",
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                alignItems: "flex-start",
-                                justifyContent: "space-between",
-                                gap: 20,
-                            }}
-                        >
-                            <div style={{ minWidth: 220 }}>
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        textTransform: "uppercase",
-                                        letterSpacing: ".06em",
-                                        color: "rgba(255,255,255,.7)",
-                                    }}
-                                >
-                                    Current plan
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-                                    <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em" }}>
-                                        {currentPlan?.name || (currentPlanId === "free" ? "Free Plan" : subscription?.planName || "Free Plan")}
-                                    </span>
-                                    <span
-                                        style={{
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 6,
-                                            fontSize: 11.5,
-                                            fontWeight: 600,
-                                            background: "rgba(255,255,255,.16)",
-                                            borderRadius: 999,
-                                            padding: "3px 10px",
-                                        }}
-                                    >
-                                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: statusDot }} />
-                                        {statusLabel}
-                                    </span>
-                                </div>
-                                <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 4 }}>
-                                    <span style={{ fontSize: 22, fontWeight: 700, fontFamily: MONO }}>
-                                        {currentPlan ? fmtPrice(currentPlan, cycle) : formatAmount(0)}
-                                    </span>
-                                    <span style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)" }}>
-                                        / {cycle === "yearly" ? "yr" : "mo"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 22 }}>
-                                {subscription?.expiresAt && (
-                                    <BannerStat
-                                        label={status === "cancelled" ? "Access until" : status === "expired" ? "Expired on" : "Renews on"}
-                                        value={format(subscription.expiresAt, "MMM d, yyyy")}
-                                    />
-                                )}
-                                {showProgress && <BannerStat label="Days left" value={`${daysLeft}`} mono />}
-                                <BannerStat label="Orders used" value={`${subscription?.usage?.ordersThisMonth ?? 0}`} mono />
-                                <BannerStat label="Customers" value={`${subscription?.usage?.totalCustomers ?? 0}`} mono />
-                            </div>
-                        </div>
-
-                        {showProgress && (
-                            <div style={{ marginTop: 18 }}>
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        fontSize: 11.5,
-                                        color: "rgba(255,255,255,.75)",
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                        <CalendarClock size={13} /> Billing period
-                                    </span>
-                                    <span style={{ fontFamily: MONO }}>
-                                        {daysUsed} / {periodDays} days
-                                    </span>
-                                </div>
-                                <div style={{ height: 7, borderRadius: 999, background: "rgba(255,255,255,.2)", overflow: "hidden" }}>
-                                    <div style={{ width: `${usedPct}%`, height: "100%", borderRadius: 999, background: "#fff" }} />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* purchase-on-mobile notice */}
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            flexWrap: isMobile ? "wrap" : "nowrap",
-                            gap: 12,
-                            background: "var(--c-info-soft)",
-                            border: "1px solid var(--c-info-soft)",
-                            borderRadius: 12,
-                            padding: "12px 16px",
-                        }}
-                    >
-                        <span
-                            style={{
-                                width: 34,
-                                height: 34,
-                                flex: "none",
-                                borderRadius: 9,
-                                background: "var(--c-surface)",
-                                color: "var(--c-info)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <Smartphone size={17} />
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)" }}>How billing works</div>
-                            <div style={{ fontSize: 12, color: "var(--c-text-2)", marginTop: 1 }}>
-                                The <strong>Pro</strong> plan is purchased in the LaundryBill mobile app (Google Play / App Store).
-                                <strong> Pro+</strong> and <strong>Business</strong> subscribe right here on the web — billed automatically every month.
-                            </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 8, flex: "none", width: isMobile ? "100%" : undefined }}>
-                            <StoreBtn label="Google Play" onClick={() => window.open(GOOGLE_PLAY_URL, "_blank", "noopener,noreferrer")} />
-                            <StoreBtn label="App Store" onClick={() => window.open(APP_STORE_URL, "_blank", "noopener,noreferrer")} />
-                        </div>
-                    </div>
-
-                    {/* available plans */}
-                    <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--c-text)", marginBottom: 12 }}>Available plans</div>
-                        {viewingChildShop && (
-                            <div
-                                style={{
-                                    fontSize: 12.5,
-                                    color: "var(--c-text-2)",
-                                    background: "var(--c-surface-2)",
-                                    border: "1px solid var(--c-border)",
-                                    borderRadius: 10,
-                                    padding: "10px 14px",
-                                    marginBottom: 12,
-                                    lineHeight: 1.5,
-                                }}
-                            >
-                                This shop is covered by your main shop&apos;s subscription — any plan you buy here
-                                is billed on your primary shop and applies to all your shops.
-                            </div>
-                        )}
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
-                                gap: 16,
-                            }}
-                        >
+                {/* plan comparison */}
+                <div className="lb-scroll" style={{ overflowX: "auto", border: "1px solid var(--ds-border)", borderRadius: 14, background: "var(--ds-card)" }}>
+                    <div style={{ minWidth: 190 + visiblePlans.length * 150 }}>
+                        {/* headers */}
+                        <div style={grid}>
+                            <div />
                             {visiblePlans.map((plan) => {
-                                const id = normalizePlanId(plan.id);
-                                const isCurrent = id === currentPlanId;
-                                const popular = id === "pro";
-                                const contactOnly = id === "pro_plus" || id === "business" || id === "franchise";
-                                const Icon = PLAN_ICON[id] || Sparkles;
+                                const pid = normalizePlanId(plan.id);
+                                const cur = pid === currentPlanId;
                                 return (
-                                    <div
-                                        key={plan.id}
-                                        style={{
-                                            position: "relative",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            background: "var(--c-surface)",
-                                            border: `1.5px solid ${
-                                                isCurrent ? "var(--c-primary)" : popular ? "var(--c-violet)" : "var(--c-border)"
-                                            }`,
-                                            borderRadius: 14,
-                                            boxShadow: popular || isCurrent ? "var(--sh-md)" : "var(--sh-sm)",
-                                            overflow: "hidden",
-                                        }}
-                                    >
-                                        {popular && (
-                                            <div
-                                                style={{
-                                                    position: "absolute",
-                                                    top: 0,
-                                                    right: 0,
-                                                    fontSize: 10,
-                                                    fontWeight: 700,
-                                                    letterSpacing: ".04em",
-                                                    color: "#fff",
-                                                    background: "var(--c-violet)",
-                                                    padding: "4px 10px",
-                                                    borderBottomLeftRadius: 10,
-                                                }}
-                                            >
-                                                MOST POPULAR
-                                            </div>
+                                    <div key={plan.id} style={{ padding: "18px 16px 16px", borderLeft: cur ? "2px solid var(--ds-blue)" : "1px solid var(--ds-divider)", borderRight: cur ? "2px solid var(--ds-blue)" : undefined, borderTop: cur ? "2px solid var(--ds-blue)" : undefined, borderRadius: cur ? "10px 10px 0 0" : undefined }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                            <span style={{ fontSize: 18, fontWeight: 600, color: cur ? "var(--ds-blue)" : "var(--ds-text)" }}>{plan.name}</span>
+                                            {cur && <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-blue-soft)", borderRadius: 6, padding: "2px 8px" }}>Current plan</span>}
+                                        </div>
+                                        <div style={{ fontSize: 17, fontWeight: 500, marginTop: 4 }}>{fmtPrice(plan, cycle)}<span style={{ fontSize: 13, fontWeight: 400, color: "var(--ds-text-2)" }}>/{cycle === "yearly" ? "yr" : "mo"}</span></div>
+                                        <div style={{ fontSize: 13, color: "var(--ds-text-2)", marginTop: 8, lineHeight: 1.45 }}>{plan.description || ""}</div>
+                                        {pid === "pro" && <span style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 500, color: "#6D28D9", background: "#EDE9FE", borderRadius: 6, padding: "3px 8px" }}>Bought inside the app</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {/* feature rows */}
+                        {featureRows.map((row) => (
+                            <div key={row.label} style={grid}>
+                                <div style={{ fontSize: 13, padding: "8px 16px", borderTop: "1px solid var(--ds-divider)", display: "flex", alignItems: "center" }}>{row.label}</div>
+                                {visiblePlans.map((plan) => <div key={plan.id} style={cellBase(normalizePlanId(plan.id))}>{row.cell(plan)}</div>)}
+                            </div>
+                        ))}
+                        {/* actions */}
+                        <div style={grid}>
+                            <div style={{ borderTop: "1px solid var(--ds-divider)" }} />
+                            {visiblePlans.map((plan) => {
+                                const pid = normalizePlanId(plan.id);
+                                const cur = pid === currentPlanId;
+                                const webPlan = pid === "pro_plus" || pid === "business" || pid === "franchise";
+                                return (
+                                    <div key={plan.id} style={{ ...cellBase(pid, { padding: "14px 16px 16px", flexDirection: "column", gap: 6 }), borderBottom: cur ? "2px solid var(--ds-blue)" : undefined, borderRadius: cur ? "0 0 10px 10px" : undefined }}>
+                                        {cur ? (
+                                            <button disabled style={{ ...outBtn, color: "var(--ds-text-2)", background: "#E5E7EB", border: "1px solid #E5E7EB", cursor: "default" }}>Current plan</button>
+                                        ) : pid === "free" ? (
+                                            <div style={{ fontSize: 13.5, color: "var(--ds-text-2)", padding: "10px 0" }}>Free forever</div>
+                                        ) : webPlan ? (
+                                            <>
+                                                <button onClick={() => void handleSubscribe(plan)} disabled={subscribing !== null} style={{ ...solidBtn, opacity: subscribing !== null && subscribing !== pid ? 0.6 : 1, cursor: subscribing !== null ? "default" : "pointer" }}>
+                                                    {subscribing === pid ? "Opening checkout…" : "Upgrade"}
+                                                </button>
+                                                <a href={contactHref(plan.name)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: "var(--ds-text-2)", textDecoration: "none" }}>Need help? WhatsApp us</a>
+                                            </>
+                                        ) : (
+                                            <button onClick={() => window.open(storeUrl, "_blank", "noopener,noreferrer")} style={outBtn}>Get the app</button>
                                         )}
-
-                                        <div style={{ padding: "20px 18px 0", flex: 1 }}>
-                                            <span
-                                                style={{
-                                                    width: 36,
-                                                    height: 36,
-                                                    borderRadius: 10,
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    background: isCurrent ? "var(--c-primary-soft)" : "var(--c-surface-2)",
-                                                    color: isCurrent ? "var(--c-primary)" : "var(--c-text-2)",
-                                                }}
-                                            >
-                                                <Icon size={19} />
-                                            </span>
-                                            <div style={{ fontSize: 17, fontWeight: 700, marginTop: 12 }}>{plan.name}</div>
-                                            <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 6 }}>
-                                                <span style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO, letterSpacing: "-.02em" }}>
-                                                    {fmtPrice(plan, cycle)}
-                                                </span>
-                                                <span style={{ fontSize: 12.5, color: "var(--c-text-3)" }}>
-                                                    / {cycle === "yearly" ? "yr" : "mo"}
-                                                </span>
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: 12.5,
-                                                    color: "var(--c-text-2)",
-                                                    marginTop: 8,
-                                                    minHeight: 34,
-                                                    lineHeight: 1.4,
-                                                }}
-                                            >
-                                                {plan.description || "Full feature access on this tier."}
-                                            </div>
-
-                                            <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 9 }}>
-                                                <PlanFeat label={`${numLimit(plan.limits.maxOrders)} orders / mo`} on />
-                                                <PlanFeat label={`${numLimit(plan.limits.maxCustomers)} customers`} on />
-                                                <PlanFeat label={`${numLimit(getTeamLoginCap(plan.limits))} team logins (any role)`} on />
-                                                {(plan.limits.maxShops ?? 1) > 1 && (
-                                                    <PlanFeat label={`${plan.limits.maxShops} shops — one subscription`} on />
-                                                )}
-                                                <PlanFeat label="Reports & analytics" on={plan.features.reports} />
-                                                <PlanFeat label="Driver / Agent app" on={plan.features.driverApp} />
-                                                <PlanFeat label="Plant dashboard" on={plan.features.plantApp} />
-                                                <PlanFeat label="Public ordering page" on={plan.features.publicOrderingPage} />
-                                            </ul>
-                                        </div>
-
-                                        <div style={{ padding: 18, marginTop: 14 }}>
-                                            {isCurrent ? (
-                                                <button
-                                                    disabled
-                                                    style={{
-                                                        width: "100%",
-                                                        font: "inherit",
-                                                        fontSize: 13.5,
-                                                        fontWeight: 600,
-                                                        color: "var(--c-primary)",
-                                                        background: "var(--c-primary-soft)",
-                                                        border: 0,
-                                                        borderRadius: 10,
-                                                        padding: "11px 0",
-                                                        cursor: "default",
-                                                    }}
-                                                >
-                                                    Current plan
-                                                </button>
-                                            ) : id === "free" ? (
-                                                <div
-                                                    style={{
-                                                        width: "100%",
-                                                        textAlign: "center",
-                                                        fontSize: 13,
-                                                        fontWeight: 600,
-                                                        color: "var(--c-success)",
-                                                        background: "var(--c-success-soft)",
-                                                        borderRadius: 10,
-                                                        padding: "11px 0",
-                                                    }}
-                                                >
-                                                    Free forever
-                                                </div>
-                                            ) : contactOnly ? (
-                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                    <button
-                                                        onClick={() => handleSubscribe(plan)}
-                                                        disabled={subscribing !== null}
-                                                        style={{
-                                                            width: "100%",
-                                                            cursor: subscribing !== null ? "default" : "pointer",
-                                                            display: "inline-flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                            gap: 8,
-                                                            font: "inherit",
-                                                            fontSize: 13.5,
-                                                            fontWeight: 700,
-                                                            color: "#fff",
-                                                            background: "var(--c-primary)",
-                                                            border: 0,
-                                                            borderRadius: 10,
-                                                            padding: "11px 0",
-                                                            boxShadow: "var(--sh-sm)",
-                                                            opacity: subscribing !== null && subscribing !== id ? 0.6 : 1,
-                                                        }}
-                                                    >
-                                                        {subscribing === id ? (
-                                                            <>
-                                                                <LSpinner size="sm" /> Opening checkout…
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <CreditCard size={15} /> Subscribe · {fmtPrice(plan, "monthly")}/mo
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                    <a
-                                                        href={contactHref(plan.name)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={{
-                                                            fontSize: 11,
-                                                            color: "var(--c-text-3)",
-                                                            textAlign: "center",
-                                                            lineHeight: 1.4,
-                                                            textDecoration: "none",
-                                                        }}
-                                                    >
-                                                        Auto-renews monthly · cancel anytime. Need help? Chat on WhatsApp
-                                                    </a>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => window.open(GOOGLE_PLAY_URL, "_blank", "noopener,noreferrer")}
-                                                    style={{
-                                                        width: "100%",
-                                                        cursor: "pointer",
-                                                        display: "inline-flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        gap: 8,
-                                                        font: "inherit",
-                                                        fontSize: 13.5,
-                                                        fontWeight: 700,
-                                                        color: "#fff",
-                                                        background: "var(--c-primary)",
-                                                        border: 0,
-                                                        borderRadius: 10,
-                                                        padding: "11px 0",
-                                                        boxShadow: "var(--sh-sm)",
-                                                    }}
-                                                >
-                                                    <Smartphone size={15} /> Get on the app
-                                                </button>
-                                            )}
-                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-
-                    {/* compare features */}
-                    <div
-                        style={{
-                            background: "var(--c-surface)",
-                            border: "1px solid var(--c-border)",
-                            borderRadius: 14,
-                            boxShadow: "var(--sh-sm)",
-                            overflow: "hidden",
-                        }}
-                    >
-                        <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--c-border)", fontSize: 14, fontWeight: 700 }}>
-                            Compare features
-                        </div>
-                        <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-                                <thead>
-                                    <tr>
-                                        <th style={{ ...th, minWidth: 200 }}>Feature</th>
-                                        {visiblePlans.map((p) => {
-                                            const pid = normalizePlanId(p.id);
-                                            const isCurrent = pid === currentPlanId;
-                                            return (
-                                                <th key={p.id} style={{ ...th, textAlign: "center", color: isCurrent ? "var(--c-primary)" : "var(--c-text-2)" }}>
-                                                    {p.name}
-                                                    <div style={{ fontWeight: 600, fontSize: 11, color: "var(--c-text-3)", marginTop: 2, fontFamily: MONO, textTransform: "none", letterSpacing: 0 }}>
-                                                        {`${fmtPrice(p, cycle)}/${cycle === "yearly" ? "yr" : "mo"}`}
-                                                    </div>
-                                                </th>
-                                            );
-                                        })}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {featureRows.map((row) => (
-                                        <tr key={row.label}>
-                                            <td style={{ ...td, fontWeight: 500, color: "var(--c-text-2)" }}>{row.label}</td>
-                                            {visiblePlans.map((p) => {
-                                                const v = row.get(p);
-                                                return (
-                                                    <td key={p.id} style={{ ...td, textAlign: "center" }}>
-                                                        {row.kind === "bool" ? (
-                                                            <span style={{ display: "inline-flex", justifyContent: "center", width: "100%" }}>
-                                                                {boolCell(Boolean(v))}
-                                                            </span>
-                                                        ) : (
-                                                            <span style={{ fontFamily: MONO, fontSize: 12.5 }}>{numLimit(v as number)}</span>
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
+
+                <InvoicesCard shopId={billingShopId || ""} planName={currentPlan?.name || subscription?.planName || ""} />
             </div>
         </div>
     );
 }
 
-function BannerStat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+/** Subscription payments (subscriptions/{shopId}/payments) — latest first. */
+function InvoicesCard({ shopId, planName }: { shopId: string; planName: string }) {
+    const navigate = useNavigate();
+    const { formatAmount } = useCurrency();
+    const [rows, setRows] = useState<{ id: string; ref: string; type: string; amount?: number; currency?: string; status?: string; date: Date | null }[] | null>(null);
+    useEffect(() => {
+        if (!shopId) { setRows([]); return; }
+        getDocs(query(collection(db, "subscriptions", shopId, "payments"), orderBy("date", "desc"), limit(5)))
+            .then((snap) => setRows(snap.docs.map((d) => {
+                const x = d.data();
+                return { id: d.id, ref: x.paymentId || x.refundId || d.id, type: x.type || "subscription", amount: x.amount, currency: x.currency, status: x.status, date: x.date?.toDate?.() ?? null };
+            })))
+            .catch(() => setRows([]));
+    }, [shopId]);
+    const typeLabel = (t: string) => ({ subscription: "Subscription", renewal: "Renewal", renewal_failed: "Failed renewal", refund: "Refund" } as Record<string, string>)[t] || t;
+    const TH: CSSProperties = { textAlign: "left", fontSize: 13, fontWeight: 500, color: "var(--ds-text-2)", padding: "10px 14px", background: "var(--ds-table-head)", borderBottom: "1px solid var(--ds-border)", whiteSpace: "nowrap" };
+    const TD: CSSProperties = { fontSize: 13.5, padding: "11px 14px", borderBottom: "1px solid var(--ds-divider)", whiteSpace: "nowrap" };
     return (
-        <div>
-            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "rgba(255,255,255,.65)" }}>
-                {label}
+        <div id="lb-invoices" style={{ border: "1px solid var(--ds-border)", borderRadius: 14, padding: "16px 16px 12px", background: "var(--ds-card)" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+                <span style={{ fontSize: 15, fontWeight: 600 }}>Invoices</span>
+                <button onClick={() => navigate("/settings/payment-history")} style={{ marginLeft: "auto", cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 600, color: "var(--ds-blue)", background: "transparent", border: 0 }}>View all<ChevronRight size={16} /></button>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3, fontFamily: mono ? MONO : undefined }}>{value}</div>
+            {rows === null ? (
+                <div style={{ padding: 20, textAlign: "center", color: "var(--ds-text-2)", fontSize: 13.5 }}>Loading…</div>
+            ) : rows.length === 0 ? (
+                <div style={{ padding: 20, textAlign: "center", color: "var(--ds-text-2)", fontSize: 13.5 }}>No subscription payments yet.</div>
+            ) : (
+                <div className="lb-scroll" style={{ overflowX: "auto", border: "1px solid var(--ds-border)", borderRadius: 10 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                        <thead><tr><th style={TH}>Payment</th><th style={TH}>Date</th><th style={TH}>Plan</th><th style={TH}>Type</th><th style={{ ...TH, textAlign: "right" }}>Amount</th><th style={{ ...TH, textAlign: "center" }}>Status</th></tr></thead>
+                        <tbody>
+                            {rows.map((r) => {
+                                const ok = r.status === "success" || r.status === "captured" || r.status === "paid";
+                                const bad = r.status === "failed";
+                                return (
+                                    <tr key={r.id}>
+                                        <td style={{ ...TD, fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: 12.5 }}>{r.ref}</td>
+                                        <td style={TD}>{r.date ? format(r.date, "d MMM yyyy") : "—"}</td>
+                                        <td style={TD}>{planName || "—"}</td>
+                                        <td style={TD}>{typeLabel(r.type)}</td>
+                                        <td style={{ ...TD, textAlign: "right" }}>{r.amount != null ? (r.currency && r.currency !== "INR" ? `${r.currency} ${r.amount}` : formatAmount(r.amount)) : "—"}</td>
+                                        <td style={{ ...TD, textAlign: "center" }}><span style={{ fontSize: 12, fontWeight: 500, padding: "3px 9px", borderRadius: 6, background: ok ? "#DCFCE7" : bad ? "#FEE2E2" : "#F3F4F6", color: ok ? "#15803D" : bad ? "#B91C1C" : "#4B5563" }}>{ok ? "Paid" : bad ? "Failed" : r.status || "—"}</span></td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--ds-text-2)", marginTop: 12 }}><ShieldCheck size={16} />Pro+, Business and Franchise renew monthly via Razorpay — cancel anytime. Pro is billed by Google Play / App Store.</div>
         </div>
-    );
-}
-
-function StoreBtn({ label, onClick }: { label: string; onClick: () => void }) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            style={{
-                cursor: "pointer",
-                font: "inherit",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--c-text)",
-                background: "var(--c-surface)",
-                border: "1px solid var(--c-border-strong)",
-                borderRadius: 8,
-                padding: "7px 12px",
-                whiteSpace: "nowrap",
-            }}
-        >
-            {label}
-        </button>
-    );
-}
-
-function PlanFeat({ label, on }: { label: string; on: boolean }) {
-    return (
-        <li style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5 }}>
-            <span
-                style={{
-                    width: 18,
-                    height: 18,
-                    flex: "none",
-                    borderRadius: "50%",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: on ? "var(--c-success-soft)" : "var(--c-surface-2)",
-                    color: on ? "var(--c-success)" : "var(--c-text-3)",
-                }}
-            >
-                {on ? <Check size={11} /> : <Minus size={11} />}
-            </span>
-            <span style={{ color: on ? "var(--c-text)" : "var(--c-text-3)", textDecoration: on ? "none" : "line-through" }}>
-                {label}
-            </span>
-        </li>
     );
 }

@@ -466,7 +466,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             let initialServiceAreas: any[] = [];
             let enableServiceAreas = false;
 
-            try {
+            const formLoc = additionalData?.location as { city?: string; address?: string } | undefined;
+            if (formLoc?.city || formLoc?.address) {
+                // The welcome form already captured the location — skip the browser
+                // geolocation prompt (which can stall the save) and seed from the city.
+                if (formLoc.city) { initialServiceAreas = [{ id: crypto.randomUUID(), value: formLoc.city, isActive: true }]; enableServiceAreas = true; }
+            } else try {
                 if (navigator.geolocation) {
                     const position = await new Promise<GeolocationPosition>((resolve, reject) => {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });

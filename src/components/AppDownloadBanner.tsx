@@ -99,7 +99,7 @@ export function AppDownloadBanner() {
     );
 
     return (
-        <div style={wrap}>
+        <div id="lb-app-download-banner" style={wrap}>
             <style>{`@keyframes lb-promo-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }`}</style>
             <div style={{
                 animation: "lb-promo-in .35s cubic-bezier(.21,1.02,.55,1) both",

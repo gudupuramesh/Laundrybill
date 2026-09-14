@@ -20,8 +20,11 @@ export function PublicOfferCouponSection({ shop, className, inline }: PublicOffe
   const [copied, setCopied] = useState(false);
   const { addToast } = useLToast();
   const featuredCode = shop.publicOrdering?.featuredCouponCode?.trim().toUpperCase();
-  const fallbackCode =
-    shop.settings?.publicCoupons?.[0]?.code?.trim().toUpperCase();
+  // Only advertise an offer that is live and not hidden from the booking page.
+  const today = new Date().toISOString().slice(0, 10);
+  const fallbackCode = (shop.settings?.publicCoupons ?? [])
+    .find((c) => c.active !== false && c.showOnBookingPage !== false && (!c.startsAt || c.startsAt <= today) && (!c.expiresAt || c.expiresAt >= today))
+    ?.code?.trim().toUpperCase();
   const displayCode = featuredCode || fallbackCode;
 
   if (!displayCode) return null;

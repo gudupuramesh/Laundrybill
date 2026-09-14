@@ -326,6 +326,8 @@ export function useCustomerStats() {
         totalCustomers: 0,
         newThisMonth: 0,
         activeCustomers: 0,
+        /** Customers who came back at least once — the reference's "Repeat customers". */
+        repeatCustomers: 0,
     });
 
     useEffect(() => {
@@ -360,6 +362,7 @@ export function useCustomerStats() {
                     totalCustomers: customers.length,
                     newThisMonth,
                     activeCustomers,
+                    repeatCustomers: customers.filter((c) => (c.totalOrders || 0) > 1).length,
                 });
             },
             (error) => {
@@ -371,4 +374,35 @@ export function useCustomerStats() {
     }, [shopId]);
 
     return stats;
+}
+
+/**
+ * Outstanding balance per customer — sums the balance of every unpaid/partial
+ * order so the customer list can show a "dues" column without reading each
+ * customer's orders one by one.
+ */
+export function useCustomerDues() {
+    const { shopId } = useAuth();
+    const [dues, setDues] = useState<{ byCustomer: Record<string, number>; total: number; count: number }>({ byCustomer: {}, total: 0, count: 0 });
+
+    useEffect(() => {
+        if (!shopId) return;
+        const q = query(collection(db, `shops/${shopId}/orders`), where("paymentStatus", "in", ["unpaid", "partial"]));
+        return onSnapshot(q, (snap) => {
+            const byCustomer: Record<string, number> = {};
+            let total = 0;
+            snap.docs.forEach((d) => {
+                const o = d.data() as { customerId?: string; status?: string; financials?: { total?: number; amountPaid?: number; balance?: number } };
+                if (o.status === "cancelled" || !o.customerId) return;
+                const f = o.financials || {};
+                const bal = f.balance ?? ((f.total || 0) - (f.amountPaid || 0));
+                if (bal <= 0) return;
+                byCustomer[o.customerId] = (byCustomer[o.customerId] || 0) + bal;
+                total += bal;
+            });
+            setDues({ byCustomer, total, count: Object.keys(byCustomer).length });
+        }, (e) => console.error("Error loading customer dues:", e));
+    }, [shopId]);
+
+    return dues;
 }

@@ -505,8 +505,11 @@ export function useAttendance(month: Date) {
     // Get month range
     const startDate = new Date(month.getFullYear(), month.getMonth(), 1);
     const endDate = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-    const startStr = startDate.toISOString().split("T")[0];
-    const endStr = endDate.toISOString().split("T")[0];
+    // Local calendar dates — toISOString() shifts to UTC, which east of UTC
+    // (e.g. IST) moved both bounds back a day and dropped the month's last day.
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const startStr = ymd(startDate);
+    const endStr = ymd(endDate);
 
     useEffect(() => {
         if (!shopId) {
@@ -607,6 +610,16 @@ export function useAttendanceMutations() {
         if (overtime !== undefined) optionalFields.overtime = overtime;
         if (notes !== undefined) optionalFields.notes = notes;
 
+        // Check-in: stamped when someone is marked present/half ON the day itself
+        // (marking a past day later can't know the real time); cleared for absent/leave.
+        const isToday = date === localYmd(new Date());
+        const hadCheckIn = !existing.empty && !!existing.docs[0].data().checkIn;
+        if (status === "present" || status === "half") {
+            if (isToday && !hadCheckIn) optionalFields.checkIn = serverTimestamp();
+        } else if (hadCheckIn) {
+            optionalFields.checkIn = null;
+        }
+
         if (!existing.empty) {
             // Update existing
             await updateDoc(existing.docs[0].ref, {
@@ -661,6 +674,7 @@ export function useAttendanceMutations() {
                     staffId: record.staffId,
                     date: record.date,
                     status: record.status,
+                    ...((record.status === "present" || record.status === "half") && record.date === localYmd(new Date()) ? { checkIn: serverTimestamp() } : {}),
                     markedBy: user.uid,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
@@ -671,8 +685,40 @@ export function useAttendanceMutations() {
         await batch.commit();
     };
 
+    /** Update the note and/or check-in time of an already-marked day. */
+    const updateAttendanceDetails = async (staffId: string, date: string, fields: { notes?: string; checkIn?: Date | null }) => {
+        if (!shopId || !user) throw new Error("Not authenticated");
+        const existing = await getDocs(query(
+            collection(db, "shops", shopId, "attendance"),
+            where("staffId", "==", staffId),
+            where("date", "==", date)
+        ));
+        if (existing.empty) return;
+        const data: Record<string, unknown> = { updatedAt: serverTimestamp() };
+        if (fields.notes !== undefined) data.notes = fields.notes;
+        if (fields.checkIn !== undefined) data.checkIn = fields.checkIn ? Timestamp.fromDate(fields.checkIn) : null;
+        await updateDoc(existing.docs[0].ref, data);
+    };
+
+    /** Remove a day's mark entirely (back to "not marked"). */
+    const clearAttendance = async (staffId: string, date: string) => {
+        if (!shopId || !user) throw new Error("Not authenticated");
+        const existing = await getDocs(query(
+            collection(db, "shops", shopId, "attendance"),
+            where("staffId", "==", staffId),
+            where("date", "==", date)
+        ));
+        await Promise.all(existing.docs.map((d) => deleteDoc(d.ref)));
+    };
+
     return {
         markAttendance,
         markBulkAttendance,
+        updateAttendanceDetails,
+        clearAttendance,
     };
+}
+
+function localYmd(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

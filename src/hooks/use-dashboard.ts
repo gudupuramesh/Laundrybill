@@ -52,6 +52,17 @@ interface DashboardStats {
     revenueTrend: number | null;
     ordersTrend: number | null;
     monthlyOrders: number;
+
+    /** Today's collections split by payment method (cash / upi / card / other). */
+    todayCollectedByMethod: Record<string, number>;
+    /** Non-cancelled orders still carrying a balance. */
+    outstandingOrders: number;
+    /** Active orders whose expected delivery/pickup falls today. */
+    dueTodayCount: number;
+    /** Ready (any variant) with a balance still owed. */
+    readyUnpaidCount: number;
+    /** Pipeline stages — counts and order value per stage. */
+    stages: { key: "placed" | "processing" | "ready" | "out" | "delivered"; count: number; amount: number }[];
 }
 
 interface RecentOrder {
@@ -66,6 +77,12 @@ interface RecentOrder {
     itemCount: number;
     createdAt: Date;
     deliveryType: string;
+    /** "3 Shirts, 2 Pants" — first two lines, "+N more". */
+    itemsSummary: string;
+    /** Dominant service category, e.g. "Wash & Fold". */
+    serviceSummary: string;
+    /** Expected delivery / scheduled pickup, whichever applies. */
+    due: Date | null;
 }
 
 interface StaffAttendanceSummary {
@@ -97,6 +114,7 @@ export function useDashboard(): UseDashboardReturn {
     // today. Independent of when the order was created.
     const [todayCollectedCash, setTodayCollectedCash] = useState(0);
     const [todayCollectedCount, setTodayCollectedCount] = useState(0);
+    const [todayCollectedByMethod, setTodayCollectedByMethod] = useState<Record<string, number>>({});
 
     // Customer count
     const [totalCustomers, setTotalCustomers] = useState(0);
@@ -174,12 +192,17 @@ export function useDashboard(): UseDashboardReturn {
             (snapshot) => {
                 let collected = 0;
                 let paidOrderCount = 0;
+                const byMethod: Record<string, number> = {};
                 snapshot.docs.forEach((d) => {
                     const o = d.data() as Order;
                     let orderGotPaymentToday = false;
                     (o.payments || []).forEach((pmt) => {
                         const at = pmt.collectedAt?.toDate?.();
-                        if (at && at >= todayStart && at <= todayEnd) { collected += pmt.amount || 0; orderGotPaymentToday = true; }
+                        if (at && at >= todayStart && at <= todayEnd) {
+                            collected += pmt.amount || 0; orderGotPaymentToday = true;
+                            const m = String(pmt.method || "cash").toLowerCase();
+                            byMethod[m] = (byMethod[m] || 0) + (pmt.amount || 0);
+                        }
                     });
                     if (orderGotPaymentToday) paidOrderCount += 1;
                     ((o as unknown as { refunds?: { amount?: number; refundedAt?: Timestamp }[] }).refunds || []).forEach((r) => {
@@ -189,6 +212,7 @@ export function useDashboard(): UseDashboardReturn {
                 });
                 setTodayCollectedCash(Math.max(0, collected));
                 setTodayCollectedCount(paidOrderCount);
+                setTodayCollectedByMethod(byMethod);
             },
             (err) => console.error("Error computing today's collections:", err)
         );
@@ -459,6 +483,27 @@ export function useDashboard(): UseDashboardReturn {
             ? Math.round(((nonCancelledToday.length - prevDayOrders) / prevDayOrders) * 100)
             : null;
 
+        // ── New-dashboard derivations (all from the live last-50 window, like the status counts) ──
+        const live = allOrders.filter((o) => o.status !== "cancelled");
+        const balOf = (o: Order) => Math.max(0, o.financials?.balance ?? ((o.financials?.total || 0) - (o.financials?.amountPaid || 0)));
+        const outstandingOrders = live.filter((o) => balOf(o) > 0).length;
+        const ACTIVE = new Set(["pending", "pickup_scheduled", "pickup_completed", "processing", "ready", "ready_for_pickup", "out_for_delivery"]);
+        const dueTodayCount = live.filter((o) => {
+            if (!ACTIVE.has(o.status)) return false;
+            const d = (o.deliveryType === "pickup_home" && ["pending", "pickup_scheduled"].includes(o.status)
+                ? o.scheduledPickupDate : o.expectedDelivery)?.toDate?.();
+            return !!d && d >= todayStart && d <= todayEnd;
+        }).length;
+        const readyUnpaidCount = live.filter((o) => ["ready", "ready_for_pickup"].includes(o.status) && balOf(o) > 0).length;
+        const STAGE: Record<string, "placed" | "processing" | "ready" | "out" | "delivered"> = {
+            pending: "placed", pickup_scheduled: "placed", pickup_completed: "placed",
+            processing: "processing", ready: "ready", ready_for_pickup: "ready",
+            out_for_delivery: "out", delivered: "delivered", picked_up: "delivered", partially_delivered: "delivered",
+        };
+        const stageMap = { placed: { count: 0, amount: 0 }, processing: { count: 0, amount: 0 }, ready: { count: 0, amount: 0 }, out: { count: 0, amount: 0 }, delivered: { count: 0, amount: 0 } };
+        live.forEach((o) => { const k = STAGE[o.status]; if (k) { stageMap[k].count += 1; stageMap[k].amount += o.financials?.total || 0; } });
+        const stages = (["placed", "processing", "ready", "out", "delivered"] as const).map((key) => ({ key, ...stageMap[key] }));
+
         return {
             todayRevenue,
             todayCollected,
@@ -479,24 +524,42 @@ export function useDashboard(): UseDashboardReturn {
             homeDeliveryOrders,
             revenueTrend,
             ordersTrend,
+            todayCollectedByMethod,
+            outstandingOrders,
+            dueTodayCount,
+            readyUnpaidCount,
+            stages,
         };
-    }, [todayOrders, allOrders, totalCustomers, newCustomersToday, monthlyExpenses, previousRevenue, previousOrderCount, monthlyOrdersCount, todayCollectedCash, todayCollectedCount]);
+    }, [todayOrders, allOrders, totalCustomers, newCustomersToday, monthlyExpenses, previousRevenue, previousOrderCount, monthlyOrdersCount, todayCollectedCash, todayCollectedCount, todayCollectedByMethod, todayStart, todayEnd]);
 
     // Transform orders for display
     const recentOrders = useMemo<RecentOrder[]>(() => {
-        return allOrders.slice(0, 10).map((order) => ({
-            id: order.id,
-            publicId: order.publicId,
-            customerName: order.customerName,
-            customerPhone: order.customerPhone,
-            status: order.status,
-            total: order.financials?.total || 0,
-            amountPaid: order.financials?.amountPaid || 0,
-            balance: order.financials?.balance || 0,
-            itemCount: order.items?.length || 0,
-            createdAt: order.createdAt?.toDate?.() || new Date(),
-            deliveryType: order.deliveryType,
-        }));
+        return allOrders.slice(0, 10).map((order) => {
+            const items = order.items || [];
+            const lines = items.slice(0, 2).map((it) => `${it.quantity || 1} ${it.serviceName || "item"}`);
+            const itemsSummary = lines.join(", ") + (items.length > 2 ? ` +${items.length - 2} more` : "");
+            const cats = new Map<string, number>();
+            items.forEach((it) => { const c = it.categoryName || ""; if (c) cats.set(c, (cats.get(c) || 0) + 1); });
+            const serviceSummary = [...cats.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+            const dueTs = order.deliveryType === "pickup_home" && ["pending", "pickup_scheduled"].includes(order.status)
+                ? order.scheduledPickupDate : order.expectedDelivery;
+            return {
+                id: order.id,
+                publicId: order.publicId,
+                customerName: order.customerName,
+                customerPhone: order.customerPhone,
+                status: order.status,
+                total: order.financials?.total || 0,
+                amountPaid: order.financials?.amountPaid || 0,
+                balance: order.financials?.balance || 0,
+                itemCount: items.length,
+                createdAt: order.createdAt?.toDate?.() || new Date(),
+                deliveryType: order.deliveryType,
+                itemsSummary,
+                serviceSummary,
+                due: dueTs?.toDate?.() || null,
+            };
+        });
     }, [allOrders]);
 
     // Fetch Overdue Orders (Real Pending)
@@ -577,6 +640,9 @@ export function useDashboard(): UseDashboardReturn {
             itemCount: order.items?.length || 0,
             createdAt: order.createdAt?.toDate?.() || new Date(),
             deliveryType: order.deliveryType,
+            itemsSummary: "",
+            serviceSummary: "",
+            due: order.expectedDelivery?.toDate?.() || null,
         }));
     }, [overdueOrders]);
 

@@ -47,11 +47,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useShopLimits } from "@/hooks/use-shop-limits";
+import { useShop } from "@/hooks/use-shop";
+import "@/styles/ds.css";
 import { useOrderSummary } from "@/hooks/use-order-summary";
 import { useSeenOnlineOrders, SeenOnlineOrdersContext } from "@/hooks/use-seen-online-orders";
 import type { PlanFeatures } from "@/types/plans";
 import { HelpQuickSheet } from "@/features/help";
-import { DashboardHeaderActions } from "@/features/dashboard/DashboardHeaderActions";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { AppDownloadBanner } from "@/components/AppDownloadBanner";
 
@@ -97,6 +98,7 @@ const sidebarItemsConfig: SidebarNavItem[] = [
     { id: "offers", labelKey: "nav.offers", icon: BadgePercent, href: "/settings/offers", adminOnly: true, feature: "offers" },
     { id: "publicPage", labelKey: "publicPage.title", icon: Globe, href: "/settings/public-page", ownerOnly: true, feature: "publicOrderingPage" },
     { id: "subscription", labelKey: "nav.subscription", icon: Crown, href: "/settings/subscription", ownerOnly: true },
+    { id: "help", labelKey: "nav.help", icon: HelpCircle, href: "/help" },
     { id: "settings", labelKey: "nav.settings", icon: Settings, href: "/settings" },
 ];
 
@@ -219,7 +221,9 @@ export function AppLayout() {
         navigate(item.href);
     };
 
-    const { hasFeature } = useShopLimits();
+    const { hasFeature, plan } = useShopLimits();
+    const { shop } = useShop();
+    const planId = plan?.id || "free";
 
     // Filter items based on role AND feature access. Managers see everything the
     // owner sees EXCEPT ownerOnly entries (billing, public booking page).
@@ -285,31 +289,53 @@ export function AppLayout() {
                     }))}
                     activeId={activeTab}
                     logo={
-                        <div className="flex items-center gap-2.5">
-                            <BrandMark />
-                            <span className="text-base font-bold text-foreground" style={{ letterSpacing: "-0.01em" }}>
-                                Laundry<span style={{ color: "hsl(var(--primary))" }}>Bill</span>
-                            </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                            {shop?.logo
+                                ? <img src={shop.logo} alt="" style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flex: "none" }} />
+                                : <BrandMark />}
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-.01em", color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shop?.name || "LaundryBill"}</div>
+                                <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shop?.publicOrdering?.tagline || "Laundry & Dry Clean"}</div>
+                            </div>
                         </div>
                     }
                     collapsedLogo={<BrandMark />}
-                    footer={
-                        <div className="flex items-center gap-3">
-                            <LAvatar name={user?.displayName || "User"} size="sm" />
-                            <div className="flex-1 min-w-0">
-                                {/* Multi-shop owners get a switcher; others see the shop name */}
-                                <ShopSwitcher />
-                                <p className="text-xs text-muted-foreground capitalize">
-                                    {role}
-                                </p>
+                    header={
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "8px 10px", background: "#fff" }}>
+                                <ShopSwitcher direction="down" />
                             </div>
-                            <button
-                                onClick={signOut}
-                                className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                                title="Sign out"
-                            >
-                                <LogOut className="h-4 w-4" />
-                            </button>
+                            {role === "admin" && (
+                                <button onClick={() => navigate("/settings/subscription")} title="Your plan"
+                                    style={{ cursor: "pointer", font: "inherit", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 10px", borderRadius: 10, border: 0, background: "#EEF2FF", color: "#2563EB", fontWeight: 700, fontSize: 13 }}>
+                                    <Crown className="h-4 w-4" />{plan?.name || "Free"}
+                                </button>
+                            )}
+                        </div>
+                    }
+                    footer={
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            {role === "admin" && (planId === "free" || planId === "pro") && (
+                                <div style={{ border: "1px solid #DBE4FF", background: "#F5F8FF", borderRadius: 12, padding: "12px 12px 10px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "#2563EB" }}><Crown className="h-4 w-4" />PRO+ features</div>
+                                    <div style={{ fontSize: 12, color: "#4B5563", marginTop: 4, lineHeight: 1.4 }}>Team logins, an online booking page, reminders and offers.</div>
+                                    <button onClick={() => navigate("/settings/subscription")}
+                                        style={{ cursor: "pointer", font: "inherit", marginTop: 8, padding: 0, border: 0, background: "transparent", fontSize: 12.5, fontWeight: 700, color: "#2563EB" }}>Explore PRO+ →</button>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <LAvatar name={user?.displayName || "User"} size="sm" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{user?.displayName || "User"}</p>
+                                    <p className="text-xs text-muted-foreground capitalize">{role}</p>
+                                </div>
+                                <button onClick={() => setHelpSheetOpen(true)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Help">
+                                    <HelpCircle className="h-4 w-4" />
+                                </button>
+                                <button onClick={signOut} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Sign out">
+                                    <LogOut className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                     }
                 />
@@ -319,7 +345,7 @@ export function AppLayout() {
             <div className="flex-1 flex flex-col h-screen w-full min-w-0 overflow-hidden">
                 {/* Top Navbar - Hidden on design-system screens that render their own header bar.
                     Mobile dashboard renders the app's own HomeScreen header, so hide it there too. */}
-                {!(isMobile && location.pathname === "/dashboard") && !(/^\/(orders|customers|inventory|manage-staff|attendance|expenses|payroll|reports|apps|scan)(\/|$)/.test(location.pathname) || /^\/staff\/(orders|customers|inventory)(\/|$)/.test(location.pathname) || /^\/settings(\/subscription|\/public-page)?\/?$/.test(location.pathname)) && (
+                {location.pathname !== "/dashboard" && !(/^\/(orders|customers|inventory|manage-staff|attendance|expenses|payroll|reports|apps|scan)(\/|$)/.test(location.pathname) || /^\/staff\/(orders|customers|inventory)(\/|$)/.test(location.pathname) || /^\/settings(\/subscription|\/public-page)?\/?$/.test(location.pathname)) && (
                     <LTopNavbar
                         title={getPageTitle()}
                         showBack={location.pathname !== "/dashboard"}
@@ -336,7 +362,6 @@ export function AppLayout() {
                         }}
                         onUserClick={() => navigate("/settings")}
                     >
-                        {!isMobile && location.pathname === "/dashboard" && <DashboardHeaderActions />}
                     </LTopNavbar>
                 )}
 

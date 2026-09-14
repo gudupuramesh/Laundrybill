@@ -101,6 +101,12 @@ export interface PublicCoupon {
     active?: boolean;
     /** Optional expiry date, ISO "YYYY-MM-DD" — invalid after this day. */
     expiresAt?: string;
+    /** Optional start date, ISO "YYYY-MM-DD" — not valid before this day ("Scheduled"). */
+    startsAt?: string;
+    /** Display name shown to the owner (e.g. "20% off first pickup"). Defaults to the code. */
+    name?: string;
+    /** false keeps the offer off the public booking page (still usable by code at the counter). */
+    showOnBookingPage?: boolean;
 }
 
 /** Cashback / loyalty points config (Pro+ & Business). 1 point = 1 unit of currency. */

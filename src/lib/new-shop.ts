@@ -191,3 +191,59 @@ export async function seedBranchCatalog(newShopId: string, sourceShopId: string)
         await seedDefaultInventory(newShopId);
     }
 }
+
+/**
+ * "Import default catalogue" for an EXISTING shop — merges the platform default
+ * catalogue in without touching what the owner already has: categories whose id
+ * already exists are left as-is, and an item is skipped when the same category
+ * already has an item with that name. (seedDefaultInventory is only safe on an
+ * empty shop: it would reset categories and duplicate every item.)
+ */
+export async function importDefaultCatalogue(
+    shopId: string,
+    existingCategoryIds: string[],
+    existingItems: { categoryId: string; name: string }[],
+): Promise<{ categories: number; items: number }> {
+    const { getDefaultCatalog } = await import("@/features/super-admin/hooks/use-default-catalog");
+    const platform = await getDefaultCatalog();
+    let cats: { id: string; name: string; icon?: string; order: number; turnaroundDays?: number }[];
+    let items: { categoryId: string; categoryName?: string; subCategory?: string; name: string; basePrice: number; pricingType: string; turnaroundDays?: number; order?: number; imageUrl?: string }[];
+    if (platform?.categories?.length && platform?.items?.length) {
+        cats = platform.categories as typeof cats;
+        items = platform.items as typeof items;
+    } else {
+        const def = await import("@/lib/default-inventory");
+        cats = def.DEFAULT_CATEGORIES as unknown as typeof cats;
+        items = def.DEFAULT_ITEMS as unknown as typeof items;
+    }
+
+    const haveCat = new Set(existingCategoryIds);
+    const key = (c: string, n: string) => `${c}::${n.trim().toLowerCase()}`;
+    const haveItem = new Set(existingItems.map((i) => key(i.categoryId, i.name)));
+
+    const newCats = cats.filter((c) => !haveCat.has(c.id));
+    const newItems = items.filter((i) => !haveItem.has(key(i.categoryId, i.name)));
+    if (!newCats.length && !newItems.length) return { categories: 0, items: 0 };
+
+    // Firestore batches cap at 500 writes.
+    const writes: ((b: ReturnType<typeof writeBatch>) => void)[] = [];
+    newCats.forEach((cat) => writes.push((b) => b.set(doc(collection(db, `shops/${shopId}/categories`), cat.id), {
+        name: cat.name, icon: cat.icon ?? null, order: cat.order, turnaroundDays: cat.turnaroundDays ?? 2,
+        isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    })));
+    newItems.forEach((item) => writes.push((b) => {
+        const data: Record<string, unknown> = {
+            categoryId: item.categoryId, categoryName: item.categoryName ?? "", subCategory: item.subCategory ?? "",
+            name: item.name, basePrice: item.basePrice, pricingType: item.pricingType, turnaroundDays: item.turnaroundDays ?? 2,
+            order: item.order ?? 0, expressMultiplier: 1.5, isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        };
+        if (item.imageUrl) data.imageUrl = item.imageUrl;
+        b.set(doc(collection(db, `shops/${shopId}/inventory`)), data);
+    }));
+    for (let i = 0; i < writes.length; i += 450) {
+        const b = writeBatch(db);
+        writes.slice(i, i + 450).forEach((w) => w(b));
+        await b.commit();
+    }
+    return { categories: newCats.length, items: newItems.length };
+}

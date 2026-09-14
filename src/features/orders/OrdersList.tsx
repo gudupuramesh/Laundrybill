@@ -15,7 +15,10 @@ import { useOrdersPaginated, upcomingAt, type OrderSourceFilter } from "@/hooks/
 import { useCurrency } from "@/hooks/use-currency";
 import type { Order, OrderStatus, DeliveryType } from "@/types/order";
 import { mapLegacyDeliveryType, STATUS_LABELS } from "@/types/order";
-import { ClipboardList, Search, SlidersHorizontal, Plus, Globe, AlertTriangle, Wallet, CalendarClock } from "lucide-react";
+import { ClipboardList, Search, ListFilter, SlidersHorizontal, AlertTriangle, Plus, Globe, ClockAlert, Wallet, CalendarClock, ScanLine, CalendarDays, ShoppingBag, CircleAlert, Printer, MessageCircle, Store, Home, Truck } from "lucide-react";
+import { useDashboard } from "@/hooks/use-dashboard";
+import { useOrderRowActions } from "./useOrderRowActions";
+import { isToday, isTomorrow, isYesterday, format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OrderFilterSheet } from "./OrderFilterSheet";
@@ -23,6 +26,48 @@ import { ExportDataButton } from "@/components/ExportDataButton";
 import { exportOrders } from "@/lib/data-export";
 
 const MONO = "'IBM Plex Mono'";
+const NUM: CSSProperties = { fontVariantNumeric: "tabular-nums" };
+
+/** Status chip colours — the design-system tokens (design/laundrybill-design-system.html). */
+const CHIP: Record<string, { bg: string; fg: string }> = {
+    pending: { bg: "var(--ds-st-pending-bg)", fg: "var(--ds-st-pending)" },
+    pickup_scheduled: { bg: "var(--ds-st-out-bg)", fg: "var(--ds-st-out)" },
+    pickup_completed: { bg: "var(--ds-st-out-bg)", fg: "var(--ds-st-out)" },
+    processing: { bg: "var(--ds-st-processing-bg)", fg: "var(--ds-st-processing)" },
+    ready: { bg: "var(--ds-st-ready-bg)", fg: "var(--ds-st-ready)" },
+    ready_for_pickup: { bg: "var(--ds-st-ready-bg)", fg: "var(--ds-st-ready)" },
+    out_for_delivery: { bg: "var(--ds-st-out-bg)", fg: "var(--ds-st-out)" },
+    delivered: { bg: "var(--ds-st-delivered-bg)", fg: "var(--ds-st-delivered)" },
+    picked_up: { bg: "var(--ds-st-delivered-bg)", fg: "var(--ds-st-delivered)" },
+    partially_delivered: { bg: "var(--ds-st-processing-bg)", fg: "var(--ds-st-processing)" },
+    cancelled: { bg: "var(--ds-st-overdue-bg)", fg: "var(--ds-st-overdue)" },
+};
+const ACT: CSSProperties = { cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 9, padding: 0 };
+const ACTIVE_STATUSES = new Set(["pending", "pickup_scheduled", "pickup_completed", "processing", "ready", "ready_for_pickup", "out_for_delivery"]);
+const TYPE_ICON: Record<DeliveryType, typeof Store> = { pickup_store: Store, pickup_home: Home, delivery_home: Truck };
+
+/** "Today, 7:00 PM" · "Yesterday, 9:00 PM" — with a late flag for active orders. */
+function dueInfo(order: Order): { text: string; late: boolean; today: boolean } {
+    const ts = order.deliveryType === "pickup_home" && ["pending", "pickup_scheduled"].includes(order.status)
+        ? order.scheduledPickupDate : order.expectedDelivery;
+    const d = ts?.toDate?.();
+    if (!d) return { text: "—", late: false, today: false };
+    const late = ACTIVE_STATUSES.has(order.status) && d.getTime() < Date.now();
+    const time = format(d, "h:mm a");
+    if (isToday(d)) return { text: `Today, ${time}`, late, today: true };
+    if (isTomorrow(d)) return { text: `Tomorrow, ${time}`, late: false, today: false };
+    if (isYesterday(d)) return { text: `Yesterday, ${time}`, late, today: false };
+    return { text: `${format(d, "d MMM")}, ${time}`, late, today: false };
+}
+
+/** "3 Shirts, 2 Pants" + the dominant service line under it. */
+function itemsSummary(order: Order): { line: string; service: string } {
+    const items = order.items || [];
+    const line = items.slice(0, 2).map((i) => `${i.quantity || 1} ${i.serviceName || "item"}`).join(", ") + (items.length > 2 ? ` +${items.length - 2} more` : "");
+    const cats = new Map<string, number>();
+    items.forEach((i) => { const c = i.categoryName || ""; if (c) cats.set(c, (cats.get(c) || 0) + 1); });
+    return { line: line || `${items.length} items`, service: [...cats.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "" };
+}
 
 /**
  * "Pickup Fri 31 Jul · 9–11 AM" for work booked on a FUTURE day (null for
@@ -71,21 +116,6 @@ const TABS: { key: OrderStatus | "all"; label: string; dot: string }[] = [
     { key: "cancelled", label: "Cancelled", dot: "c-error" },
 ];
 
-const TH: CSSProperties = { textAlign: "left", padding: "10px 14px", fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--c-text-3)", borderBottom: "1px solid var(--c-border)", whiteSpace: "nowrap", background: "var(--c-surface-2)" };
-const TD: CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--c-border)" };
-
-function timeAgo(d: Date): string {
-    const s = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (s < 60) return "just now";
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    const days = Math.floor(h / 24);
-    if (days === 1) return "Yesterday";
-    if (days < 7) return `${days}d ago`;
-    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
 
 interface OrdersListProps {
     selectedId?: string | null;
@@ -99,6 +129,8 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     const location = useLocation();
     const { markSeen } = useContext(SeenOnlineOrdersContext);
     const { formatAmount } = useCurrency();
+    const { stats } = useDashboard();
+    const { printOrder, whatsappOrder } = useOrderRowActions();
 
     const basePath = location.pathname.startsWith("/staff") ? "/staff/orders" : "/orders";
     // The owner portal's POS lives at /new-order — /orders/new only exists for staff.
@@ -255,7 +287,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
     if (isMobile) return <MobileOrders basePath={basePath} />;
 
     return (
-        <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--c-bg)", minHeight: 0 }}>
+        <div className="lb-ds" style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--ds-bg)", minHeight: 0 }}>
             {/* header — on mobile, the owner app's header bar (filter + new order as round icon buttons) */}
             {isMobile ? (
                 <MHeader
@@ -269,14 +301,21 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     }
                 />
             ) : (
-            <header style={{ flex: "none", minHeight: 58, background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "10px 22px" }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
-                    <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-.01em" }}>{t("orders.title", "Orders")}</span>
-                    <span style={{ fontSize: 12, color: "var(--c-text-3)", fontFamily: MONO }}>{visibleOrders.length}{hasMore ? "+" : ""} {t("orders.stats.total", "total")}</span>
+            <header className="lb-ds" style={{ flex: "none", minHeight: 58, background: "var(--ds-card)", borderBottom: "1px solid var(--ds-border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 22px" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: 260 }}>
+                    <Search size={17} style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "var(--ds-text-3)" }} />
+                    <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search"
+                        placeholder={t("orders.searchPlaceholder", "Order number, phone or scan a tag")}
+                        style={{ width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "12px 78px 12px 42px", outline: "none", boxShadow: "var(--ds-shadow)" }} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <kbd style={{ font: "inherit", fontSize: 11, color: "var(--ds-text-3)", border: "1px solid var(--ds-border)", borderRadius: 6, padding: "2px 6px", background: "var(--ds-muted-surface)" }}>⌘ K</kbd>
+                        <button type="button" onClick={() => navigate("/scan")} title={t("common.scan", "Scan")} style={{ cursor: "pointer", border: 0, background: "transparent", color: "var(--ds-blue)", display: "inline-flex", padding: 2 }}><ScanLine size={17} /></button>
+                    </span>
                 </div>
-                <div style={{ flex: 1 }} />
+                <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                <CalendarDays size={17} style={{ position: "absolute", left: 12, color: "var(--ds-blue)", pointerEvents: "none" }} />
                 <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}
-                    style={{ cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: period !== "all" ? "var(--c-primary)" : "var(--c-text-2)", background: period !== "all" ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${period !== "all" ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 11px", outline: "none" }}>
+                    style={{ cursor: "pointer", font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 12, padding: "12px 12px 12px 36px", outline: "none", boxShadow: "var(--ds-shadow)", appearance: "none" }}>
                     <option value="all">{t("reports.periodAllTime", "All time")}</option>
                     <option value="today">{t("reports.periodToday", "Today")}</option>
                     <option value="week">{t("reports.periodThisWeek", "This Week")}</option>
@@ -288,6 +327,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     <option value={`year:${new Date().getFullYear() - 2}`}>{new Date().getFullYear() - 2}</option>
                     <option value="custom">{t("reports.periodCustom", "Custom range…")}</option>
                 </select>
+                </span>
                 {period === "custom" && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} max={customTo || undefined}
@@ -297,17 +337,9 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                             style={{ font: "inherit", fontSize: 12.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 8, padding: "7px 9px", outline: "none" }} />
                     </span>
                 )}
-                <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "none" }}>
-                    <Search size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--c-text-3)" }} />
-                    <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} type="search" placeholder={t("orders.searchOrders", "Search order, customer, phone…")}
-                        style={{ width: isMobile ? "100%" : 240, maxWidth: isMobile ? "100%" : "60vw", font: "inherit", fontSize: 13, color: "var(--c-text)", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: 8, padding: "8px 11px 8px 33px", outline: "none" }} />
-                </div>
-                <button onClick={() => setFilterSheetOpen(true)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: activeFiltersCount ? "var(--c-primary)" : "var(--c-text-2)", background: activeFiltersCount ? "var(--c-primary-soft)" : "var(--c-surface)", border: `1px solid ${activeFiltersCount ? "var(--c-primary)" : "var(--c-border-strong)"}`, borderRadius: 8, padding: "8px 13px" }}>
-                    <SlidersHorizontal size={15} />{t("orders.filters.title", "Filters")}{activeFiltersCount ? ` · ${activeFiltersCount}` : ""}
-                </button>
                 <ExportDataButton onExport={exportOrders} kind={t("orders.title", "Orders").toLowerCase()} label={t("export.button", "Export")} />
-                <button onClick={() => navigate(newOrderPath)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13, fontWeight: 600, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 8, padding: "8px 14px", boxShadow: "var(--sh-sm)" }}>
-                    <Plus size={15} />{t("orders.newOrder", "New Order")}
+                <button onClick={() => navigate(newOrderPath)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 600, color: "#fff", background: "var(--ds-blue)", border: 0, borderRadius: 10, padding: "12px 18px", boxShadow: "var(--ds-shadow)" }}>
+                    <Plus size={17} strokeWidth={2} />{t("orders.newOrder", "New Order")}
                 </button>
             </header>
             )}
@@ -332,8 +364,64 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                 </div>
             )}
 
-            {/* pipeline tabs */}
-            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: isMobile ? "10px 14px" : "10px 22px", display: "flex", gap: 8, overflowX: "auto" }}>
+            {/* ===== Summary strip + status pills (desktop) ===== */}
+            {!isMobile && (
+                <div style={{ flex: "none", background: "var(--ds-bg)", padding: "16px 22px 0" }}>
+                    <div className="ol-sum" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 14, marginBottom: 14 }}>
+                        {[
+                            { label: t("orders.stats.today", "Today"), value: formatAmount(stats.todayRevenue), icon: <CalendarDays size={18} />, tint: "var(--ds-blue)", soft: "var(--ds-blue-soft)", to: "today" as const },
+                            { label: t("orders.stats.active", "Active"), value: String(stats.pendingOrders + stats.processingOrders + stats.readyOrders + stats.outForDeliveryOrders), icon: <ShoppingBag size={18} />, tint: "var(--ds-blue)", soft: "var(--ds-blue-soft)", to: null },
+                            { label: t("orders.stats.pending", "Pending"), value: String(stats.pendingOrders), icon: <Wallet size={18} />, tint: "var(--ds-att-amber)", soft: "var(--ds-att-amber-bg)", to: null },
+                            { label: t("orders.stats.due", "Due"), value: formatAmount(stats.outstandingAmount), icon: <CircleAlert size={18} />, tint: "var(--ds-att-red)", soft: "var(--ds-att-red-bg)", to: null, danger: true },
+                        ].map((c) => (
+                            <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 14, boxShadow: "var(--ds-shadow)", padding: "14px 16px" }}>
+                                <span style={{ width: 42, height: 42, flex: "none", borderRadius: 11, background: c.soft, color: c.tint, display: "flex", alignItems: "center", justifyContent: "center" }}>{c.icon}</span>
+                                <span style={{ minWidth: 0 }}>
+                                    <span style={{ display: "block", fontSize: 13, color: "var(--ds-text-2)" }}>{c.label}</span>
+                                    <span style={{ display: "block", fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", lineHeight: 1.15, color: c.danger ? "var(--ds-negative)" : "var(--ds-text)", ...NUM }}>{c.value}</span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, paddingBottom: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, flex: 1, minWidth: 0 }}>
+                        {TABS.map((tb) => {
+                            const on = selectedStatus === tb.key && !specialFilter;
+                            return (
+                                <button key={tb.key} onClick={() => { setSelectedStatus(tb.key); setSpecialFilter(null); }}
+                                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", fontSize: 13.5, fontWeight: on ? 600 : 500, padding: "9px 16px", borderRadius: 9, border: `1px solid ${on ? "var(--ds-blue)" : "var(--ds-border)"}`, background: on ? "var(--ds-blue)" : "var(--ds-card)", color: on ? "#fff" : "var(--ds-text-2)" }}>
+                                    {tb.label}
+                                </button>
+                            );
+                        })}
+                        <span style={{ flex: "none", width: 1, alignSelf: "stretch", background: "var(--ds-border)", margin: "0 4px" }} />
+                        {([
+                            { key: "pending_overdue" as const, label: t("orders.filters.overdueOrders", "Overdue"), count: stats.pendingOrders, fg: "var(--ds-negative)", bg: "var(--ds-st-overdue-bg)", icon: <ClockAlert size={14} /> },
+                            { key: "payment_due" as const, label: t("orders.filters.due", "Due"), count: null, fg: "var(--ds-negative)", bg: "var(--ds-st-overdue-bg)", icon: <CircleAlert size={14} /> },
+                            { key: "scheduled_upcoming" as const, label: t("orders.filters.scheduled", "Scheduled"), count: null, fg: "var(--ds-st-pending)", bg: "var(--ds-st-pending-bg)", icon: <CalendarClock size={14} /> },
+                            { key: "collected_today" as const, label: t("orders.collectedToday", "Collected today"), count: null, fg: "var(--ds-st-ready)", bg: "var(--ds-st-ready-bg)", icon: <Wallet size={14} /> },
+                        ]).map((c) => {
+                            const on = specialFilter === c.key;
+                            return (
+                                <button key={c.key} onClick={() => setSpecialFilter(on ? null : c.key)}
+                                    style={{ cursor: "pointer", whiteSpace: "nowrap", font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 600, padding: "9px 16px", borderRadius: 9, border: `1px solid ${on ? c.fg : "var(--ds-border)"}`, background: on ? c.bg : "var(--ds-card)", color: c.fg }}>
+                                    {c.icon}{c.label}{c.count ? <b style={{ ...NUM }}>{c.count}</b> : null}
+                                </button>
+                            );
+                        })}
+                    </div>
+                        <button onClick={() => setFilterSheetOpen(true)}
+                            style={{ flex: "none", cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, padding: "9px 16px", borderRadius: 10, border: `1px solid ${activeFiltersCount ? "var(--ds-blue)" : "var(--ds-border)"}`, background: activeFiltersCount ? "var(--ds-blue-soft)" : "var(--ds-card)", color: activeFiltersCount ? "var(--ds-blue)" : "var(--ds-text-2)" }}>
+                            <ListFilter size={16} />{t("orders.filters.title", "Filters")}
+                            {activeFiltersCount > 0 && <b style={{ ...NUM, minWidth: 20, height: 20, borderRadius: 6, background: "var(--ds-blue)", color: "#fff", fontSize: 11.5, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{activeFiltersCount}</b>}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* pipeline tabs (mobile) */}
+            {isMobile && (
+            <div className="lb-thin" style={{ flex: "none", background: "var(--c-surface)", borderBottom: "1px solid var(--c-border)", padding: "10px 14px", display: "flex", gap: 8, overflowX: "auto" }}>
                 {TABS.map((tb) => {
                     const on = selectedStatus === tb.key && !specialFilter;
                     return (
@@ -362,6 +450,7 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                     <Wallet size={14} />{t("orders.collectedToday", "Collected Today")}
                 </button>
             </div>
+            )}
 
             {/* Collected-today mix — how today's money arrived, per method */}
             {collectedMix && collectedMix.total > 0 && (
@@ -378,8 +467,8 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
             )}
 
             {/* table */}
-            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "18px 22px 40px", minHeight: 0 }}>
-                <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, boxShadow: "var(--sh-sm)", overflow: "hidden" }}>
+            <div className="lb-scroll" style={{ flex: 1, overflow: "auto", background: "var(--ds-bg)", padding: isMobile ? "14px 14px calc(88px + env(safe-area-inset-bottom, 0px))" : "0 22px 40px", minHeight: 0 }}>
+                <div style={{ background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 14, boxShadow: "var(--ds-shadow)", overflow: "hidden" }}>
                     {loading ? (
                         <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><LSpinner /></div>
                     ) : visibleOrders.length === 0 ? (
@@ -419,63 +508,68 @@ export function OrdersList({ selectedId, onSelect }: OrdersListProps) {
                             })}
                         </div>
                     ) : (
-                        <div className="lb-scroll" style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 880 }}>
+                        <div className="lb-scroll lb-ds" style={{ overflowX: "auto" }}>
+                            <style>{`.ol-row:hover{background:var(--ds-row-hover)} .ol-act:hover{background:var(--ds-blue-soft);border-color:var(--ds-blue)}`}</style>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 1020, ...NUM }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ ...TH, textAlign: "left", paddingLeft: 18 }}>{t("orders.order", "Order")}</th>
-                                        <th style={TH}>{t("customer.title", "Customer")}</th>
-                                        <th style={TH}>{t("orders.type", "Type")}</th>
-                                        <th style={TH}>{t("orders.status", "Status")}</th>
-                                        <th style={TH}>{t("checkout.payment", "Payment")}</th>
-                                        <th style={{ ...TH, textAlign: "right" }}>{t("pos.total", "Total")}</th>
-                                        <th style={{ ...TH, textAlign: "right", paddingRight: 18 }}>{t("orders.updated", "Updated")}</th>
+                                        {[t("orders.order", "Order"), t("customer.title", "Customer"), t("orders.items", "Items"), t("orders.type", "Type"), t("orders.status", "Status"), t("checkout.payment", "Payment"), t("orders.due", "Due"), t("pos.total", "Total"), t("orders.actions", "Actions")].map((h, n) => (
+                                            <th key={h} style={{ textAlign: n === 7 ? "right" : "left", padding: "12px 12px", paddingLeft: n === 0 ? 18 : 12, fontSize: 12, fontWeight: 500, color: "var(--ds-text-2)", borderBottom: "1px solid var(--ds-border)", whiteSpace: "nowrap", background: "var(--ds-table-head)" }}>{h}</th>
+                                        ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {rows.map(({ order, dtype, total, pay, payRef, av }) => {
-                                        const stRef = STATUS_TINT[order.status] || "c-slate";
-                                        const tyRef = TYPE_TINT[dtype];
-                                        const updated = (order.updatedAt || order.createdAt)?.toDate?.() || order.createdAt.toDate();
+                                    {rows.map(({ order, dtype, total, pay }) => {
+                                        const chip = CHIP[order.status] || { bg: "var(--ds-st-delivered-bg)", fg: "var(--ds-st-delivered)" };
+                                        const due = dueInfo(order);
+                                        const isOverdue = due.late;
+                                        const items = itemsSummary(order);
+                                        const TypeIcon = TYPE_ICON[dtype] || Store;
+                                        const payTone = pay === "Paid" ? { bg: "var(--ds-pay-paid-bg)", fg: "var(--ds-pay-paid)" } : pay === "Partial" ? { bg: "var(--ds-pay-partial-bg)", fg: "var(--ds-pay-partial)" } : { bg: "var(--ds-pay-unpaid-bg)", fg: "var(--ds-pay-unpaid)" };
+                                        const unseen = order.orderSource === "online" && ACTIVE_STATUSES.has(order.status) && order.status === "pending";
+                                        const TD2: CSSProperties = { padding: "12px 12px", borderBottom: "1px solid var(--ds-divider)", verticalAlign: "middle", whiteSpace: "nowrap" };
+                                        const ell: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
                                         return (
-                                            <tr key={order.id} onClick={() => handleOpen(order.id)} tabIndex={0} role="button"
+                                            <tr key={order.id} className="ol-row" onClick={() => handleOpen(order.id)} tabIndex={0} role="button"
                                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpen(order.id); } }}
-                                                style={{ cursor: "pointer", background: selectedId === order.id ? "var(--c-primary-soft)" : "transparent" }}
-                                                onMouseEnter={(e) => { if (selectedId !== order.id) e.currentTarget.style.background = "var(--c-surface-2)"; }}
-                                                onMouseLeave={(e) => { if (selectedId !== order.id) e.currentTarget.style.background = "transparent"; }}>
-                                                <td style={{ ...TD, paddingLeft: 18, fontFamily: MONO, fontWeight: 600 }}>#{order.publicId}</td>
-                                                <td style={TD}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                                        <span style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: `var(--${av}-soft)`, color: `var(--${av})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 600 }}>{(order.customerName || "?").trim()[0]?.toUpperCase()}</span>
-                                                        <div style={{ minWidth: 0 }}>
-                                                            <div style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-                                                                {order.customerName || t("customer.guest", "Guest")}
-                                                                {order.orderSource === "online" && <Globe size={12} style={{ color: "var(--c-cyan)" }} />}
-                                                            </div>
-                                                            <div style={{ fontSize: 11, color: "var(--c-text-3)", fontFamily: MONO }}>{order.items.length} {t("pos.items", "pcs")}</div>
-                                                        </div>
+                                                style={{ cursor: "pointer", background: selectedId === order.id ? "var(--ds-blue-soft)" : unseen ? "var(--ds-blue-soft)" : "transparent" }}>
+                                                <td style={{ ...TD2, paddingLeft: 18, fontWeight: 700 }}>
+                                                    {unseen && <span style={{ marginRight: 8, fontSize: 10.5, fontWeight: 700, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-blue)", borderRadius: 6, padding: "1px 6px" }}>{t("orders.new", "New")}</span>}
+                                                    {order.publicId}
+                                                </td>
+                                                <td style={{ ...TD2, maxWidth: 170 }}>
+                                                    <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 6, ...ell }}>
+                                                        {order.customerName || t("customer.guest", "Guest")}
+                                                        {order.orderSource === "online" && <Globe size={12} style={{ flex: "none", color: "var(--ds-blue)" }} />}
                                                     </div>
+                                                    <div style={{ fontSize: 11.5, color: "var(--ds-text-3)", ...ell }}>{order.customerPhone}</div>
                                                 </td>
-                                                <td style={TD}>
-                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: `var(--${tyRef})`, whiteSpace: "nowrap" }}>
-                                                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${tyRef})` }} />{t(`orders.deliveryTypes.${dtype}`, dtype.replace("_", " "))}
-                                                    </span>
-                                                    {/* Booked for a future day → show WHEN, so scheduled work is
-                                                        identifiable in any list, not just the Scheduled filter. */}
-                                                    {scheduledLabel(order) && (
-                                                        <div style={{ marginTop: 3, fontSize: 11, fontWeight: 600, color: "var(--c-primary)", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
-                                                            <CalendarClock size={11} />{scheduledLabel(order)}
-                                                        </div>
-                                                    )}
+                                                <td style={{ ...TD2, maxWidth: 190 }} title={items.line}>
+                                                    <div style={{ fontWeight: 500, ...ell }}>{items.line}</div>
+                                                    <div style={{ fontSize: 11.5, color: "var(--ds-text-3)", ...ell }}>{items.service}</div>
                                                 </td>
-                                                <td style={TD}>
-                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: `var(--${stRef}-soft)`, color: `var(--${stRef})`, whiteSpace: "nowrap" }}>
-                                                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: `var(--${stRef})` }} />{STATUS_LABELS[order.status]}
+                                                <td style={TD2}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "var(--ds-text-2)" }}>
+                                                        <TypeIcon size={16} style={{ color: "var(--ds-text-3)" }} />{t(`orders.deliveryTypes.${dtype}`, dtype === "pickup_store" ? "Store pickup" : dtype === "pickup_home" ? "Home pickup" : "Home delivery")}
                                                     </span>
                                                 </td>
-                                                <td style={TD}><span style={{ fontSize: 12, fontWeight: 600, color: `var(--${payRef})` }}>{pay}</span></td>
-                                                <td style={{ ...TD, textAlign: "right", fontFamily: MONO, fontWeight: 600 }}>{formatAmount(total)}</td>
-                                                <td style={{ ...TD, paddingRight: 18, textAlign: "right", color: "var(--c-text-3)", fontSize: 12 }}>{timeAgo(updated)}</td>
+                                                <td style={TD2}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, padding: "4px 11px", borderRadius: 7, background: isOverdue ? "var(--ds-st-overdue-bg)" : chip.bg, color: isOverdue ? "var(--ds-st-overdue)" : chip.fg }}>
+                                                        {isOverdue ? t("orders.filters.overdueOrders", "Overdue") : STATUS_LABELS[order.status]}
+                                                    </span>
+                                                </td>
+                                                <td style={TD2}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, padding: "4px 11px", borderRadius: 7, background: payTone.bg, color: payTone.fg }}>{pay}</span>
+                                                </td>
+                                                <td style={{ ...TD2, fontSize: 12.5, color: due.late ? "var(--ds-negative)" : due.today ? "var(--ds-due-today)" : "var(--ds-text-2)", fontWeight: due.late || due.today ? 600 : 400 }}>{due.text}</td>
+                                                <td style={{ ...TD2, textAlign: "right", fontWeight: 700 }}>{formatAmount(total)}</td>
+                                                <td style={{ ...TD2, paddingRight: 18 }} onClick={(e) => e.stopPropagation()}>
+                                                    <span style={{ display: "inline-flex", gap: 6 }}>
+                                                        <button type="button" className="ol-act" aria-label={t("orders.collect", "Collect payment")} title={t("orders.collect", "Collect payment")} onClick={() => handleOpen(order.id)} style={ACT}><Wallet size={16} /></button>
+                                                        <button type="button" className="ol-act" aria-label={t("orders.print", "Print bill")} title={t("orders.print", "Print bill")} onClick={() => printOrder(order.id)} style={ACT}><Printer size={16} /></button>
+                                                        <button type="button" className="ol-act" aria-label={t("orders.whatsapp", "Send on WhatsApp")} title={t("orders.whatsapp", "Send on WhatsApp")} onClick={() => whatsappOrder(order.id)} style={{ ...ACT, color: "var(--ds-whatsapp)" }}><MessageCircle size={16} /></button>
+                                                    </span>
+                                                </td>
                                             </tr>
                                         );
                                     })}

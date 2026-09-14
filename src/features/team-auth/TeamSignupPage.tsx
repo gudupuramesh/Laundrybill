@@ -22,8 +22,8 @@ import {
     serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { LButton, LCard } from "@/components/laundry";
-import { Mail, Lock, KeyRound, Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { TeamAuthShell, tl } from "./TeamAuthShell";
+import { Mail, Lock, KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
 import { getCurrentLanguage, changeLanguage } from "@/lib/i18n";
 
 const INVITE_RE = /^[A-Z0-9]{4}-\d{5}$/;
@@ -174,112 +174,40 @@ export function TeamSignupPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-                <div className="flex flex-col items-center justify-center mb-8">
-                    <img
-                        src="/icons/team-login-logo.png"
-                        alt="LaundryBill Team"
-                        className="w-24 h-24 rounded-3xl shadow-lg mb-3"
-                    />
-                    <p className="text-gray-500 text-sm font-medium">Activate your team account</p>
-                </div>
-
-                <LCard className="bg-white shadow-xl border-border/50 p-6 md:p-8 rounded-3xl">
-                    <div className="text-center mb-6">
-                        <h2 className="text-xl font-bold text-gray-900">Sign up with an invite</h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Use the email &amp; invite code your admin gave you
-                        </p>
+        <TeamAuthShell title="Activate your account" subtitle="Use the email & invite code your shop gave you">
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {error && <div style={tl.error}>{error}</div>}
+                <div>
+                    <label style={tl.label}>Email</label>
+                    <div style={tl.box()}>
+                        <Mail style={tl.icon} />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={tl.bare} autoComplete="email" />
                     </div>
-
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        {error && (
-                            <div className="bg-red-50 text-red-600 rounded-xl px-4 py-3 text-sm font-medium border border-red-100 flex items-center gap-2">
-                                <span className="text-lg">!</span>
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-700 ml-1">Email</label>
-                            <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="you@laundrybill.com"
-                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-700 ml-1">Invite code</label>
-                            <div className="relative">
-                                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                <input
-                                    type="text"
-                                    value={inviteCode}
-                                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                                    placeholder="ABCD-12345"
-                                    autoCapitalize="characters"
-                                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 tracking-widest focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-700 ml-1">Create a password</label>
-                            <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="At least 6 characters"
-                                    className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                                >
-                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <LButton
-                            type="submit"
-                            variant="primary"
-                            size="lg"
-                            fullWidth
-                            disabled={loading}
-                            className="h-12 rounded-2xl text-base mt-2"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                                    Creating account...
-                                </>
-                            ) : (
-                                "Create account"
-                            )}
-                        </LButton>
-
-                        <p className="text-center text-sm text-gray-500 pt-2">
-                            <Link to="/team/login" className="text-primary hover:text-primary-dark font-semibold hover:underline inline-flex items-center">
-                                <ArrowLeft className="h-4 w-4 mr-1" />
-                                Back to sign in
-                            </Link>
-                        </p>
-                    </form>
-                </LCard>
-
-                <p className="text-center text-xs text-gray-400 mt-8">Protected by LaundryBill Security</p>
-            </div>
-        </div>
+                </div>
+                <div>
+                    <label style={tl.label}>Invite code</label>
+                    <div style={tl.box()}>
+                        <KeyRound style={tl.icon} />
+                        <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} placeholder="ABCD-12345" autoCapitalize="characters" style={{ ...tl.bare, letterSpacing: ".12em", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }} />
+                    </div>
+                </div>
+                <div>
+                    <label style={tl.label}>Create a password</label>
+                    <div style={tl.box()}>
+                        <Lock style={tl.icon} />
+                        <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" style={tl.bare} autoComplete="new-password" />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} style={{ border: 0, background: "transparent", padding: 4, cursor: "pointer", color: "#6B7280", display: "flex" }}>
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" disabled={loading} style={tl.primary(loading)}>
+                    {loading ? <><Loader2 size={20} className="animate-spin" />Creating account...</> : "Create account"}
+                </button>
+                <p style={{ textAlign: "center", fontSize: 15, color: "#4B5563", margin: 0 }}>
+                    Already activated? <Link to="/team/login" style={tl.link}>Sign in</Link>
+                </p>
+            </form>
+        </TeamAuthShell>
     );
 }

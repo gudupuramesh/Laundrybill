@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { TeamAuthShell, tl } from "./TeamAuthShell";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
     signInWithEmailAndPassword,
@@ -318,179 +319,70 @@ export function TeamLoginPage() {
         );
     }
 
+    const busy = loading || resetLoading;
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-                {/* Brand */}
-                <div className="flex flex-col items-center justify-center mb-8">
-                    <img
-                        src="/icons/team-login-logo.png"
-                        alt="LaundryBill Team"
-                        className="w-24 h-24 rounded-3xl shadow-lg mb-3"
-                    />
-                    <p className="text-gray-500 text-sm font-medium">Team sign in</p>
-                </div>
-
-                <InstallPrompt />
-
-                <LCard className="bg-white shadow-xl border-border/50 p-6 md:p-8 rounded-3xl">
-                    {forgotPassword ? (
-                        <>
-                            <div className="text-center mb-6">
-                                <h2 className="text-xl font-bold text-gray-900">Forgot password?</h2>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Enter your email and we'll send you a link to reset your password.
-                                </p>
+        <TeamAuthShell
+            title={forgotPassword ? "Forgot password?" : "Team sign in"}
+            subtitle={forgotPassword ? "We'll email you a link to reset it" : "Staff, plant & delivery agents"}
+        >
+            <InstallPrompt />
+            {forgotPassword ? (
+                resetSent ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                        <div style={tl.success}>Check your email for a link to reset your password. If you don't see it, check your spam folder.</div>
+                        <button type="button" style={tl.outline} onClick={() => { setForgotPassword(false); setResetSent(false); }}>
+                            <ArrowLeft size={18} /> Back to sign in
+                        </button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleForgotPassword} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        {resetError && <div style={tl.error}>{resetError}</div>}
+                        <div>
+                            <label style={tl.label}>Email</label>
+                            <div style={tl.box(!!resetError)}>
+                                <Mail style={tl.icon} />
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={tl.bare} autoComplete="email" />
                             </div>
-                            {resetSent ? (
-                                <div className="space-y-4">
-                                    <div className="bg-green-50 text-green-700 rounded-xl px-4 py-3 text-sm border border-green-100">
-                                        Check your email for a link to reset your password. If you don't see it, check your spam folder.
-                                    </div>
-                                    <LButton
-                                        type="button"
-                                        variant="outline"
-                                        fullWidth
-                                        onClick={() => {
-                                            setForgotPassword(false);
-                                            setResetSent(false);
-                                        }}
-                                    >
-                                        <ArrowLeft className="h-4 w-4 mr-2" />
-                                        Back to login
-                                    </LButton>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleForgotPassword} className="space-y-5">
-                                    {resetError && (
-                                        <div className="bg-red-50 text-red-600 rounded-xl px-4 py-3 text-sm font-medium border border-red-100">
-                                            {resetError}
-                                        </div>
-                                    )}
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-gray-700 ml-1">Email</label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                            <input
-                                                type="email"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                placeholder="you@laundrybill.com"
-                                                className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <LButton
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => {
-                                                setForgotPassword(false);
-                                                setResetError(null);
-                                            }}
-                                            className="flex-1"
-                                        >
-                                            <ArrowLeft className="h-4 w-4 mr-2" />
-                                            Cancel
-                                        </LButton>
-                                        <LButton type="submit" variant="primary" disabled={resetLoading} className="flex-1">
-                                            {resetLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Send reset link"}
-                                        </LButton>
-                                    </div>
-                                </form>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <div className="text-center mb-6">
-                                <h2 className="text-xl font-bold text-gray-900">Sign in to your account</h2>
-                                <p className="text-sm text-gray-500 mt-1">Staff, plant &amp; delivery agents</p>
-                            </div>
-
-                            <form onSubmit={handleSubmit} className="space-y-5">
-                                {error && (
-                                    <div className="bg-red-50 text-red-600 rounded-xl px-4 py-3 text-sm font-medium border border-red-100 flex items-center gap-2">
-                                        <span className="text-lg">!</span>
-                                        {error}
-                                    </div>
-                                )}
-
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-gray-700 ml-1">Email</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                        <input
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            placeholder="you@laundrybill.com"
-                                            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-gray-700 ml-1">Password</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
-                                        <input
-                                            type={showPassword ? "text" : "password"}
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="••••••••"
-                                            className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                                        >
-                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <LButton
-                                    type="submit"
-                                    variant="primary"
-                                    size="lg"
-                                    fullWidth
-                                    disabled={loading}
-                                    className="h-12 rounded-2xl text-base mt-2"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                                            {t("common.loading", "Loading...")}
-                                        </>
-                                    ) : (
-                                        "Sign in"
-                                    )}
-                                </LButton>
-
-                                <p className="text-center text-sm">
-                                    <button
-                                        type="button"
-                                        onClick={() => setForgotPassword(true)}
-                                        className="text-primary hover:text-primary-dark font-medium hover:underline"
-                                    >
-                                        Forgot password?
-                                    </button>
-                                </p>
-
-                                <p className="text-center text-sm text-gray-500 pt-2">
-                                    Have an invite code?{" "}
-                                    <Link to="/team/signup" className="text-primary hover:text-primary-dark font-semibold hover:underline">
-                                        Sign up
-                                    </Link>
-                                </p>
-                            </form>
-                        </>
-                    )}
-                </LCard>
-
-                <p className="text-center text-xs text-gray-400 mt-8">Protected by LaundryBill Security</p>
-            </div>
-        </div>
+                        </div>
+                        <button type="submit" disabled={resetLoading} style={tl.primary(resetLoading)}>
+                            {resetLoading ? <Loader2 size={20} className="animate-spin" /> : "Send reset link"}
+                        </button>
+                        <button type="button" style={{ ...tl.link, alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6 }} onClick={() => { setForgotPassword(false); setResetError(null); }}>
+                            <ArrowLeft size={16} /> Back to sign in
+                        </button>
+                    </form>
+                )
+            ) : (
+                <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {error && <div style={tl.error}>{error}</div>}
+                    <div>
+                        <label style={tl.label}>Email</label>
+                        <div style={tl.box(!!error)}>
+                            <Mail style={tl.icon} />
+                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={tl.bare} autoComplete="email" />
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                            <label style={tl.label}>Password</label>
+                            <button type="button" style={{ ...tl.link, fontSize: 14.5 }} onClick={() => setForgotPassword(true)}>Forgot password?</button>
+                        </div>
+                        <div style={tl.box(!!error)}>
+                            <Lock style={tl.icon} />
+                            <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" style={tl.bare} autoComplete="current-password" />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} style={{ border: 0, background: "transparent", padding: 4, cursor: "pointer", color: "#6B7280", display: "flex" }}>
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" disabled={busy} style={tl.primary(loading)}>
+                        {loading ? <><Loader2 size={20} className="animate-spin" />{t("common.loading", "Loading...")}</> : "Sign in"}
+                    </button>
+                    <p style={{ textAlign: "center", fontSize: 15, color: "#4B5563", margin: 0 }}>
+                        Have an invite code? <Link to="/team/signup" style={tl.link}>Activate your account</Link>
+                    </p>
+                </form>
+            )}
+        </TeamAuthShell>
     );
 }

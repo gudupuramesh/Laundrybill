@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { LPageLoader } from "@/components/laundry";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeamMembers } from "@/hooks/use-team-members";
@@ -18,7 +19,9 @@ export function StaffPageMasterDetail() {
     const { t } = useTranslation();
     const { loading } = useStaff();
     const { teamMembers } = useTeamMembers();
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    // ?id=<staffId> opens that person directly (e.g. from Attendance's row menu).
+    const [searchParams] = useSearchParams();
+    const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get("id"));
 
     const isTeamMember = useMemo(
         () => selectedId != null && teamMembers.some((tm) => tm.id === selectedId),

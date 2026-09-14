@@ -248,7 +248,11 @@ const CATEGORY_NAME_TO_KEY: Record<string, string> = {
  * Get translated item name
  * Falls back to original name if no translation found
  */
-export function getTranslatedItemName(itemName: string): string {
+export function getTranslatedItemName(itemName: string, localized?: object): string {
+    // A name the owner typed for this language wins over the built-in dictionary.
+    const lang = (i18n.language || "en").slice(0, 2);
+    const own = (localized as Record<string, string | undefined> | undefined)?.[lang]?.trim();
+    if (own) return own;
     const normalizedName = itemName.toLowerCase().trim();
     const translationKey = ITEM_NAME_TO_KEY[normalizedName];
 

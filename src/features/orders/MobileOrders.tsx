@@ -8,7 +8,7 @@
  * Desktop keeps OrdersList's table; this renders only when isMobile.
  */
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useOrdersPaginated, upcomingAt } from "@/hooks/use-orders-paginated";
 import { useOrderMutations } from "@/hooks/use-orders";

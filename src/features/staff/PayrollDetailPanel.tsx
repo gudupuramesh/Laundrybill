@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, Wallet, Calendar, CheckCircle2, TrendingUp, 
 import { useTranslation } from "react-i18next";
 import { generatePayslipPDF } from "@/lib/pdf-generator";
 import { useCurrency } from "@/hooks/use-currency";
+import { calculatePayroll } from "./payroll-calc";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONO = "'IBM Plex Mono'";
@@ -65,24 +66,7 @@ export function PayrollDetailPanel({ staffId, month, onClose }: PayrollDetailPan
     const attendanceSummary = useMemo(() => getStaffSummary(staffId), [getStaffSummary, staffId]);
     const atCurrentMonth = isSameMonth(currentMonth, new Date());
 
-    const calculatePayrollData = () => {
-        if (!staff) return null;
-        const a = attendance.filter((x) => x.staffId === staffId);
-        const presentDays = a.filter((x) => x.status === "present").length;
-        const absentDays = a.filter((x) => x.status === "absent").length;
-        const halfDays = a.filter((x) => x.status === "half").length;
-        const leaveDays = a.filter((x) => x.status === "leave").length;
-        const effectiveDays = presentDays + halfDays * 0.5;
-        const WD = 26;
-        let baseSalary = staff.payType === "monthly" ? (staff.baseSalary / WD) * effectiveDays : staff.baseSalary * effectiveDays;
-        const overtimeHours = a.reduce((sum, x) => sum + (x.overtime || 0), 0);
-        let overtimeAmount = 0;
-        if (overtimeHours > 0) {
-            overtimeAmount = staff.overtimeRate && staff.overtimeRate > 0 ? overtimeHours * staff.overtimeRate : overtimeHours * ((staff.payType === "monthly" ? staff.baseSalary / WD / 8 : staff.baseSalary / 8) * 1.5);
-        }
-        const totalEarnings = baseSalary + overtimeAmount;
-        return { daysPresent: presentDays, daysAbsent: absentDays, daysHalf: halfDays, daysLeave: leaveDays, daysWorked: Math.round(effectiveDays * 10) / 10, baseSalary: Math.round(baseSalary), overtimeHours, overtimeAmount: Math.round(overtimeAmount), bonus: 0, deductions: 0, advances: 0, totalEarnings: Math.round(totalEarnings), totalDeductions: 0, netSalary: Math.round(totalEarnings) };
-    };
+    const calculatePayrollData = () => (staff ? calculatePayroll(staff, attendance) : null);
 
     const handleGeneratePayroll = async () => { if (!staff) return; setGenerating(true); try { const data = calculatePayrollData(); if (data) await generatePayroll(staff.id, staff.name, monthString, data); } catch (e) { console.error(e); } finally { setGenerating(false); } };
     const handleRecalculate = async () => { if (!staffPayroll || !staff) return; setRecalculating(true); try { const data = calculatePayrollData(); if (data) await recalculatePayroll(staffPayroll.id, data); } catch (e) { console.error(e); } finally { setRecalculating(false); } };

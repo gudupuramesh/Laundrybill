@@ -28,9 +28,11 @@ interface LSidebarProps {
     logo?: ReactNode;
     collapsedLogo?: ReactNode;
     footer?: ReactNode;
+    /** Rendered under the logo when expanded — e.g. a shop switcher and plan chip. */
+    header?: ReactNode;
 }
 
-export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSidebarProps) {
+export function LSidebar({ items, activeId, logo, collapsedLogo, footer, header }: LSidebarProps) {
     const [collapsed, setCollapsed] = useState(
         () => typeof window !== "undefined" && window.innerWidth < TABLET_BP
     );
@@ -50,9 +52,11 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
         top: 0,
         height: "100vh",
         flex: "none",
-        width: collapsed ? 64 : 218,
-        background: "var(--c-surface)",
-        borderRight: "1px solid var(--c-border)",
+        width: collapsed ? 64 : 236,
+        background: "#FFFFFF",
+        borderRight: "1px solid #E5E7EB",
+        fontFamily: "Inter, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        color: "#111827",
         display: "flex",
         flexDirection: "column",
         transition: "width .2s ease",
@@ -64,13 +68,12 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
             <div
                 style={{
                     position: "relative",
-                    height: 58,
+                    minHeight: 58,
                     flex: "none",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: collapsed ? "center" : "flex-start",
-                    padding: collapsed ? 0 : "0 16px",
-                    borderBottom: "1px solid var(--c-border)",
+                    padding: collapsed ? "14px 0" : "16px 16px 10px",
                 }}
             >
                 {collapsed ? collapsedLogo : logo}
@@ -82,7 +85,7 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
                     title={collapsed ? "Expand" : "Collapse"}
                     style={{
                         position: "absolute",
-                        top: 17,
+                        top: 22,
                         right: -12,
                         zIndex: 20,
                         width: 24,
@@ -103,10 +106,12 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
                 </button>
             </div>
 
+            {!collapsed && header && <div style={{ flex: "none", padding: "2px 14px 10px" }}>{header}</div>}
+
             {/* Navigation */}
             <nav
                 className="lb-thin"
-                style={{ flex: 1, overflow: "auto", padding: collapsed ? "10px 8px" : "10px", display: "flex", flexDirection: "column", gap: 2 }}
+                style={{ flex: 1, overflow: "auto", padding: collapsed ? "10px 8px" : "6px 12px", display: "flex", flexDirection: "column", gap: 3 }}
             >
                 {items.map((item) => {
                     const Icon = item.icon;
@@ -123,28 +128,28 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
                                 width: "100%",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 11,
+                                gap: 12,
                                 justifyContent: collapsed ? "center" : "flex-start",
-                                padding: collapsed ? "9px 0" : "8px 11px",
-                                borderRadius: 8,
+                                padding: collapsed ? "10px 0" : "10px 12px",
+                                borderRadius: 10,
                                 border: 0,
                                 cursor: "pointer",
                                 font: "inherit",
-                                fontSize: 13,
+                                fontSize: 13.5,
                                 fontWeight: isActive ? 600 : 500,
-                                color: isActive ? "var(--c-primary)" : "var(--c-text-2)",
-                                background: isActive ? "var(--c-primary-soft)" : "transparent",
+                                color: isActive ? "#2563EB" : "#4B5563",
+                                background: isActive ? "#EEF2FF" : "transparent",
                                 textAlign: "left",
                             }}
                             onMouseEnter={(e) => {
-                                if (!isActive) e.currentTarget.style.background = "var(--c-surface-2)";
+                                if (!isActive) e.currentTarget.style.background = "#F3F4F6";
                             }}
                             onMouseLeave={(e) => {
                                 if (!isActive) e.currentTarget.style.background = "transparent";
                             }}
                         >
                             <span style={{ position: "relative", flex: "none", display: "inline-flex" }}>
-                                <Icon size={18} />
+                                <Icon size={19} strokeWidth={1.9} />
                                 {collapsed && hasBadge && (
                                     <span
                                         style={{
@@ -181,7 +186,7 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
                                                 height: 20,
                                                 padding: "0 6px",
                                                 borderRadius: 999,
-                                                background: "var(--c-primary)",
+                                                background: "#2563EB",
                                                 color: "#fff",
                                                 fontSize: 11,
                                                 fontWeight: 600,
@@ -202,7 +207,7 @@ export function LSidebar({ items, activeId, logo, collapsedLogo, footer }: LSide
 
             {/* Footer */}
             {footer && !collapsed && (
-                <div style={{ flex: "none", padding: 14, borderTop: "1px solid var(--c-border)" }}>{footer}</div>
+                <div style={{ flex: "none", padding: "12px 14px 14px", borderTop: "1px solid #EEF0F4" }}>{footer}</div>
             )}
         </aside>
     );

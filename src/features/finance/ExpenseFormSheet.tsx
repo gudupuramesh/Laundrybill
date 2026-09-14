@@ -4,30 +4,31 @@
  * Add/edit expense form with laundry-specific categories
  */
 
-import { useState, useEffect, type CSSProperties } from "react";
-import { LResponsiveDialog } from "@/components/laundry";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
+import { LResponsiveDialog, LSmartImageUploader, type LSmartImageUploaderRef } from "@/components/laundry";
+import { useAuth } from "@/features/auth";
+import type { ImageMetadata } from "@/types/image-upload";
+import { format } from "date-fns";
+import { CalendarDays, ChevronDown, X } from "lucide-react";
 import { useCurrency } from "@/hooks/use-currency";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useExpenseMutations } from "@/hooks/use-finance";
 import type { Expense, ExpenseCategory } from "@/types/finance";
 import { Timestamp } from "firebase/firestore";
 import { useTranslation } from "react-i18next";
 
-const MONO = "'IBM Plex Mono'";
-const lbl: CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 };
-const fld: CSSProperties = { width: "100%", font: "inherit", fontSize: 13.5, color: "var(--c-text)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 9, padding: "10px 12px", outline: "none" };
 
 interface ExpenseFormSheetProps {
     open: boolean;
     onClose: () => void;
     expense?: Expense;
     onSubmit?: (data: any) => Promise<void>;
+    /** Desktop Expenses page: docked right-hand panel instead of a dialog. */
+    asPanel?: boolean;
 }
 
-export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFormSheetProps) {
+export function ExpenseFormSheet({ open, onClose, expense, onSubmit, asPanel }: ExpenseFormSheetProps) {
     const { t } = useTranslation();
     const { currencySymbol } = useCurrency();
-    const isMobile = useIsMobile();
 
     // Flat list of categories for dropdown - using translations
     const categoryOptions = [
@@ -64,15 +65,20 @@ export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFo
         { value: "other", label: t('expense.categories.other'), group: t('expense.groups.other') },
     ];
     const { createExpense, updateExpense } = useExpenseMutations();
+    const { shopId } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [receipt, setReceipt] = useState<ImageMetadata[]>([]);
+    const receiptRef = useRef<LSmartImageUploaderRef>(null);
+    const today = format(new Date(), "yyyy-MM-dd");
 
     const [form, setForm] = useState({
-        category: "detergents" as ExpenseCategory | "other",
+        category: "" as ExpenseCategory | "other" | "",
         customCategory: "",
         description: "",
-        amount: 0,
-        date: new Date().toISOString().split('T')[0],
+        amountStr: "",
+        date: today,
         vendor: "",
+        paymentMode: "cash" as "cash" | "upi" | "bank",
     });
 
     const isEdit = !!expense;
@@ -80,59 +86,56 @@ export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFo
 
     useEffect(() => {
         if (expense) {
-            // Check if existing category is a known one or custom
             const isKnownCategory = categoryOptions.some(opt => opt.value === expense.category);
             setForm({
                 category: isKnownCategory ? expense.category : "other",
-                customCategory: isKnownCategory ? "" : expense.category,
+                customCategory: isKnownCategory ? "" : (expense.customCategoryName || expense.category),
                 description: expense.description,
-                amount: expense.amount,
-                date: expense.date.toDate().toISOString().split('T')[0],
+                amountStr: expense.amount ? String(expense.amount) : "",
+                date: format(expense.date.toDate(), "yyyy-MM-dd"),
                 vendor: expense.vendor || "",
+                paymentMode: expense.paymentMode || "cash",
             });
+            setReceipt(expense.receiptUrl ? [{
+                id: "existing", key: expense.receiptKey || "", url: expense.receiptUrl, originalName: "Receipt",
+                originalSize: 0, compressedSize: 0, compressionRatio: 0, width: 0, height: 0, mimeType: "image/jpeg", uploadedAt: new Date(),
+            }] : []);
         } else {
-            setForm({
-                category: "detergents",
-                customCategory: "",
-                description: "",
-                amount: 0,
-                date: new Date().toISOString().split('T')[0],
-                vendor: "",
-            });
+            setForm({ category: "", customCategory: "", description: "", amountStr: "", date: today, vendor: "", paymentMode: "cash" });
+            setReceipt([]);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [expense, open]);
 
+    const amount = parseFloat(form.amountStr) || 0;
+
     const handleSubmit = async () => {
-        if (!form.description || form.amount <= 0) return;
-
-        // If "other" is selected, custom category must be filled
-        if (isOtherCategory && !form.customCategory.trim()) return;
-
+        if (!isValid) return;
         setLoading(true);
         try {
-            // Determine final category
             const finalCategory = isOtherCategory
                 ? form.customCategory.trim().toLowerCase().replace(/\s+/g, '_') as ExpenseCategory
                 : form.category as ExpenseCategory;
+            // Parse as a LOCAL date (new Date("YYYY-MM-DD") is UTC midnight, which
+            // east of UTC is still the previous day at local midnight boundaries).
+            const [y, m, d] = form.date.split("-").map(Number);
+            const localDate = new Date(y, m - 1, d, 12, 0, 0);
 
-            // Build data object - exclude undefined values (Firestore doesn't accept undefined)
             const data: Record<string, any> = {
                 category: finalCategory,
-                description: form.description,
-                amount: form.amount,
-                date: Timestamp.fromDate(new Date(form.date)),
-                isRecurring: false,
+                description: form.description.trim(),
+                amount,
+                date: Timestamp.fromDate(localDate),
+                paymentMode: form.paymentMode,
+                isRecurring: expense?.isRecurring ?? false,
             };
+            if (isOtherCategory && form.customCategory.trim()) data.customCategoryName = form.customCategory.trim();
+            if (form.vendor.trim()) data.vendor = form.vendor.trim();
 
-            // Store custom category name for display if it's custom
-            if (isOtherCategory && form.customCategory.trim()) {
-                data.customCategoryName = form.customCategory.trim();
-            }
-
-            // Only include vendor if it has a value
-            if (form.vendor && form.vendor.trim()) {
-                data.vendor = form.vendor.trim();
-            }
+            const uploaded = await receiptRef.current?.uploadPendingImages?.();
+            const meta = uploaded?.length ? uploaded[0] : receipt[0];
+            if (meta?.url) { data.receiptUrl = meta.url; if (meta.key) data.receiptKey = meta.key; }
+            else if (isEdit && expense?.receiptUrl) { data.receiptUrl = ""; data.receiptKey = ""; }
 
             if (onSubmit) {
                 await onSubmit(data);
@@ -150,63 +153,111 @@ export function ExpenseFormSheet({ open, onClose, expense, onSubmit }: ExpenseFo
         }
     };
 
-    const isValid = form.description.trim() && form.amount > 0 &&
-        (!isOtherCategory || form.customCategory.trim());
+    const isValid = !!form.category && !!form.description.trim() && amount > 0 && (!isOtherCategory || !!form.customCategory.trim());
 
-    return (
-        <LResponsiveDialog
-            open={open}
-            onClose={onClose}
-            title={isEdit ? t('finance.editExpense') : t('finance.addExpense')}
-            size="md"
-        >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {/* Category */}
-                <div>
-                    <label style={lbl}>{t('finance.category', 'Category')}</label>
-                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory | "other" })} style={fld}>
+    const lblS: CSSProperties = { display: "block", fontSize: 13.5, fontWeight: 500, marginBottom: 8 };
+    const fldS: CSSProperties = { width: "100%", font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 11, padding: "12px 14px", outline: "none" };
+
+    const body = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+            <div>
+                <label style={lblS}>{t("expense.amountLabel", "Amount")}</label>
+                <div style={{ display: "flex", alignItems: "stretch", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden" }}>
+                    <span style={{ width: 42, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--ds-border)", color: "var(--ds-text-2)" }}>{currencySymbol}</span>
+                    <input autoFocus={!isEdit} type="text" inputMode="decimal" value={form.amountStr} placeholder={t("expense.amountPh", "e.g., 1250")}
+                        onChange={(e) => setForm({ ...form, amountStr: e.target.value.replace(/[^0-9.]/g, "") })}
+                        style={{ flex: 1, minWidth: 0, font: "inherit", fontSize: 14.5, color: "var(--ds-text)", background: "transparent", border: 0, padding: "12px 14px", outline: "none" }} />
+                </div>
+            </div>
+
+            <div>
+                <label style={lblS}>{t("expense.categoryLabel", "Category")}</label>
+                <div style={{ position: "relative" }}>
+                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory | "other" })}
+                        style={{ ...fldS, appearance: "none", WebkitAppearance: "none", paddingRight: 40, cursor: "pointer", color: form.category ? "var(--ds-text)" : "var(--ds-text-2)" }}>
+                        <option value="">{t("expense.selectCategory", "Select category")}</option>
                         {Array.from(new Set(categoryOptions.map((o) => o.group))).map((group) => (
                             <optgroup key={group} label={group}>
                                 {categoryOptions.filter((o) => o.group === group).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </optgroup>
                         ))}
                     </select>
+                    <ChevronDown size={18} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 </div>
-
                 {isOtherCategory && (
-                    <div>
-                        <label style={lbl}>{t('expense.customCategoryName', 'Custom category name')}</label>
-                        <input value={form.customCategory} onChange={(e) => setForm({ ...form, customCategory: e.target.value })} placeholder={t('expense.customCategoryPlaceholder', 'e.g. Cleaning supplies')} style={fld} />
+                    <input value={form.customCategory} onChange={(e) => setForm({ ...form, customCategory: e.target.value })} placeholder={t("expense.customCategoryPlaceholder", "e.g. Cleaning supplies")} style={{ ...fldS, marginTop: 8 }} />
+                )}
+            </div>
+
+            <div>
+                <label style={lblS}>{t("expense.dateLabel", "Date")}</label>
+                <label style={{ position: "relative", display: "flex", alignItems: "stretch", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden", cursor: "pointer" }}>
+                    <span style={{ width: 42, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid var(--ds-border)", color: "var(--ds-text-2)" }}><CalendarDays size={18} /></span>
+                    <span style={{ flex: 1, padding: "12px 14px", fontSize: 14.5 }}>{form.date ? format(new Date(Number(form.date.slice(0, 4)), Number(form.date.slice(5, 7)) - 1, Number(form.date.slice(8, 10))), "d MMM yyyy") : "—"}</span>
+                    <input type="date" value={form.date} max={today} onChange={(e) => e.target.value && setForm({ ...form, date: e.target.value })} aria-label={t("expense.dateLabel", "Date")}
+                        onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* unsupported */ } }}
+                        style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%" }} />
+                </label>
+            </div>
+
+            <div>
+                <label style={lblS}>{t("expense.descriptionLabel", "Description")}</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder={t("expense.descriptionPh", "e.g., Detergent purchase")}
+                    style={{ ...fldS, resize: "vertical" }} />
+                <input value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder={t("expense.vendorPh", "Vendor (optional)")} style={{ ...fldS, marginTop: 8, fontSize: 14 }} />
+            </div>
+
+            <div>
+                <label style={lblS}>{t("expense.paidByLabel", "Paid by")}</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", border: "1px solid var(--ds-border)", borderRadius: 11, overflow: "hidden" }}>
+                    {([["cash", t("expense.cash", "Cash")], ["upi", "UPI"], ["bank", t("expense.bank", "Bank")]] as const).map(([m, label], i) => {
+                        const on = form.paymentMode === m;
+                        return (
+                            <button key={m} type="button" onClick={() => setForm({ ...form, paymentMode: m })}
+                                style={{ cursor: "pointer", font: "inherit", fontSize: 15, fontWeight: 500, padding: "11px 6px", border: 0, borderLeft: i ? "1px solid var(--ds-border)" : 0, background: "var(--ds-card)", color: on ? "var(--ds-blue)" : "var(--ds-text)", boxShadow: on ? "inset 0 0 0 2px var(--ds-blue)" : undefined, borderRadius: on ? 11 : 0 }}>{label}</button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div>
+                <label style={lblS}>{t("expense.receiptLabel", "Receipt (optional)")}</label>
+                {shopId && (
+                    <div style={{ border: "1px dashed var(--ds-border)", borderRadius: 12, padding: 14 }}>
+                        <LSmartImageUploader ref={receiptRef} folder="receipts" shopId={shopId} value={receipt} onChange={setReceipt} maxFiles={1} showStats={false} deferUpload
+                            label={t("expense.dropReceipt", "Drag & drop an image here or click to upload")} hint={t("expense.receiptHint", "JPG, PNG up to 2MB")} />
                     </div>
                 )}
+            </div>
+        </div>
+    );
 
-                <div>
-                    <label style={lbl}>{t('finance.description', 'Description')}</label>
-                    <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('finance.descriptionPlaceholder', 'What was this expense for?')} style={fld} />
+    const saveBtn = (
+        <button type="button" onClick={handleSubmit} disabled={!isValid || loading}
+            style={{ width: "100%", cursor: (!isValid || loading) ? "not-allowed" : "pointer", font: "inherit", fontSize: 16, fontWeight: 600, color: "#fff", background: "var(--ds-blue)", border: 0, borderRadius: 12, padding: "16px 14px", opacity: (!isValid || loading) ? 0.55 : 1 }}>
+            {loading ? t("common.loading", "Saving…") : t("expense.saveExpense", "Save expense")}
+        </button>
+    );
+
+    if (asPanel) {
+        if (!open) return null;
+        return (
+            <aside className="lb-ds" style={{ width: 300, flex: "none", display: "flex", flexDirection: "column", minHeight: 0, background: "var(--ds-card)", borderLeft: "1px solid var(--ds-border)" }}>
+                <div style={{ display: "flex", alignItems: "center", padding: "24px 20px 16px" }}>
+                    <span style={{ fontSize: 20, fontWeight: 600 }}>{isEdit ? t("expense.editTitle", "Edit expense") : t("expense.addTitle", "Add expense")}</span>
+                    <button onClick={onClose} aria-label={t("common.close", "Close")} style={{ marginLeft: "auto", cursor: "pointer", border: 0, background: "transparent", color: "var(--ds-text-2)", display: "inline-flex" }}><X size={22} /></button>
                 </div>
+                <div className="lb-scroll" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "4px 20px 16px" }}>{body}</div>
+                <div style={{ padding: "12px 20px 20px" }}>{saveBtn}</div>
+            </aside>
+        );
+    }
 
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-                    <div>
-                        <label style={lbl}>{t('finance.amount', 'Amount')}</label>
-                        <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--c-border-strong)", borderRadius: 9, background: "var(--c-surface)" }}>
-                            <span style={{ fontFamily: MONO, fontSize: 13, color: "var(--c-text-3)", paddingLeft: 11 }}>{currencySymbol}</span>
-                            <input type="text" inputMode="decimal" value={form.amount || ""} placeholder="0" onChange={(e) => { const n = parseFloat(e.target.value); setForm({ ...form, amount: isNaN(n) || n < 0 ? 0 : n }); }} style={{ ...fld, border: 0, fontFamily: MONO, fontWeight: 700, paddingLeft: 8, background: "transparent" }} />
-                        </div>
-                    </div>
-                    <div>
-                        <label style={lbl}>{t('finance.date', 'Date')}</label>
-                        <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={fld} />
-                    </div>
-                </div>
-
-                <div>
-                    <label style={lbl}>{t('finance.vendor', 'Vendor')} <span style={{ color: "var(--c-text-3)", fontWeight: 400 }}>· {t('common.optional', 'optional')}</span></label>
-                    <input value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder={t('finance.vendorPlaceholder', 'Who was paid?')} style={fld} />
-                </div>
-
-                <button type="button" onClick={handleSubmit} disabled={!isValid || loading} style={{ width: "100%", marginTop: 4, cursor: (!isValid || loading) ? "not-allowed" : "pointer", font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14, boxShadow: "var(--sh-sm)", opacity: (!isValid || loading) ? 0.55 : 1 }}>
-                    {loading ? t('common.loading', 'Saving…') : isEdit ? t('common.saveChanges', 'Save Changes') : t('finance.addExpense', 'Add Expense')}
-                </button>
+    return (
+        <LResponsiveDialog open={open} onClose={onClose} title={isEdit ? t("expense.editTitle", "Edit expense") : t("expense.addTitle", "Add expense")} size="md">
+            <div className="lb-ds" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                {body}
+                {saveBtn}
             </div>
         </LResponsiveDialog>
     );

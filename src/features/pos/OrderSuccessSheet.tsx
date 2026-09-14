@@ -8,8 +8,9 @@
  * - Track order link
  */
 
-import { useState } from "react";
-import { LResponsiveDialog } from "@/components/laundry";
+import { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { TagGeneratorModal } from "@/features/plant-app/components/TagGeneratorModal";
 import { useOrder } from "@/hooks/use-orders";
 import { useShop } from "@/hooks/use-shop";
 import { getReceiptBlob, getReceiptFileName, getThermalReceiptBlob } from "@/lib/generateReceipt";
@@ -18,22 +19,10 @@ import { useReceiptPrint } from "@/context/ReceiptPrintContext";
 import { shareReceiptViaWhatsApp, shareReceiptPdfViaWhatsApp } from "@/lib/whatsappShare";
 import { useCurrency } from "@/hooks/use-currency";
 import { mapLegacyDeliveryType } from "@/types/order";
-import type { DeliveryType } from "@/types/order";
-import {
-    Check,
-    MessageCircle,
-    ExternalLink,
-    Store,
-    Truck,
-    Home,
-    Printer,
-    ArrowRight,
-    Plus,
-} from "lucide-react";
+import { Check, MessageCircle, ExternalLink, Printer, PlusCircle, FileText, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 
-const MONO = "'IBM Plex Mono'";
 
 interface OrderSuccessSheetProps {
     open: boolean;
@@ -43,12 +32,6 @@ interface OrderSuccessSheetProps {
 }
 
 
-
-const DELIVERY_TYPE_ICONS: Record<DeliveryType, typeof Store> = {
-    pickup_store: Store,
-    delivery_home: Truck,
-    pickup_home: Home,
-};
 
 export function OrderSuccessSheet({
     open,
@@ -158,74 +141,131 @@ export function OrderSuccessSheet({
         window.open(trackingUrl, "_blank");
     };
 
-    if (loading || !order) {
+    const [copied, setCopied] = useState(false);
+    const [tagOpen, setTagOpen] = useState(false);
+    const handleCopyTracking = async () => {
+        try {
+            await navigator.clipboard.writeText(trackingUrl);
+        } catch {
+            // Clipboard API blocked (insecure context) — fall back to a hidden field.
+            const ta = document.createElement("textarea");
+            ta.value = trackingUrl; document.body.appendChild(ta); ta.select();
+            try { document.execCommand("copy"); } catch { /* ignore */ }
+            ta.remove();
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    // Esc closes (same as starting a new order).
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !tagOpen) onClose(); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, onClose, tagOpen]);
+
+    if (!open || loading || !order) {
         return null;
     }
 
-    const deliveryType = mapLegacyDeliveryType(order.deliveryType);
-    const DeliveryIcon = DELIVERY_TYPE_ICONS[deliveryType];
-    const deliveryLabel = deliveryType === "pickup_store" ? t("orders.shopPickup", "Shop Pickup")
-        : deliveryType === "delivery_home" ? t("orders.homeDelivery", "Home Delivery")
-        : t("orders.pickupFromHome", "Pickup from Home");
-    const anyExpress = order.items?.some((i) => i.express);
     const itemCount = order.items?.length || 0;
-    const paid = order.financials.balance <= 0;
+    const paidAmt = order.financials.amountPaid || 0;
+    const balance = Math.max(0, order.financials.balance ?? (order.financials.total - paidAmt));
+    const method = paidAmt > 0 ? String(order.payments?.[0]?.method || order.paymentMethod || "cash") : "";
+    const methodLabel = method === "upi" ? "UPI" : method ? method.charAt(0).toUpperCase() + method.slice(1) : "";
+    const deliveryType = mapLegacyDeliveryType(order.deliveryType);
+    const firstItem = order.items?.[0];
+    const firstItemLabel = firstItem
+        ? `${firstItem.serviceName}${firstItem.unit && /kg/i.test(firstItem.unit) ? ` ${firstItem.quantity} kg` : firstItem.quantity > 1 ? ` × ${firstItem.quantity}` : ""}`
+        : "";
+    const trackingOn = shop?.settings?.trackingEnabled !== false;
 
-    const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 13.5 };
-    const rowLbl: React.CSSProperties = { color: "var(--c-text-3)" };
-    const ghostBtn: React.CSSProperties = { flex: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "inherit", fontSize: 13.5, fontWeight: 600, color: "var(--c-text-2)", background: "var(--c-surface)", border: "1px solid var(--c-border-strong)", borderRadius: 10, padding: 11 };
+    const outBtn: React.CSSProperties = { cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, font: "inherit", fontSize: 14.5, fontWeight: 500, color: "var(--ds-text)", background: "var(--ds-card)", border: "1px solid var(--ds-border)", borderRadius: 11, padding: "14px 12px", whiteSpace: "nowrap" };
+    const statCol: React.CSSProperties = { flex: 1, textAlign: "center", padding: "4px 8px" };
+    const statLbl: React.CSSProperties = { fontSize: 14.5, color: "var(--ds-text)" };
+    const DOTS = [[-78, -30], [-62, 6], [-44, -52], [60, -46], [78, -18], [66, 22], [-70, 40], [48, 44]];
 
     return (
-        <LResponsiveDialog
-            open={open}
-            onClose={onClose}
-            title=""
-            size="sm"
-            snapPoints={[0.9]}
-        >
-            <div style={{ width: "100%", maxWidth: 440, margin: "0 auto" }}>
-                {/* header */}
-                <div style={{ padding: "28px 8px 24px", textAlign: "center", borderBottom: "1px solid var(--c-border)" }}>
-                    <span style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--c-success-soft)", color: "var(--c-success)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Check size={38} strokeWidth={2.6} /></span>
-                    <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-.01em", marginTop: 16 }}>{t("checkout.orderPlaced", "Order placed")}</div>
-                    <div style={{ fontSize: 13.5, color: "var(--c-text-3)", marginTop: 5 }}>{t("checkout.orderConfirmation", "The order has been created and queued for processing.")}</div>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 16, padding: "8px 14px", background: "var(--c-surface-2)", borderRadius: 10 }}>
-                        <span style={{ fontSize: 12, color: "var(--c-text-3)" }}>{t("orders.orderId", "Order")}</span>
-                        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15 }}>#{order.publicId}</span>
+        <div className="lb-ds" role="dialog" aria-modal="true" aria-label={t("checkout.orderPlaced", "Order placed")}
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(17,24,39,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
+            <div style={{ width: "100%", maxWidth: 570, background: "var(--ds-card)", borderRadius: 18, boxShadow: "0 24px 64px rgba(16,24,40,.24)", padding: "36px 26px 30px", margin: "auto" }}>
+                {/* check + dots */}
+                <div style={{ position: "relative", width: 84, height: 84, margin: "0 auto" }}>
+                    {DOTS.map(([x, y], i) => (
+                        <span key={i} style={{ position: "absolute", left: 42 + x - 2.5, top: 42 + y - 2.5, width: 5, height: 5, borderRadius: "50%", background: "var(--ds-tile-green)", opacity: 0.55 }} />
+                    ))}
+                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#22C55E", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={44} strokeWidth={3} /></span>
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: 20 }}>
+                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-.02em" }}>{t("checkout.orderPlaced", "Order placed")}</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 44, fontWeight: 700, letterSpacing: ".01em", marginTop: 6, lineHeight: 1.15 }}>{order.publicId}</div>
+                    <div style={{ fontSize: 15.5, color: "var(--ds-text-2)", marginTop: 10, display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "4px 12px" }}>
+                        <span>{order.customerName}</span><span>·</span>
+                        <span>{itemCount} {itemCount === 1 ? t("checkout.itemSingular", "item") : t("checkout.itemsPlural", "items")}</span>
+                        {order.expectedDelivery && <><span>·</span><span>{deliveryType === "pickup_store" ? t("checkout.expectedReadyLbl", "Expected ready") : t("checkout.expectedBy", "Expected by")} {format(order.expectedDelivery.toDate(), "EEE d MMM")}</span></>}
                     </div>
                 </div>
 
-                {/* detail rows */}
-                <div style={{ padding: "20px 4px", display: "flex", flexDirection: "column", gap: 11 }}>
-                    <div style={row}><span style={rowLbl}>{t("customer.details", "Customer")}</span><span style={{ fontWeight: 600 }}>{order.customerName}</span></div>
-                    <div style={row}><span style={rowLbl}>{t("orders.items", "Items")}</span><span style={{ fontWeight: 600, fontFamily: MONO }}>{itemCount}</span></div>
-                    <div style={row}><span style={rowLbl}>{t("orders.orderType", "Fulfilment")}</span><span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><DeliveryIcon size={15} style={{ color: "var(--c-primary)" }} />{deliveryLabel}</span></div>
-                    {anyExpress && <div style={row}><span style={rowLbl}>{t("checkout.priority", "Priority")}</span><span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--c-warning)" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--c-warning)" }} />{t("pos.express", "Express")}</span></div>}
-                    <div style={row}><span style={rowLbl}>{t("checkout.payment", "Payment")}</span><span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, color: paid ? "var(--c-success)" : "var(--c-error)" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: paid ? "var(--c-success)" : "var(--c-error)" }} />{paid ? t("checkout.paidInFull", "Paid in full") : `${t("orders.balanceDue", "Balance")}: ${currencySymbol}${order.financials.balance}`}</span></div>
-                    {order.expectedDelivery && (
-                        <div style={row}><span style={rowLbl}>{deliveryType === "pickup_store" ? t("orders.readyBy", "Ready by") : t("orders.expectedBy", "Expected by")}</span><span style={{ fontWeight: 600 }}>{format(order.expectedDelivery.toDate(), "EEE, dd MMM")}</span></div>
+                {/* totals strip */}
+                <div style={{ display: "flex", alignItems: "stretch", marginTop: 26, border: "1px solid var(--ds-border)", borderRadius: 12, padding: "16px 6px" }}>
+                    <div style={statCol}>
+                        <div style={statLbl}>{t("pos.total", "Total")}</div>
+                        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 8 }}>{formatAmount(order.financials.total)}</div>
+                    </div>
+                    <div style={{ ...statCol, borderLeft: "1px solid var(--ds-divider)", borderRight: "1px solid var(--ds-divider)" }}>
+                        <div style={statLbl}>{t("orders.paid", "Paid")}</div>
+                        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 8, color: paidAmt > 0 ? "var(--ds-tile-green)" : "var(--ds-text-2)" }}>
+                            {formatAmount(paidAmt)}{methodLabel && <span style={{ fontSize: 16, fontWeight: 500, color: "var(--ds-text)" }}> · {methodLabel}</span>}
+                        </div>
+                    </div>
+                    <div style={statCol}>
+                        <div style={statLbl}>{t("checkout.balance", "Balance")}</div>
+                        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 8, color: balance > 0 ? "var(--ds-negative)" : "var(--ds-tile-green)" }}>{formatAmount(balance)}</div>
+                    </div>
+                </div>
+
+                {/* tag */}
+                <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 16, border: "1px solid var(--ds-border)", borderRadius: 12, padding: "14px 14px" }}>
+                    <span style={{ flex: "none", display: "flex" }}><QRCodeSVG value={order.id} size={60} /></span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, display: "flex", flexWrap: "wrap", gap: "2px 10px", alignItems: "center" }}>
+                        <b style={{ fontWeight: 600 }}>{order.publicId}</b><span>·</span>
+                        <span style={{ fontWeight: 500 }}>{order.customerName}</span>
+                        {firstItemLabel && <><span>·</span><span style={{ color: "var(--ds-text-2)" }}>{firstItemLabel}{itemCount > 1 ? ` +${itemCount - 1}` : ""}</span></>}
+                    </span>
+                    <button onClick={() => setTagOpen(true)} style={{ flex: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 14, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-blue)", borderRadius: 10, padding: "10px 14px" }}>
+                        <Printer size={17} />{t("orders.printTags", "Print tag")}
+                    </button>
+                </div>
+
+                {/* print + share */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 22 }}>
+                    <button onClick={() => handlePrintReceipt("a4")} style={outBtn}><Printer size={18} />{t("checkout.printReceiptA4", "Print receipt A4")}</button>
+                    <button onClick={() => handlePrintReceipt("thermal")} title={t("orders.printThermalHint", "POS thermal printer receipt (80mm roll)")} style={outBtn}><Printer size={18} />{t("checkout.print80", "Print 80 mm")}</button>
+                    <button onClick={handleWhatsAppShare} disabled={sharing} style={{ ...outBtn, color: "var(--ds-whatsapp)", opacity: sharing ? 0.6 : 1 }}><MessageCircle size={18} />{t("checkout.whatsappBill", "WhatsApp bill")}</button>
+                    {trackingOn && (
+                        <button onClick={handleCopyTracking} style={outBtn}><Link2 size={18} />{copied ? t("checkout.linkCopied", "Link copied") : t("checkout.copyTracking", "Copy tracking link")}</button>
                     )}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid var(--c-border)" }}><span style={{ fontWeight: 700 }}>{t("pos.total", "Total")}</span><span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 19 }}>{formatAmount(order.financials.total)}</span></div>
+                    <button onClick={handleWhatsAppPdfShare} disabled={sharingPdf} title={t("checkout.shareWhatsAppPdfHint", "Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach")}
+                        style={{ ...outBtn, opacity: sharingPdf ? 0.6 : 1 }}><FileText size={18} />{t("checkout.pdfBill", "PDF bill")}</button>
+                    {trackingOn && (
+                        <button onClick={handleOpenTracking} style={outBtn}><ExternalLink size={18} />{t("checkout.openTracking", "Open tracking")}</button>
+                    )}
                 </div>
 
-                {/* actions */}
-                <div style={{ padding: "6px 4px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
-                    <button onClick={onClose} style={{ width: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, font: "inherit", fontSize: 15, fontWeight: 700, color: "#fff", background: "var(--c-primary)", border: 0, borderRadius: 11, padding: 14 }}><Plus size={17} />{t("pos.newOrder", "New order")}</button>
-                    <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={() => handlePrintReceipt("a4")} style={ghostBtn}><Printer size={16} />{t("orders.printA4", "Print A4")}</button>
-                        <button onClick={() => handlePrintReceipt("thermal")} title={t("orders.printThermalHint", "POS thermal printer receipt (80mm roll)")} style={ghostBtn}><Printer size={16} />{t("orders.printThermal", "80mm")}</button>
-                        <button onClick={onViewOrder} style={ghostBtn}>{t("checkout.viewOrderDetails", "View order")}<ArrowRight size={16} /></button>
-                    </div>
-                    <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={handleWhatsAppShare} disabled={sharing} style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)", opacity: sharing ? 0.6 : 1 }}><MessageCircle size={16} />{t("checkout.shareWhatsApp", "WhatsApp")}</button>
-                        <button onClick={handleWhatsAppPdfShare} disabled={sharingPdf} title={t("checkout.shareWhatsAppPdfHint", "Send the PDF bill on WhatsApp — on desktop it downloads and opens the chat to attach")}
-                            style={{ ...ghostBtn, color: "var(--c-success)", borderColor: "var(--c-success-soft)", background: "var(--c-success-soft)", opacity: sharingPdf ? 0.6 : 1 }}><MessageCircle size={16} />{t("checkout.shareWhatsAppPdf", "PDF bill")}</button>
-                        {shop?.settings?.trackingEnabled !== false && (
-                            <button onClick={handleOpenTracking} style={ghostBtn}><ExternalLink size={16} />{t("checkout.track", "Track")}</button>
-                        )}
-                    </div>
+                {/* primary actions */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 30 }}>
+                    <button onClick={onClose} style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, font: "inherit", fontSize: 17, fontWeight: 600, color: "#fff", background: "var(--ds-blue)", border: "1px solid var(--ds-blue)", borderRadius: 12, padding: "17px 14px" }}>
+                        <PlusCircle size={22} />{t("pos.newOrder", "New order")}
+                    </button>
+                    <button onClick={onViewOrder} style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, font: "inherit", fontSize: 17, fontWeight: 600, color: "var(--ds-blue)", background: "var(--ds-card)", border: "1px solid var(--ds-blue)", borderRadius: 12, padding: "17px 14px" }}>
+                        <FileText size={21} />{t("checkout.viewOrder", "View order")}
+                    </button>
                 </div>
             </div>
-        </LResponsiveDialog>
+            {tagOpen && <TagGeneratorModal open={tagOpen} onClose={() => setTagOpen(false)} order={order} />}
+        </div>
     );
 }

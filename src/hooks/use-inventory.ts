@@ -200,6 +200,9 @@ export function useInventoryMutations() {
         if (data.imageBytes) {
             itemData.imageBytes = data.imageBytes;
         }
+        if (data.localizedNames && Object.values(data.localizedNames).some(Boolean)) {
+            itemData.localizedNames = data.localizedNames;
+        }
 
         const docRef = await addDoc(itemsRef, itemData);
         return { id: docRef.id, ...itemData };
@@ -225,6 +228,7 @@ export function useInventoryMutations() {
         if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
         if (data.imageKey !== undefined) updateData.imageKey = data.imageKey;
         if (data.imageBytes !== undefined) updateData.imageBytes = data.imageBytes;
+        if (data.localizedNames !== undefined) updateData.localizedNames = data.localizedNames;
 
         // Normalize names if provided
         if (data.name) {
@@ -256,7 +260,18 @@ export function useInventoryMutations() {
         await batch.commit();
     };
 
+    // Reorder categories (drag & drop in the Services sidebar)
+    const reorderCategories = async (cats: { id: string; order: number }[]) => {
+        if (!shopId) return;
+        const batch = writeBatch(db);
+        cats.forEach(({ id, order }) => {
+            batch.update(doc(db, `shops/${shopId}/categories/${id}`), { order, updatedAt: serverTimestamp() });
+        });
+        await batch.commit();
+    };
+
     return {
+        reorderCategories,
         createCategory,
         updateCategory,
         deleteCategory,

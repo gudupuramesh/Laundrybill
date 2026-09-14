@@ -44,7 +44,10 @@ export interface Expense {
     month: string; // YYYY-MM
 
     receiptUrl?: string;
+    receiptKey?: string;
     vendor?: string;
+    /** How it was paid (added with the reference Expenses page; older entries have none). */
+    paymentMode?: "cash" | "upi" | "bank";
     customCategoryName?: string; // For "other" category
 
     isRecurring: boolean;
